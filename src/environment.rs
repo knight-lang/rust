@@ -43,16 +43,16 @@ type RunCommand = dyn FnMut(&str) -> Result<RcString, RuntimeError>;
 /// let var = env.get("foobar");
 /// assert_eq!(var, env.get("foobar")); // both variables are the same.
 /// ```
-pub struct Environment<'i, 'o, 'c> {
+pub struct Environment<'i, 'o> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap` wouldn't allow for. (or would
 	// have redundant allocations.)
 	vars: HashSet<Variable>,
 	stdin: &'i mut dyn Read,
 	stdout: &'o mut dyn Write,
-	run_command: &'c mut RunCommand
+	run_command: Box<RunCommand>
 }
 
-impl Debug for Environment<'_, '_, '_> {
+impl Debug for Environment<'_, '_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Environment")
 			.field("nvars", &self.vars.len())
@@ -60,13 +60,13 @@ impl Debug for Environment<'_, '_, '_> {
 	}
 }
 
-impl Default for Environment<'_, '_, '_> {
+impl Default for Environment<'_, '_> {
 	fn default() -> Self {
 		Self::new()
 	}
 }
 
-impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
+impl<'i, 'o> Environment<'i, 'o> {
 	/// Creates an empty [`Environment`].
 	///
 	/// # Examples
@@ -93,7 +93,7 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	/// // ... do stuff with `env`.
 	/// ```
 	#[must_use = "simply creating a builder does nothing."]
-	pub fn builder() -> Builder<'i, 'o, 'c> {
+	pub fn builder() -> Builder<'i, 'o> {
 		Builder::default()
 	}
 
@@ -139,7 +139,7 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	}
 }
 
-impl Read for Environment<'_, '_, '_> {
+impl Read for Environment<'_, '_> {
 	/// Read bytes into `data` from `self`'s `stdin`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
@@ -149,7 +149,7 @@ impl Read for Environment<'_, '_, '_> {
 	}
 }
 
-impl Write for Environment<'_, '_, '_> {
+impl Write for Environment<'_, '_> {
 	/// Writes `data`'s bytes into `self`'s `stdout`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].

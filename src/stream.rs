@@ -142,7 +142,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		number
 	}
 
-	pub fn try_variable(&mut self, env: &mut Environment<'_, '_, '_>) -> Option<Variable> {
+	pub fn try_variable(&mut self, env: &mut Environment<'_, '_>) -> Option<Variable> {
 		if matches!(self.peek(), Some('a'..='z') | Some('_')) {
 			Some(unsafe { self.variable_unchecked(env) })
 		} else {
@@ -150,7 +150,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub unsafe fn variable_unchecked(&mut self, env: &mut Environment<'_, '_, '_>) -> Variable {
+	pub unsafe fn variable_unchecked(&mut self, env: &mut Environment<'_, '_>) -> Variable {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some('a'..='z') | Some('_') => {},
@@ -245,7 +245,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn function(&mut self, func: Function, env: &mut Environment<'_, '_, '_>) -> Result<Value, ParseError> {
+	pub fn function(&mut self, func: Function, env: &mut Environment<'_, '_>) -> Result<Value, ParseError> {
 		let mut args = Vec::with_capacity(func.arity());
 		let line = self.line;
 
@@ -274,7 +274,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn parse(&mut self, env: &mut Environment<'_, '_, '_>) -> Result<Value, ParseError> {
+	pub fn parse(&mut self, env: &mut Environment<'_, '_>) -> Result<Value, ParseError> {
 		match self.peek().ok_or(ParseError::NothingToParse)? {
 			// note that this is ascii whitespace, as non-ascii characters are invalid.
 			' ' | '\n' | '\r' | '\t' | '(' | ')' | '[' | ']' | '{' | '}' | ':' => {
@@ -320,7 +320,7 @@ impl Value {
 	///
 	/// # Errors
 	/// This function returns any errors that [`parse`] returns.
-	pub fn parse_str<S: AsRef<str>>(input: S, env: &mut Environment<'_, '_, '_>) -> Result<Self, ParseError> {
+	pub fn parse_str<S: AsRef<str>>(input: S, env: &mut Environment<'_, '_>) -> Result<Self, ParseError> {
 		Self::parse(input.as_ref().chars(), env)
 	}
 
@@ -336,7 +336,7 @@ impl Value {
 	///
 	/// # See Also
 	/// Section 1. within the Knight specs for parsing.
-	pub fn parse<S: IntoIterator<Item=char>>(input: S, env: &mut Environment<'_, '_, '_>) -> Result<Self, ParseError> {
+	pub fn parse<S: IntoIterator<Item=char>>(input: S, env: &mut Environment<'_, '_>) -> Result<Self, ParseError> {
 		Stream::new(input.into_iter()).parse(env)
 	}
 }

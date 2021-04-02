@@ -148,7 +148,7 @@ impl TryFrom<&Value> for Number {
 }
 
 impl Value {
-	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self, RuntimeError> {
+	pub fn run(&self, env: &mut Environment<'_, '_>) -> Result<Self, RuntimeError> {
 		match self {
 			Self::Null => Ok(Self::Null),
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),

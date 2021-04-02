@@ -6,12 +6,37 @@ use std::fmt::{self, Display, Formatter};
 use std::convert::TryFrom;
 
 /// A Builder for the [`Environment`] struct.
+///
+/// # Examples
+/// ```rust
+/// use std::io::{Read, Write, Cursor};
+/// use knightrs::Environment;
+///
+/// let mut stdin = Cursor::new("hello, world!");
+/// let mut stdout = Vec::new();
+///
+/// let mut env =
+/// 	Environment::builder()
+/// 		.capacity(100)
+/// 		.stdin(&mut stdin)
+/// 		.stdout(&mut stdout)
+/// 		.disable_system()
+/// 		.build();
+///
+/// let mut out = String::new();
+/// env.read_to_string(&mut out).expect("reading from `Cursor`s cannot fail");
+/// assert_eq!(out, "hello, world!");
+///
+/// write!(env, "knights go on quests").expect("writing to `Vec`s cannot fail.");
+/// drop(env); // so it no longer has a mutable reference to stdout.
+/// assert_eq!(stdout, b"knights go on quests");
+/// ```
 #[derive(Default)]
-pub struct Builder<'i, 'o, 'c> {
+pub struct Builder<'i, 'o> {
 	capacity: Option<usize>,
 	stdin: Option<&'i mut dyn Read>,
 	stdout: Option<&'o mut dyn Write>,
-	run_command: Option<&'c mut RunCommand>,
+	run_command: Option<Box<RunCommand>>,
 }
 
 // We have a lot of private ZST structs here and `static mut`s. This is because we need to have a mutable reference to,
@@ -66,11 +91,21 @@ fn run_command_system(cmd: &str) -> Result<RcString, RuntimeError> {
 	RcString::try_from(output).map_err(From::from)
 }
 
-static mut RUNCOMMAND_ERR: fn(&str) -> Result<RcString, RuntimeError> = run_command_err;
-static mut RUNCOMMAND_SYSTEM: fn(&str) -> Result<RcString, RuntimeError> = run_command_system;
-
-impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
+impl<'i, 'o> Builder<'i, 'o> {
 	/// Creates a new, default [`Builder`].
+	///
+	/// Note that this is aliased via [`Environment::builder()`], which doesn't require importing this type.
+	///
+	/// # Examples
+	/// ```rust
+	/// let env =
+	/// 	knightrs::environment::Builder::new()
+	/// 		.capacity(100)
+	/// 		.disable_system()
+	/// 		.build();
+	/// // use env
+	/// # let _ = env;
+	/// ```
 	#[must_use = "creating a builder does nothing by itself."]
 	pub fn new() -> Self {
 		Self::default()
@@ -79,6 +114,19 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Sets the initial starting capacity for the set of [`Variable`](crate::Variable)s.
 	///
 	/// If not set, an (unspecified) default capacity is used.
+	///
+	/// # Examples
+	/// ```rust
+	/// use knightrs::Environment;
+	///
+	/// let env =
+	/// 	Environment::builder()
+	/// 		.capacity(256)
+	/// 		.build();
+	///
+	/// // do stuff with env...
+	/// # let _ = env;
+	/// ```
 	#[must_use = "assigning a capacity does nothing without calling 'build'."]
 	pub fn capacity(mut self, capacity: usize) -> Self {
 		self.capacity = Some(capacity);
@@ -88,6 +136,26 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Sets the stdin for the [`Environment`].
 	///
 	/// This defaults to the [stdin](io::stdin) of the process.
+	///
+	/// # Examples
+	/// ```rust
+	/// use knightrs::Environment;
+	/// use std::io::{Read, Cursor};
+	///
+	/// let mut stdin = Cursor::new("Line1\nline2\nwhatever");
+	/// let mut env =
+	/// 	Environment::builder()
+	/// 		.stdin(&mut stdin)
+	/// 		.build();
+	///
+	/// // do stuff with env..
+	/// let mut out = String::new();
+	///
+	/// env.read_to_string(&mut out)
+	/// 	.expect("Reading from `Cursor`s cannot fail");
+	///
+	/// assert_eq!(out, "Line1\nline2\nwhatever");
+	/// ```
 	#[must_use = "assigning to stdin does nothing without calling 'build'."]
 	pub fn stdin(mut self, stdin: &'i mut dyn Read) -> Self {
 		self.stdin = Some(stdin);
@@ -97,6 +165,26 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Sets the stdout for the [`Environment`].
 	///
 	/// This defaults to the [stdout](io::stdout) of the process.
+	///
+	/// # Examples
+	/// ```rust
+	/// use knightrs::Environment;
+	/// use std::io::Write;
+	///
+	/// let mut stdout = Vec::new();
+	/// let mut env =
+	/// 	Environment::builder()
+	/// 		.stdout(&mut stdout)
+	/// 		.build();
+	///
+	/// // do stuff with env..
+	/// write!(env, "something, something else.")
+	/// 	.expect("writing to `Vec`s cannot fail.");
+	///
+	/// drop(env); // As it has a mutable reference to `stdout`.
+	///
+	/// assert_eq!(stdout, b"something, something else.");
+	/// ```
 	#[must_use = "assigning to stdout does nothing without calling 'build'."]
 	pub fn stdout(mut self, stdout: &'o mut dyn Write) -> Self {
 		self.stdout = Some(stdout);
@@ -106,9 +194,25 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Explicitly sets what should happen when the ["system" (`` ` ``)](crate::function::system) function is called.
 	///
 	/// The default value is to simply send the command to `sh` (ie `"sh", "-c", "command"`)
+	///
+	/// # Examples
+	/// ```rust
+	/// use knightrs::{Environment, RcString, RuntimeError};
+	/// use std::convert::TryFrom;
+	/// 
+	/// let mut env =
+	/// 	Environment::builder()
+	/// 		.run_command(|input| {
+	/// 			RcString::try_from(format!("Hello, {}", input))
+	///				.map_err(RuntimeError::from)
+	/// 		})
+	/// 		.build();
+	///
+	/// assert_eq!(env.run_command("world").unwrap().as_str(), "Hello, world");
+	/// ```
 	#[must_use = "assigning a 'run_command' does nothing without calling 'build'."]
-	pub fn run_command(mut self, run_command: &'c mut RunCommand) -> Self {
-		self.run_command = Some(run_command);
+	pub fn run_command(mut self, run_command: impl FnMut(&str) -> Result<RcString, RuntimeError> + 'static) -> Self {
+		self.run_command = Some(Box::new(run_command));
 		self
 	}
 
@@ -118,20 +222,42 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	#[must_use = "disabling the system command to does nothing without calling 'build'."]
 	pub fn disable_system(self) -> Self {
 		// SAFETY: We're getting a mutable reference to a ZST, so this is always safe.
-		self.run_command(unsafe { &mut RUNCOMMAND_ERR })
+		self.run_command(run_command_err)
 	}
 
 	/// Creates a new [`Environment`] with all the supplied options.
 	///
 	/// Any options that have not been explicitly set will have their default values used.
+	///
+	/// # Examples
+	/// ```rust,no_run
+	/// # use knightrs::Environment;
+	/// # use std::io::{Read, Write};
+	/// let mut env = Environment::new();
+	///
+	/// // Write to stdout.
+	/// writeln!(env, "Hello, world!");
+	///
+	/// // Read from stdin.
+	/// let mut str = String::new();
+	/// env.read_to_string(&mut str).expect("cant read from stdin!");
+	///
+	/// // execute command
+	/// println!("The stdout of `ls -al` is {}", env.run_command("ls -al").expect("`ls -al` failed"));
+	///
+	/// // create a variable
+	/// let var = env.get("foobar");
+	/// assert_eq!(var, env.get("foobar")); // both variables are the same.
+	/// ```
+
 	#[must_use = "Simply calling `build` does nothing on its own."]
-	pub fn build(self) -> Environment<'i, 'o, 'c> {
+	pub fn build(self) -> Environment<'i, 'o> {
 		// SAFETY: All of these `unsafe` blocks are simply mutable references to ZSTs, which is always safe.
 		Environment {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
 			stdin: self.stdin.unwrap_or(unsafe { &mut STDIN }),
 			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
-			run_command: self.run_command.unwrap_or(unsafe { &mut RUNCOMMAND_SYSTEM })
+			run_command: self.run_command.unwrap_or(Box::new(run_command_system))
 		}
 	}
 }
