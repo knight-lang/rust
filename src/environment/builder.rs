@@ -1,9 +1,11 @@
-use super::{RunCommand, Environment};
+use super::{RunCommand, Environment, Function};
 use crate::{RcString, RuntimeError};
 use std::io::{self, Write, Read};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::convert::TryFrom;
+use std::borrow::Cow;
+use crate::function::{self, FuncPtr};
 
 /// A Builder for the [`Environment`] struct.
 ///
@@ -37,6 +39,7 @@ pub struct Builder<'i, 'o> {
 	stdin: Option<&'i mut dyn Read>,
 	stdout: Option<&'o mut dyn Write>,
 	run_command: Option<Box<RunCommand>>,
+	functions: Option<Cow<'static, HashMap<char, Function>>>
 }
 
 // We have a lot of private ZST structs here and `static mut`s. This is because we need to have a mutable reference to,
@@ -225,6 +228,19 @@ impl<'i, 'o> Builder<'i, 'o> {
 		self.run_command(run_command_err)
 	}
 
+	pub fn clear_functions(mut self) -> Self {
+		self.functions = Some(Cow::Owned(HashMap::default()));
+		self
+	}
+
+	pub fn register(mut self, name: char, arity: usize, func: FuncPtr) -> Self {
+		let mut map = self.functions.get_or_insert_with(|| Cow::Owned(function::default_functions().clone()));
+
+		super::register_function(map.to_mut(), name, arity, func);
+
+		self
+	}
+
 	/// Creates a new [`Environment`] with all the supplied options.
 	///
 	/// Any options that have not been explicitly set will have their default values used.
@@ -257,7 +273,8 @@ impl<'i, 'o> Builder<'i, 'o> {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
 			stdin: self.stdin.unwrap_or(unsafe { &mut STDIN }),
 			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
-			run_command: self.run_command.unwrap_or(Box::new(run_command_system))
+			run_command: self.run_command.unwrap_or(Box::new(run_command_system)),
+			functions: self.functions.unwrap_or_else(|| Cow::Borrowed(function::default_functions()))
 		}
 	}
 }

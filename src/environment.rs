@@ -2,10 +2,11 @@
 //!
 //! See [`Environment`] for more details.
 
-use crate::{RuntimeError, RcString};
-use std::collections::HashSet;
+use crate::{RuntimeError, RcString, Function};
+use std::collections::{HashSet, HashMap};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Write, Read};
+use std::borrow::Cow;
 
 mod builder;
 mod variable;
@@ -49,7 +50,8 @@ pub struct Environment<'i, 'o> {
 	vars: HashSet<Variable>,
 	stdin: &'i mut dyn Read,
 	stdout: &'o mut dyn Write,
-	run_command: Box<RunCommand>
+	run_command: Box<RunCommand>,
+	functions: Cow<'static, HashMap<char, Function>>
 }
 
 impl Debug for Environment<'_, '_> {
@@ -137,6 +139,19 @@ impl<'i, 'o> Environment<'i, 'o> {
 	pub fn run_command(&mut self, cmd: &str) -> Result<RcString, RuntimeError> {
 		(self.run_command)(cmd)
 	}
+
+	#[must_use = "fetching a function does nothing by itself"]
+	pub fn get_function(&self, name: char) -> Option<Function> {
+		self.functions.get(&name).cloned()
+	}
+
+	pub fn register_function(&mut self, name: char, arity: usize, function: crate::function::FuncPtr) {
+		register_function(self.functions.to_mut(), name, arity, function);
+	}
+}
+
+fn register_function(map: &mut HashMap<char, Function>, name: char, arity: usize, function: crate::function::FuncPtr) {
+	map.insert(name, Function::_new(name, arity, function));
 }
 
 impl Read for Environment<'_, '_> {

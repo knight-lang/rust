@@ -8,7 +8,7 @@ use std::convert::{TryInto, TryFrom};
 use std::sync::Mutex;
 
 // An alias to make life easier.
-type FuncPtr = fn(&[Value], &mut Environment<'_, '_>) -> Result<Value, RuntimeError>;
+pub(crate) type FuncPtr = fn(&[Value], &mut Environment<'_, '_>) -> Result<Value, RuntimeError>;
 
 /// The type that represents functions themselves (eg `PROMPT`, `+`, `=`, etc.) within Knight.
 /// 
@@ -64,6 +64,10 @@ impl Hash for Function {
 }
 
 impl Function {
+	pub(crate) fn _new(name: char, arity: usize, func: FuncPtr) -> Self {
+		Self { name, arity, func }
+	}
+
 	/// Gets the function pointer associated with `self`.
 	#[inline]
 	#[must_use]
@@ -89,26 +93,19 @@ impl Function {
 	pub fn name(&self) -> char {
 		self.name
 	}
+}
 
-	/// Gets the function associate dwith the given `name`, returning `None` if no such function exists.
-	#[must_use = "fetching a function does nothing by itself"]
-	pub fn fetch(name: char) -> Option<Self> {
-		FUNCTIONS.lock().unwrap().get(&name).cloned()
-	}
-
-	/// Registers a new function with the given name, discarding any previous value associated with it.
-	pub fn register(name: char, arity: usize, func: FuncPtr) {
-		FUNCTIONS.lock().unwrap().insert(name, Self { name, arity, func });
-	}
+pub(crate) fn default_functions() -> &'static HashMap<char, Function> {
+	&FUNCTIONS
 }
 
 lazy_static::lazy_static! {
-	static ref FUNCTIONS: Mutex<HashMap<char, Function>> = Mutex::new({
+	static ref FUNCTIONS: HashMap<char, Function> = {
 		let mut map = HashMap::new();
 
 		macro_rules! insert {
 			($name:expr, $arity:expr, $func:expr) => {
-				map.insert($name, Function { name: $name, arity: $arity, func: $func });
+				map.insert($name, Function::_new($name, $arity, $func));
 			};
 		}
 
@@ -145,7 +142,7 @@ lazy_static::lazy_static! {
 		insert!('S', 4, substitute);
 
 		map
-	});
+	};
 }
 
 use std::io::{Write, BufRead};

@@ -302,7 +302,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			'\'' | '\"' => Ok(Value::String(unsafe { self.string_unchecked()? })),
 
 			chr => 
-				if let Some(func) = Function::fetch(chr) {
+				if let Some(func) = env.get_function(chr) {
 					self.next();
 
 					self.function(func, env)
