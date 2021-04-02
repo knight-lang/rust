@@ -4,24 +4,24 @@ use std::rc::Rc;
 use std::convert::TryFrom;
 
 #[derive(Clone)]
-pub enum Value {
+pub enum Value<I, O> {
 	Null,
 	Boolean(bool),
 	Number(Number),
 	String(RcString),
-	Variable(Variable),
-	Function(Function, Rc<[Value]>)
+	Variable(Variable<I, O>),
+	Function(Function<I, O>, Rc<[Value<I, O>]>)
 }
 
-impl Default for Value {
+impl<I, O> Default for Value<I, O> {
 	#[inline]
 	fn default() -> Self {
 		Self::Null
 	}
 }
 
-impl Eq for Value {}
-impl PartialEq for Value {
+impl<I, O> Eq for Value<I, O> {}
+impl<I, O> PartialEq for Value<I, O> {
 	fn eq(&self, rhs: &Self) -> bool {
 		match (self, rhs) {
 			(Self::Null, Self::Null) => true,
@@ -35,7 +35,7 @@ impl PartialEq for Value {
 	}
 }
 
-impl Debug for Value {
+impl<I, O> Debug for Value<I, O> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` is required by the knight spec.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -49,35 +49,35 @@ impl Debug for Value {
 	}
 }
 
-impl From<bool> for Value {
+impl<I, O> From<bool> for Value<I, O> {
 	fn from(boolean: bool) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl From<Number> for Value {
+impl<I, O> From<Number> for Value<I, O> {
 	fn from(number: Number) -> Self {
 		Self::Number(number)
 	}
 }
 
-impl From<RcString> for Value {
+impl<I, O> From<RcString> for Value<I, O> {
 	fn from(string: RcString) -> Self {
 		Self::String(string)
 	}
 }
 
-impl From<Variable> for Value {
-	fn from(variable: Variable) -> Self {
+impl<I, O> From<Variable<I, O>> for Value<I, O> {
+	fn from(variable: Variable<I, O>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
 
-impl TryFrom<&Value> for bool {
+impl<I, O> TryFrom<&Value<I, O>> for bool {
 	type Error = RuntimeError;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value<I, O>) -> Result<Self, RuntimeError> {
 		match value {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(*boolean),
@@ -88,10 +88,10 @@ impl TryFrom<&Value> for bool {
 	}
 }
 
-impl TryFrom<&Value> for RcString {
+impl<I, O> TryFrom<&Value<I, O>> for RcString {
 	type Error = RuntimeError;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value<I, O>) -> Result<Self, RuntimeError> {
 		use once_cell::sync::OnceCell;
 
 		static NULL: OnceCell<RcString> = OnceCell::new();
@@ -115,10 +115,10 @@ impl TryFrom<&Value> for RcString {
 	}
 }
 
-impl TryFrom<&Value> for Number {
+impl<I, O> TryFrom<&Value<I, O>> for Number {
 	type Error = RuntimeError;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value<I, O>) -> Result<Self, RuntimeError> {
 		match value {
 			Value::Null | Value::Boolean(false) => Ok(0),
 			Value::Boolean(true) => Ok(1),
@@ -147,8 +147,8 @@ impl TryFrom<&Value> for Number {
 	}
 }
 
-impl Value {
-	pub fn run(&self, env: &mut Environment<'_, '_>) -> Result<Self, RuntimeError> {
+impl<I, O> Value<I, O> {
+	pub fn run(&self, env: &mut Environment<I, O>) -> Result<Self, RuntimeError> {
 		match self {
 			Self::Null => Ok(Self::Null),
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),

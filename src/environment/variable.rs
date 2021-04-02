@@ -12,28 +12,28 @@ use std::cell::RefCell;
 /// All variables with the same from the same [`Environment`](crate::Environment) are identical. Updating any one of
 /// them (via [`Variable::assign`]) will update them all.
 #[derive(Clone)]
-pub struct Variable(Rc<Inner>);
+pub struct Variable<I, O>(Rc<Inner<I, O>>);
 
-struct Inner {
+struct Inner<I, O> {
 	name: Box<str>,
-	value: RefCell<Option<Value>>
+	value: RefCell<Option<Value<I, O>>>
 }
 
 
-impl std::borrow::Borrow<str> for Variable {
+impl<I, O> std::borrow::Borrow<str> for Variable<I, O> {
 	fn borrow(&self) -> &str {
 		self.name()
 	}
 }
 
-impl Hash for Variable {
+impl<I, O> Hash for Variable<I, O> {
 	fn hash<H: Hasher>(&self, h: &mut H) {
 		self.name().hash(h);
 	}
 }
 
-impl Eq for Variable {}
-impl PartialEq for Variable {
+impl<I, O> Eq for Variable<I, O> {}
+impl<I, O> PartialEq for Variable<I, O> {
 	/// Checks to see if two variables are the same.
 	///
 	/// This will only return `true` if they both originate from the same [`Environment`](crate::Environment) and have
@@ -43,7 +43,7 @@ impl PartialEq for Variable {
 	}
 }
 
-impl Debug for Variable {
+impl<I, O> Debug for Variable<I, O> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -58,7 +58,7 @@ impl Debug for Variable {
 	}
 }
 
-impl Variable {
+impl<I, O> Variable<I, O> {
 	pub(super) fn _new(name: Box<str>) -> Self {
 		Self(Rc::new(Inner { name, value: RefCell::default() }))
 	}
@@ -114,7 +114,7 @@ impl Variable {
 	/// assert_eq!(var.fetch().unwrap(), Value::Null);
 	/// assert_eq!(var2.fetch().unwrap(), Value::Null);
 	/// ```
-	pub fn assign(&self, value: Value) {
+	pub fn assign(&self, value: Value<I, O>) {
 		self.0.value.borrow_mut().replace(value);
 	}
 
@@ -134,7 +134,7 @@ impl Variable {
 	/// assert_eq!(var.fetch(), Some(Value::from(true)));
 	/// ```
 	#[must_use = "simply fetching a value does nothing; the return value should be inspected."]
-	pub fn fetch(&self) -> Option<Value> {
+	pub fn fetch(&self) -> Option<Value<I, O>> {
 		self.0.value.borrow().clone()
 	}
 }

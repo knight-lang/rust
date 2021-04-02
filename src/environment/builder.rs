@@ -32,10 +32,10 @@ use std::convert::TryFrom;
 /// assert_eq!(stdout, b"knights go on quests");
 /// ```
 #[derive(Default)]
-pub struct Builder<'i, 'o> {
+pub struct Builder<I, O> {
 	capacity: Option<usize>,
-	stdin: Option<&'i mut dyn Read>,
-	stdout: Option<&'o mut dyn Write>,
+	stdin: Option<I>,
+	stdout: Option<O>,
 	run_command: Option<Box<RunCommand>>,
 }
 
@@ -91,7 +91,7 @@ fn run_command_system(cmd: &str) -> Result<RcString, RuntimeError> {
 	RcString::try_from(output).map_err(From::from)
 }
 
-impl<'i, 'o> Builder<'i, 'o> {
+impl<I, O> Builder<I, O> {
 	/// Creates a new, default [`Builder`].
 	///
 	/// Note that this is aliased via [`Environment::builder()`], which doesn't require importing this type.
@@ -157,7 +157,7 @@ impl<'i, 'o> Builder<'i, 'o> {
 	/// assert_eq!(out, "Line1\nline2\nwhatever");
 	/// ```
 	#[must_use = "assigning to stdin does nothing without calling 'build'."]
-	pub fn stdin(mut self, stdin: &'i mut dyn Read) -> Self {
+	pub fn stdin(mut self, stdin: I) -> Self {
 		self.stdin = Some(stdin);
 		self
 	}
@@ -186,7 +186,7 @@ impl<'i, 'o> Builder<'i, 'o> {
 	/// assert_eq!(stdout, b"something, something else.");
 	/// ```
 	#[must_use = "assigning to stdout does nothing without calling 'build'."]
-	pub fn stdout(mut self, stdout: &'o mut dyn Write) -> Self {
+	pub fn stdout(mut self, stdout: O) -> Self {
 		self.stdout = Some(stdout);
 		self
 	}
@@ -251,13 +251,14 @@ impl<'i, 'o> Builder<'i, 'o> {
 	/// ```
 
 	#[must_use = "Simply calling `build` does nothing on its own."]
-	pub fn build(self) -> Environment<'i, 'o> {
+	pub fn build(self) -> Environment<I, O> {
 		// SAFETY: All of these `unsafe` blocks are simply mutable references to ZSTs, which is always safe.
 		Environment {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
-			stdin: self.stdin.unwrap_or(unsafe { &mut STDIN }),
-			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
-			run_command: self.run_command.unwrap_or(Box::new(run_command_system))
+			stdin: self.stdin.unwrap(), //unwrap_or(unsafe { &mut STDIN }),
+			stdout: self.stdout.unwrap(), //unwrap_or(unsafe { &mut STDOUT }),
+			run_command: self.run_command.unwrap_or(Box::new(run_command_system)),
+			functions: crate::function::get_default_functions()
 		}
 	}
 }

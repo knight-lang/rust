@@ -2,15 +2,15 @@ use crate::{Value, Number, Function, ParseError, Environment, RcString, Variable
 use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
-pub struct Stream<I: Iterator<Item=char>> {
-	iter: I,
+pub struct Stream<S: Iterator<Item=char>> {
+	iter: S,
 	prev: Option<char>,
 	rewound: bool,
 	line: usize,
 }
 
-impl<I: Iterator<Item=char>> Stream<I> {
-	pub fn new(iter: I) -> Self {
+impl<S: Iterator<Item=char>> Stream<S> {
+	pub fn new(iter: S) -> Self {
 		Self {
 			iter,
 			prev: None,
@@ -41,7 +41,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 	}
 }
 
-impl<I: Iterator<Item=char>> Iterator for Stream<I> {
+impl<S: Iterator<Item=char>> Iterator for Stream<S> {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -63,7 +63,7 @@ fn is_whitespace(chr: char) -> bool {
 	matches!(chr, ' ' | '\n' | '\r' | '\t' | '(' | ')' | '[' | ']' | '{' | '}' | ':' )
 }
 
-impl<I: Iterator<Item=char>> Stream<I> {
+impl<S: Iterator<Item=char>> Stream<S> {
 	pub fn try_whitespace(&mut self) -> bool {
 		if self.peek().map_or(false, is_whitespace) {
 			unsafe { self.whitespace_unchecked() };
@@ -142,7 +142,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		number
 	}
 
-	pub fn try_variable(&mut self, env: &mut Environment<'_, '_>) -> Option<Variable> {
+	pub fn try_variable<I, O>(&mut self, env: &mut Environment<I, O>) -> Option<Variable<I, O>> {
 		if matches!(self.peek(), Some('a'..='z') | Some('_')) {
 			Some(unsafe { self.variable_unchecked(env) })
 		} else {
@@ -150,7 +150,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub unsafe fn variable_unchecked(&mut self, env: &mut Environment<'_, '_>) -> Variable {
+	pub unsafe fn variable_unchecked<I, O>(&mut self, env: &mut Environment<I, O>) -> Variable<I, O> {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some('a'..='z') | Some('_') => {},
@@ -245,7 +245,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn function(&mut self, func: Function, env: &mut Environment<'_, '_>) -> Result<Value, ParseError> {
+	pub fn function<T, I, O>(&mut self, func: Function<I, O>, env: &mut Environment<I, O>) -> Result<Value<I, O>, ParseError> {
 		let mut args = Vec::with_capacity(func.arity());
 		let line = self.line;
 
@@ -274,7 +274,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn parse(&mut self, env: &mut Environment<'_, '_>) -> Result<Value, ParseError> {
+	pub fn parse<I, O>(&mut self, env: &mut Environment<I, O>) -> Result<Value<I, O>, ParseError> {
 		match self.peek().ok_or(ParseError::NothingToParse)? {
 			// note that this is ascii whitespace, as non-ascii characters are invalid.
 			' ' | '\n' | '\r' | '\t' | '(' | ')' | '[' | ']' | '{' | '}' | ':' => {
@@ -302,7 +302,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			'\'' | '\"' => Ok(Value::String(unsafe { self.string_unchecked()? })),
 
 			chr => 
-				if let Some(func) = Function::fetch(chr) {
+				if let Some(func) = env.get_function(chr) {
 					self.next();
 
 					self.function(func, env)
@@ -313,14 +313,14 @@ impl<I: Iterator<Item=char>> Stream<I> {
 	}
 }
 
-impl Value {
+impl<I, O> Value<I, O> {
 	/// Parses out a stream from the given `input` within the context of `env`.
 	///
 	/// This function simply calls [`parse`] with a char iterator over `input`; see it for more details.
 	///
 	/// # Errors
 	/// This function returns any errors that [`parse`] returns.
-	pub fn parse_str<S: AsRef<str>>(input: S, env: &mut Environment<'_, '_>) -> Result<Self, ParseError> {
+	pub fn parse_str<S: AsRef<str>>(input: S, env: &mut Environment<I, O>) -> Result<Self, ParseError> {
 		Self::parse(input.as_ref().chars(), env)
 	}
 
@@ -336,7 +336,7 @@ impl Value {
 	///
 	/// # See Also
 	/// Section 1. within the Knight specs for parsing.
-	pub fn parse<S: IntoIterator<Item=char>>(input: S, env: &mut Environment<'_, '_>) -> Result<Self, ParseError> {
+	pub fn parse<S: IntoIterator<Item=char>>(input: S, env: &mut Environment<I, O>) -> Result<Self, ParseError> {
 		Stream::new(input.into_iter()).parse(env)
 	}
 }

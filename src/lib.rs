@@ -24,14 +24,21 @@ pub use value::Value;
 pub use error::{ParseError, RuntimeError};
 
 /// Runs the given string as Knight code, returning the result of its execution.
-pub fn run_str<S: AsRef<str>>(input: S, env: &mut Environment<'_, '_>) -> Result<Value, RuntimeError> {
+pub fn run_str<S, I, O>(input: S, env: &mut Environment<I, O>) -> Result<Value<I, O>, RuntimeError>
+where
+	S: AsRef<str>,
+	I: std::io::Read,
+	O: std::io::Write
+{
 	run(input.as_ref().chars(), env)
 }
 
 /// Parses a [`Value`] from the given iterator and then runs the value.
-pub fn run<I>(input: I, env: &mut Environment<'_, '_>) -> Result<Value, RuntimeError>
+pub fn run<S, I, O>(input: S, env: &mut Environment<I, O>) -> Result<Value<I, O>, RuntimeError>
 where
-	I: IntoIterator<Item=char>
+	S: IntoIterator<Item=char>,
+	I: std::io::Read,
+	O: std::io::Write
 {
 	Value::parse(input, env)?.run(env)
 }

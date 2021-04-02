@@ -2,8 +2,8 @@
 //!
 //! See [`Environment`] for more details.
 
-use crate::{RuntimeError, RcString};
-use std::collections::HashSet;
+use crate::{RuntimeError, RcString, Value, Function};
+use std::collections::{HashSet, HashMap};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Write, Read};
 
@@ -43,16 +43,17 @@ type RunCommand = dyn FnMut(&str) -> Result<RcString, RuntimeError>;
 /// let var = env.get("foobar");
 /// assert_eq!(var, env.get("foobar")); // both variables are the same.
 /// ```
-pub struct Environment<'i, 'o> {
+pub struct Environment<I, O> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap` wouldn't allow for. (or would
 	// have redundant allocations.)
-	vars: HashSet<Variable>,
-	stdin: &'i mut dyn Read,
-	stdout: &'o mut dyn Write,
-	run_command: Box<RunCommand>
+	vars: HashSet<Variable<I, O>>,
+	stdin: I,
+	stdout: O,
+	run_command: Box<RunCommand>,
+	functions: HashMap<char, Function<I, O>>
 }
 
-impl Debug for Environment<'_, '_> {
+impl<I, O> Debug for Environment<I, O> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Environment")
 			.field("nvars", &self.vars.len())
@@ -60,13 +61,13 @@ impl Debug for Environment<'_, '_> {
 	}
 }
 
-impl Default for Environment<'_, '_> {
+impl<I, O> Default for Environment<I, O> {
 	fn default() -> Self {
 		Self::new()
 	}
 }
 
-impl<'i, 'o> Environment<'i, 'o> {
+impl<I, O> Environment<I, O> {
 	/// Creates an empty [`Environment`].
 	///
 	/// # Examples
@@ -93,7 +94,7 @@ impl<'i, 'o> Environment<'i, 'o> {
 	/// // ... do stuff with `env`.
 	/// ```
 	#[must_use = "simply creating a builder does nothing."]
-	pub fn builder() -> Builder<'i, 'o> {
+	pub fn builder() -> Builder<I, O> {
 		Builder::default()
 	}
 
@@ -110,7 +111,7 @@ impl<'i, 'o> Environment<'i, 'o> {
 	///
 	/// assert_eq!(var, env.get("plato"));
 	/// ```
-	pub fn get<N: AsRef<str> + ToString + ?Sized>(&mut self, name: &N) -> Variable {
+	pub fn get<N: AsRef<str> + ToString + ?Sized>(&mut self, name: &N) -> Variable<I, O> {
 		if let Some(inner) = self.vars.get(name.as_ref()) {
 			return inner.clone();
 		}
@@ -137,9 +138,22 @@ impl<'i, 'o> Environment<'i, 'o> {
 	pub fn run_command(&mut self, cmd: &str) -> Result<RcString, RuntimeError> {
 		(self.run_command)(cmd)
 	}
+
+
+	/// Gets the function associate dwith the given `name`, returning `None` if no such function exists.
+	#[must_use = "fetching a function does nothing by itself"]
+	pub fn get_function(&self, name: char) -> Option<Function<I, O>> {
+		self.functions.get(&name).cloned()
+	}
+
+	/// Registers a new function with the given name, discarding any previous value associated with it.
+	pub fn register_function(&mut self, name: char, arity: usize, func: crate::function::FuncPtr<I, O>) {
+		self.functions.insert(name, Function::_new(name, arity, func));
+	}
+
 }
 
-impl Read for Environment<'_, '_> {
+impl<I: Read, O> Read for Environment<I, O> {
 	/// Read bytes into `data` from `self`'s `stdin`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
@@ -149,7 +163,7 @@ impl Read for Environment<'_, '_> {
 	}
 }
 
-impl Write for Environment<'_, '_> {
+impl<I, O: Write> Write for Environment<I, O> {
 	/// Writes `data`'s bytes into `self`'s `stdout`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
