@@ -1,13 +1,11 @@
-use knightrs::{RuntimeError, Environment};
+use knight::RuntimeError;
 use clap::{App, Arg, ArgMatches};
 
-fn run(matches: ArgMatches<'_>) -> Result<(), RuntimeError> {
-	let mut env = Environment::default();
-
+fn run(matches: ArgMatches) -> Result<(), RuntimeError> {
 	if let Some(expr) = matches.value_of("expr") {
-		knightrs::run_str(&expr, &mut env)?;
+		knight::run_str(&expr)?;
 	} else if let Some(filename) = matches.value_of("file") {
-		knightrs::run_str(std::fs::read_to_string(filename)?, &mut env)?;
+		knight::run_str(std::fs::read_to_string(filename)?)?;
 	} else {
 		eprintln!("{}", matches.usage());
 		std::process::exit(1);
@@ -35,15 +33,10 @@ fn main() {
 				.conflicts_with("expr")
 				.short("f")
 				.long("file"))
-		// .get_matches_from(vec!["--", "-f", "../knight.kn"]);
 		.get_matches();
 
-	match run(matches) {
-		Err(RuntimeError::Quit(code)) => std::process::exit(code),
-		Err(err) => {
-			eprintln!("error: {}", err);
-			std::process::exit(1)
-		},
-		Ok(()) => { /* do nothing */ }
+	if let Err(err) = run(matches) {
+		eprintln!("error: {}", err);
+		std::process::exit(1);
 	}
 }
