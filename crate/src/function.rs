@@ -166,7 +166,9 @@ pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, Run
 // arity one
 
 pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	crate::run_str(&args[0].run(env)?.to_rcstring()?, env)
+	let ran = args[0].run(env)?;
+
+	env.run_str(&ran.to_rcstring()?)
 }
 
 pub fn block(args: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
@@ -180,7 +182,7 @@ pub fn call(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, 
 pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
 	let cmd = args[0].run(env)?.to_rcstring()?;
 
-	env.run_command(&cmd).map(Value::from)
+	env.system(&cmd).map(Value::from)
 }
 
 pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {

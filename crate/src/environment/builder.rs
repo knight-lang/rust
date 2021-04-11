@@ -1,4 +1,4 @@
-use super::{RunCommand, Environment};
+use super::{SystemCommand, Environment};
 use crate::{RcString, RuntimeError};
 use std::io::{self, Write, Read};
 use std::collections::HashSet;
@@ -11,7 +11,7 @@ pub struct Builder<'i, 'o, 'c> {
 	capacity: Option<usize>,
 	stdin: Option<&'i mut dyn Read>,
 	stdout: Option<&'o mut dyn Write>,
-	run_command: Option<&'c mut RunCommand>,
+	system: Option<&'c mut SystemCommand>,
 }
 
 // We have a lot of private ZST structs here and `static mut`s. This is because we need to have a mutable reference to,
@@ -51,11 +51,11 @@ impl Display for NotEnabled {
 
 impl std::error::Error for NotEnabled {}
 
-fn run_command_err(_: &str) -> Result<RcString, RuntimeError> {
+fn system_err(_: &str) -> Result<RcString, RuntimeError> {
 	Err(RuntimeError::Custom(Box::new(NotEnabled)))
 }
 
-fn run_command_system(cmd: &str) -> Result<RcString, RuntimeError> {
+fn system_normal(cmd: &str) -> Result<RcString, RuntimeError> {
 	let output =
 		std::process::Command::new("sh")
 			.arg("-c")
@@ -66,8 +66,8 @@ fn run_command_system(cmd: &str) -> Result<RcString, RuntimeError> {
 	RcString::try_from(output).map_err(From::from)
 }
 
-static mut RUNCOMMAND_ERR: fn(&str) -> Result<RcString, RuntimeError> = run_command_err;
-static mut RUNCOMMAND_SYSTEM: fn(&str) -> Result<RcString, RuntimeError> = run_command_system;
+static mut SYSTEM_ERR: fn(&str) -> Result<RcString, RuntimeError> = system_err;
+static mut SYSTEM_NORMAL: fn(&str) -> Result<RcString, RuntimeError> = system_normal;
 
 impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Creates a new, default [`Builder`].
@@ -106,9 +106,9 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Explicitly sets what should happen when the ["system" (`` ` ``)](crate::function::system) function is called.
 	///
 	/// The default value is to simply send the command to `sh` (ie `"sh", "-c", "command"`)
-	#[must_use = "assigning a 'run_command' does nothing without calling 'build'."]
-	pub fn run_command(mut self, run_command: &'c mut RunCommand) -> Self {
-		self.run_command = Some(run_command);
+	#[must_use = "assigning a 'system' does nothing without calling 'build'."]
+	pub fn system(mut self, system: &'c mut SystemCommand) -> Self {
+		self.system = Some(system);
 		self
 	}
 
@@ -118,7 +118,7 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	#[must_use = "disabling the system command to does nothing without calling 'build'."]
 	pub fn disable_system(self) -> Self {
 		// SAFETY: We're getting a mutable reference to a ZST, so this is always safe.
-		self.run_command(unsafe { &mut RUNCOMMAND_ERR })
+		self.system(unsafe { &mut SYSTEM_ERR })
 	}
 
 	/// Creates a new [`Environment`] with all the supplied options.
@@ -131,7 +131,7 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
 			stdin: self.stdin.unwrap_or(unsafe { &mut STDIN }),
 			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
-			run_command: self.run_command.unwrap_or(unsafe { &mut RUNCOMMAND_SYSTEM })
+			system: self.system.unwrap_or(unsafe { &mut SYSTEM_NORMAL })
 		}
 	}
 }

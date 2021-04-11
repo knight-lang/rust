@@ -5,9 +5,9 @@ fn run(matches: ArgMatches<'_>) -> Result<(), RuntimeError> {
 	let mut env = Environment::default();
 
 	if let Some(expr) = matches.value_of("expr") {
-		knightrs::run_str(&expr, &mut env)?;
+		env.run_str(&expr)?;
 	} else if let Some(filename) = matches.value_of("file") {
-		knightrs::run_str(std::fs::read_to_string(filename)?, &mut env)?;
+		env.run_str(std::fs::read_to_string(filename)?)?;
 	} else {
 		eprintln!("{}", matches.usage());
 		std::process::exit(1);
