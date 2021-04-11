@@ -2,11 +2,10 @@
 //!
 //! See [`Environment`] for more details.
 
-use crate::{RuntimeError, RcString, Function};
-use std::collections::{HashSet, HashMap};
+use crate::{RuntimeError, RcString};
+use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Write, Read};
-use std::borrow::Cow;
 
 mod builder;
 mod variable;
@@ -44,17 +43,16 @@ type RunCommand = dyn FnMut(&str) -> Result<RcString, RuntimeError>;
 /// let var = env.get("foobar");
 /// assert_eq!(var, env.get("foobar")); // both variables are the same.
 /// ```
-pub struct Environment<'i, 'o> {
+pub struct Environment<'i, 'o, 'c> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap` wouldn't allow for. (or would
 	// have redundant allocations.)
 	vars: HashSet<Variable>,
 	stdin: &'i mut dyn Read,
 	stdout: &'o mut dyn Write,
-	run_command: Box<RunCommand>,
-	functions: Cow<'static, HashMap<char, Function>>
+	run_command: &'c mut RunCommand
 }
 
-impl Debug for Environment<'_, '_> {
+impl Debug for Environment<'_, '_, '_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Environment")
 			.field("nvars", &self.vars.len())
@@ -62,13 +60,13 @@ impl Debug for Environment<'_, '_> {
 	}
 }
 
-impl Default for Environment<'_, '_> {
+impl Default for Environment<'_, '_, '_> {
 	fn default() -> Self {
 		Self::new()
 	}
 }
 
-impl<'i, 'o> Environment<'i, 'o> {
+impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	/// Creates an empty [`Environment`].
 	///
 	/// # Examples
@@ -95,7 +93,7 @@ impl<'i, 'o> Environment<'i, 'o> {
 	/// // ... do stuff with `env`.
 	/// ```
 	#[must_use = "simply creating a builder does nothing."]
-	pub fn builder() -> Builder<'i, 'o> {
+	pub fn builder() -> Builder<'i, 'o, 'c> {
 		Builder::default()
 	}
 
@@ -139,22 +137,9 @@ impl<'i, 'o> Environment<'i, 'o> {
 	pub fn run_command(&mut self, cmd: &str) -> Result<RcString, RuntimeError> {
 		(self.run_command)(cmd)
 	}
-
-	#[must_use = "fetching a function does nothing by itself"]
-	pub fn get_function(&self, name: char) -> Option<Function> {
-		self.functions.get(&name).cloned()
-	}
-
-	pub fn register_function(&mut self, name: char, arity: usize, function: crate::function::FuncPtr) {
-		register_function(self.functions.to_mut(), name, arity, function);
-	}
 }
 
-fn register_function(map: &mut HashMap<char, Function>, name: char, arity: usize, function: crate::function::FuncPtr) {
-	map.insert(name, Function::_new(name, arity, function));
-}
-
-impl Read for Environment<'_, '_> {
+impl Read for Environment<'_, '_, '_> {
 	/// Read bytes into `data` from `self`'s `stdin`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
@@ -164,7 +149,7 @@ impl Read for Environment<'_, '_> {
 	}
 }
 
-impl Write for Environment<'_, '_> {
+impl Write for Environment<'_, '_, '_> {
 	/// Writes `data`'s bytes into `self`'s `stdout`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
