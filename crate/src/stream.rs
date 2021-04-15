@@ -45,17 +45,24 @@ impl<I: Iterator<Item=char>> Iterator for Stream<I> {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
+		let next;
+
 		if self.rewound {
 			self.rewound = false;
+			next = self.prev;
 		} else {
-			self.prev = self.iter.next();
+			next = self.iter.next();
+
+			if (next.is_some()) {
+				self.prev = next;
+			}
 		}
 
-		if self.prev == Some('\n') {
+		if next == Some('\n') {
 			self.line += 1;
 		}
 
-		self.prev
+		next
 	}
 }
 

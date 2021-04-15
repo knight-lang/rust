@@ -45,7 +45,7 @@ struct NotEnabled;
 
 impl Display for NotEnabled {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "cannot run '`' when as it is disabled.")
+		write!(f, "cannot run '`' as it is disabled.")
 	}
 }
 
