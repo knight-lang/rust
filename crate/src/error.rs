@@ -51,8 +51,8 @@ pub enum ParseError {
 pub enum RuntimeError {
 	/// A division (or modulus) by zero was attempted.
 	DivisionByZero {
-		/// Whether or not its a modulus error.
-		modulo: bool
+		/// What kind of error it is---power, modulo, or division.
+		kind: &'static str
 	},
 
 	/// An unknown identifier was attempted to be dereferenced.
@@ -157,8 +157,7 @@ impl Error for ParseError {
 impl Display for RuntimeError {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::DivisionByZero { modulo: false } => write!(f, "invalid divide by zero."),
-			Self::DivisionByZero { modulo: true } => write!(f, "invalid modulo by zero."),
+			Self::DivisionByZero { kind } => write!(f, "invalid {} with zero.", kind),
 			Self::UnknownIdentifier { identifier } => write!(f, "identifier {:?} is undefined.", identifier),
 			Self::InvalidOperand { func, operand } => write!(f, "invalid operand kind {:?} for function {:?}.", operand, func),
 			Self::UndefinedConversion { kind, into } => write!(f, "invalid conversion into {:?} for kind {:?}.", kind, into),

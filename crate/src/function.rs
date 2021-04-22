@@ -160,7 +160,7 @@ pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, R
 }
 
 pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	Ok(rand::random::<Number>().into())
+	Ok((rand::random::<u32>() as Number).into())
 }
 
 // arity one
@@ -284,7 +284,7 @@ pub fn divide(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 		Value::Number(lhs) =>
 			lhs.checked_div(args[1].run(env)?.to_number()?)
 				.map(Value::from)
-				.ok_or(RuntimeError::DivisionByZero { modulo: false }),
+				.ok_or(RuntimeError::DivisionByZero { kind: "division" }),
 		other => Err(RuntimeError::InvalidOperand { func: '/', operand: other.typename() })
 	}
 }
@@ -294,7 +294,7 @@ pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 		Value::Number(lhs) =>
 			lhs.checked_rem(args[1].run(env)?.to_number()?)
 				.map(Value::from)
-				.ok_or(RuntimeError::DivisionByZero { modulo: true }),
+				.ok_or(RuntimeError::DivisionByZero { kind: "modulo" }),
 		other => Err(RuntimeError::InvalidOperand { func: '%', operand: other.typename() })
 	}
 }
@@ -322,6 +322,7 @@ pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value,
 			match exponent {
 				1 => base,
 				0 => 1,
+				_ if base == 0 && exponent < 0 => return Err(RuntimeError::DivisionByZero { kind: "power" }),
 				_ if exponent < 0 => 0,
 				_ => base.pow(exponent as u32)
 			}
