@@ -1,4 +1,4 @@
-use crate::{Function, Number, RcString, Variable, RuntimeError, Environment};
+use crate::{Function, Number, Text, Variable, RuntimeError, Environment};
 use std::fmt::{self, Debug, Formatter};
 use std::rc::Rc;
 use std::convert::TryFrom;
@@ -8,7 +8,7 @@ pub enum Value {
 	Null,
 	Boolean(bool),
 	Number(Number),
-	String(RcString),
+	String(Text),
 	Variable(Variable),
 	Function(Function, Rc<[Value]>)
 }
@@ -61,8 +61,8 @@ impl From<Number> for Value {
 	}
 }
 
-impl From<RcString> for Value {
-	fn from(string: RcString) -> Self {
+impl From<Text> for Value {
+	fn from(string: Text) -> Self {
 		Self::String(string)
 	}
 }
@@ -72,7 +72,6 @@ impl From<Variable> for Value {
 		Self::Variable(variable)
 	}
 }
-
 
 impl TryFrom<&Value> for bool {
 	type Error = RuntimeError;
@@ -88,26 +87,24 @@ impl TryFrom<&Value> for bool {
 	}
 }
 
-impl TryFrom<&Value> for RcString {
+impl TryFrom<&Value> for Text {
 	type Error = RuntimeError;
 
 	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
-		use once_cell::sync::OnceCell;
+		use crate::text::StaticText;
 
-		static NULL: OnceCell<RcString> = OnceCell::new();
-		static TRUE: OnceCell<RcString> = OnceCell::new();
-		static FALSE: OnceCell<RcString> = OnceCell::new();
-		static ZERO: OnceCell<RcString> = OnceCell::new();
-		static ONE: OnceCell<RcString> = OnceCell::new();
-
-		
+		static NULL: StaticText = static_text!("null");
+		static TRUE: StaticText = static_text!("true");
+		static FALSE: StaticText = static_text!("false");
+		static ZERO: StaticText = static_text!("0");
+		static ONE: StaticText = static_text!("1");
 
 		match value {
-			Value::Null => Ok(NULL.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
-			Value::Boolean(true) => Ok(TRUE.get_or_init(|| unsafe { Self::new_unchecked("true") }).clone()),
-			Value::Boolean(false) => Ok(FALSE.get_or_init(|| unsafe { Self::new_unchecked("false") }).clone()),
-			Value::Number(0) => Ok(ZERO.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
-			Value::Number(1) => Ok(ONE.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
+			Value::Null => Ok(NULL.text()),
+			Value::Boolean(true) => Ok(TRUE.text()),
+			Value::Boolean(false) => Ok(FALSE.text()),
+			Value::Number(0) => Ok(ZERO.text()),
+			Value::Number(1) => Ok(ONE.text()),
 			Value::Number(number) => Ok(Self::try_from(number.to_string()).unwrap()), // all numbers should be valid strings
 			Value::String(string) => Ok(string.clone()),
 			_ => Err(RuntimeError::UndefinedConversion { into: "bool", kind: value.typename() })
@@ -180,7 +177,7 @@ impl Value {
 		TryFrom::try_from(self)
 	}
 
-	pub fn to_rcstring(&self) -> Result<RcString, RuntimeError> {
+	pub fn to_text(&self) -> Result<Text, RuntimeError> {
 		TryFrom::try_from(self)
 	}
 }

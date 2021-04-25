@@ -2,7 +2,7 @@
 //!
 //! See [`Environment`] for more details.
 
-use crate::{RuntimeError, Value, RcString};
+use crate::{RuntimeError, Value, Text};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Write, Read};
@@ -13,7 +13,7 @@ mod variable;
 pub use builder::Builder;
 pub use variable::Variable;
 
-type SystemCommand = dyn FnMut(&str) -> Result<RcString, RuntimeError>;
+type SystemCommand = dyn FnMut(&str) -> Result<Text, RuntimeError>;
 
 /// The execution environment for Knight programs.
 ///
@@ -134,7 +134,7 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	///
 	/// assert_eq!(env.system("echo 'hello, knight!'").unwrap().as_str(), "hello, knight!\n");
 	/// ```
-	pub fn system(&mut self, cmd: &str) -> Result<RcString, RuntimeError> {
+	pub fn system(&mut self, cmd: &str) -> Result<Text, RuntimeError> {
 		(self.system)(cmd)
 	}
 

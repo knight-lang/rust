@@ -1,6 +1,6 @@
 use std::io;
 use std::fmt::{self, Display, Formatter};
-use crate::rcstring::InvalidChar;
+use crate::text::InvalidByte;
 use std::error::Error;
 
 /// The error type used to indicate an error whilst parsing Knight source code.
@@ -42,7 +42,7 @@ pub enum ParseError {
 		line: usize,
 
 		/// The error itself.
-		err: InvalidChar
+		err: InvalidByte
 	},
 }
 
@@ -102,7 +102,7 @@ pub enum RuntimeError {
 	Parse(ParseError),
 
 	/// An invalid string was encountered.
-	InvalidString(InvalidChar),
+	InvalidString(InvalidByte),
 
 	/// An i/o error occurred (i.e. `` ` `` or `PROMPT` failed).
 	Io(io::Error),
@@ -125,9 +125,9 @@ impl From<io::Error> for RuntimeError {
 	}
 }
 
-impl From<InvalidChar> for RuntimeError {
+impl From<InvalidByte> for RuntimeError {
 	#[inline]
-	fn from(err: InvalidChar) -> Self {
+	fn from(err: InvalidByte) -> Self {
 		Self::InvalidString(err)
 	}
 }

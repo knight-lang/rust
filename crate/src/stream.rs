@@ -1,4 +1,4 @@
-use crate::{Value, Number, Function, ParseError, Environment, RcString, Variable};
+use crate::{Value, Number, Function, ParseError, Environment, Text, Variable};
 use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
@@ -53,7 +53,7 @@ impl<I: Iterator<Item=char>> Iterator for Stream<I> {
 		} else {
 			next = self.iter.next();
 
-			if (next.is_some()) {
+			if next.is_some() {
 				self.prev = next;
 			}
 		}
@@ -180,7 +180,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		env.get(&ident)
 	}
 
-	pub fn try_string(&mut self) -> Option<Result<RcString, ParseError>> {
+	pub fn try_string(&mut self) -> Option<Result<Text, ParseError>> {
 		if matches!(self.peek(), Some('\'') | Some('\"')) {
 			Some(unsafe { self.string_unchecked() })
 		} else {
@@ -188,7 +188,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub unsafe fn string_unchecked(&mut self) -> Result<RcString, ParseError> {
+	pub unsafe fn string_unchecked(&mut self) -> Result<Text, ParseError> {
 		let line = self.line;
 		let quote = 
 			match self.next() {
@@ -202,7 +202,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 
 		for chr in self {
 			if chr == quote {
-				return RcString::try_from(string).map_err(|err| ParseError::InvalidString { line, err });
+				return Text::try_from(string).map_err(|err| ParseError::InvalidString { line, err });
 			}
 
 			string.push(chr);
