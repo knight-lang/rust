@@ -56,10 +56,13 @@ fn system_err(_: &str) -> Result<RcString, RuntimeError> {
 }
 
 fn system_normal(cmd: &str) -> Result<RcString, RuntimeError> {
+	use std::process::{Command, Stdio};
+
 	let output =
-		std::process::Command::new("sh")
+		Command::new("/bin/sh")
 			.arg("-c")
 			.arg(cmd)
+			.stdin(Stdio::inherit())
 			.output()
 			.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 

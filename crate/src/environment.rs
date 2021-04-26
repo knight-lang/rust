@@ -151,7 +151,6 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	{
 		Value::parse(input, self)?.run(self)
 	}
-
 }
 
 impl Read for Environment<'_, '_, '_> {

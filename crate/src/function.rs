@@ -38,7 +38,7 @@ impl Debug for Function {
 				.field("arity", &self.arity)
 				.finish()
 		} else {
-			f.debug_tuple("function")
+			f.debug_tuple("Function")
 				.field(&self.name)
 				.finish()
 		}
