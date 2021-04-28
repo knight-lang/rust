@@ -4,8 +4,8 @@ use super::*;
 pub struct TextStatic(TextInner);
 
 impl TextStatic {
-	pub const fn new(data: &'static [u8]) -> Result<Self, InvalidByte> {
-		if let Err(err) = validate(data) {
+	pub const fn new(data: &'static str) -> Result<Self, InvalidByte> {
+		if let Err(err) = validate(data.as_bytes()) {
 			Err(err)
 		} else {
 			unsafe {
@@ -14,8 +14,8 @@ impl TextStatic {
 		}
 	}
 
-	pub const unsafe fn new_unchecked(data: &'static [u8]) -> Self {
-		debug_assert_const!(validate(data).is_ok());
+	pub const unsafe fn new_unchecked(data: &'static str) -> Self {
+		debug_assert_const!(validate(data.as_bytes()).is_ok());
 
 		Self(TextInner {
 			refcount: AtomicUsize::new(0), // irrelevant

@@ -54,7 +54,7 @@ impl From<Null> for Text {
 	fn from(_: Null) -> Self {
 		use crate::text::TextStatic;
 
-		static NULL_TEXT: TextStatic = unsafe { TextStatic::new_unchecked(b"null") };
+		static NULL_TEXT: TextStatic = unsafe { TextStatic::new_unchecked("null") };
 
 		NULL_TEXT.as_text()
 	}

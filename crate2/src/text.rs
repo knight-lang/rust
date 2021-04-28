@@ -131,7 +131,7 @@ impl Drop for Text {
 
 impl Default for Text {
 	fn default() -> Self {
-		static EMPTY: TextStatic = unsafe { TextStatic::new_unchecked(b"") };
+		static EMPTY: TextStatic = unsafe { TextStatic::new_unchecked("") };
 
 		EMPTY.as_text()
 	}

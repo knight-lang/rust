@@ -83,8 +83,8 @@ impl TextBuilder {
 		Self { inner, len: 0 }
 	}
 
-	pub fn write(&mut self, mut data: &[u8]) -> Result<usize, InvalidByte> {
-		validate(data)?;
+	pub fn concat(&mut self, mut data: &str) -> Result<usize, InvalidByte> {
+		validate(data.as_bytes())?;
 
 		let cap = self.capacity();
 

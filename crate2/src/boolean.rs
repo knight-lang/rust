@@ -67,8 +67,8 @@ impl From<Boolean> for Text {
 	fn from(boolean: Boolean) -> Self {
 		use crate::text::TextStatic;
 
-		static TRUE_TEXT: TextStatic = unsafe { TextStatic::new_unchecked(b"true") };
-		static FALSE_TEXT: TextStatic = unsafe { TextStatic::new_unchecked(b"false") };
+		static TRUE_TEXT: TextStatic = unsafe { TextStatic::new_unchecked("true") };
+		static FALSE_TEXT: TextStatic = unsafe { TextStatic::new_unchecked("false") };
 
 		if boolean.0 {
 			TRUE_TEXT.as_text()
