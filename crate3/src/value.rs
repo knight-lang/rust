@@ -21,16 +21,16 @@ enum Constant {
 	Null,
 }
 
-const TAG_BITS: u64 = 3;
+pub(crate) const TAG_BITS: u64 = 3;
 const TAG_MASK: u64 = (1 << TAG_BITS) - 1;
 
-impl Default for Value<'static> {
+impl Default for Value<'_> {
 	fn default() -> Self {
 		Self::from(Null)
 	}
 }
 
-impl<'env> Value<'env> {
+impl Value<'_> {
 	const NULL: Self = unsafe {
 		Self::new_tagged((Constant::Null as u64) << TAG_BITS, Tag::Constant)
 	};

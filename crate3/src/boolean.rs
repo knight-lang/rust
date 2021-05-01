@@ -30,13 +30,15 @@ impl From<Boolean> for Number {
 impl From<Boolean> for Text {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
-		const TRUE: Text = unsafe { Text::new_static_unchecked("true") };
-		const FALSE: Text = unsafe { Text::new_static_unchecked("false") };
+		use crate::text::TextStatic;
+
+		const TRUE: TextStatic = unsafe { TextStatic::new_static_unchecked("true") };
+		const FALSE: TextStatic = unsafe { TextStatic::new_static_unchecked("false") };
 
 		if boolean.inner() {
-			TRUE
+			TRUE.text()
 		} else {
-			FALSE
+			FALSE.text()
 		}
 	}
 }

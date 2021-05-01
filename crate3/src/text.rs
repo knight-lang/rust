@@ -5,12 +5,15 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[repr(transparent)]
 pub struct Text(NonZeroU64);
 
-struct Inner(Arc<str>); // todo
+enum Inner {
+	Static(&'static str),
+	Arc(Arc<str>)
+}
 
 impl Clone for Text {
 	fn clone(&self) -> Self {
-		unsafe {
-			std::mem::forget(self.inner().0.clone());
+		if let Inner::Arc(arc) = self.inner() {
+			std::mem::forget(arc.clone());
 		}
 
 		Self(self.0)
@@ -25,6 +28,11 @@ impl Drop for Text {
 	}
 }
 
+#[derive(Debug)]
+pub struct InvalidByte {
+
+}
+
 impl Text {
 	fn inner_ptr(&self) -> *const Inner {
 		(self.0.get() & !0b111) as *const Inner
@@ -36,16 +44,18 @@ impl Text {
 		}
 	}
 
-	pub fn new(data: impl AsRef<str> + ToString) -> Self {
-		// let data = data.to_string().into_boxed_slice();
-		todo!()
+	pub fn new(data: impl AsRef<str> + ToString) -> Result<Self, InvalidByte> {
+		let data = data.to_string().into_boxed_str();
+		let inner = Box::new(Inner::Arc(Arc::from(data)));
 
-		// Self(Box::into_raw(data.to_string().into_boxed_slice()))
+		unsafe {
+			// cant be null pointer because its a valid address as we allocated it
+			Ok(Self(NonZeroU64::new_unchecked(Box::into_raw(inner) as usize as u64)))
+		}
 	}
 
-	pub const unsafe fn new_static_unchecked(data: &'static str) -> Self {
-
-		Self(NonZeroU64::new_unchecked(1))
+	pub fn new_borrowed(data: &str) -> Result<Self, InvalidByte> {
+		Self::new(data) // todo: borrowed data
 	}
 
 	pub fn into_raw(self) -> NonZeroU64 {
@@ -61,7 +71,10 @@ impl Text {
 	}
 
 	pub fn as_str(&self) -> &str {
-		self.inner().0.as_ref()
+		match self.inner() {
+			Inner::Static(str) => &str,
+			Inner::Arc(arc) => &arc
+		}
 	}
 }
 
@@ -113,5 +126,19 @@ impl AsRef<str> for Text {
 impl std::borrow::Borrow<str> for Text {
 	fn borrow(&self) -> &str {
 		self.as_str()
+	}
+}
+
+pub struct TextStatic(std::mem::ManuallyDrop<Inner>);
+
+impl TextStatic {
+	pub const unsafe fn new_static_unchecked(data: &'static str) -> Self {
+		Self(std::mem::ManuallyDrop::new(Inner::Static(data)))
+	}
+
+	pub fn text(&'static self) -> Text {
+		unsafe {
+			Text(NonZeroU64::new_unchecked(&self.0 as *const _ as usize as u64))
+		}
 	}
 }

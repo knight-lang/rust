@@ -29,8 +29,10 @@ impl From<Null> for Number {
 impl From<Null> for Text {
 	#[inline]
 	fn from(_: Null) -> Self {
-		const NULL: Text = unsafe { Text::new_static_unchecked("null") };
+		use crate::text::TextStatic;
 
-		NULL
+		const NULL: TextStatic = unsafe { TextStatic::new_static_unchecked("null") };
+
+		NULL.text()
 	}
 }
