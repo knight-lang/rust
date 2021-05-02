@@ -23,6 +23,9 @@ mod env;
 mod ast;
 mod null;
 mod boolean;
+mod error;
+
+pub use error::*;
 
 pub use text::*;
 pub use number::*;
@@ -31,4 +34,4 @@ pub use env::*;
 pub use ast::*;
 pub use value::*;
 pub use null::*;
-
+pub use env::*;

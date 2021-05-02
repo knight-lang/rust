@@ -1,6 +1,6 @@
 mod variable;
 pub use variable::*;
 
-pub struct Env {
+pub struct Environment {
 
 }

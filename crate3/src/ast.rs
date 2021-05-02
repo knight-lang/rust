@@ -1,15 +1,13 @@
-use std::num::NonZeroU64;
-
 pub struct Ast<'env> {
 	x: &'env ()
 }
 
 impl<'env> Ast<'env> {
-	pub fn into_raw(self) -> NonZeroU64 {
+	pub fn into_raw(self) -> *const () {
 		todo!()
 	}
 
-	pub unsafe fn from_raw(raw: NonZeroU64) -> Self {
+	pub unsafe fn from_raw(raw: *const ()) -> Self {
 		todo!()
 	}
 }

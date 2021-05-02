@@ -1,6 +1,7 @@
-use crate::{Null, Boolean, Text, Number, Variable, Ast};
+use crate::{Null, Boolean, Text, TextRef, Number, Variable, Ast, Result, Environment};
 use std::num::NonZeroU64;
 use std::marker::PhantomData;
+use std::fmt::{self, Debug, Formatter};
 
 pub struct Value<'env>(NonZeroU64, PhantomData<&'env ()>);
 
@@ -23,6 +24,15 @@ enum Constant {
 
 pub(crate) const TAG_BITS: u64 = 3;
 const TAG_MASK: u64 = (1 << TAG_BITS) - 1;
+
+pub trait ValueType<'env> : Debug {
+	fn run(&self, env: &'env mut Environment) -> Result<Value<'env>>;
+}
+
+// pub trait Literal : Debug + Clone {
+// 	fn to_text(&self) -> &Text;
+// }
+
 
 impl Default for Value<'_> {
 	fn default() -> Self {
@@ -52,6 +62,10 @@ impl Value<'_> {
 
 	const fn bytes(&self) -> u64 {
 		self.0.get()
+	}
+
+	const fn unmask(&self) -> u64 {
+		self.bytes() & !TAG_MASK
 	}
 
 	const fn tag(&self) -> Tag {
@@ -96,7 +110,7 @@ impl From<Boolean> for Value<'_> {
 impl From<Text> for Value<'_> {
 	fn from(text: Text) -> Self {
 		unsafe {
-			Self::new_tagged(text.into_raw().get() as u64, Tag::Text)
+			Self::new_tagged(text.into_raw() as usize as u64, Tag::Text)
 		}
 	}
 }
@@ -111,7 +125,7 @@ impl From<Number> for Value<'_> {
 
 impl<'env> Value<'env> {
 	pub const fn as_null(&self) -> Option<Null> {
-		if self.bytes() == Self::NULL.bytes() {
+		if self.bytes() == Self::NULL.0.get() {
 			Some(Null)
 		} else {
 			None
@@ -136,10 +150,10 @@ impl<'env> Value<'env> {
 		}
 	}
 
-	pub fn as_text(&self) -> Option<&Text> {
+	pub fn as_text(&self) -> Option<TextRef> {
 		if self.is_tag(Tag::Text) {
 			unsafe {
-				Some(&Text::from_raw_ref(&self.0))
+				Some(TextRef::from_raw(self.unmask() as usize as *const _))
 			}
 		} else {
 			None
@@ -149,7 +163,7 @@ impl<'env> Value<'env> {
 	pub fn as_variable(&self) -> Option<Variable<'env>> {
 		if self.is_tag(Tag::Variable) {
 			unsafe {
-				Some(Variable::from_raw(self.0))
+				Some(Variable::from_raw(self.unmask() as usize as *const _))
 			}
 		} else {
 			None
@@ -159,10 +173,28 @@ impl<'env> Value<'env> {
 	pub fn ast_ast(&self) -> Option<Ast<'env>> {
 		if self.is_tag(Tag::Ast) {
 			unsafe {
-				Some(Ast::from_raw(self.0))
+				Some(Ast::from_raw(self.unmask() as usize as *const _))
 			}
 		} else {
 			None
 		}
+	}
+}
+
+impl Clone for Value<'_> {
+	fn clone(&self) -> Self {
+		todo!()
+	}
+}
+
+// impl Drop for Value<'_> {
+// 	fn drop(&mut self) {
+// 		// todo
+// 	}
+// }
+
+impl Debug for Value<'_> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		todo!()
 	}
 }
