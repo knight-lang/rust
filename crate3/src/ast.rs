@@ -1,3 +1,4 @@
+#[repr(transparent)]
 pub struct Ast<'env> {
 	x: &'env ()
 }

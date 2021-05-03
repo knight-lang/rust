@@ -24,6 +24,7 @@ mod ast;
 mod null;
 mod boolean;
 mod error;
+pub mod functions;
 
 pub use error::*;
 

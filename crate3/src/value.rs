@@ -1,4 +1,4 @@
-use crate::{Null, Boolean, Text, TextRef, Number, Variable, Ast, Result, Environment};
+use crate::{Null, Boolean, Text, TextRef, Number, Variable, Ast, Result, Environment, Error};
 use std::num::NonZeroU64;
 use std::marker::PhantomData;
 use std::fmt::{self, Debug, Formatter};
@@ -25,14 +25,9 @@ enum Constant {
 pub(crate) const TAG_BITS: u64 = 3;
 const TAG_MASK: u64 = (1 << TAG_BITS) - 1;
 
-pub trait ValueType<'env> : Debug {
-	fn run(&self, env: &'env mut Environment) -> Result<Value<'env>>;
+pub trait Runnable<'env> : Debug {
+	fn run(&self, env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>>;
 }
-
-// pub trait Literal : Debug + Clone {
-// 	fn to_text(&self) -> &Text;
-// }
-
 
 impl Default for Value<'_> {
 	fn default() -> Self {
@@ -124,62 +119,72 @@ impl From<Number> for Value<'_> {
 }
 
 impl<'env> Value<'env> {
-	pub const fn as_null(&self) -> Option<Null> {
+	pub const fn typename(&self) -> &'static str {
+		"todo!()"
+	}
+
+	pub const fn as_null(&self) -> Result<Null> {
 		if self.bytes() == Self::NULL.0.get() {
-			Some(Null)
+			Ok(Null)
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Null" })
 		}
 	}
 
-	pub const fn as_boolean(&self) -> Option<Boolean> {
+	pub const fn as_boolean(&self) -> Result<Boolean> {
 		if self.bytes() == Self::TRUE.bytes() {
-			Some(Boolean::new(true))
+			Ok(Boolean::new(true))
 		} else if self.bytes() == Self::FALSE.bytes() {
-			Some(Boolean::new(false))
+			Ok(Boolean::new(false))
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Boolean" })
 		}
 	}
 
-	pub const fn as_number(&self) -> Option<Number> {
+	pub const fn as_number(&self) -> Result<Number> {
 		if self.is_tag(Tag::Number) {
-			Some(unsafe { Number::new_unchecked((self.bytes() as i64) >> TAG_BITS) })
+			Ok(unsafe { Number::new_unchecked((self.bytes() as i64) >> TAG_BITS) })
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Number" })
 		}
 	}
 
-	pub fn as_text(&self) -> Option<TextRef> {
+	pub fn as_text(&self) -> Result<TextRef> {
 		if self.is_tag(Tag::Text) {
 			unsafe {
-				Some(TextRef::from_raw(self.unmask() as usize as *const _))
+				Ok(TextRef::from_raw(self.unmask() as _))
 			}
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Text" })
 		}
 	}
 
-	pub fn as_variable(&self) -> Option<Variable<'env>> {
+	pub fn as_variable(&self) -> Result<Variable<'env>> {
 		if self.is_tag(Tag::Variable) {
 			unsafe {
-				Some(Variable::from_raw(self.unmask() as usize as *const _))
+				Ok(Variable::from_raw(self.unmask() as _))
 			}
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Variable" })
 		}
 	}
 
-	pub fn ast_ast(&self) -> Option<Ast<'env>> {
+	pub fn as_ast(&self) -> Result<Ast<'env>> {
 		if self.is_tag(Tag::Ast) {
 			unsafe {
-				Some(Ast::from_raw(self.unmask() as usize as *const _))
+				Ok(Ast::from_raw(self.unmask() as _))
 			}
 		} else {
-			None
+			Err(Error::UndefinedConversion { from: self.typename(), to: "Ast" })
 		}
 	}
+
+	pub fn run(&self, env: &'env mut Environment<'_, '_, '_>) -> Result<Self> {
+		let _ = env;
+		todo!()
+	}
 }
+
 
 impl Clone for Value<'_> {
 	fn clone(&self) -> Self {

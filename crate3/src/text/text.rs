@@ -1,7 +1,9 @@
-use super::TextInner;
+use super::{TextInner, InvalidChar, validate};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::convert::TryFrom;
+use std::borrow::Borrow;
 
 #[repr(transparent)]
 pub struct Text(*const TextInner);
@@ -24,11 +26,6 @@ impl Drop for Text {
 	}
 }
 
-#[derive(Debug)]
-pub struct InvalidByte {
-
-}
-
 impl Text {
 	fn inner(&self) -> &TextInner {
 		unsafe {
@@ -36,14 +33,16 @@ impl Text {
 		}
 	}
 
-	pub fn new(data: impl std::borrow::Borrow<str> + ToString) -> Result<Self, InvalidByte> {
+	pub fn new(data: impl Borrow<str> + ToString) -> Result<Self, InvalidChar> {
+		validate(data.borrow())?;
+
 		let data = data.to_string().into_boxed_str();
 		let inner = Box::new(TextInner::Arc(Arc::from(data)));
 
 		Ok(Self(Box::into_raw(inner)))
 	}
 
-	pub fn new_borrowed(data: &str) -> Result<Self, InvalidByte> {
+	pub fn new_borrowed(data: &str) -> Result<Self, InvalidChar> {
 		Self::new(data) // todo: borrowed data
 	}
 
@@ -108,8 +107,17 @@ impl AsRef<str> for Text {
 	}
 }
 
-impl std::borrow::Borrow<str> for Text {
+impl Borrow<str> for Text {
 	fn borrow(&self) -> &str {
 		self.as_str()
+	}
+}
+
+impl TryFrom<String> for Text {
+	type Error = InvalidChar;
+
+	#[inline]
+	fn try_from(input: String) -> Result<Self, Self::Error> {
+		Self::new(input)
 	}
 }

@@ -14,6 +14,8 @@ impl Number {
 	}
 
 	pub const unsafe fn new_unchecked(data: i64) -> Self {
+		debug_assert_eq_const!((data << TAG_BITS) >> TAG_BITS, data);
+
 		Self(data)
 	}
 
@@ -36,7 +38,7 @@ impl From<Number> for Text {
 
 		// write it out by and so we dont have to allocate if it's already cached.
 		const ZERO: TextStatic = unsafe { TextStatic::new_static_unchecked("0") };
-		const BUFLEN: usize = "-9223372036854775808".len();
+		const BUFLEN: usize = "-9223372036854775808".len(); // largest length string for i64.
 
 		let mut num = number.inner();
 

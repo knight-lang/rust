@@ -1,4 +1,4 @@
-use crate::{Value, ValueType, Environment, Result, Error};
+use crate::{Value, Runnable, Environment, Result, Error};
 use std::cell::RefCell;
 use std::fmt::{self, Debug, Formatter};
 
@@ -18,12 +18,12 @@ impl<'env> Variable<'env> {
 		}
 	}
 
-	pub(crate) fn into_raw(self) -> *const () {
-		self.0 as *const _
+	pub(crate) fn into_raw(self) -> *mut () {
+		self.0 as *mut _
 	}
 
-	pub(crate) unsafe fn from_raw(raw: *const ()) -> Self {
-		Self(raw as *const _)
+	pub(crate) unsafe fn from_raw(raw: *mut ()) -> Self {
+		Self(raw as *mut _)
 	}
 
 	pub fn name(&self) -> &str {
@@ -39,8 +39,8 @@ impl<'env> Variable<'env> {
 	}
 }
 
-impl<'env> ValueType<'env> for Variable<'env> {
-	fn run(&self, env: &'env mut Environment) -> Result<Value<'env>> {
+impl<'env> Runnable<'env> for Variable<'env> {
+	fn run(&self, _: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
 		self.value().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
 	}
 }
@@ -50,7 +50,7 @@ impl Debug for Variable<'_> {
 		if f.alternate() {
 			f.debug_struct("Variable")
 				.field("name", &self.name())
-				.field("value", &self.inner().value.borrow())
+				.field("value", &self.inner().value)
 				.finish()
 		} else {
 			f.debug_tuple("Variable")

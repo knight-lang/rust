@@ -36,3 +36,9 @@ impl From<Null> for Text {
 		NULL.text()
 	}
 }
+
+// impl<'env> crate::Runnable<'env> for Null {
+// 	fn run(&self, env: &'env mut Environment<'_ ,'_ ,'_>) -> Result<Value<'env>> {
+// 		Ok(Value::from(self))
+// 	}
+// }
