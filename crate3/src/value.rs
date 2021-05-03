@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 use std::marker::PhantomData;
 use std::fmt::{self, Debug, Formatter};
 
-pub struct Value<'env>(NonZeroU64, PhantomData<&'env ()>);
+pub struct Value(NonZeroU64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tag {
@@ -25,17 +25,17 @@ enum Constant {
 pub(crate) const TAG_BITS: u64 = 3;
 const TAG_MASK: u64 = (1 << TAG_BITS) - 1;
 
-pub trait Runnable<'env> : Debug {
-	fn run(&self, env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>>;
+pub trait Runnable : Debug {
+	fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Value>;
 }
 
-impl Default for Value<'_> {
+impl Default for Value {
 	fn default() -> Self {
 		Self::from(Null)
 	}
 }
 
-impl Value<'_> {
+impl Value {
 	const NULL: Self = unsafe {
 		Self::new_tagged((Constant::Null as u64) << TAG_BITS, Tag::Constant)
 	};
@@ -52,7 +52,7 @@ impl Value<'_> {
 		debug_assert_eq_const!(data & TAG_MASK, 0, "invalid bits given");
 		debug_assert_ne_const!(data | tag as u64, 0, "undefined value created");
 
-		Self(NonZeroU64::new_unchecked(data | tag as u64), PhantomData)
+		Self(NonZeroU64::new_unchecked(data | tag as u64))
 	}
 
 	const fn bytes(&self) -> u64 {
@@ -86,13 +86,13 @@ impl Value<'_> {
 	}
 }
 
-impl From<Null> for Value<'_> {
+impl From<Null> for Value {
 	fn from(_: Null) -> Self {
 		Self::NULL
 	}
 }
 
-impl From<Boolean> for Value<'_> {
+impl From<Boolean> for Value {
 	fn from(bool: Boolean) -> Self {
 		if bool.inner() {
 			Self::TRUE
@@ -102,7 +102,7 @@ impl From<Boolean> for Value<'_> {
 	}
 }
 
-impl From<Text> for Value<'_> {
+impl From<Text> for Value {
 	fn from(text: Text) -> Self {
 		unsafe {
 			Self::new_tagged(text.into_raw() as usize as u64, Tag::Text)
@@ -110,7 +110,7 @@ impl From<Text> for Value<'_> {
 	}
 }
 
-impl From<Number> for Value<'_> {
+impl From<Number> for Value {
 	fn from(number: Number) -> Self {
 		unsafe {
 			Self::new_tagged((number.inner() as u64) << TAG_BITS, Tag::Text)
@@ -118,7 +118,7 @@ impl From<Number> for Value<'_> {
 	}
 }
 
-impl<'env> Value<'env> {
+impl Value {
 	pub const fn typename(&self) -> &'static str {
 		"todo!()"
 	}
@@ -159,7 +159,7 @@ impl<'env> Value<'env> {
 		}
 	}
 
-	pub fn as_variable(&self) -> Result<Variable<'env>> {
+	pub fn as_variable(&self) -> Result<Variable> {
 		if self.is_tag(Tag::Variable) {
 			unsafe {
 				Ok(Variable::from_raw(self.unmask() as _))
@@ -169,7 +169,7 @@ impl<'env> Value<'env> {
 		}
 	}
 
-	pub fn as_ast(&self) -> Result<Ast<'env>> {
+	pub fn as_ast(&self) -> Result<Ast> {
 		if self.is_tag(Tag::Ast) {
 			unsafe {
 				Ok(Ast::from_raw(self.unmask() as _))
@@ -179,26 +179,26 @@ impl<'env> Value<'env> {
 		}
 	}
 
-	pub fn run(&self, env: &'env mut Environment<'_, '_, '_>) -> Result<Self> {
+	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self> {
 		let _ = env;
 		todo!()
 	}
 }
 
 
-impl Clone for Value<'_> {
+impl Clone for Value {
 	fn clone(&self) -> Self {
 		todo!()
 	}
 }
 
-// impl Drop for Value<'_> {
+// impl Drop for Value {
 // 	fn drop(&mut self) {
 // 		// todo
 // 	}
 // }
 
-impl Debug for Value<'_> {
+impl Debug for Value {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		todo!()
 	}

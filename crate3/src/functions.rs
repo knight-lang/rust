@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::convert::{TryInto, TryFrom};
 use std::sync::Arc;
 
-type Func = dyn for<'env> Fn(&[Value<'env>], &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>>;
+type Func = dyn Fn(&[Value], &mut Environment<'_, '_, '_>) -> Result<Value>;
 
 pub struct Function<'func> {
 	name: char,
@@ -81,7 +81,7 @@ impl<'func> Function<'func> {
 	}
 
 	#[inline]
-	pub fn run<'env>(&self, args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+	pub fn run(&self, args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 		(self.func)(args, env)
 	}
 }
@@ -89,7 +89,7 @@ impl<'func> Function<'func> {
 use std::io::{Write, BufRead};
 
 // arity zero
-pub fn prompt<'env>(_: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	let mut buf = String::new();
 
 	env.stdin().read_line(&mut buf)?;
@@ -97,7 +97,7 @@ pub fn prompt<'env>(_: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -
 	Ok(Text::try_from(buf)?.into())
 }
 
-pub fn random<'env>(_: &[Value<'env>], _: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	unsafe {
 		Ok(Number::new_unchecked(rand::random::<u32>() as i64).into())
 	}
@@ -105,41 +105,41 @@ pub fn random<'env>(_: &[Value<'env>], _: &'env mut Environment<'_, '_, '_>) -> 
 
 // arity one
 
-pub fn eval<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
-	let ran = args[0].run(unsafe { &mut *(env as *mut _) })?;
+pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	let ran = args[0].run(env)?;
 
 	env.eval(ran.as_text()?)
 }
 
-pub fn block<'env>(args: &[Value<'env>], _: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+pub fn block(args: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	Ok(args[0].clone())
 }
 
-// pub fn call<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn call(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	args[0].run(env)?.run(env)
 // }
 
-// pub fn system<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	let cmd = args[0].run(env)?.to_rcstring()?;
 
 // 	env.system(&cmd).map(Value::from)
 // }
 
-// pub fn quit<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	Err(RuntimeError::Quit(args[0].run(env)?.to_number()? as i32))
 // }
 
-// pub fn not<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	Ok((!args[0].run(env)?.to_boolean()?).into())
 // }
 
-// pub fn length<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	args[0].run(env)?.to_rcstring()
 // 		.map(|rcstring| rcstring.len() as Number)
 // 		.map(Value::from)
 // }
 
-// pub fn dump<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn dump(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	let ret = args[0].run(env)?;
 
 // 	writeln!(env, "{:?}", ret)?;
@@ -147,7 +147,7 @@ pub fn block<'env>(args: &[Value<'env>], _: &'env mut Environment<'_, '_, '_>) -
 // 	Ok(ret)
 // }
 
-// pub fn output<'env>(args: &[Value<'env>], env: &'env mut Environment<'_, '_, '_>) -> Result<Value<'env>> {
+// pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // 	let text = args[0].run(env)?.to_rcstring()?;
 
 // 	if let Some(stripped) = text.strip_suffix('\\') {

@@ -1,9 +1,8 @@
-#[repr(transparent)]
-pub struct Ast<'env> {
-	x: &'env ()
+pub struct Ast {
+
 }
 
-impl<'env> Ast<'env> {
+impl Ast {
 	pub fn into_raw(self) -> *const () {
 		todo!()
 	}

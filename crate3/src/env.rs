@@ -9,7 +9,7 @@ use crate::{Result, Text, Value};
 pub struct Environment<'i, 'o, 's> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap` wouldn't allow for. (or would
 	// have redundant allocations.)
-	vars: HashSet<Variable<'static>>, // technically, `'self`, but that doesn't exist because dumb rust.
+	vars: HashSet<Variable>,
 	stdin: &'i mut dyn BufRead,
 	stdout: &'o mut dyn Write,
 	system: &'s mut dyn FnMut(&str) -> Result<Text>
@@ -28,7 +28,7 @@ impl<'i, 'o, 's> Environment<'i, 'o, 's> {
 		(self.system)(input.as_ref())
 	}
 
-	pub fn eval<'env, S: AsRef<str>>(&'env mut self, input: S) -> Result<Value<'env>> {
+	pub fn eval<S: AsRef<str>>(&mut self, input: S) -> Result<Value> {
 		todo!()
 	}
 
