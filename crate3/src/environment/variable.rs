@@ -14,6 +14,10 @@ struct VariableInner {
 }
 
 impl Variable {
+	pub(super) fn create(name: String) -> Self {
+		Self(Arc::new(VariableInner { name, value: RefCell::new(None) }))
+	}
+
 	fn inner(&self) -> &VariableInner {
 		unsafe {
 			&*self.0
@@ -59,5 +63,24 @@ impl Debug for Variable {
 				.field(&self.name())
 				.finish()
 		}
+	}
+}
+
+impl Eq for Variable {}
+impl PartialEq for Variable {
+	fn eq(&self, rhs: &Self) -> bool {
+		Arc::ptr_eq(&self.0, &rhs.0)
+	}
+}
+
+impl std::borrow::Borrow<str> for Variable {
+	fn borrow(&self) -> &str {
+		self.name()
+	}
+}
+
+impl std::hash::Hash for Variable {
+	fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+		(&*self.0 as *const _ as usize).hash(h);
 	}
 }

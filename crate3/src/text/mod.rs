@@ -1,10 +1,12 @@
 mod text;
 mod r#ref;
 mod r#static;
+mod builder;
 
 pub use text::*;
 pub use r#ref::*;
 pub use r#static::*;
+pub use builder::*;
 
 enum TextInner {
 	Static(&'static str),

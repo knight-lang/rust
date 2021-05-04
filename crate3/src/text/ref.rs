@@ -2,7 +2,7 @@ use super::{TextInner, Text};
 use std::marker::PhantomData;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::borrow::Borrow;
+use std::borrow::{Borrow, ToOwned};
 use std::ops::Deref;
 
 #[derive(Clone, Copy)]

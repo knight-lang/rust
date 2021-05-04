@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::convert::TryFrom;
 use std::borrow::Borrow;
+use std::ops::Deref;
 
 #[repr(transparent)]
 pub struct Text(*const TextInner);
@@ -21,7 +22,7 @@ impl Clone for Text {
 impl Drop for Text {
 	fn drop(&mut self) {
 		unsafe {
-			(self.0 as *mut TextInner).drop_in_place()
+			// (self.0 as *mut TextInner).drop_in_place()
 		}
 	}
 }
@@ -40,6 +41,10 @@ impl Text {
 		let inner = Box::new(TextInner::Arc(Arc::from(data)));
 
 		Ok(Self(Box::into_raw(inner)))
+	}
+
+	pub fn new_owned(data: String) -> Result<Self, InvalidChar> {
+		Self::new(data)
 	}
 
 	pub fn new_borrowed(data: &str) -> Result<Self, InvalidChar> {
@@ -119,5 +124,13 @@ impl TryFrom<String> for Text {
 	#[inline]
 	fn try_from(input: String) -> Result<Self, Self::Error> {
 		Self::new(input)
+	}
+}
+
+impl Deref for Text {
+	type Target = str;
+
+	fn deref(&self) -> &Self::Target {
+		self.as_str()
 	}
 }

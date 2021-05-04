@@ -1,6 +1,9 @@
 #![allow(unused)]
 extern crate static_assertions as sa;
 
+#[macro_use]
+extern crate cfg_if;
+
 macro_rules! debug_assert_const {
 	($cond:expr) => (debug_assert_const!($cond, concat!("assertion failed: ", stringify!($cond))));
 	($cond:expr, $msg:expr) => (#[cfg(debug_assertions)] {let _ = [$msg][!$cond as usize]; })
@@ -19,7 +22,7 @@ macro_rules! debug_assert_ne_const {
 pub mod value;
 mod text;
 mod number;
-mod env;
+mod environment;
 mod ast;
 mod null;
 mod boolean;
@@ -31,8 +34,7 @@ pub use error::*;
 pub use text::*;
 pub use number::*;
 pub use boolean::*;
-pub use env::*;
+pub use environment::*;
 pub use ast::*;
 pub use value::*;
 pub use null::*;
-pub use env::*;

@@ -1,5 +1,5 @@
 use std::fmt::{self, Display, Formatter};
-use crate::{Text, Number};
+use crate::{Text, Number, Boolean};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Null; // no PartialOrd b/c knight says you cant compare null
@@ -10,7 +10,7 @@ impl Display for Null {
 	}
 }
 
-impl From<Null> for bool {
+impl From<Null> for Boolean {
 	#[inline]
 	fn from(_: Null) -> Self {
 		false
