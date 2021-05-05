@@ -1,6 +1,6 @@
 [package]
 name = "knightrs"
-version = "0.8.9"
+version = "0.8.10"
 authors = ["Sam Westerman <mail@sampersand.me>"]
 edition = "2018"
 description = "The Knight programming language, in Rust"

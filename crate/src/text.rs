@@ -1,4 +1,4 @@
-//! Types relating to the [`RcString`].
+//! Types relating to the [`Text`].
 
 use std::sync::Arc;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -7,50 +7,50 @@ use std::convert::TryFrom;
 
 /// The string type within Knight.
 #[derive(Clone)]
-pub struct RcString(Arc<str>);
+pub struct Text(Arc<str>);
 
-impl Default for RcString {
+impl Default for Text {
 	fn default() -> Self {
 		use once_cell::sync::OnceCell;
 
-		static EMPTY: OnceCell<RcString> = OnceCell::new();
+		static EMPTY: OnceCell<Text> = OnceCell::new();
 
 		EMPTY.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
 	}
 }
 
-impl Debug for RcString {
+impl Debug for Text {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		Debug::fmt(self.as_str(), f)
 	}
 }
 
-impl Display for RcString {
+impl Display for Text {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		Display::fmt(self.as_str(), f)
 	}
 }
 
-impl Hash for RcString {
+impl Hash for Text {
 	fn hash<H: Hasher>(&self, h: &mut H) {
 		self.as_str().hash(h)
 	}
 }
 
-impl Eq for RcString {}
-impl PartialEq for RcString {
+impl Eq for Text {}
+impl PartialEq for Text {
 	fn eq(&self, rhs: &Self) -> bool {
 		self.as_str() == rhs.as_str()
 	}
 }
 
-impl PartialOrd for RcString {
+impl PartialOrd for Text {
 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
 		self.as_str().partial_cmp(rhs.as_str())
 	}
 }
 
-impl Ord for RcString {
+impl Ord for Text {
 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
 		self.as_str().cmp(rhs.as_str())
 	}
@@ -90,24 +90,24 @@ fn validate_string(data: &str) -> Result<(), InvalidChar> {
 	Ok(())
 }
 
-impl RcString {
-	/// Creates a new `RcString` with the given input string.
+impl Text {
+	/// Creates a new `Text` with the given input string.
 	///
 	/// # Errors
 	/// If `string` contains any characters which aren't valid in Knight source code, an `InvalidChar` is returned.
 	///
 	/// # See Also
-	/// - [`RcString::new_unchecked`] For a version which doesn't verify `string`.
-	#[must_use = "Creating an RcString does nothing on its own"]
+	/// - [`Text::new_unchecked`] For a version which doesn't verify `string`.
+	#[must_use = "Creating an Text does nothing on its own"]
 	pub fn new<T: ToString + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
 		Self::try_from(string.to_string())
 	}
 
-	/// Creates a new `RcString`, without verifying that the string is valid.
+	/// Creates a new `Text`, without verifying that the string is valid.
 	///
 	/// # Safety
 	/// All characters within the string must be valid for Knight strings. See the specs for what exactly this entails.
-	#[must_use = "Creating an RcString does nothing on its own"]
+	#[must_use = "Creating an Text does nothing on its own"]
 	pub unsafe fn new_unchecked<T: ToString + ?Sized>(string: &T) -> Self {
 		let string = string.to_string();
 
@@ -124,7 +124,7 @@ impl RcString {
 	}
 }
 
-impl TryFrom<&str> for RcString {
+impl TryFrom<&str> for Text {
 	type Error = InvalidChar;
 
 	#[inline]
@@ -133,7 +133,7 @@ impl TryFrom<&str> for RcString {
 	}
 }
 
-impl TryFrom<String> for RcString {
+impl TryFrom<String> for Text {
 	type Error = InvalidChar;
 
 	#[inline]
@@ -144,14 +144,14 @@ impl TryFrom<String> for RcString {
 	}
 }
 
-impl AsRef<str> for RcString {
+impl AsRef<str> for Text {
 	#[inline]
 	fn as_ref(&self) -> &str {
 		self.as_str()
 	}
 }
 
-impl std::ops::Deref for RcString {
+impl std::ops::Deref for Text {
 	type Target = str;
 
 	#[inline]

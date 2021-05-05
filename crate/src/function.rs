@@ -1,6 +1,6 @@
 //! The functions within Knight.
 
-use crate::{Value, RuntimeError, Number, Environment, RcString};
+use crate::{Value, Error, Number, Environment, Text};
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ use std::convert::{TryInto, TryFrom};
 use std::sync::Mutex;
 
 // An alias to make life easier.
-type FuncPtr = fn(&[Value], &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError>;
+type FuncPtr = fn(&[Value], &mut Environment<'_, '_, '_>) -> Result<Value, Error>;
 
 /// The type that represents functions themselves (eg `PROMPT`, `+`, `=`, etc.) within Knight.
 /// 
@@ -72,7 +72,7 @@ impl Function {
 	}
 
 	/// Executes this function with the given arguments
-	pub fn run(&self, args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+	pub fn run(&self, args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 		(self.func)(args, env)
 	}
 
@@ -151,55 +151,55 @@ lazy_static::lazy_static! {
 use std::io::{Write, BufRead};
 
 // arity zero
-pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let mut buf = String::new();
 
 	std::io::BufReader::new(env).read_line(&mut buf)?;
 
-	RcString::try_from(buf).map(From::from).map_err(From::from)
+	Text::try_from(buf).map(From::from).map_err(From::from)
 }
 
-pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	Ok((rand::random::<u32>() as Number).into())
 }
 
 // arity one
 
-pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let ran = args[0].run(env)?;
 
-	env.run_str(&ran.to_rcstring()?)
+	env.run_str(&ran.to_text()?)
 }
 
-pub fn block(args: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn block(args: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	Ok(args[0].clone())
 }
 
-pub fn call(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn call(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	args[0].run(env)?.run(env)
 }
 
-pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	let cmd = args[0].run(env)?.to_rcstring()?;
+pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
+	let cmd = args[0].run(env)?.to_text()?;
 
 	env.system(&cmd).map(Value::from)
 }
 
-pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	Err(RuntimeError::Quit(args[0].run(env)?.to_number()? as i32))
+pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
+	Err(Error::Quit(args[0].run(env)?.to_number()? as i32))
 }
 
-pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	Ok((!args[0].run(env)?.to_boolean()?).into())
 }
 
-pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	args[0].run(env)?.to_rcstring()
+pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
+	args[0].run(env)?.to_text()
 		.map(|rcstring| rcstring.len() as Number)
 		.map(Value::from)
 }
 
-pub fn dump(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn dump(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let ret = args[0].run(env)?;
 
 	writeln!(env, "{:?}", ret)?;
@@ -207,8 +207,8 @@ pub fn dump(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, 
 	Ok(ret)
 }
 
-pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	let text = args[0].run(env)?.to_rcstring()?;
+pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
+	let text = args[0].run(env)?.to_text()?;
 
 	if let Some(stripped) = text.strip_suffix('\\') {
 		write!(env, "{}", stripped)?;
@@ -222,89 +222,89 @@ pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 
 // arity two
 
-pub fn add(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn add(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 
 			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| RuntimeError::Overflow { func: '+', lhs, rhs }) }
+			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '+', lhs, rhs }) }
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{ Ok(Value::Number(lhs + rhs)) }
 		},
-		Value::String(lhs) => {
-			let rhs = args[1].run(env)?.to_rcstring()?;
+		Value::Text(lhs) => {
+			let rhs = args[1].run(env)?.to_text()?;
 
-			// both `RcString.to_string()` is a valid RcString, so adding it to `to_rcstring` is valid.
-			Ok(Value::String(RcString::try_from(lhs.to_string() + &rhs).unwrap()))
+			// both `Text.to_string()` is a valid Text, so adding it to `to_text` is valid.
+			Ok(Value::Text(Text::try_from(lhs.to_string() + &rhs).unwrap()))
 		},
-		other => Err(RuntimeError::InvalidOperand { func: '+', operand: other.typename() })
+		other => Err(Error::InvalidOperand { func: '+', operand: other.typename() })
 	}
 }
 
-pub fn subtract(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn subtract(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 			
 			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| RuntimeError::Overflow { func: '-', lhs, rhs }) }
+			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '-', lhs, rhs }) }
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{ Ok(Value::Number(lhs - rhs)) }
 		},
-		other => Err(RuntimeError::InvalidOperand { func: '-', operand: other.typename() })
+		other => Err(Error::InvalidOperand { func: '-', operand: other.typename() })
 	}
 }
 
-pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 			
 			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| RuntimeError::Overflow { func: '*', lhs, rhs }) }
+			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '*', lhs, rhs }) }
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{ Ok(Value::Number(lhs * rhs)) }
 		}
-		Value::String(lhs) =>
-			RcString::try_from(args[1].run(env)?
+		Value::Text(lhs) =>
+			Text::try_from(args[1].run(env)?
 				.to_number()
 				.map(|rhs| (0..rhs).map(|_| lhs.as_str()).collect::<String>())?)
 				.map_err(From::from)
-				.map(Value::String),
-		other => Err(RuntimeError::InvalidOperand { func: '*', operand: other.typename() })
+				.map(Value::Text),
+		other => Err(Error::InvalidOperand { func: '*', operand: other.typename() })
 	}
 }
 
-pub fn divide(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn divide(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) =>
 			lhs.checked_div(args[1].run(env)?.to_number()?)
 				.map(Value::from)
-				.ok_or(RuntimeError::DivisionByZero { kind: "division" }),
-		other => Err(RuntimeError::InvalidOperand { func: '/', operand: other.typename() })
+				.ok_or(Error::DivisionByZero { kind: "division" }),
+		other => Err(Error::InvalidOperand { func: '/', operand: other.typename() })
 	}
 }
 
-pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) =>
 			lhs.checked_rem(args[1].run(env)?.to_number()?)
 				.map(Value::from)
-				.ok_or(RuntimeError::DivisionByZero { kind: "modulo" }),
-		other => Err(RuntimeError::InvalidOperand { func: '%', operand: other.typename() })
+				.ok_or(Error::DivisionByZero { kind: "modulo" }),
+		other => Err(Error::InvalidOperand { func: '%', operand: other.typename() })
 	}
 }
 
 // TODO: checked-overflow for this function.
-pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let base = 
 		match args[0].run(env)? {
 			Value::Number(lhs) => lhs,
-			other => return Err(RuntimeError::InvalidOperand { func: '^', operand: other.typename() })
+			other => return Err(Error::InvalidOperand { func: '^', operand: other.typename() })
 		};
 
 	let exponent = args[1].run(env)?.to_number()?;
@@ -322,7 +322,7 @@ pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value,
 			match exponent {
 				1 => base,
 				0 => 1,
-				_ if base == 0 && exponent < 0 => return Err(RuntimeError::DivisionByZero { kind: "power" }),
+				_ if base == 0 && exponent < 0 => return Err(Error::DivisionByZero { kind: "power" }),
 				_ if exponent < 0 => 0,
 				_ => base.pow(exponent as u32)
 			}
@@ -330,29 +330,29 @@ pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value,
 	))
 }
 
-pub fn equals(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn equals(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	Ok((args[0].run(env)? == args[1].run(env)?).into())
 }
 
-pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) => Ok((lhs < args[1].run(env)?.to_number()?).into()),
 		Value::Boolean(lhs) => Ok((lhs < args[1].run(env)?.to_boolean()?).into()),
-		Value::String(lhs) => Ok((lhs.as_str() < args[1].run(env)?.to_rcstring()?.as_str()).into()),
-		other => Err(RuntimeError::InvalidOperand { func: '<', operand: other.typename() })
+		Value::Text(lhs) => Ok((lhs.as_str() < args[1].run(env)?.to_text()?.as_str()).into()),
+		other => Err(Error::InvalidOperand { func: '<', operand: other.typename() })
 	}
 }
 
-pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	match args[0].run(env)? {
 		Value::Number(lhs) => Ok((lhs > args[1].run(env)?.to_number()?).into()),
 		Value::Boolean(lhs) => Ok((lhs > args[1].run(env)?.to_boolean()?).into()),
-		Value::String(lhs) => Ok((lhs.as_str() > args[1].run(env)?.to_rcstring()?.as_str()).into()),
-		other => Err(RuntimeError::InvalidOperand { func: '>', operand: other.typename() })
+		Value::Text(lhs) => Ok((lhs.as_str() > args[1].run(env)?.to_text()?.as_str()).into()),
+		other => Err(Error::InvalidOperand { func: '>', operand: other.typename() })
 	}
 }
 
-pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let lhs = args[0].run(env)?;
 
 	if lhs.to_boolean()? {
@@ -362,7 +362,7 @@ pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, R
 	}
 }
 
-pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let lhs = args[0].run(env)?;
 
 	if lhs.to_boolean()? {
@@ -372,17 +372,17 @@ pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Ru
 	}
 }
 
-pub fn then(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn then(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	args[0].run(env)?;
 	args[1].run(env)
 }
 
-pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let variable = 
 		if let Value::Variable(ref variable) = args[0] {
 			variable
 		} else /* if cfg!(feature = "assign-to-anything") */ {
-			return Err(RuntimeError::InvalidOperand { func: '?', operand: args[0].typename() });
+			return Err(Error::InvalidOperand { func: '?', operand: args[0].typename() });
 		};
 
 	let rhs = args[1].run(env)?;
@@ -392,7 +392,7 @@ pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 	Ok(rhs)
 }
 
-pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	while args[0].run(env)?.to_boolean()? {
 		let _ = args[1].run(env)?;
 	}
@@ -402,7 +402,7 @@ pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Valu
 
 // arity three
 
-pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	if args[0].run(env)?.to_boolean()? {
 		args[1].run(env)
 	} else {
@@ -410,11 +410,11 @@ pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, 
 	}
 }
 
-pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
+pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
 	let substr =
 		args[0]
 			.run(env)?
-			.to_rcstring()?
+			.to_text()?
 			.chars()
 			.skip(args[1].run(env)?.to_number()? as usize)
 			.take(args[2].run(env)?.to_number()? as usize)
@@ -422,19 +422,19 @@ pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, R
 			.try_into()
 			.unwrap(); // we know the substring is valid, as the source string was valid.
 
-	Ok(Value::String(substr))
+	Ok(Value::Text(substr))
 }
 
 // arity four
 
-pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, RuntimeError> {
-	let source = args[0].run(env)?.to_rcstring()?;
+pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value, Error> {
+	let source = args[0].run(env)?.to_text()?;
 	let start = args[1].run(env)?.to_number()? as usize;
 	let stop = start + args[2].run(env)?.to_number()? as usize;
 
 	let mut x = source.chars().take(start).collect::<String>();
-	x.push_str(&args[3].run(env)?.to_rcstring()?);
+	x.push_str(&args[3].run(env)?.to_text()?);
 	x.extend(source.chars().skip(stop));
 
-	Ok(Value::String(x.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
+	Ok(Value::Text(x.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
 }

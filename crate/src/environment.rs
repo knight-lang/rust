@@ -2,7 +2,7 @@
 //!
 //! See [`Environment`] for more details.
 
-use crate::{RuntimeError, Value, RcString};
+use crate::{Error, Value, Text};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Write, Read};
@@ -13,7 +13,7 @@ mod variable;
 pub use builder::Builder;
 pub use variable::Variable;
 
-type SystemCommand = dyn FnMut(&str) -> Result<RcString, RuntimeError>;
+type SystemCommand = dyn FnMut(&str) -> Result<Text, Error>;
 
 /// The execution environment for Knight programs.
 ///
@@ -134,18 +134,17 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	///
 	/// assert_eq!(env.system("echo 'hello, knight!'").unwrap().as_str(), "hello, knight!\n");
 	/// ```
-	pub fn system(&mut self, cmd: &str) -> Result<RcString, RuntimeError> {
+	pub fn system(&mut self, cmd: &str) -> Result<Text, Error> {
 		(self.system)(cmd)
 	}
 
-
 	/// Runs the given string as Knight code, returning the result of its execution.
-	pub fn run_str<S: AsRef<str>>(&mut self, input: S) -> Result<Value, RuntimeError> {
+	pub fn run_str<S: AsRef<str>>(&mut self, input: S) -> Result<Value, Error> {
 		self.run(input.as_ref().chars())
 	}
 
 	/// Parses a [`Value`] from the given iterator and then runs the value.
-	pub fn run<I>(&mut self, input: I) -> Result<Value, RuntimeError>
+	pub fn run<I>(&mut self, input: I) -> Result<Value, Error>
 	where
 		I: IntoIterator<Item=char>
 	{

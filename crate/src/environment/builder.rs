@@ -1,5 +1,5 @@
 use super::{SystemCommand, Environment};
-use crate::{RcString, RuntimeError};
+use crate::{Text, Error};
 use std::io::{self, Write, Read};
 use std::collections::HashSet;
 use std::fmt::{self, Display, Formatter};
@@ -51,11 +51,11 @@ impl Display for NotEnabled {
 
 impl std::error::Error for NotEnabled {}
 
-fn system_err(_: &str) -> Result<RcString, RuntimeError> {
-	Err(RuntimeError::Custom(Box::new(NotEnabled)))
+fn system_err(_: &str) -> Result<Text, Error> {
+	Err(Error::Custom(Box::new(NotEnabled)))
 }
 
-fn system_normal(cmd: &str) -> Result<RcString, RuntimeError> {
+fn system_normal(cmd: &str) -> Result<Text, Error> {
 	use std::process::{Command, Stdio};
 
 	let output =
@@ -66,11 +66,11 @@ fn system_normal(cmd: &str) -> Result<RcString, RuntimeError> {
 			.output()
 			.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 
-	RcString::try_from(output).map_err(From::from)
+	Text::try_from(output).map_err(From::from)
 }
 
-static mut SYSTEM_ERR: fn(&str) -> Result<RcString, RuntimeError> = system_err;
-static mut SYSTEM_NORMAL: fn(&str) -> Result<RcString, RuntimeError> = system_normal;
+static mut SYSTEM_ERR: fn(&str) -> Result<Text, Error> = system_err;
+static mut SYSTEM_NORMAL: fn(&str) -> Result<Text, Error> = system_normal;
 
 impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Creates a new, default [`Builder`].

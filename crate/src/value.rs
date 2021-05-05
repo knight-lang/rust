@@ -1,4 +1,4 @@
-use crate::{Function, Number, RcString, Variable, RuntimeError, Environment};
+use crate::{Function, Number, Text, Variable, Error, Environment, Boolean};
 use std::fmt::{self, Debug, Formatter};
 use std::rc::Rc;
 use std::convert::TryFrom;
@@ -6,9 +6,9 @@ use std::convert::TryFrom;
 #[derive(Clone)]
 pub enum Value {
 	Null,
-	Boolean(bool),
+	Boolean(Boolean),
 	Number(Number),
-	String(RcString),
+	Text(Text),
 	Variable(Variable),
 	Function(Function, Rc<[Value]>)
 }
@@ -27,7 +27,7 @@ impl PartialEq for Value {
 			(Self::Null, Self::Null) => true,
 			(Self::Boolean(lbool), Self::Boolean(rbool)) => lbool == rbool,
 			(Self::Number(lnum), Self::Number(rnum)) => lnum == rnum,
-			(Self::String(lstr), Self::String(rstr)) => lstr == rstr,
+			(Self::Text(ltext), Self::Text(rtext)) => ltext == rtext,
 			(Self::Variable(lvar), Self::Variable(rvar)) => lvar == rvar,
 			(Self::Function(lfunc, largs), Self::Function(rfunc, rargs)) => lfunc == rfunc && Rc::ptr_eq(largs, rargs),
 			_ => false
@@ -42,15 +42,15 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({})", boolean),
 			Self::Number(number) => write!(f, "Number({})", number),
-			Self::String(string) => write!(f, "String({})", string),
+			Self::Text(text) => write!(f, "Text({})", text),
 			Self::Variable(variable) => write!(f, "Variable({})", variable.name()),
 			Self::Function(function, args) => write!(f, "Function({}, {:?})", function.name(), args),
 		}
 	}
 }
 
-impl From<bool> for Value {
-	fn from(boolean: bool) -> Self {
+impl From<Boolean> for Value {
+	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
@@ -61,9 +61,9 @@ impl From<Number> for Value {
 	}
 }
 
-impl From<RcString> for Value {
-	fn from(string: RcString) -> Self {
-		Self::String(string)
+impl From<Text> for Value {
+	fn from(text: Text) -> Self {
+		Self::Text(text)
 	}
 }
 
@@ -74,33 +74,31 @@ impl From<Variable> for Value {
 }
 
 
-impl TryFrom<&Value> for bool {
-	type Error = RuntimeError;
+impl TryFrom<&Value> for Boolean {
+	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value) -> Result<Self, Error> {
 		match value {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(*boolean),
 			Value::Number(number) => Ok(*number != 0),
-			Value::String(string) => Ok(!string.is_empty()),
-			_ => Err(RuntimeError::UndefinedConversion { into: "bool", kind: value.typename() })
+			Value::Text(text) => Ok(!text.is_empty()),
+			_ => Err(Error::UndefinedConversion { into: "Boolean", kind: value.typename() })
 		}
 	}
 }
 
-impl TryFrom<&Value> for RcString {
-	type Error = RuntimeError;
+impl TryFrom<&Value> for Text {
+	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value) -> Result<Self, Error> {
 		use once_cell::sync::OnceCell;
 
-		static NULL: OnceCell<RcString> = OnceCell::new();
-		static TRUE: OnceCell<RcString> = OnceCell::new();
-		static FALSE: OnceCell<RcString> = OnceCell::new();
-		static ZERO: OnceCell<RcString> = OnceCell::new();
-		static ONE: OnceCell<RcString> = OnceCell::new();
-
-		
+		static NULL: OnceCell<Text> = OnceCell::new();
+		static TRUE: OnceCell<Text> = OnceCell::new();
+		static FALSE: OnceCell<Text> = OnceCell::new();
+		static ZERO: OnceCell<Text> = OnceCell::new();
+		static ONE: OnceCell<Text> = OnceCell::new();
 
 		match value {
 			Value::Null => Ok(NULL.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
@@ -109,22 +107,22 @@ impl TryFrom<&Value> for RcString {
 			Value::Number(0) => Ok(ZERO.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
 			Value::Number(1) => Ok(ONE.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
 			Value::Number(number) => Ok(Self::try_from(number.to_string()).unwrap()), // all numbers should be valid strings
-			Value::String(string) => Ok(string.clone()),
-			_ => Err(RuntimeError::UndefinedConversion { into: "bool", kind: value.typename() })
+			Value::Text(text) => Ok(text.clone()),
+			_ => Err(Error::UndefinedConversion { into: "Text", kind: value.typename() })
 		}
 	}
 }
 
 impl TryFrom<&Value> for Number {
-	type Error = RuntimeError;
+	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, RuntimeError> {
+	fn try_from(value: &Value) -> Result<Self, Error> {
 		match value {
 			Value::Null | Value::Boolean(false) => Ok(0),
 			Value::Boolean(true) => Ok(1),
 			Value::Number(number) => Ok(*number),
-			Value::String(string) => {
-				let mut chars = string.trim().bytes();
+			Value::Text(text) => {
+				let mut chars = text.trim().bytes();
 				let mut sign = 1;
 				let mut number: Self = 0;
 
@@ -142,20 +140,20 @@ impl TryFrom<&Value> for Number {
 
 				Ok(sign * number)
 			},
-			_ => Err(RuntimeError::UndefinedConversion { into: "bool", kind: value.typename() })
+			_ => Err(Error::UndefinedConversion { into: "Number", kind: value.typename() })
 		}
 	}
 }
 
 impl Value {
-	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self, RuntimeError> {
+	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self, Error> {
 		match self {
 			Self::Null => Ok(Self::Null),
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),
 			Self::Number(number) => Ok(Self::Number(*number)),
-			Self::String(rcstring) => Ok(Self::String(rcstring.clone())),
+			Self::Text(text) => Ok(Self::Text(text.clone())),
 			Self::Variable(variable) => variable.fetch()
-				.ok_or_else(|| RuntimeError::UnknownIdentifier { identifier: variable.name().into() }),
+				.ok_or_else(|| Error::UnknownIdentifier { identifier: variable.name().into() }),
 			Self::Function(func, args) => func.run(args, env),
 		}
 	}
@@ -166,21 +164,21 @@ impl Value {
 			Self::Null => "Null",
 			Self::Boolean(_) => "Boolean",
 			Self::Number(_) => "Number",
-			Self::String(_) => "String",
+			Self::Text(_) => "Text",
 			Self::Variable(_) => "Variable",
 			Self::Function(_, _) => "Function",
 		}
 	}
 
-	pub fn to_boolean(&self) -> Result<bool, RuntimeError> {
+	pub fn to_boolean(&self) -> Result<Boolean, Error> {
 		TryFrom::try_from(self)
 	}
 
-	pub fn to_number(&self) -> Result<Number, RuntimeError> {
+	pub fn to_number(&self) -> Result<Number, Error> {
 		TryFrom::try_from(self)
 	}
 
-	pub fn to_rcstring(&self) -> Result<RcString, RuntimeError> {
+	pub fn to_text(&self) -> Result<Text, Error> {
 		TryFrom::try_from(self)
 	}
 }

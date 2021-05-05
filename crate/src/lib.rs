@@ -3,7 +3,7 @@
 #![warn(/*, missing_doc_code_examples, missing_docs*/)]
 
 pub mod function;
-pub mod rcstring;
+pub mod text;
 mod value;
 mod error;
 mod stream;
@@ -12,13 +12,16 @@ pub mod environment;
 /// The number type within Knight.
 pub type Number = i64;
 
+/// The boolean type within Knight.
+pub type Boolean = bool;
+
 #[doc(inline)]
-pub use rcstring::RcString;
+pub use text::Text;
 
 #[doc(inline)]
 pub use function::Function;
 
-pub use stream::Stream;
+pub use stream::{Stream, ParseError};
 pub use environment::{Environment, Variable};
 pub use value::Value;
-pub use error::{ParseError, RuntimeError};
+pub use error::Error;

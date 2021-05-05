@@ -1,54 +1,11 @@
 use std::io;
 use std::fmt::{self, Display, Formatter};
-use crate::rcstring::InvalidChar;
-use std::error::Error;
-
-/// The error type used to indicate an error whilst parsing Knight source code.
-#[derive(Debug)]
-pub enum ParseError {
-	/// Indicates that the end of stream was reached before a value could be parsed.
-	NothingToParse,
-
-	/// Indicates that an invalid character was encountered.
-	UnknownTokenStart {
-		/// The invalid character that was encountered.
-		chr: char,
-
-		/// The line that the invalid character occurred on.
-		line: usize
-	},
-
-	/// A starting quote was found without an associated ending quote.
-	UnterminatedQuote {
-		/// The line number the string started on.
-		line: usize
-	},
-
-	/// A function was parsed, but one of its arguments was not able to be parsed.
-	MissingFunctionArgument {
-		/// The function whose argument is missing.
-		func: char,
-
-		/// The argument number.
-		number: usize,
-
-		/// The line number the function started on.
-		line: usize
-	},
-
-	/// An invalid character was encountered in a [`RcString`](crate::RcString) literal.
-	InvalidString {
-		/// The line whence the string started.
-		line: usize,
-
-		/// The error itself.
-		err: InvalidChar
-	},
-}
+use crate::{ParseError, text::InvalidChar};
+use std::error::Error as ErrorTrait;
 
 /// An error occurred whilst executing a knight program.
 #[derive(Debug)]
-pub enum RuntimeError {
+pub enum Error {
 	/// A division (or modulus) by zero was attempted.
 	DivisionByZero {
 		/// What kind of error it is---power, modulo, or division.
@@ -108,24 +65,24 @@ pub enum RuntimeError {
 	Io(io::Error),
 
 	/// An error class that can be used to raise other, custom errors.
-	Custom(Box<dyn Error>),
+	Custom(Box<dyn ErrorTrait>),
 }
 
-impl From<ParseError> for RuntimeError {
+impl From<ParseError> for Error {
 	#[inline]
 	fn from(err: ParseError) -> Self {
 		Self::Parse(err)
 	}
 }
 
-impl From<io::Error> for RuntimeError {
+impl From<io::Error> for Error {
 	#[inline]
 	fn from(err: io::Error) -> Self {
 		Self::Io(err)
 	}
 }
 
-impl From<InvalidChar> for RuntimeError {
+impl From<InvalidChar> for Error {
 	#[inline]
 	fn from(err: InvalidChar) -> Self {
 		Self::InvalidString(err)
@@ -145,8 +102,8 @@ impl Display for ParseError {
 	}
 }
 
-impl Error for ParseError {
-	fn source(&self) -> Option<&(dyn Error + 'static)> {
+impl ErrorTrait for ParseError {
+	fn source(&self) -> Option<&(dyn ErrorTrait + 'static)> {
 		match self {
 			Self::InvalidString { err, .. } => Some(err),
 			_ => None
@@ -154,7 +111,7 @@ impl Error for ParseError {
 	}
 }
 
-impl Display for RuntimeError {
+impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::DivisionByZero { kind } => write!(f, "invalid {} with zero.", kind),
@@ -172,8 +129,8 @@ impl Display for RuntimeError {
 	}
 }
 
-impl Error for RuntimeError {
-	fn source(&self) -> Option<&(dyn Error + 'static)> {
+impl ErrorTrait for Error {
+	fn source(&self) -> Option<&(dyn ErrorTrait + 'static)> {
 		match self {
 			Self::Parse(err) => Some(err),
 			Self::Io(err) => Some(err),

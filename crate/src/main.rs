@@ -1,7 +1,7 @@
-use knightrs::{RuntimeError, Environment};
+use knightrs::{Error, Environment};
 use clap::{App, Arg, ArgMatches};
 
-fn run(matches: ArgMatches<'_>) -> Result<(), RuntimeError> {
+fn run(matches: ArgMatches<'_>) -> Result<(), Error> {
 	let mut env = Environment::default();
 
 	if let Some(expr) = matches.value_of("expr") {
@@ -39,7 +39,7 @@ fn main() {
 		.get_matches();
 
 	match run(matches) {
-		Err(RuntimeError::Quit(code)) => std::process::exit(code),
+		Err(Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {
 			eprintln!("error: {}", err);
 			std::process::exit(1)

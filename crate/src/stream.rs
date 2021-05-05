@@ -1,4 +1,4 @@
-use crate::{Value, Number, Function, ParseError, Environment, RcString, Variable};
+use crate::{Value, Number, Function, Environment, Text, Variable, Boolean};
 use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
@@ -7,6 +7,50 @@ pub struct Stream<I: Iterator<Item=char>> {
 	prev: Option<char>,
 	rewound: bool,
 	line: usize,
+}
+
+
+/// The error type used to indicate an error whilst parsing Knight source code.
+#[derive(Debug)]
+pub enum ParseError {
+	/// Indicates that the end of stream was reached before a value could be parsed.
+	NothingToParse,
+
+	/// Indicates that an invalid character was encountered.
+	UnknownTokenStart {
+		/// The invalid character that was encountered.
+		chr: char,
+
+		/// The line that the invalid character occurred on.
+		line: usize
+	},
+
+	/// A starting quote was found without an associated ending quote.
+	UnterminatedQuote {
+		/// The line number the string started on.
+		line: usize
+	},
+
+	/// A function was parsed, but one of its arguments was not able to be parsed.
+	MissingFunctionArgument {
+		/// The function whose argument is missing.
+		func: char,
+
+		/// The argument number.
+		number: usize,
+
+		/// The line number the function started on.
+		line: usize
+	},
+
+	/// An invalid character was encountered in a [`RcString`](crate::RcString) literal.
+	InvalidString {
+		/// The line whence the string started.
+		line: usize,
+
+		/// The error itself.
+		err: crate::text::InvalidChar
+	},
 }
 
 impl<I: Iterator<Item=char>> Stream<I> {
@@ -180,15 +224,15 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		env.get(&ident)
 	}
 
-	pub fn try_string(&mut self) -> Option<Result<RcString, ParseError>> {
+	pub fn try_text(&mut self) -> Option<Result<Text, ParseError>> {
 		if matches!(self.peek(), Some('\'') | Some('\"')) {
-			Some(unsafe { self.string_unchecked() })
+			Some(unsafe { self.text_unchecked() })
 		} else {
 			None
 		}
 	}
 
-	pub unsafe fn string_unchecked(&mut self) -> Result<RcString, ParseError> {
+	pub unsafe fn text_unchecked(&mut self) -> Result<Text, ParseError> {
 		let line = self.line;
 		let quote = 
 			match self.next() {
@@ -198,20 +242,20 @@ impl<I: Iterator<Item=char>> Stream<I> {
 				_ => unsafe { std::hint::unreachable_unchecked() }
 			};
 
-		let mut string = String::new();
+		let mut text = String::new();
 
 		for chr in self {
 			if chr == quote {
-				return RcString::try_from(string).map_err(|err| ParseError::InvalidString { line, err });
+				return Text::try_from(text).map_err(|err| ParseError::InvalidString { line, err });
 			}
 
-			string.push(chr);
+			text.push(chr);
 		}
 
 		Err(ParseError::UnterminatedQuote { line })
 	}
 
-	pub fn try_boolean(&mut self) -> Option<bool> {
+	pub fn try_boolean(&mut self) -> Option<Boolean> {
 		if matches!(self.peek(), Some('T') | Some('F')) {
 			Some(unsafe { self.boolean_unchecked() })
 		} else {
@@ -219,7 +263,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub unsafe fn boolean_unchecked(&mut self) -> bool {
+	pub unsafe fn boolean_unchecked(&mut self) -> Boolean {
 		let is_true =
 			match self.next() {
 				Some('T') => true,
@@ -236,7 +280,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 
 	pub fn try_null(&mut self) -> bool {
 		if self.peek() == Some('N') {
-			unsafe { self.null_unchecked(); }
+			unsafe { self.null_unchecked() }
 			true
 		} else {
 			false
@@ -306,7 +350,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			'N' => { unsafe { self.null_unchecked(); }; Ok(Value::Null) },
 			
 			// strings start with a single or double quote (and not `` ` ``).
-			'\'' | '\"' => Ok(Value::String(unsafe { self.string_unchecked()? })),
+			'\'' | '\"' => Ok(Value::Text(unsafe { self.text_unchecked()? })),
 
 			chr => 
 				if let Some(func) = Function::fetch(chr) {
