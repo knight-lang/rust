@@ -19,7 +19,6 @@ struct Inner {
 	value: RefCell<Option<Value>>
 }
 
-
 impl std::borrow::Borrow<str> for Variable {
 	fn borrow(&self) -> &str {
 		self.name()

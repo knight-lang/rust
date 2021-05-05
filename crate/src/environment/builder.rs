@@ -1,6 +1,6 @@
 use super::{SystemCommand, Environment};
 use crate::{Text, Error, Result};
-use std::io::{self, Write, Read};
+use std::io::{self, Write, Read, BufReader};
 use std::collections::HashSet;
 use std::fmt::{self, Display, Formatter};
 use std::convert::TryFrom;
@@ -132,7 +132,7 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 		// SAFETY: All of these `unsafe` blocks are simply mutable references to ZSTs, which is always safe.
 		Environment {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
-			stdin: self.stdin.unwrap_or(unsafe { &mut STDIN }),
+			stdin: BufReader::new(self.stdin.unwrap_or(unsafe { &mut STDIN })),
 			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
 			system: self.system.unwrap_or(unsafe { &mut SYSTEM_NORMAL })
 		}

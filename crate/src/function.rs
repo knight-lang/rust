@@ -155,7 +155,18 @@ use std::io::{Write, BufRead};
 pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	let mut buf = String::new();
 
-	std::io::BufReader::new(env).read_line(&mut buf)?;
+	env.read_line(&mut buf)?;
+
+	// remove trailing newlines
+	match buf.pop() {
+		Some('\n') => match buf.pop() {
+			Some('\r') => { /* popped \r\n */ },
+			Some(other) => buf.push(other), // ie `?\n`
+			None => { /* ie `\n`, so we get empty string */ }
+		},
+		Some(other) => buf.push(other), // ie didnt end with `\n`
+		None => { /* ie buf was empty */ }
+	}
 
 	Text::try_from(buf).map(From::from).map_err(From::from)
 }
@@ -234,11 +245,15 @@ pub fn add(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 
-			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_add(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '+', lhs, rhs }) }
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{ Ok(Value::Number(lhs + rhs)) }
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lhs.checked_add(rhs)
+						.map(Value::Number)
+						.ok_or_else(|| Error::Overflow { func: '+', lhs, rhs })
+				} else {
+					Ok(Value::Number(lhs.wrapping_add(rhs)))
+				}
+			}
 		},
 		Value::Text(lhs) => {
 			let rhs = args[1].run(env)?.to_text()?;
@@ -255,11 +270,15 @@ pub fn subtract(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Val
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 			
-			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_sub(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '-', lhs, rhs }) }
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{ Ok(Value::Number(lhs - rhs)) }
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lhs.checked_sub(rhs)
+						.map(Value::Number)
+						.ok_or_else(|| Error::Overflow { func: '-', lhs, rhs })
+				} else {
+					Ok(Value::Number(lhs.wrapping_sub(rhs)))
+				}
+			}
 		},
 		other => Err(Error::InvalidOperand { func: '-', operand: other.typename() })
 	}
@@ -270,11 +289,15 @@ pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Val
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
 			
-			#[cfg(feature = "checked-overflow")]
-			{ lhs.checked_mul(rhs).map(Value::Number).ok_or_else(|| Error::Overflow { func: '*', lhs, rhs }) }
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{ Ok(Value::Number(lhs * rhs)) }
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lhs.checked_mul(rhs)
+						.map(Value::Number
+							).ok_or_else(|| Error::Overflow { func: '*', lhs, rhs })
+				} else {
+					Ok(Value::Number(lhs.wrapping_mul(rhs)))
+				}
+			}
 		}
 		Value::Text(lhs) =>
 			Text::try_from(args[1].run(env)?
@@ -418,30 +441,36 @@ pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> 
 }
 
 pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-	let substr =
-		args[0]
-			.run(env)?
-			.to_text()?
-			.chars()
-			.skip(args[1].run(env)?.to_number()? as usize)
-			.take(args[2].run(env)?.to_number()? as usize)
-			.collect::<String>()
-			.try_into()
-			.unwrap(); // we know the substring is valid, as the source string was valid.
+	let input = args[0].run(env)?.to_text()?;
+	let start = args[1].run(env)?.to_number()?;
+	let len = args[2].run(env)?.to_number()?;
 
-	Ok(Value::Text(substr))
+	let start = start as usize; // todo: check
+	let len = len as usize; // todo: check
+
+	Ok(Value::Text(Text::new(&input[start..start+len]).unwrap()))
 }
 
 // arity four
 
 pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	let source = args[0].run(env)?.to_text()?;
-	let start = args[1].run(env)?.to_number()? as usize;
-	let stop = start + args[2].run(env)?.to_number()? as usize;
+	let start = args[1].run(env)?.to_number()?;
+	let len = args[2].run(env)?.to_number()?;
+	let repl = args[3].run(env)?.to_text()?;
 
-	let mut x = source.chars().take(start).collect::<String>();
-	x.push_str(&args[3].run(env)?.to_text()?);
-	x.extend(source.chars().skip(stop));
+	let start = start as usize; // todo: check
+	let len = len as usize; // todo: check
 
-	Ok(Value::Text(x.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
+	if start == 0 && repl.len() == 0 {
+		return Ok(Value::Text(Text::new(&source[len..]).unwrap()));
+	}
+
+	let mut result = String::with_capacity(source.len() - len + repl.len());
+
+	result.push_str(&source[..start]);
+	result.push_str(&repl);
+	result.push_str(&source[start+len..]);
+
+	Ok(Value::Text(result.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
 }

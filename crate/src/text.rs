@@ -4,15 +4,19 @@ use std::sync::Arc;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::convert::TryFrom;
+use std::borrow::Borrow;
+use std::collections::HashSet;
+use once_cell::sync::OnceCell;
+use std::sync::RwLock;
+
+static TEXT_CACHE: OnceCell<RwLock<HashSet<Text>>> = OnceCell::new();
 
 /// The string type within Knight.
-#[derive(Clone)]
-pub struct Text(Arc<str>);
+#[derive(Clone, Copy)]
+pub struct Text(&'static str);
 
 impl Default for Text {
 	fn default() -> Self {
-		use once_cell::sync::OnceCell;
-
 		static EMPTY: OnceCell<Text> = OnceCell::new();
 
 		EMPTY.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
@@ -34,6 +38,12 @@ impl Display for Text {
 impl Hash for Text {
 	fn hash<H: Hasher>(&self, h: &mut H) {
 		self.as_str().hash(h)
+	}
+}
+
+impl Borrow<str> for Text {
+	fn borrow(&self) -> &str {
+		self.as_ref()
 	}
 }
 
@@ -99,8 +109,8 @@ impl Text {
 	/// # See Also
 	/// - [`Text::new_unchecked`] For a version which doesn't verify `string`.
 	#[must_use = "Creating an Text does nothing on its own"]
-	pub fn new<T: ToString + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
-		Self::try_from(string.to_string())
+	pub fn new<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
+		validate_string(string.borrow()).map(|_| unsafe { Self::new_unchecked(string) })
 	}
 
 	/// Creates a new `Text`, without verifying that the string is valid.
@@ -108,12 +118,25 @@ impl Text {
 	/// # Safety
 	/// All characters within the string must be valid for Knight strings. See the specs for what exactly this entails.
 	#[must_use = "Creating an Text does nothing on its own"]
-	pub unsafe fn new_unchecked<T: ToString + ?Sized>(string: &T) -> Self {
-		let string = string.to_string();
+	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
+		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
 
-		debug_assert_eq!(validate_string(&string), Ok(()), "invalid string encountered: {:?}", &string);
+		if let Some(text) = TEXT_CACHE
+			.get_or_init(Default::default)
+			.read().unwrap()
+			.get(string.borrow())
+		{
+			return text.clone();
+		}
 
-		Self(string.into())
+		let mut cache = TEXT_CACHE.get().unwrap().write().unwrap();
+		if let Some(text) = cache.get(string.borrow()) {
+			text.clone()
+		} else {
+			let leaked = Text(Box::leak(string.to_string().into_boxed_str()));
+			cache.insert(leaked);
+			leaked
+		}
 	}
 
 	/// Gets a reference to the contained string.
@@ -138,9 +161,7 @@ impl TryFrom<String> for Text {
 
 	#[inline]
 	fn try_from(string: String) -> Result<Self, Self::Error> {
-		validate_string(&string)?;
-
-		Ok(Self(string.into()))
+		Self::new(&string)
 	}
 }
 

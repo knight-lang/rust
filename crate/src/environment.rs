@@ -5,7 +5,7 @@
 use crate::{Error, Result, Value, Text};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::io::{self, Write, Read};
+use std::io::{self, Write, Read, BufRead, BufReader};
 
 mod builder;
 mod variable;
@@ -44,10 +44,10 @@ type SystemCommand = dyn FnMut(&str) -> Result<Text>;
 /// assert_eq!(var, env.get("foobar")); // both variables are the same.
 /// ```
 pub struct Environment<'i, 'o, 'c> {
-	// We use a `HashSet` because we want the variable to own its name, which a `HashMap` wouldn't allow for. (or would
-	// have redundant allocations.)
+	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
+	// wouldn't allow for. (or would have redundant allocations.)
 	vars: HashSet<Variable>,
-	stdin: &'i mut dyn Read,
+	stdin: BufReader<&'i mut dyn Read>,
 	stdout: &'o mut dyn Write,
 	system: &'c mut SystemCommand
 }
@@ -159,6 +159,20 @@ impl Read for Environment<'_, '_, '_> {
 	#[inline]
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
 		self.stdin.read(data)
+	}
+}
+
+impl BufRead for Environment<'_, '_, '_> {
+	fn fill_buf(&mut self) -> io::Result<&[u8]> {
+		self.stdin.fill_buf()
+	}
+
+	fn consume(&mut self, amnt: usize) {
+		self.stdin.consume(amnt)
+	}
+
+	fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
+		self.stdin.read_line(buf)
 	}
 }
 
