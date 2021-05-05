@@ -1,7 +1,7 @@
-use knightrs::{Error, Environment};
+use knightrs::{Error, Result, Environment};
 use clap::{App, Arg, ArgMatches};
 
-fn run(matches: ArgMatches<'_>) -> Result<(), Error> {
+fn run(matches: ArgMatches<'_>) -> Result<()> {
 	let mut env = Environment::default();
 
 	if let Some(expr) = matches.value_of("expr") {

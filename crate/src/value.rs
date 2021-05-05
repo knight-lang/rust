@@ -1,4 +1,4 @@
-use crate::{Function, Number, Text, Variable, Error, Environment, Boolean};
+use crate::{Function, Number, Text, Variable, Error, Result, Environment, Boolean};
 use std::fmt::{self, Debug, Formatter};
 use std::rc::Rc;
 use std::convert::TryFrom;
@@ -77,7 +77,7 @@ impl From<Variable> for Value {
 impl TryFrom<&Value> for Boolean {
 	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, Error> {
+	fn try_from(value: &Value) -> Result<Self> {
 		match value {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(*boolean),
@@ -91,7 +91,7 @@ impl TryFrom<&Value> for Boolean {
 impl TryFrom<&Value> for Text {
 	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, Error> {
+	fn try_from(value: &Value) -> Result<Self> {
 		use once_cell::sync::OnceCell;
 
 		static NULL: OnceCell<Text> = OnceCell::new();
@@ -116,7 +116,7 @@ impl TryFrom<&Value> for Text {
 impl TryFrom<&Value> for Number {
 	type Error = Error;
 
-	fn try_from(value: &Value) -> Result<Self, Error> {
+	fn try_from(value: &Value) -> Result<Self> {
 		match value {
 			Value::Null | Value::Boolean(false) => Ok(0),
 			Value::Boolean(true) => Ok(1),
@@ -134,8 +134,16 @@ impl TryFrom<&Value> for Number {
 				};
 
 				while let Some(digit @ b'0'..=b'9') = chars.next() {
-					number *= 10;
-					number += (digit - b'0') as Self;
+					cfg_if! {
+						if #[cfg(feature="checked-overflow")] {
+							number = number
+								.checked_mul(10)
+								.and_then(|num| num.checked_add((digit as u8 - b'0') as Self))
+								.ok_or(Error::TextConversionOverflow)?;
+						} else {
+							number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as Self);
+						}
+					}
 				}
 
 				Ok(sign * number)
@@ -146,7 +154,7 @@ impl TryFrom<&Value> for Number {
 }
 
 impl Value {
-	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self, Error> {
+	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Self> {
 		match self {
 			Self::Null => Ok(Self::Null),
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),
@@ -170,15 +178,15 @@ impl Value {
 		}
 	}
 
-	pub fn to_boolean(&self) -> Result<Boolean, Error> {
+	pub fn to_boolean(&self) -> Result<Boolean> {
 		TryFrom::try_from(self)
 	}
 
-	pub fn to_number(&self) -> Result<Number, Error> {
+	pub fn to_number(&self) -> Result<Number> {
 		TryFrom::try_from(self)
 	}
 
-	pub fn to_text(&self) -> Result<Text, Error> {
+	pub fn to_text(&self) -> Result<Text> {
 		TryFrom::try_from(self)
 	}
 }

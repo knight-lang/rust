@@ -12,9 +12,24 @@ license = "MIT"
 
 [features]
 default = []
-embedded = [] # remove functions that need to access the file system.
-# multithreaded = []
+
+# Restrict source files and strings to the bytes defined in the Knight spec.
+disallow-unicode = []
+
+# Catch undefined integer arithmetic
 checked-overflow = []
+
+# Use `i128` for numbers, instead of the default `i64`.
+large-numbers = []
+
+# Use `i32` for numbers, which is the minimum required range.
+strict-numbers = []
+
+# Ensure BLOCK return values are handled correctly.
+strict-block-return-value = []
+
+# Exactly follow knight specs.
+strict-compliance = ["strict-numbers", "checked-overflow", "disallow-unicode", "strict-block-return-value"]
 
 [dependencies]
 rand = "0.8"
@@ -22,3 +37,4 @@ once_cell = "1.7"
 lazy_static = "1.4"
 parking_lot = "0.11"
 clap = "2.33"
+cfg-if = "1.0"

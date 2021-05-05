@@ -1,5 +1,5 @@
 use super::{SystemCommand, Environment};
-use crate::{Text, Error};
+use crate::{Text, Error, Result};
 use std::io::{self, Write, Read};
 use std::collections::HashSet;
 use std::fmt::{self, Display, Formatter};
@@ -51,11 +51,11 @@ impl Display for NotEnabled {
 
 impl std::error::Error for NotEnabled {}
 
-fn system_err(_: &str) -> Result<Text, Error> {
+fn system_err(_: &str) -> Result<Text> {
 	Err(Error::Custom(Box::new(NotEnabled)))
 }
 
-fn system_normal(cmd: &str) -> Result<Text, Error> {
+fn system_normal(cmd: &str) -> Result<Text> {
 	use std::process::{Command, Stdio};
 
 	let output =
@@ -69,8 +69,8 @@ fn system_normal(cmd: &str) -> Result<Text, Error> {
 	Text::try_from(output).map_err(From::from)
 }
 
-static mut SYSTEM_ERR: fn(&str) -> Result<Text, Error> = system_err;
-static mut SYSTEM_NORMAL: fn(&str) -> Result<Text, Error> = system_normal;
+static mut SYSTEM_ERR: fn(&str) -> Result<Text> = system_err;
+static mut SYSTEM_NORMAL: fn(&str) -> Result<Text> = system_normal;
 
 impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Creates a new, default [`Builder`].

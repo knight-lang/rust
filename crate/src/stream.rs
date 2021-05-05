@@ -1,5 +1,6 @@
 use crate::{Value, Number, Function, Environment, Text, Variable, Boolean};
 use std::convert::TryFrom;
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct Stream<I: Iterator<Item=char>> {
@@ -9,27 +10,23 @@ pub struct Stream<I: Iterator<Item=char>> {
 	line: usize,
 }
 
+#[derive(Debug)]
+pub struct ParseError {
+	pub line: usize,
+	pub kind: ParseErrorKind
+}
 
 /// The error type used to indicate an error whilst parsing Knight source code.
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
 	/// Indicates that the end of stream was reached before a value could be parsed.
 	NothingToParse,
 
 	/// Indicates that an invalid character was encountered.
-	UnknownTokenStart {
-		/// The invalid character that was encountered.
-		chr: char,
-
-		/// The line that the invalid character occurred on.
-		line: usize
-	},
+	UnknownTokenStart(char),
 
 	/// A starting quote was found without an associated ending quote.
-	UnterminatedQuote {
-		/// The line number the string started on.
-		line: usize
-	},
+	UnterminatedQuote,
 
 	/// A function was parsed, but one of its arguments was not able to be parsed.
 	MissingFunctionArgument {
@@ -37,20 +34,40 @@ pub enum ParseError {
 		func: char,
 
 		/// The argument number.
-		number: usize,
-
-		/// The line number the function started on.
-		line: usize
+		idx: usize,
 	},
 
-	/// An invalid character was encountered in a [`RcString`](crate::RcString) literal.
-	InvalidString {
-		/// The line whence the string started.
-		line: usize,
+	/// An invalid character was encountered in a [`Text`](crate::Text) literal.
+	InvalidString(crate::text::InvalidChar),
 
-		/// The error itself.
-		err: crate::text::InvalidChar
-	},
+	/// A number literal was too large
+	#[cfg(feature="checked-overflow")]
+	NumberLiteralOverflow,
+}
+
+impl Display for ParseError {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "line {}: ", self.line)?;
+
+		match self.kind {
+			ParseErrorKind::NothingToParse => write!(f, "a token was expected."),
+			ParseErrorKind::UnknownTokenStart(chr) => write!(f, "unknown token start {:?}.", chr),
+			ParseErrorKind::UnterminatedQuote => write!(f, "unterminated quote encountered."),
+			ParseErrorKind::MissingFunctionArgument { func, idx } => write!(f, "missing argument {} for function {:?}.", idx, func),
+			ParseErrorKind::InvalidString(ref err) => write!(f, "{}", err),
+			#[cfg(feature="checked-overflow")]
+			ParseErrorKind::NumberLiteralOverflow => write!(f, "integer literal overflowed max size")
+		}
+	}
+}
+
+impl std::error::Error for ParseError {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self.kind {
+			ParseErrorKind::InvalidString(ref err) => Some(err),
+			_ => None
+		}
+	}
 }
 
 impl<I: Iterator<Item=char>> Stream<I> {
@@ -133,7 +150,6 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			}
 		}
 
-
 		while let Some(chr) = self.next() {
 			if !is_whitespace(chr) {
 				self.rewind();
@@ -161,7 +177,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn try_number(&mut self) -> Option<Number> {
+	pub fn try_number(&mut self) -> Option<Result<Number, ParseError>> {
 		if matches!(self.peek(), Some('0'..='9')) {
 			Some(unsafe { self.number_unchecked() })
 		} else {
@@ -169,7 +185,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub unsafe fn number_unchecked(&mut self) -> Number {
+	pub unsafe fn number_unchecked(&mut self) -> Result<Number, ParseError> {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some('0'..='9') => {},
@@ -186,11 +202,19 @@ impl<I: Iterator<Item=char>> Stream<I> {
 				break;
 			}
 
-			number *= 10;
-			number += (digit as u8 - b'0') as Number;
+			cfg_if! {
+				if #[cfg(feature="checked-overflow")] {
+					number = number
+						.checked_mul(10)
+						.and_then(|num| num.checked_add((digit as u8 - b'0') as Number))
+						.ok_or_else(|| ParseError { line: self.line, kind: ParseErrorKind::NumberLiteralOverflow })?;
+				} else {
+					number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as Number);
+				}
+			};
 		}
 
-		number
+		Ok(number)
 	}
 
 	pub fn try_variable(&mut self, env: &mut Environment<'_, '_, '_>) -> Option<Variable> {
@@ -246,13 +270,13 @@ impl<I: Iterator<Item=char>> Stream<I> {
 
 		for chr in self {
 			if chr == quote {
-				return Text::try_from(text).map_err(|err| ParseError::InvalidString { line, err });
+				return Text::try_from(text).map_err(|err| ParseError { line, kind: ParseErrorKind::InvalidString(err) });
 			}
 
 			text.push(chr);
 		}
 
-		Err(ParseError::UnterminatedQuote { line })
+		Err(ParseError { line, kind: ParseErrorKind::UnterminatedQuote })
 	}
 
 	pub fn try_boolean(&mut self) -> Option<Boolean> {
@@ -304,13 +328,21 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			self.strip_word();
 		}
 
-		for number in 0..func.arity() {
+		for idx in 0..func.arity() {
 			match self.parse(env) {
 				Ok(value) => args.push(value),
-				Err(ParseError::NothingToParse) =>
-					return Err(ParseError::MissingFunctionArgument { func: func.name(), number, line }),
+				Err(ParseError { kind: ParseErrorKind::NothingToParse, .. }) =>
+					return Err(ParseError { line, kind: ParseErrorKind::MissingFunctionArgument { func: func.name(), idx }}),
 				Err(other) => return Err(other)
 			}
+		}
+
+		// If a BLOCk _without_ a function as an argument is encountered, treat it as `: <arg>`.
+		if cfg!(feature = "strict-block-return-value")
+			&& func == crate::function::BLOCK_FUNCTION
+			&& !matches!(args[0], Value::Function(_, _))
+		{
+			args = vec![Value::Function(crate::function::NOOP_FUNCTION, args.into_boxed_slice().into())];
 		}
 
 		Ok(Value::Function(func, args.into_boxed_slice().into()))
@@ -326,7 +358,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 	}
 
 	pub fn parse(&mut self, env: &mut Environment<'_, '_, '_>) -> Result<Value, ParseError> {
-		match self.peek().ok_or(ParseError::NothingToParse)? {
+		match self.peek().ok_or_else(|| ParseError { line: self.line, kind: ParseErrorKind::NothingToParse })? {
 			// note that this is ascii whitespace, as non-ascii characters are invalid.
 			' ' | '\n' | '\r' | '\t' | '(' | ')' | '[' | ']' | '{' | '}' | ':' => {
 				unsafe { self.whitespace_unchecked(); }
@@ -340,7 +372,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			},
 
 			// only ascii digits may start a number.
-			'0'..='9' => Ok(Value::Number(unsafe { self.number_unchecked() })),
+			'0'..='9' => Ok(Value::Number(unsafe { self.number_unchecked()? })),
 
 			// identifiers start only with lower-case digits or `_`.
 			'a'..='z' | '_' => Ok(Value::Variable(unsafe { self.variable_unchecked(env) })),
@@ -358,7 +390,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 
 					self.function(func, env)
 				} else {
-					Err(ParseError::UnknownTokenStart { chr, line: self.line })
+					Err(ParseError { line: self.line, kind: ParseErrorKind::UnknownTokenStart(chr) })
 				}
 		}
 	}
@@ -367,10 +399,10 @@ impl<I: Iterator<Item=char>> Stream<I> {
 impl Value {
 	/// Parses out a stream from the given `input` within the context of `env`.
 	///
-	/// This function simply calls [`parse`] with a char iterator over `input`; see it for more details.
+	/// This function simply calls [`parse`](Self::parse) with a char iterator over `input`; see it for more details.
 	///
 	/// # Errors
-	/// This function returns any errors that [`parse`] returns.
+	/// This function returns any errors that [`parse`](Self::parse) returns.
 	pub fn parse_str<S: AsRef<str>>(input: S, env: &mut Environment<'_, '_, '_>) -> Result<Self, ParseError> {
 		Self::parse(input.as_ref().chars(), env)
 	}
@@ -391,3 +423,4 @@ impl Value {
 		Stream::new(input.into_iter()).parse(env)
 	}
 }
+

@@ -64,9 +64,15 @@ pub enum Error {
 	/// An i/o error occurred (i.e. `` ` `` or `PROMPT` failed).
 	Io(io::Error),
 
+	#[cfg(feature="checked-overflow")]
+	TextConversionOverflow,
+
 	/// An error class that can be used to raise other, custom errors.
 	Custom(Box<dyn ErrorTrait>),
 }
+
+/// A type alias for [`std::result::Result`].
+pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<ParseError> for Error {
 	#[inline]
@@ -89,28 +95,6 @@ impl From<InvalidChar> for Error {
 	}
 }
 
-impl Display for ParseError {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::NothingToParse => write!(f, "a token was expected."),
-			Self::UnknownTokenStart { chr, line } => write!(f, "line {}: unknown token start {:?}.", line, chr),
-			Self::UnterminatedQuote { line } => write!(f, "line {}: unterminated quote encountered.", line),
-			Self::MissingFunctionArgument { func, number, line }
-				=> write!(f, "line {}: missing argument {} for function {:?}.", line, number, func),
-			Self::InvalidString { line, err } => write!(f, "line {}: {}", line, err)
-		}
-	}
-}
-
-impl ErrorTrait for ParseError {
-	fn source(&self) -> Option<&(dyn ErrorTrait + 'static)> {
-		match self {
-			Self::InvalidString { err, .. } => Some(err),
-			_ => None
-		}
-	}
-}
-
 impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -119,11 +103,13 @@ impl Display for Error {
 			Self::InvalidOperand { func, operand } => write!(f, "invalid operand kind {:?} for function {:?}.", operand, func),
 			Self::UndefinedConversion { kind, into } => write!(f, "invalid conversion into {:?} for kind {:?}.", kind, into),
 			#[cfg(feature = "checked-overflow")]
-			Self::Overflow { func, lhs, rhs } => write!(f, "Expression '{} {} {}' overflowed", lhs, func, rhs),
+			Self::Overflow { func, lhs, rhs } => write!(f, "Expression '{} {} {}' overflowed", func, lhs, rhs),
 			Self::Quit(code) => write!(f, "exit with status {}", code),
 			Self::Parse(err) => Display::fmt(err, f),
 			Self::InvalidString(err) => Display::fmt(err, f),
 			Self::Io(err) => write!(f, "i/o error: {}", err),
+			#[cfg(feature="checked-overflow")]
+			Self::TextConversionOverflow => write!(f, "text to number conversion overflowed."),
 			Self::Custom(err) => Display::fmt(err, f),
 		}
 	}

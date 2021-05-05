@@ -80,6 +80,7 @@ dependencies = [
 name = "knightrs"
 version = "0.8.10"
 dependencies = [
+ "cfg-if",
  "clap",
  "lazy_static",
  "once_cell",

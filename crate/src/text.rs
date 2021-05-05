@@ -77,7 +77,7 @@ impl std::error::Error for InvalidChar {}
 /// Checks to see if `chr` is a valid knight character.
 #[must_use]
 pub const fn is_valid_char(chr: char) -> bool {
-	return matches!(chr, '\r' | '\n' | '\t' | ' '..='~');
+	return !cfg!(feature="disallow-unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~');
 }
 
 fn validate_string(data: &str) -> Result<(), InvalidChar> {
