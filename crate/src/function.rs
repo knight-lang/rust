@@ -292,8 +292,8 @@ pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Val
 			cfg_if! {
 				if #[cfg(feature = "checked-overflow")] {
 					lhs.checked_mul(rhs)
-						.map(Value::Number
-							).ok_or_else(|| Error::Overflow { func: '*', lhs, rhs })
+						.map(Value::Number)
+						.ok_or_else(|| Error::Overflow { func: '*', lhs, rhs })
 				} else {
 					Ok(Value::Number(lhs.wrapping_mul(rhs)))
 				}

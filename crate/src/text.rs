@@ -121,11 +121,7 @@ impl Text {
 	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
 		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
 
-		if let Some(text) = TEXT_CACHE
-			.get_or_init(Default::default)
-			.read().unwrap()
-			.get(string.borrow())
-		{
+		if let Some(text) = TEXT_CACHE.get_or_init(Default::default).read().unwrap().get(string.borrow()) {
 			return text.clone();
 		}
 
