@@ -5,21 +5,44 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::convert::TryFrom;
 use std::borrow::Borrow;
-use std::collections::HashSet;
-use once_cell::sync::OnceCell;
-use std::sync::RwLock;
 
-static TEXT_CACHE: OnceCell<RwLock<HashSet<Text>>> = OnceCell::new();
+cfg_if! {
+	if #[cfg(feature = "single-threaded")] {
+		use once_cell::unsync::OnceCell;
+	} else {
+		use once_cell::sync::OnceCell;
+	}
+}
+
+cfg_if! {
+	if #[cfg(not(feature = "cache-strings"))] {
+		// do nothing
+	} else if #[cfg(feature = "single-threaded")] {
+		use std::collections::HashSet;
+		static mut TEXT_CACHE: OnceCell<HashSet<Text>> = OnceCell::new();
+
+	} else {
+		use std::collections::HashSet;
+		use std::sync::RwLock;
+
+		static TEXT_CACHE: OnceCell<RwLock<HashSet<Text>>> = OnceCell::new();
+	}
+}
 
 /// The string type within Knight.
-#[derive(Clone, Copy)]
-pub struct Text(&'static str);
+#[derive(Clone)]
+pub struct Text(
+	#[cfg(all(not(feature="cache-strings"), not(feature="single-threaded")))] std::sync::Arc<str>,
+	#[cfg(all(not(feature="cache-strings"), feature="single-threaded"))] std::rc::Rc<str>,
+	#[cfg(feature="cache-strings")] &'static str,
+);
 
 impl Default for Text {
 	fn default() -> Self {
-		static EMPTY: OnceCell<Text> = OnceCell::new();
+		// we need it mut so we can have !Send/!Sync in a static.
+		static mut EMPTY: OnceCell<Text> = OnceCell::new();
 
-		EMPTY.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
+		unsafe { &EMPTY }.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
 	}
 }
 
@@ -121,17 +144,37 @@ impl Text {
 	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
 		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
 
-		if let Some(text) = TEXT_CACHE.get_or_init(Default::default).read().unwrap().get(string.borrow()) {
-			return text.clone();
+		#[cfg(not(feature="cache-strings"))] {
+			Self(string.to_string().into())
 		}
 
-		let mut cache = TEXT_CACHE.get().unwrap().write().unwrap();
-		if let Some(text) = cache.get(string.borrow()) {
-			text.clone()
-		} else {
-			let leaked = Text(Box::leak(string.to_string().into_boxed_str()));
-			cache.insert(leaked);
-			leaked
+		#[cfg(feature="cache-strings")] {
+			// initialize if it's not been initialized yet.
+			let cache = TEXT_CACHE.get_or_init(Default::default);
+
+			// in the single-threaded version, we simply use the one below.
+			#[cfg(not(feature="single-threaded"))]
+			if let Some(text) = cache.read().unwrap().get(string.borrow()) {
+				return text.clone();
+			}
+
+			drop(cache);
+
+			let mut cache = {
+				#[cfg(feature="single-threaded")]
+				{ TEXT_CACHE.get_mut().unwrap_or_else(|| unreachable!()) }
+
+				#[cfg(not(feature="single-threaded"))]
+				{ TEXT_CACHE.get().unwrap().write().unwrap() }
+			};
+
+			if let Some(text) = cache.get(string.borrow()) {
+				text.clone()
+			} else {
+				let leaked = Box::leak(string.to_string().into_boxed_str());
+				cache.insert(Text(leaked));
+				Text(leaked)
+			}
 		}
 	}
 

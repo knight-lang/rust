@@ -94,18 +94,18 @@ impl TryFrom<&Value> for Text {
 	fn try_from(value: &Value) -> Result<Self> {
 		use once_cell::sync::OnceCell;
 
-		static NULL: OnceCell<Text> = OnceCell::new();
-		static TRUE: OnceCell<Text> = OnceCell::new();
-		static FALSE: OnceCell<Text> = OnceCell::new();
-		static ZERO: OnceCell<Text> = OnceCell::new();
-		static ONE: OnceCell<Text> = OnceCell::new();
+		static mut NULL: OnceCell<Text> = OnceCell::new();
+		static mut TRUE: OnceCell<Text> = OnceCell::new();
+		static mut FALSE: OnceCell<Text> = OnceCell::new();
+		static mut ZERO: OnceCell<Text> = OnceCell::new();
+		static mut ONE: OnceCell<Text> = OnceCell::new();
 
 		match value {
-			Value::Null => Ok(NULL.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
-			Value::Boolean(true) => Ok(TRUE.get_or_init(|| unsafe { Self::new_unchecked("true") }).clone()),
-			Value::Boolean(false) => Ok(FALSE.get_or_init(|| unsafe { Self::new_unchecked("false") }).clone()),
-			Value::Number(0) => Ok(ZERO.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
-			Value::Number(1) => Ok(ONE.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
+			Value::Null => Ok(unsafe { &NULL }.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
+			Value::Boolean(true) => Ok(unsafe { &TRUE }.get_or_init(|| unsafe { Self::new_unchecked("true") }).clone()),
+			Value::Boolean(false) => Ok(unsafe { &FALSE }.get_or_init(|| unsafe { Self::new_unchecked("false") }).clone()),
+			Value::Number(0) => Ok(unsafe { &ZERO }.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
+			Value::Number(1) => Ok(unsafe { &ONE }.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
 			Value::Number(number) => Ok(Self::try_from(number.to_string()).unwrap()), // all numbers should be valid strings
 			Value::Text(text) => Ok(text.clone()),
 			_ => Err(Error::UndefinedConversion { into: "Text", kind: value.typename() })
@@ -124,12 +124,12 @@ impl TryFrom<&Value> for Number {
 			Value::Text(text) => {
 				let mut chars = text.trim().bytes();
 				let mut sign = 1;
-				let mut number: Self = 0;
+				let mut number: Number = 0;
 
 				match chars.next() {
 					Some(b'-') => sign = -1,
 					Some(b'+') => { /* do nothing */ },
-					Some(digit @ b'0'..=b'9') => number = (digit - b'0') as Self,
+					Some(digit @ b'0'..=b'9') => number = (digit - b'0') as _,
 					_ => return Ok(0)
 				};
 
@@ -138,15 +138,15 @@ impl TryFrom<&Value> for Number {
 						if #[cfg(feature="checked-overflow")] {
 							number = number
 								.checked_mul(10)
-								.and_then(|num| num.checked_add((digit as u8 - b'0') as Self))
+								.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
 								.ok_or(Error::TextConversionOverflow)?;
 						} else {
-							number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as Self);
+							number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as _);
 						}
 					}
 				}
 
-				Ok(sign * number)
+				Ok(sign * number) // todo: check for this erroring. ?
 			},
 			_ => Err(Error::UndefinedConversion { into: "Number", kind: value.typename() })
 		}

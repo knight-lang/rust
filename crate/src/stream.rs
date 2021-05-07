@@ -206,10 +206,10 @@ impl<I: Iterator<Item=char>> Stream<I> {
 				if #[cfg(feature="checked-overflow")] {
 					number = number
 						.checked_mul(10)
-						.and_then(|num| num.checked_add((digit as u8 - b'0') as Number))
+						.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
 						.ok_or_else(|| ParseError { line: self.line, kind: ParseErrorKind::NumberLiteralOverflow })?;
 				} else {
-					number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as Number);
+					number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as _);
 				}
 			};
 		}

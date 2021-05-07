@@ -12,6 +12,10 @@ pub enum Error {
 		kind: &'static str
 	},
 
+	Domain {
+		message: &'static str
+	},
+
 	/// An unknown identifier was attempted to be dereferenced.
 	UnknownIdentifier {
 		/// The identifier at fault.
@@ -99,6 +103,7 @@ impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::DivisionByZero { kind } => write!(f, "invalid {} with zero.", kind),
+			Self::Domain { message } => write!(f, "{}", message),
 			Self::UnknownIdentifier { identifier } => write!(f, "identifier {:?} is undefined.", identifier),
 			Self::InvalidOperand { func, operand } => write!(f, "invalid operand kind {:?} for function {:?}.", operand, func),
 			Self::UndefinedConversion { kind, into } => write!(f, "invalid conversion into {:?} for kind {:?}.", kind, into),

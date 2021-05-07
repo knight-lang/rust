@@ -213,7 +213,7 @@ pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 
 pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	args[0].run(env)?.to_text()
-		.map(|rcstring| rcstring.len() as Number)
+		.map(|text| text.len() as Number) // todo: check for number overflow?
 		.map(Value::from)
 }
 
