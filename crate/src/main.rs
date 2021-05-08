@@ -17,6 +17,10 @@ fn run(matches: ArgMatches<'_>) -> Result<()> {
 }
 
 fn main() {
+	if true {
+		Environment::default().run_str(std::fs::read_to_string("../../knight-lang/knight.kn").unwrap()).unwrap();
+		return
+	}
 	let matches =
 		App::new("knight")
 			.version(clap::crate_version!())

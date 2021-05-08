@@ -5,9 +5,10 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::convert::TryFrom;
 use std::borrow::Borrow;
+use std::ops::{Add, Mul, Deref};
 
 cfg_if! {
-	if #[cfg(feature = "single-threaded")] {
+	if #[cfg(feature = "unsafe-single-threaded")] {
 		use once_cell::unsync::OnceCell;
 	} else {
 		use once_cell::sync::OnceCell;
@@ -17,7 +18,7 @@ cfg_if! {
 cfg_if! {
 	if #[cfg(not(feature = "cache-strings"))] {
 		// do nothing
-	} else if #[cfg(feature = "single-threaded")] {
+	} else if #[cfg(feature = "unsafe-single-threaded")] {
 		use std::collections::HashSet;
 		static mut TEXT_CACHE: OnceCell<HashSet<Text>> = OnceCell::new();
 
@@ -32,17 +33,24 @@ cfg_if! {
 /// The string type within Knight.
 #[derive(Clone)]
 pub struct Text(
-	#[cfg(all(not(feature="cache-strings"), not(feature="single-threaded")))] std::sync::Arc<str>,
-	#[cfg(all(not(feature="cache-strings"), feature="single-threaded"))] std::rc::Rc<str>,
+	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))] std::sync::Arc<str>,
+	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))] std::rc::Rc<str>,
 	#[cfg(feature="cache-strings")] &'static str,
 );
 
 impl Default for Text {
+	#[cfg(not(feature="cache-strings"))]
 	fn default() -> Self {
 		// we need it mut so we can have !Send/!Sync in a static.
 		static mut EMPTY: OnceCell<Text> = OnceCell::new();
 
 		unsafe { &EMPTY }.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
+	}
+
+	#[cfg(feature="cache-strings")]
+	#[inline]
+	fn default() -> Self {
+		Self("")
 	}
 }
 
@@ -72,8 +80,15 @@ impl Borrow<str> for Text {
 
 impl Eq for Text {}
 impl PartialEq for Text {
+	#[cfg(not(feature="cache-strings"))]
 	fn eq(&self, rhs: &Self) -> bool {
 		self.as_str() == rhs.as_str()
+	}
+
+	#[cfg(feature="cache-strings")]
+	#[inline]
+	fn eq(&self, rhs: &Self) -> bool {
+		self.0 as *const _ == rhs.0 as *const _
 	}
 }
 
@@ -149,11 +164,15 @@ impl Text {
 		}
 
 		#[cfg(feature="cache-strings")] {
+			if string.borrow().is_empty() {
+				return Self::default();
+			}
+
 			// initialize if it's not been initialized yet.
 			let cache = TEXT_CACHE.get_or_init(Default::default);
 
-			// in the single-threaded version, we simply use the one below.
-			#[cfg(not(feature="single-threaded"))]
+			// in the unsafe-single-threaded version, we simply use the one below.
+			#[cfg(not(feature="unsafe-single-threaded"))]
 			if let Some(text) = cache.read().unwrap().get(string.borrow()) {
 				return text.clone();
 			}
@@ -161,10 +180,10 @@ impl Text {
 			drop(cache);
 
 			let mut cache = {
-				#[cfg(feature="single-threaded")]
+				#[cfg(feature="unsafe-single-threaded")]
 				{ TEXT_CACHE.get_mut().unwrap_or_else(|| unreachable!()) }
 
-				#[cfg(not(feature="single-threaded"))]
+				#[cfg(not(feature="unsafe-single-threaded"))]
 				{ TEXT_CACHE.get().unwrap().write().unwrap() }
 			};
 
@@ -211,11 +230,36 @@ impl AsRef<str> for Text {
 	}
 }
 
-impl std::ops::Deref for Text {
+impl Deref for Text {
 	type Target = str;
 
 	#[inline]
 	fn deref(&self) -> &Self::Target {
 		self.as_str()
+	}
+}
+
+impl Add<&Text> for &Text {
+	type Output = Text;
+
+	fn add(self, rhs: &Text) -> Self::Output {
+		// todo: lookup cache before use.
+		Text::new(&(self.to_string() + rhs.as_ref())).unwrap()
+	}
+}
+
+impl Mul<usize> for &Text {
+	type Output = Text;
+
+	fn mul(self, rhs: usize) -> Self::Output {
+		let mut data = String::with_capacity(self.len() * rhs);
+
+		for _ in 0..rhs {
+			data.push_str(&self);
+		}
+
+		unsafe {
+			Text::new_unchecked(&data)
+		}
 	}
 }

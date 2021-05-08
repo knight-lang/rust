@@ -152,7 +152,9 @@ lazy_static::lazy_static! {
 use std::io::{Write, BufRead};
 
 // arity zero
-pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+pub fn prompt(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 0);
+
 	let mut buf = String::new();
 
 	env.read_line(&mut buf)?;
@@ -179,10 +181,14 @@ pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value> {
 
 pub static NOOP_FUNCTION: Function = Function { name: ':', arity: 1, func: noop };
 pub fn noop(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	args[0].run(env)
 }
 
 pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	let ran = args[0].run(env)?;
 
 	env.run_str(&ran.to_text()?)
@@ -190,42 +196,56 @@ pub fn eval(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> 
 
 pub static BLOCK_FUNCTION: Function = Function { name: 'B', arity: 1, func: block };
 pub fn block(args: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	Ok(args[0].clone())
 }
 
 pub fn call(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	args[0].run(env)?.run(env)
 }
 
 pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	let cmd = args[0].run(env)?.to_text()?;
 
 	env.system(&cmd).map(Value::from)
 }
 
 pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	Err(Error::Quit(args[0].run(env)?.to_number()? as i32))
 }
 
 pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	Ok((!args[0].run(env)?.to_boolean()?).into())
 }
 
 pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	args[0].run(env)?.to_text()
 		.map(|text| text.len() as Number) // todo: check for number overflow?
 		.map(Value::from)
 }
 
 pub fn dump(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	let ret = args[0].run(env)?;
-
 	writeln!(env, "{:?}", ret)?;
-
 	Ok(ret)
 }
 
 pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 1);
+
 	let text = args[0].run(env)?.to_text()?;
 
 	if let Some(stripped) = text.strip_suffix('\\') {
@@ -241,6 +261,8 @@ pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 // arity two
 
 pub fn add(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
@@ -255,17 +277,14 @@ pub fn add(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 				}
 			}
 		},
-		Value::Text(lhs) => {
-			let rhs = args[1].run(env)?.to_text()?;
-
-			// both `Text.to_string()` is a valid Text, so adding it to `to_text` is valid.
-			Ok(Value::Text(Text::try_from(lhs.to_string() + &rhs).unwrap()))
-		},
+		Value::Text(ref lhs) => Ok(Value::Text(lhs + &args[1].run(env)?.to_text()?)),
 		other => Err(Error::InvalidOperand { func: '+', operand: other.typename() })
 	}
 }
 
 pub fn subtract(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
@@ -285,6 +304,8 @@ pub fn subtract(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Val
 }
 
 pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) => {
 			let rhs = args[1].run(env)?.to_number()?;
@@ -310,6 +331,8 @@ pub fn multiply(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Val
 }
 
 pub fn divide(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) =>
 			lhs.checked_div(args[1].run(env)?.to_number()?)
@@ -320,6 +343,8 @@ pub fn divide(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 }
 
 pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) =>
 			lhs.checked_rem(args[1].run(env)?.to_number()?)
@@ -331,6 +356,8 @@ pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 
 // TODO: checked-overflow for this function.
 pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	let base = 
 		match args[0].run(env)? {
 			Value::Number(lhs) => lhs,
@@ -361,10 +388,14 @@ pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value>
 }
 
 pub fn equals(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	Ok((args[0].run(env)? == args[1].run(env)?).into())
 }
 
 pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) => Ok((lhs < args[1].run(env)?.to_number()?).into()),
 		Value::Boolean(lhs) => Ok((lhs < args[1].run(env)?.to_boolean()?).into()),
@@ -374,6 +405,8 @@ pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Va
 }
 
 pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	match args[0].run(env)? {
 		Value::Number(lhs) => Ok((lhs > args[1].run(env)?.to_number()?).into()),
 		Value::Boolean(lhs) => Ok((lhs > args[1].run(env)?.to_boolean()?).into()),
@@ -383,6 +416,8 @@ pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result
 }
 
 pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	let lhs = args[0].run(env)?;
 
 	if lhs.to_boolean()? {
@@ -393,6 +428,8 @@ pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 }
 
 pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	let lhs = args[0].run(env)?;
 
 	if lhs.to_boolean()? {
@@ -403,11 +440,15 @@ pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 }
 
 pub fn then(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	args[0].run(env)?;
 	args[1].run(env)
 }
 
 pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	let variable = 
 		if let Value::Variable(ref variable) = args[0] {
 			variable
@@ -423,6 +464,8 @@ pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 }
 
 pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
+
 	while args[0].run(env)?.to_boolean()? {
 		let _ = args[1].run(env)?;
 	}
@@ -433,6 +476,8 @@ pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Valu
 // arity three
 
 pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 3);
+
 	if args[0].run(env)?.to_boolean()? {
 		args[1].run(env)
 	} else {
@@ -441,6 +486,8 @@ pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> 
 }
 
 pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 3);
+
 	let input = args[0].run(env)?.to_text()?;
 	let start = args[1].run(env)?.to_number()?;
 	let len = args[2].run(env)?.to_number()?;
@@ -454,6 +501,8 @@ pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 // arity four
 
 pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 4);
+
 	let source = args[0].run(env)?.to_text()?;
 	let start = args[1].run(env)?.to_number()?;
 	let len = args[2].run(env)?.to_number()?;

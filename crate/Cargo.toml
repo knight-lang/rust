@@ -13,11 +13,6 @@ license = "MIT"
 [features]
 default = ["cache-strings"]
 
-# Assume knight will be run in one thread.
-#
-# WARNING: this can cause undefined behaviour if multiple threads use knight.
-single-threaded = []
-
 # Leak strings for fast access later.
 cache-strings = []
 
@@ -39,10 +34,18 @@ strict-block-return-value = []
 # Exactly follow knight specs.
 strict-compliance = ["strict-numbers", "checked-overflow", "disallow-unicode", "strict-block-return-value"]
 
+
+# Assume knight will be run in one thread.
+#
+# WARNING: this can cause undefined behaviour if multiple threads use knight.
+unsafe-single-threaded = []
+
+usnafe-reckless = []
+
 # Enable all optimizations for knight
 #
 # WARNING: Read the descriptions of each feature to ensure no undefined behvaiour will occur.
-optimized = ["single-threaded", "cache-strings"]
+unsafe-optimized = ["unsafe-single-threaded", "cache-strings"]
 
 [dependencies]
 rand = "0.8"
