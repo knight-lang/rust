@@ -3,6 +3,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::num::NonZeroU64;
 
 /// A variable within Knight.
 ///
@@ -135,5 +136,15 @@ impl Variable {
 	#[must_use = "simply fetching a value does nothing; the return value should be inspected."]
 	pub fn fetch(&self) -> Option<Value> {
 		self.0.value.borrow().clone()
+	}
+
+	pub(crate) fn into_raw(self) -> NonZeroU64 {
+		unsafe {
+			NonZeroU64::new_unchecked(Rc::into_raw(self.0) as usize as u64)
+		}
+	}
+
+	pub(crate) unsafe fn from_raw(raw: NonZeroU64) -> Self {
+		Self(Rc::from_raw(raw.get() as usize as _))
 	}
 }

@@ -11,7 +11,8 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["cache-strings"]
+default = []
+# default = ["cache-strings"]
 
 # Leak strings for fast access later.
 cache-strings = []
@@ -34,13 +35,12 @@ strict-block-return-value = []
 # Exactly follow knight specs.
 strict-compliance = ["strict-numbers", "checked-overflow", "disallow-unicode", "strict-block-return-value"]
 
+custom-types = []
 
 # Assume knight will be run in one thread.
 #
 # WARNING: this can cause undefined behaviour if multiple threads use knight.
 unsafe-single-threaded = []
-
-usnafe-reckless = []
 
 # Enable all optimizations for knight
 #
@@ -54,3 +54,5 @@ lazy_static = "1.4"
 parking_lot = "0.11"
 clap = "2.33"
 cfg-if = "1.0"
+static_assertions="1.1"
+

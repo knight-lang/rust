@@ -1,11 +1,15 @@
 //! Types relating to the [`Text`].
-
 use std::sync::Arc;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::convert::TryFrom;
+use std::ptr::NonNull;
 use std::borrow::Borrow;
 use std::ops::{Add, Mul, Deref};
+use std::num::NonZeroU64;
+
+#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 cfg_if! {
 	if #[cfg(feature = "unsafe-single-threaded")] {
@@ -31,12 +35,59 @@ cfg_if! {
 }
 
 /// The string type within Knight.
-#[derive(Clone)]
-pub struct Text(
-	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))] std::sync::Arc<str>,
-	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))] std::rc::Rc<str>,
-	#[cfg(feature="cache-strings")] &'static str,
-);
+pub struct Text(NonNull<Inner>);
+
+#[repr(C, align(8))]
+struct Inner {
+	len: usize,
+	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
+	rc: AtomicUsize,
+	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))]
+	rc: usize,
+	data: [u8; 0]
+}
+
+sa::const_assert!(8 <= std::mem::align_of::<Inner>());
+
+impl Clone for Text {
+	fn clone(&self) -> Self {
+		cfg_if! {
+			if #[cfg(feature="cache-strings")] {
+				// do nothing
+			} else if #[cfg(feature="unsafe-single-threaded")] {
+				unsafe { self.0.as_mut().rc += 1; }
+			} else {
+				unsafe { self.0.as_ref().rc.fetch_add(1, Ordering::SeqCst); }
+			}
+		}
+
+		Self(self.0)
+	}
+}
+
+impl Drop for Text {
+	fn drop(&mut self) {
+		unsafe {
+			cfg_if! {
+				if #[cfg(feature="cache-strings")] {
+					return; // do notihng
+				} else if #[cfg(feature="unsafe-single-threaded")] {
+					self.0.as_mut().rc -= 1;
+					if self.0.as_ref().rc != 0 {
+						return;
+					}
+
+				} else {
+					if self.0.as_ref().rc.fetch_sub(1, Ordering::SeqCst) != 0 {
+						return;
+					}
+				}
+			}
+
+			std::ptr::drop_in_place(self.0.as_ptr());
+		}
+	}
+}
 
 impl Default for Text {
 	#[cfg(not(feature="cache-strings"))]
@@ -50,7 +101,7 @@ impl Default for Text {
 	#[cfg(feature="cache-strings")]
 	#[inline]
 	fn default() -> Self {
-		Self("")
+		Self(&ThinStr::default())
 	}
 }
 
@@ -138,6 +189,34 @@ fn validate_string(data: &str) -> Result<(), InvalidChar> {
 	Ok(())
 }
 
+// safety: len cannot be zero
+unsafe fn allocate_inner(string: &str) -> NonNull<Inner> {
+	use std::alloc::{Layout, alloc, handle_alloc_error};
+	use std::mem::{size_of, align_of};
+	use std::ptr::{write, copy_nonoverlapping};
+
+	debug_assert_ne!(string.len(), 0);
+
+	let layout = Layout::from_size_align(
+		size_of::<Inner>() + string.len(),
+		align_of::<Inner>()
+	).unwrap();
+
+	let inner = alloc(layout) as *mut Inner;
+
+	if inner.is_null() {
+		handle_alloc_error(layout);
+	}
+
+	write(&mut (*inner).len, string.len());
+	#[cfg(not(feature="cache-strings"))] { 
+		write(&mut (*inner).rc, 1.into());
+	}
+	copy_nonoverlapping(string.as_ptr(), &mut (*inner).data as *mut _ as *mut u8, string.len());
+
+	NonNull::new_unchecked(inner)
+}
+
 impl Text {
 	/// Creates a new `Text` with the given input string.
 	///
@@ -147,8 +226,8 @@ impl Text {
 	/// # See Also
 	/// - [`Text::new_unchecked`] For a version which doesn't verify `string`.
 	#[must_use = "Creating an Text does nothing on its own"]
-	pub fn new<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
-		validate_string(string.borrow()).map(|_| unsafe { Self::new_unchecked(string) })
+	pub fn new(string: &str) -> Result<Self, InvalidChar> {
+		validate_string(string).map(|_| unsafe { Self::new_unchecked(string) })
 	}
 
 	/// Creates a new `Text`, without verifying that the string is valid.
@@ -156,15 +235,19 @@ impl Text {
 	/// # Safety
 	/// All characters within the string must be valid for Knight strings. See the specs for what exactly this entails.
 	#[must_use = "Creating an Text does nothing on its own"]
-	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
-		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
+	pub unsafe fn new_unchecked(string: &str) -> Self {
+		debug_assert_eq!(validate_string(string), Ok(()), "invalid string encountered: {:?}", string);
+
+		if string.len() == 0 {
+			return Self::default();
+		}
 
 		#[cfg(not(feature="cache-strings"))] {
-			Self(string.to_string().into())
+			Self(unsafe { allocate_inner(string) })
 		}
 
 		#[cfg(feature="cache-strings")] {
-			if string.borrow().is_empty() {
+			if string.is_empty() {
 				return Self::default();
 			}
 
@@ -173,7 +256,7 @@ impl Text {
 
 			// in the unsafe-single-threaded version, we simply use the one below.
 			#[cfg(not(feature="unsafe-single-threaded"))]
-			if let Some(text) = cache.read().unwrap().get(string.borrow()) {
+			if let Some(text) = cache.read().unwrap().get(string) {
 				return text.clone();
 			}
 
@@ -187,21 +270,39 @@ impl Text {
 				{ TEXT_CACHE.get().unwrap().write().unwrap() }
 			};
 
-			if let Some(text) = cache.get(string.borrow()) {
+			if let Some(text) = cache.get(string) {
 				text.clone()
 			} else {
-				let leaked = Box::leak(string.to_string().into_boxed_str());
-				cache.insert(Text(leaked));
-				Text(leaked)
+				let inner = unsafe { allocate_inner(string) };
+				cache.insert(Text(inner));
+				Text(inner)
 			}
 		}
+	}
+
+	pub(crate) fn into_raw(self) -> NonZeroU64 {
+		unsafe {
+			NonZeroU64::new_unchecked(self.0.as_ptr() as usize as u64)
+		}
+	}
+
+	// safety: must be a valid pointer returned from `into_raw`
+	pub(crate) unsafe fn from_raw(raw: NonZeroU64) -> Self {
+		Self(NonNull::new_unchecked(raw.get() as *mut Inner))
 	}
 
 	/// Gets a reference to the contained string.
 	#[inline]
 	#[must_use]
 	pub fn as_str(&self) -> &str {
-		self.0.as_ref()
+		use std::{str, slice};
+
+		unsafe {
+			str::from_utf8_unchecked(slice::from_raw_parts(
+				&self.0.as_ref().data as *const _ as *const _,
+				self.0.as_ref().len
+			))
+		}
 	}
 }
 

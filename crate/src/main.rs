@@ -17,6 +17,10 @@ fn run(matches: ArgMatches<'_>) -> Result<()> {
 }
 
 fn main() {
+	// knightrs::value2::Value::new
+}
+
+fn main1() {
 	if true {
 		Environment::default().run_str(std::fs::read_to_string("../../knight-lang/knight.kn").unwrap()).unwrap();
 		return

@@ -5,12 +5,29 @@
 #[macro_use]
 extern crate cfg_if;
 
+extern crate static_assertions as sa;
+
+macro_rules! debug_assert_const {
+	($cond:expr) => { #[cfg(debug_assertions)] { let _ = [()][!$cond as usize]; }};
+}
+
+macro_rules! debug_assert_eq_const {
+	($lhs:expr, $rhs:expr) => (debug_assert_const!($lhs == $rhs));
+}
+
+macro_rules! debug_assert_ne_const {
+	($lhs:expr, $rhs:expr) => (debug_assert_const!($lhs != $rhs));
+}
+
 pub mod function;
 pub mod text;
 mod value;
+mod ast;
 mod error;
 mod stream;
 pub mod environment;
+pub mod value2;
+pub mod number;
 
 cfg_if! {
 	if #[cfg(all(feature="strict-numbers", feature="large-numbers"))] {
@@ -35,6 +52,8 @@ pub use text::Text;
 
 #[doc(inline)]
 pub use function::Function;
+
+pub use ast::Ast;
 
 pub use stream::{Stream, ParseError};
 pub use environment::{Environment, Variable};
