@@ -6,7 +6,9 @@ use std::convert::TryFrom;
 use std::ptr::NonNull;
 use std::borrow::Borrow;
 use std::ops::{Add, Mul, Deref};
-use std::num::NonZeroU64;
+
+use crate::boolean::{ToBoolean, Boolean};
+use crate::number::{ToNumber, Number};
 
 #[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -34,6 +36,13 @@ cfg_if! {
 	}
 }
 
+mod cow;
+mod r#ref;
+mod r#static;
+pub use cow::TextCow;
+pub use r#ref::TextRef;
+pub use r#static::TextStatic;
+
 /// The string type within Knight.
 pub struct Text(NonNull<Inner>);
 
@@ -47,7 +56,11 @@ struct Inner {
 	data: [u8; 0]
 }
 
-sa::const_assert!(8 <= std::mem::align_of::<Inner>());
+const_assert!(8 <= std::mem::align_of::<Inner>());
+
+pub trait ToText {
+	fn to_text(&self) -> crate::Result<TextCow>;
+}
 
 impl Clone for Text {
 	fn clone(&self) -> Self {
@@ -280,15 +293,38 @@ impl Text {
 		}
 	}
 
-	pub(crate) fn into_raw(self) -> NonZeroU64 {
-		unsafe {
-			NonZeroU64::new_unchecked(self.0.as_ptr() as usize as u64)
+	pub(crate) fn into_raw(self) -> *const () {
+		self.0.as_ptr() as *const ()
+	}
+
+	// safety: must be a valid pointer returned from `into_raw`
+	pub(crate) unsafe fn from_raw(raw: *const ()) -> Self {
+		Self(NonNull::new_unchecked(raw as *mut Inner))
+	}
+
+	// safety: must be a valid pointer returned from `into_raw`
+	pub(crate) unsafe fn str_from_raw<'a>(raw: *const ()) -> &'a str {
+		todo!()
+	}
+
+	// safety: must be a valid pointer returned from `into_raw`
+	#[inline]
+	pub(crate) unsafe fn clone_in_place(raw: *const ()) {
+		cfg_if! {
+			if #[cfg(feature="cache-strings")] {
+				// do nothing
+			} else if #[cfg(feature="unsafe-single-threaded")] {
+				(*(raw as *mut Inner)).rc += 1;
+			} else {
+				(*(raw as *mut Inner)).rc.fetch_add(1, Ordering::SeqCst);
+			}
 		}
 	}
 
 	// safety: must be a valid pointer returned from `into_raw`
-	pub(crate) unsafe fn from_raw(raw: NonZeroU64) -> Self {
-		Self(NonNull::new_unchecked(raw.get() as *mut Inner))
+	#[inline]
+	pub(crate) unsafe fn drop_in_place(raw: *const ()) {
+		drop(Self::from_raw(raw));
 	}
 
 	/// Gets a reference to the contained string.
@@ -310,7 +346,7 @@ impl TryFrom<&str> for Text {
 	type Error = InvalidChar;
 
 	#[inline]
-	fn try_from(string: &str) -> Result<Self, Self::Error> {
+	fn try_from(string: &str) -> Result<Self, InvalidChar> {
 		Self::new(string)
 	}
 }
@@ -319,7 +355,7 @@ impl TryFrom<String> for Text {
 	type Error = InvalidChar;
 
 	#[inline]
-	fn try_from(string: String) -> Result<Self, Self::Error> {
+	fn try_from(string: String) -> Result<Self, InvalidChar> {
 		Self::new(&string)
 	}
 }
@@ -362,5 +398,23 @@ impl Mul<usize> for &Text {
 		unsafe {
 			Text::new_unchecked(&data)
 		}
+	}
+}
+
+impl ToText for Text {
+	fn to_text(&self) -> crate::Result<TextCow> {
+		Ok(TextRef::new(self).into())
+	}
+}
+
+impl ToBoolean for Text {
+	fn to_boolean(&self) -> crate::Result<Boolean> {
+		Ok(!self.is_empty())
+	}
+}
+
+impl ToNumber for Text {
+	fn to_number(&self) -> crate::Result<Number> {
+		todo!();
 	}
 }

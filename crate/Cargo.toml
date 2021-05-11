@@ -23,9 +23,6 @@ disallow-unicode = []
 # Catch undefined integer arithmetic
 checked-overflow = []
 
-# Use `i128` for numbers, instead of the default `i64`.
-large-numbers = []
-
 # Use `i32` for numbers, which is the minimum required range.
 strict-numbers = []
 

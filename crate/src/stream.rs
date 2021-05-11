@@ -1,4 +1,5 @@
-use crate::{Value, Number, Function, Environment, Text, Variable, Boolean};
+use crate::{Value, Number, Function, Ast, Environment, Text, Variable, Boolean};
+use crate::number::NumberType;
 use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter};
 
@@ -194,7 +195,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			}
 		}
 
-		let mut number: Number = 0;
+		let mut number: NumberType = 0;
 
 		while let Some(digit) = self.next() {
 			if !digit.is_ascii_digit() {
@@ -214,7 +215,13 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			};
 		}
 
-		Ok(number)
+		cfg_if! {
+			if #[cfg(feature="checked-overflow")] {
+				Number::new(number).ok_or_else(|| ParseError { line: self.line, kind: ParseErrorKind::NumberLiteralOverflow })
+			} else {
+				Ok(Number::new_truncate(number))
+			}
+		}
 	}
 
 	pub fn try_variable(&mut self, env: &mut Environment<'_, '_, '_>) -> Option<Variable> {
@@ -340,12 +347,13 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		// If a BLOCk _without_ a function as an argument is encountered, treat it as `: <arg>`.
 		if cfg!(feature = "strict-block-return-value")
 			&& func == crate::function::BLOCK_FUNCTION
-			&& !matches!(args[0], Value::Function(_, _))
+			&& !args[0].is_ast()
 		{
-			args = vec![Value::Function(crate::function::NOOP_FUNCTION, args.into_boxed_slice().into())];
+			todo!()
+			// args = vec![Value::Function(crate::function::NOOP_FUNCTION, args.into_boxed_slice().into())];
 		}
 
-		Ok(Value::Function(func, args.into_boxed_slice().into()))
+		Ok(Value::new_ast(Ast::new(func, args.into_boxed_slice().into())))
 	}
 
 	fn strip_word(&mut self) {
@@ -372,17 +380,17 @@ impl<I: Iterator<Item=char>> Stream<I> {
 			},
 
 			// only ascii digits may start a number.
-			'0'..='9' => Ok(Value::Number(unsafe { self.number_unchecked()? })),
+			'0'..='9' => Ok(Value::new_number(unsafe { self.number_unchecked()? })),
 
 			// identifiers start only with lower-case digits or `_`.
-			'a'..='z' | '_' => Ok(Value::Variable(unsafe { self.variable_unchecked(env) })),
+			'a'..='z' | '_' => Ok(Value::new_variable(unsafe { self.variable_unchecked(env) })),
 
-			'T' | 'F' => Ok(Value::Boolean(unsafe { self.boolean_unchecked() })),
+			'T' | 'F' => Ok(Value::new_boolean(unsafe { self.boolean_unchecked() })),
 
-			'N' => { unsafe { self.null_unchecked(); }; Ok(Value::Null) },
+			'N' => { unsafe { self.null_unchecked(); }; Ok(Value::new_null()) },
 			
 			// strings start with a single or double quote (and not `` ` ``).
-			'\'' | '\"' => Ok(Value::Text(unsafe { self.text_unchecked()? })),
+			'\'' | '\"' => Ok(Value::new_text(unsafe { self.text_unchecked()? })),
 
 			chr => 
 				if let Some(func) = Function::fetch(chr) {

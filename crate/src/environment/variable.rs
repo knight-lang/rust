@@ -138,13 +138,21 @@ impl Variable {
 		self.0.value.borrow().clone()
 	}
 
-	pub(crate) fn into_raw(self) -> NonZeroU64 {
-		unsafe {
-			NonZeroU64::new_unchecked(Rc::into_raw(self.0) as usize as u64)
-		}
+	pub(crate) fn into_raw(self) -> *const () {
+		Rc::into_raw(self.0) as *const ()
 	}
 
-	pub(crate) unsafe fn from_raw(raw: NonZeroU64) -> Self {
-		Self(Rc::from_raw(raw.get() as usize as _))
+	pub(crate) unsafe fn from_raw(raw: *const ()) -> Self {
+		Self(Rc::from_raw(raw as *const Inner))
+	}
+
+	pub(crate) unsafe fn clone_in_place(raw: *const ()) {
+		let this = Self::from_raw(raw);
+		std::mem::forget(this.clone()); // add one to the refcount.
+		std::mem::forget(this);         // make sure we don't drop this reference.
+	}
+
+	pub(crate) unsafe fn drop_in_place(raw: *const ()) {
+		drop(Self::from_raw(raw));
 	}
 }

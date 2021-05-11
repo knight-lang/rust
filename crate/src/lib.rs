@@ -5,7 +5,8 @@
 #[macro_use]
 extern crate cfg_if;
 
-extern crate static_assertions as sa;
+#[macro_use]
+extern crate static_assertions;
 
 macro_rules! debug_assert_const {
 	($cond:expr) => { #[cfg(debug_assertions)] { let _ = [()][!$cond as usize]; }};
@@ -21,33 +22,18 @@ macro_rules! debug_assert_ne_const {
 
 pub mod function;
 pub mod text;
-mod value;
+pub mod null;
+mod boolean;
 mod ast;
 mod error;
 mod stream;
 pub mod environment;
-pub mod value2;
+pub mod value;
 pub mod number;
 
-cfg_if! {
-	if #[cfg(all(feature="strict-numbers", feature="large-numbers"))] {
-		compile_error!("cannot enable both strict-numbers and large-numbers");
-	} else if #[cfg(feature="strict-numbers")] {
-		/// The number type within Knight.
-		pub type Number = i32;
-	} else if #[cfg(feature = "large-numbers")] {
-		/// The number type within Knight.
-		pub type Number = i128;
-	} else {
-		/// The number type within Knight.
-		pub type Number = i64;
-	}
-}
-
-/// The boolean type within Knight.
-pub type Boolean = bool;
-
-#[doc(inline)]
+pub use number::Number;
+pub use null::Null;
+pub use boolean::Boolean;
 pub use text::Text;
 
 #[doc(inline)]
