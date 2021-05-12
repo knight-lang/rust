@@ -1,20 +1,19 @@
 use std::io;
 use std::fmt::{self, Display, Formatter};
-use crate::{ParseError, text::InvalidChar};
+use crate::{number::MathError, stream::ParseError, text::InvalidChar};
 use std::error::Error as ErrorTrait;
 
 /// An error occurred whilst executing a knight program.
 #[derive(Debug)]
 pub enum Error {
-	/// A division (or modulus) by zero was attempted.
-	DivisionByZero {
-		/// What kind of error it is---power, modulo, or division.
-		kind: &'static str
-	},
+	/// A problem occured with numbers (eg division by zero, overflow, etc.)
+	Math(MathError),
 
-	Domain {
-		message: &'static str
-	},
+	/// a valid type was given, but it wasnt in the correct domain.
+	Domain(&'static str),
+
+	#[cfg(feature="checked-overflow")]
+	Overflow(&'static str),
 
 	/// An unknown identifier was attempted to be dereferenced.
 	UnknownIdentifier {
@@ -23,7 +22,7 @@ pub enum Error {
 	},
 
 	/// A function was executed with an invalid operand.
-	InvalidOperand {
+	Type {
 		/// The function that was attempted.
 		func: char,
 
@@ -45,7 +44,7 @@ pub enum Error {
 
 	/// A checked operation failed.
 	#[cfg(feature = "checked-overflow")]
-	Overflow {
+	BinaryOverflow {
 		/// Which function overflowed.
 		func: char,
 
@@ -99,16 +98,21 @@ impl From<InvalidChar> for Error {
 	}
 }
 
+impl From<MathError> for Error {
+	#[inline]
+	fn from(err: MathError) -> Self {
+		Self::Math(err)
+	}
+}
+
 impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::DivisionByZero { kind } => write!(f, "invalid {} with zero.", kind),
-			Self::Domain { message } => write!(f, "{}", message),
+			Self::Math(err) => Display::fmt(err, f),
+			Self::Domain(cause) => write!(f, "{}", cause),
 			Self::UnknownIdentifier { identifier } => write!(f, "identifier {:?} is undefined.", identifier),
-			Self::InvalidOperand { func, operand } => write!(f, "invalid operand kind {:?} for function {:?}.", operand, func),
+			Self::Type { func, operand } => write!(f, "invalid operand kind {:?} for function {:?}.", operand, func),
 			Self::UndefinedConversion { kind, into } => write!(f, "invalid conversion into {:?} for kind {:?}.", kind, into),
-			#[cfg(feature = "checked-overflow")]
-			Self::Overflow { func, lhs, rhs } => write!(f, "Expression '{} {} {}' overflowed", func, lhs, rhs),
 			Self::Quit(code) => write!(f, "exit with status {}", code),
 			Self::Parse(err) => Display::fmt(err, f),
 			Self::InvalidString(err) => Display::fmt(err, f),
@@ -126,6 +130,7 @@ impl ErrorTrait for Error {
 			Self::Parse(err) => Some(err),
 			Self::Io(err) => Some(err),
 			Self::InvalidString(err) => Some(err),
+			Self::Math(err) => Some(err),
 			Self::Custom(err) => Some(err.as_ref()),
 			_ => None
 		}

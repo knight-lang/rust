@@ -7,7 +7,7 @@ fn run(matches: ArgMatches<'_>) -> Result<()> {
 	if let Some(expr) = matches.value_of("expr") {
 		env.run_str(&expr)?;
 	} else if let Some(filename) = matches.value_of("file") {
-		env.run_str(std::fs::read_to_string(filename)?)?;
+		env.run_str(&std::fs::read_to_string(filename)?)?;
 	} else {
 		eprintln!("{}", matches.usage());
 		std::process::exit(1);
@@ -22,7 +22,7 @@ fn main() {
 
 fn main1() {
 	if true {
-		Environment::default().run_str(std::fs::read_to_string("../../knight-lang/knight.kn").unwrap()).unwrap();
+		Environment::default().run_str(&std::fs::read_to_string("../../knight-lang/knight.kn").unwrap()).unwrap();
 		return
 	}
 	let matches =

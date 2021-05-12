@@ -1,4 +1,4 @@
-use super::{Inner, Text};
+use super::{Inner, Text, TextCow, ToText};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
@@ -20,6 +20,12 @@ impl<'a> TextRef<'a> {
 		Self(Text::from_raw(raw).0, PhantomData)
 	}
 
+	pub fn as_text(&self) -> &'a Text {
+		unsafe {
+			&*(self as *const Self as *const Text)
+		}
+	}
+
 	pub(crate) fn into_owned(self) -> Text {
 		(*self).clone()
 	}
@@ -29,9 +35,7 @@ impl std::ops::Deref for TextRef<'_> {
 	type Target = Text;
 
 	fn deref(&self) -> &Text {
-		unsafe {
-			&*(self as *const Self as *const Text)
-		}
+		self.as_text()
 	}
 }
 
@@ -44,5 +48,11 @@ impl std::borrow::Borrow<Text> for TextRef<'_> {
 impl AsRef<Text> for TextRef<'_> {
 	fn as_ref(&self) -> &Text {
 		&self
+	}
+}
+
+impl ToText for TextRef<'_> {
+	fn to_text(&self) -> crate::Result<TextCow<'_>> {
+		Ok(TextCow::Borrowed(*self))
 	}
 }

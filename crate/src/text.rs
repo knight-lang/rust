@@ -193,6 +193,11 @@ pub const fn is_valid_char(chr: char) -> bool {
 }
 
 fn validate_string(data: &str) -> Result<(), InvalidChar> {
+	if data.len() > isize::MAX as usize {
+		// technically this isn't the character at that position, but it'd be extremely expensive to find it.
+		return Err(InvalidChar { chr: '\0', idx: isize::MAX as usize + 1 })
+	}
+
 	for (idx, chr) in data.chars().enumerate() {
 		if !is_valid_char(chr) {
 			return Err(InvalidChar { chr, idx });
@@ -250,6 +255,7 @@ impl Text {
 	#[must_use = "Creating an Text does nothing on its own"]
 	pub unsafe fn new_unchecked(string: &str) -> Self {
 		debug_assert_eq!(validate_string(string), Ok(()), "invalid string encountered: {:?}", string);
+		debug_assert!(string.len() <= isize::MAX as usize);
 
 		if string.len() == 0 {
 			return Self::default();
@@ -380,8 +386,16 @@ impl Add<&Text> for &Text {
 	type Output = Text;
 
 	fn add(self, rhs: &Text) -> Self::Output {
-		// todo: lookup cache before use.
-		Text::new(&(self.to_string() + rhs.as_ref())).unwrap()
+		// todo: use caches
+		let mut buf = String::with_capacity(self.len() + rhs.len());
+
+		buf.push_str(&self);
+		buf.push_str(&rhs);
+
+		// todo: construct a string in-place
+		unsafe {
+			Text::new_unchecked(&buf)
+		}
 	}
 }
 
@@ -402,7 +416,7 @@ impl Mul<usize> for &Text {
 }
 
 impl ToText for Text {
-	fn to_text(&self) -> crate::Result<TextCow> {
+	fn to_text(&self) -> crate::Result<TextCow<'_>> {
 		Ok(TextRef::new(self).into())
 	}
 }

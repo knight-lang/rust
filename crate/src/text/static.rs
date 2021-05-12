@@ -6,7 +6,8 @@ pub struct TextStatic(Inner);
 impl TextStatic {
 	pub fn text(&mut self) -> Text {
 		unsafe {
-			Text(NonNull::new_unchecked(&self))
+			todo!()
+			// Text(NonNull::new_unchecked(&self))
 		}
 	}
 }

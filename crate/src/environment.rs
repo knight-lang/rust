@@ -139,8 +139,8 @@ impl<'i, 'o, 'c> Environment<'i, 'o, 'c> {
 	}
 
 	/// Runs the given string as Knight code, returning the result of its execution.
-	pub fn run_str<S: AsRef<str>>(&mut self, input: S) -> Result<Value> {
-		self.run(input.as_ref().chars())
+	pub fn run_str(&mut self, input: &str) -> Result<Value> {
+		self.run(input.chars())
 	}
 
 	/// Parses a [`Value`] from the given iterator and then runs the value.

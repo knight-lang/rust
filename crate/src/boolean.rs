@@ -16,9 +16,12 @@ impl ToBoolean for Boolean {
 
 impl ToNumber for Boolean {
 	fn to_number(&self) -> crate::Result<Number> {
-		const ONE: Number = unsafe { Number::new_unchecked(1) };
-		const ZERO: Number = unsafe { Number::new_unchecked(0) };
+		Ok(if *self { Number::ONE } else { Number::ZERO })
+	}
+}
 
-		Ok(if *self { ONE } else { ZERO })
+impl ToText for Boolean {
+	fn to_text(&self) -> crate::Result<TextCow<'static>>  {
+		todo!()
 	}
 }

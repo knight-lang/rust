@@ -45,3 +45,19 @@ pub use stream::{Stream, ParseError};
 pub use environment::{Environment, Variable};
 pub use value::Value;
 pub use error::{Error, Result};
+
+pub mod ops {
+	pub use try_traits::ops::{TryAdd, TrySub, TryMul, TryDiv, TryRem};
+
+	/// Attempt to raise something to a power.
+	pub trait TryPow<Rhs = Self> {
+		/// The type returned in the event of an error.
+		type Error;
+
+		/// The type returned after performing the operation.
+		type Output;
+
+		/// Try to raise a power.
+		fn try_pow(self, other: Rhs) -> Result<Self::Output, Self::Error>;
+	}
+}

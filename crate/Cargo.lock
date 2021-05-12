@@ -87,6 +87,7 @@ dependencies = [
  "parking_lot",
  "rand",
  "static_assertions",
+ "try-traits",
 ]
 
 [[package]]
@@ -228,6 +229,12 @@ checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "unicode-width",
 ]
+
+[[package]]
+name = "try-traits"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9373e3d7b53927daabbec34ebd9cfda454cc0888939e5e3e929c324e0645c1f8"
 
 [[package]]
 name = "unicode-width"

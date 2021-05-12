@@ -1,12 +1,15 @@
-use crate::{Variable, Ast, Result, Error, Environment, Boolean};
-use crate::text::{Text, TextRef, TextCow};
-use crate::number::{Number, NumberType};
+use crate::{Variable, Ast, Result, Error, Environment, Null};
+use crate::text::{ToText, Text, TextRef, TextCow};
+use crate::number::{ToNumber, Number, NumberType};
+use crate::boolean::{ToBoolean, Boolean};
 
 use std::num::NonZeroU64;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::mem::ManuallyDrop;
+use std::convert::TryFrom;
 use std::borrow::Cow;
+use crate::ops::*;
 
 pub struct Value(NonZeroU64);
 
@@ -25,6 +28,18 @@ enum Tag {
 	Ast      = 0b110,
 	#[cfg(feature="custom-types")]
 	Custom   = 0b111,
+}
+
+#[derive(Debug)]
+pub enum ValueKind<'a> {
+	Null,
+	Boolean(Boolean),
+	Number(Number),
+	Variable(Variable),
+	Text(TextRef<'a>),
+	Ast(Ast),
+	#[cfg(feature="custom-types")]
+	Custom(())
 }
 
 pub(crate) const TAG_SHIFT: u64 = 3;
@@ -329,11 +344,89 @@ impl Value {
 		}
 	}
 
+	pub fn typename(&self) -> &'static str {
+		match self.tag() {
+			Tag::Null     => "Null",
+			Tag::Boolean  => "Boolean",
+			Tag::Number   => "Number",
+			Tag::Text     => "Text",
+			Tag::Variable => "Variable",
+			Tag::Ast      => "Ast",
+			#[cfg(feature="custom-types")]
+			Tag::Custom   => todo!("dereference custom types"),
+		}
+	}
+
+	pub fn classify(&self) -> ValueKind<'_> {
+		unsafe {
+			match self.tag() {
+				Tag::Null => ValueKind::Null,
+				Tag::Boolean => ValueKind::Boolean(self.as_boolean_unchecked()),
+				Tag::Number => ValueKind::Number(self.as_number_unchecked()),
+				Tag::Text => ValueKind::Text(self.as_text_unchecked()),
+				Tag::Variable => todo!(),
+				Tag::Ast => todo!(),
+				#[cfg(feature="custom-types")]
+				Tag::Custom => todo!()
+			}
+		}
+	}
+}
+
+impl ToBoolean for Value {
+	fn to_boolean(&self) -> crate::Result<Boolean> {
+		unsafe {
+			match self.tag() {
+				Tag::Null => Null.to_boolean(),
+				Tag::Boolean => self.as_boolean_unchecked().to_boolean(),
+				Tag::Number => self.as_number_unchecked().to_boolean(),
+				Tag::Text => self.as_text_unchecked().to_boolean(),
+				_ => Err(Error::UndefinedConversion { into: "Boolean", kind: self.typename() })
+			}
+		}
+	}
+}
+
+impl ToNumber for Value {
+	fn to_number(&self) -> crate::Result<Number> {
+		unsafe {
+			match self.tag() {
+				Tag::Null => Null.to_number(),
+				Tag::Boolean => self.as_boolean_unchecked().to_number(),
+				Tag::Number => self.as_number_unchecked().to_number(),
+				Tag::Text => self.as_text_unchecked().to_number(),
+				_ => Err(Error::UndefinedConversion { into: "Number", kind: self.typename() })
+			}
+		}
+	}
+}
+
+impl ToText for Value {
+	fn to_text<'a>(&'a self) -> crate::Result<TextCow<'a>> {
+		unsafe {
+			match self.tag() {
+				Tag::Null => Null.to_text(),
+				// Tag::Boolean => self.as_boolean_unchecked().to_text(),
+				Tag::Text => self.as_text_unchecked().as_text().to_text(),
+				_ => todo!(),
+			// 	Tag::Number => self.as_number_unchecked().to_text(),
+				_ => Err(Error::UndefinedConversion { into: "Text", kind: self.typename() })
+			}
+		}
+	}
+}
+
+/*
+use crate::text::{ToText, Text, TextRef, TextCow};
+use crate::number::{ToNumber, Number, NumberType};
+use crate::boolean::{ToBoolean, Boolean};
+
 	pub fn to_text(&self) -> Result<TextCow> {
 		unsafe {
 			//increase refcount for all these types, then just copy us.
 			match self.tag() {
-				Tag::Null => | Tag::Boolean | Tag::Number => { /* do nothing */ },
+				Tag::Null => Null.to_text(),
+			// | Tag::Boolean | Tag::Number => { /* do nothing */ },
 				Tag::Variable => Variable::clone_in_place(self.ptr()),
 				Tag::Text => Text::clone_in_place(self.ptr()),
 				Tag::Ast => Ast::clone_in_place(self.ptr()),
@@ -355,6 +448,7 @@ impl Value {
 		Cow::Borrowed(&self.as_text().unwrap())
 	}
 }
+*/
 
 impl From<Number> for Value {
 	#[inline]
@@ -447,6 +541,84 @@ impl Debug for Value {
 			Tag::Ast => Debug::fmt(&self.as_ast().unwrap(), f),
 			#[cfg(feature="custom-types")]
 			Tag::Custom => todo!()
+		}
+	}
+}
+
+impl TryAdd for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_add(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_add(rhs.to_number()?)?.into()),
+			ValueKind::Text(text) => Ok((&*text + &*rhs.to_text()?).into()),
+			_ => Err(Error::Type { func: '+', operand: self.typename() })
+		}
+	}
+}
+
+impl TrySub for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_sub(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_sub(rhs.to_number()?)?.into()),
+			_ => Err(Error::Type { func: '-', operand: self.typename() })
+		}
+	}
+}
+
+impl TryMul for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_mul(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_mul(rhs.to_number()?)?.into()),
+			ValueKind::Text(text) =>
+				usize::try_from(rhs.to_number()?.get())
+					.map(|amnt| &*text * amnt)
+					.map(Value::from)
+					.or(Err(Error::Domain("cannot multiply a string by a negative amount"))),
+			_ => Err(Error::Type { func: '*', operand: self.typename() })
+		}
+	}
+}
+
+impl TryDiv for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_div(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_div(rhs.to_number()?)?.into()),
+			_ => Err(Error::Type { func: '/', operand: self.typename() })
+		}
+	}
+}
+
+impl TryRem for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_rem(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_rem(rhs.to_number()?)?.into()),
+			_ => Err(Error::Type { func: '%', operand: self.typename() })
+		}
+	}
+}
+
+impl TryPow for &Value {
+	type Error = Error;
+	type Output = Value;
+
+	fn try_pow(self, rhs: Self) -> Result<Value> {
+		match self.classify() {
+			ValueKind::Number(num) => Ok(num.try_pow(rhs.to_number()?)?.into()),
+			_ => Err(Error::Type { func: '^', operand: self.typename() })
 		}
 	}
 }
