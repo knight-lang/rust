@@ -48,6 +48,7 @@ pub use error::{Error, Result};
 
 pub mod ops {
 	pub use try_traits::ops::{TryAdd, TrySub, TryMul, TryDiv, TryRem};
+	pub use try_traits::cmp::{TryEq, TryPartialEq, TryOrd, TryPartialOrd};
 
 	/// Attempt to raise something to a power.
 	pub trait TryPow<Rhs = Self> {

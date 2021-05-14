@@ -33,6 +33,8 @@ strict-block-return-value = []
 strict-compliance = ["strict-numbers", "checked-overflow", "disallow-unicode", "strict-block-return-value"]
 
 custom-types = []
+extended-assignment = []
+negative-indexing = []
 
 # Assume knight will be run in one thread.
 #

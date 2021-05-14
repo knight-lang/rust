@@ -157,6 +157,15 @@ lazy_static::lazy_static! {
 
 use std::io::{Write, BufRead};
 
+macro_rules! number_as {
+	($kind:ty, $number:expr, $err:literal) => {{
+		#[cfg(feature="checked-overflow")]
+		{ <$kind>::try_from($number.get()).or(Err(Error::Domain($err)))? }
+		#[cfg(not(feature="checked-overflow"))]
+		{ $number.get() as $kind }
+	}};
+}
+
 // arity zero
 pub fn prompt(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	debug_assert_eq!(args.len(), 0);
@@ -230,19 +239,9 @@ pub fn system(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 
 pub fn quit(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	debug_assert_eq!(args.len(), 1);
-	let code = args[0].run(env)?.to_number()?.get();
+	let code = args[0].run(env)?.to_number()?;
 
-	#[cfg(not(feature = "checked-overflow"))] {
-		Err(Error::Quit(code as i32))
-	}
-
-	#[cfg(feature = "checked-overflow")] {
-		if let Ok(code) = i32::try_from(code) {
-			Err(Error::Quit(code))
-		} else {
-			Err(Error::Domain { message: "exit code is out of range for ran i32" })
-		}
-	}
+	Err(Error::Quit(number_as!(i32, code, "exit code is out of range for ran i32" )))
 }
 
 pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
@@ -336,118 +335,123 @@ pub fn exponentiate(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result
 pub fn equals(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	debug_assert_eq!(args.len(), 2);
 
-	Ok((args[0].run(env)? == args[1].run(env)?).into())
+	args[0].run(env)?.try_eq(&args[1].run(env)?).map(From::from)
 }
-// pub fn equals(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
 
-// 	Ok((args[0].run(env)? == args[1].run(env)?).into())
-// }
+pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn less_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	args[0].run(env)?.try_lt(&args[1].run(env)?).map(From::from)
+}
 
-// 	match args[0].run(env)? {
-// 		Value::Number(lhs) => Ok((lhs < args[1].run(env)?.to_number()?).into()),
-// 		Value::Boolean(lhs) => Ok((lhs < args[1].run(env)?.to_boolean()?).into()),
-// 		Value::Text(lhs) => Ok((lhs.as_str() < args[1].run(env)?.to_text()?.as_str()).into()),
-// 		other => Err(Error::Type { func: '<', operand: other.typename() })
-// 	}
-// }
+pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn greater_than(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	args[0].run(env)?.try_gt(&args[1].run(env)?).map(From::from)
+}
 
-// 	match args[0].run(env)? {
-// 		Value::Number(lhs) => Ok((lhs > args[1].run(env)?.to_number()?).into()),
-// 		Value::Boolean(lhs) => Ok((lhs > args[1].run(env)?.to_boolean()?).into()),
-// 		Value::Text(lhs) => Ok((lhs.as_str() > args[1].run(env)?.to_text()?.as_str()).into()),
-// 		other => Err(Error::Type { func: '>', operand: other.typename() })
-// 	}
-// }
+pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn and(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	let lhs = args[0].run(env)?;
 
-// 	let lhs = args[0].run(env)?;
+	if lhs.to_boolean()? {
+		args[1].run(env)
+	} else {
+		Ok(lhs)
+	}
+}
 
-// 	if lhs.to_boolean()? {
-// 		args[1].run(env)
-// 	} else {
-// 		Ok(lhs)
-// 	}
-// }
+pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn or(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	let lhs = args[0].run(env)?;
 
-// 	let lhs = args[0].run(env)?;
+	if lhs.to_boolean()? {
+		Ok(lhs)
+	} else {
+		args[1].run(env)
+	}
+}
 
-// 	if lhs.to_boolean()? {
-// 		Ok(lhs)
-// 	} else {
-// 		args[1].run(env)
-// 	}
-// }
+pub fn then(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn then(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	args[0].run(env)?;
+	args[1].run(env)
+}
 
-// 	args[0].run(env)?;
-// 	args[1].run(env)
-// }
+pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// pub fn assign(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+	let variable = 
+		if let Some(variable) = args[0].as_variable() {
+			variable
+		} else if cfg!(feature="extended-assignment") {
+			let var = args[0].run(env)?;
 
-// 	let variable = 
-// 		if let Value::Variable(ref variable) = args[0] {
-// 			variable
-// 		} else /* if cfg!(feature = "assign-to-anything") */ {
-// 			return Err(Error::Type { func: '?', operand: args[0].typename() });
-// 		};
+			env.get(&*var.to_text()?)
+		} else {
+			return Err(Error::Type { func: '=', operand: args[0].typename() });
+		};
 
-// 	let rhs = args[1].run(env)?;
+	let rhs = args[1].run(env)?;
 
-// 	variable.assign(rhs.clone());
+	variable.assign(rhs.clone());
 
-// 	Ok(rhs)
-// }
+	Ok(rhs)
+}
 
-// pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 2);
+pub fn r#while(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 2);
 
-// 	while args[0].run(env)?.to_boolean()? {
-// 		let _ = args[1].run(env)?;
-// 	}
+	while args[0].run(env)?.to_boolean()? {
+		let _ = args[1].run(env)?;
+	}
 
-// 	Ok(Value::default())
-// }
+	Ok(Value::NULL)
+}
 
-// // arity three
+// arity three
 
-// pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 3);
+pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 3);
 
-// 	if args[0].run(env)?.to_boolean()? {
-// 		args[1].run(env)
-// 	} else {
-// 		args[2].run(env)
-// 	}
-// }
+	if args[0].run(env)?.to_boolean()? {
+		args[1].run(env)
+	} else {
+		args[2].run(env)
+	}
+}
 
-// pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 3);
+fn parse_index(idx: i64, len: usize) -> Option<usize> {
 
-// 	let input = args[0].run(env)?.to_text()?;
-// 	let start = args[1].run(env)?.to_number()?;
-// 	let len = args[2].run(env)?.to_number()?;
+}
 
-// 	let start = start as usize; // todo: check
-// 	let len = len as usize; // todo: check
+pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	debug_assert_eq!(args.len(), 3);
 
-// 	Ok(Value::Text(Text::new(&input[start..start+len]).unwrap()))
-// }
+	let input = args[0].run(env)?.to_text()?;
+	let start = args[1].run(env)?.to_number()?;
+	let len = args[2].run(env)?.to_number()?;
+
+	let start = parse_index(number_as!(isize, start, "start index out of bounds for get"), input.len());
+	let len = number_as!(usize, len, "length out of bounds for get");
+
+	
+	
+		if cfg!(feature="checked-overflow") {
+			isize::try_from(start.get()).or(Err(Error::Domain("start index out of bounds for get")))?
+		} else {
+			start.get() as isize
+		};
+
+	todo!();
+	// let start = start as usize; // todo: check
+	// let len = len as usize; // todo: check
+
+	// Ok(Value::Text(Text::new(&input[start..start+len]).unwrap()))
+}
 
 // // arity four
 

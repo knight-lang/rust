@@ -8,6 +8,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::mem::ManuallyDrop;
 use std::convert::TryFrom;
+use std::cmp::Ordering;
 use std::borrow::Cow;
 use crate::ops::*;
 
@@ -416,6 +417,7 @@ impl ToText for Value {
 	}
 }
 
+
 /*
 use crate::text::{ToText, Text, TextRef, TextCow};
 use crate::number::{ToNumber, Number, NumberType};
@@ -545,11 +547,71 @@ impl Debug for Value {
 	}
 }
 
+impl TryEq for Value {}
+impl TryPartialEq for Value {
+	type Error = Error;
+
+	fn try_eq(&self, rhs: &Self) -> Result<bool> {
+		#[cfg(feature="strict-compliance")] {
+			if self.is_ast() || self.is_variable() {
+				return Err(Error::Type { func: '?', operand: self.typename() });
+			} else if rhs.is_ast() || rhs.is_variable() {
+				return Err(Error::Type { func: '?', operand: rhs.typename() });
+			}
+		}
+
+		if self.bytes() == rhs.bytes() {
+			// literals have the same bytes.
+			Ok(true)
+		} else if cfg!(not(feature="cache-strings")) && self.is_text() && rhs.is_text() {
+			// only texts can have equality without pointing to the same location.
+			// note that if we're caching strings, then only identical pointers are equal.
+			Ok(unsafe { &*self.as_text_unchecked() == &*rhs.as_text_unchecked() })
+		} else {
+			// todo: custom types comparison?
+
+			// everything else is false.
+			Ok(false)
+		}
+	}
+}
+
+impl TryOrd for Value {
+	fn try_cmp(&self, rhs: &Self) -> Result<Ordering> {
+		match self.classify() {
+			ValueKind::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean()?)),
+			ValueKind::Number(number) => Ok(number.cmp(&rhs.to_number()?)),
+			ValueKind::Text(text) => Ok((&*text).cmp(&*rhs.to_text()?)),
+			_ => Err(Error::Type { func: 'o', operand: self.typename() })
+		}
+	}
+}
+
+impl TryPartialOrd for Value {
+	fn try_partial_cmp(&self, rhs: &Self) -> Result<Option<Ordering>> {
+		self.try_cmp(rhs).map(Some)
+	}
+
+	fn try_lt(&self, rhs: &Self) -> Result<bool> {
+		match self.try_cmp(rhs) {
+			Err(Error::Type { operand, .. }) => Err(Error::Type { func: '<', operand }),
+			other => other.map(|cmp| cmp == Ordering::Less)
+		}
+	}
+
+	fn try_gt(&self, rhs: &Self) -> Result<bool> {
+		match self.try_cmp(rhs) {
+			Err(Error::Type { operand, .. }) => Err(Error::Type { func: '>', operand }),
+			other => other.map(|cmp| cmp == Ordering::Greater)
+		}
+	}
+}
+
 impl TryAdd for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_add(self, rhs: Self) -> Result<Value> {
+	fn try_add(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_add(rhs.to_number()?)?.into()),
 			ValueKind::Text(text) => Ok((&*text + &*rhs.to_text()?).into()),
@@ -562,7 +624,7 @@ impl TrySub for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_sub(self, rhs: Self) -> Result<Value> {
+	fn try_sub(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_sub(rhs.to_number()?)?.into()),
 			_ => Err(Error::Type { func: '-', operand: self.typename() })
@@ -574,7 +636,7 @@ impl TryMul for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_mul(self, rhs: Self) -> Result<Value> {
+	fn try_mul(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_mul(rhs.to_number()?)?.into()),
 			ValueKind::Text(text) =>
@@ -591,7 +653,7 @@ impl TryDiv for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_div(self, rhs: Self) -> Result<Value> {
+	fn try_div(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_div(rhs.to_number()?)?.into()),
 			_ => Err(Error::Type { func: '/', operand: self.typename() })
@@ -603,7 +665,7 @@ impl TryRem for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_rem(self, rhs: Self) -> Result<Value> {
+	fn try_rem(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_rem(rhs.to_number()?)?.into()),
 			_ => Err(Error::Type { func: '%', operand: self.typename() })
@@ -615,7 +677,7 @@ impl TryPow for &Value {
 	type Error = Error;
 	type Output = Value;
 
-	fn try_pow(self, rhs: Self) -> Result<Value> {
+	fn try_pow(self, rhs: Self) -> Result<Self::Output> {
 		match self.classify() {
 			ValueKind::Number(num) => Ok(num.try_pow(rhs.to_number()?)?.into()),
 			_ => Err(Error::Type { func: '^', operand: self.typename() })
