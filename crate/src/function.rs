@@ -118,38 +118,38 @@ lazy_static::lazy_static! {
 			};
 		}
 
-		// insert!('P', 0, prompt);
-		// insert!('R', 0, random);
+		insert!('P', 0, prompt);
+		insert!('R', 0, random);
 
-		// insert!(':', 1, noop);
-		// insert!('E', 1, eval);
-		// insert!('B', 1, block);
-		// insert!('C', 1, call);
-		// insert!('`', 1, system);
-		// insert!('Q', 1, quit);
-		// insert!('!', 1, not);
-		// insert!('L', 1, length);
-		// insert!('D', 1, dump);
-		// insert!('O', 1, output);
+		insert!(':', 1, noop);
+		insert!('E', 1, eval);
+		insert!('B', 1, block);
+		insert!('C', 1, call);
+		insert!('`', 1, system);
+		insert!('Q', 1, quit);
+		insert!('!', 1, not);
+		insert!('L', 1, length);
+		insert!('D', 1, dump);
+		insert!('O', 1, output);
 
-		// insert!('+', 2, add);
-		// insert!('-', 2, subtract);
-		// insert!('*', 2, multiply);
-		// insert!('/', 2, divide);
-		// insert!('%', 2, modulo);
-		// insert!('^', 2, power);
-		// insert!('?', 2, equals);
-		// insert!('<', 2, less_than);
-		// insert!('>', 2, greater_than);
-		// insert!('&', 2, and);
-		// insert!('|', 2, or);
-		// insert!(';', 2, then);
-		// insert!('=', 2, assign);
-		// insert!('W', 2, r#while);
+		insert!('+', 2, add);
+		insert!('-', 2, subtract);
+		insert!('*', 2, multiply);
+		insert!('/', 2, divide);
+		insert!('%', 2, modulo);
+		insert!('^', 2, power);
+		insert!('?', 2, equals);
+		insert!('<', 2, less_than);
+		insert!('>', 2, greater_than);
+		insert!('&', 2, and);
+		insert!('|', 2, or);
+		insert!(';', 2, then);
+		insert!('=', 2, assign);
+		insert!('W', 2, r#while);
 
-		// insert!('I', 3, r#if);
-		// insert!('G', 3, get);
-		// insert!('S', 4, substitute);
+		insert!('I', 3, r#if);
+		insert!('G', 3, get);
+		insert!('S', 4, substitute);
 
 		map
 	});
@@ -326,7 +326,7 @@ pub fn modulo(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 	args[0].run(env)?.try_rem(&args[1].run(env)?)
 }
 
-pub fn exponentiate(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+pub fn power(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	debug_assert_eq!(args.len(), 2);
 
 	args[0].run(env)?.try_pow(&args[1].run(env)?)
@@ -424,57 +424,52 @@ pub fn r#if(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> 
 	}
 }
 
-fn parse_index(idx: i64, len: usize) -> Option<usize> {
+fn parse_index(idx: isize, len: usize) -> Option<usize> {
+	if idx < 0 {
+		todo!("negative indexes")
+	}
 
+	((idx as usize) < len).then(|| idx as usize)
 }
 
 pub fn get(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	debug_assert_eq!(args.len(), 3);
 
-	let input = args[0].run(env)?.to_text()?;
+	let input = args[0].run(env)?;
+	let input = input.to_text()?;
 	let start = args[1].run(env)?.to_number()?;
 	let len = args[2].run(env)?.to_number()?;
 
 	let start = parse_index(number_as!(isize, start, "start index out of bounds for get"), input.len());
 	let len = number_as!(usize, len, "length out of bounds for get");
 
-	
-	
-		if cfg!(feature="checked-overflow") {
-			isize::try_from(start.get()).or(Err(Error::Domain("start index out of bounds for get")))?
-		} else {
-			start.get() as isize
-		};
-
-	todo!();
-	// let start = start as usize; // todo: check
-	// let len = len as usize; // todo: check
-
+	todo!()
 	// Ok(Value::Text(Text::new(&input[start..start+len]).unwrap()))
 }
 
 // // arity four
 
-// pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-// 	debug_assert_eq!(args.len(), 4);
+pub fn substitute(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	todo!();
+	// debug_assert_eq!(args.len(), 4);
 
-// 	let source = args[0].run(env)?.to_text()?;
-// 	let start = args[1].run(env)?.to_number()?;
-// 	let len = args[2].run(env)?.to_number()?;
-// 	let repl = args[3].run(env)?.to_text()?;
+	// let source = args[0].run(env)?.to_text()?;
+	// let start = args[1].run(env)?.to_number()?;
+	// let len = args[2].run(env)?.to_number()?;
+	// let repl = args[3].run(env)?.to_text()?;
 
-// 	let start = start as usize; // todo: check
-// 	let len = len as usize; // todo: check
+	// let start = start as usize; // todo: check
+	// let len = len as usize; // todo: check
 
-// 	if start == 0 && repl.len() == 0 {
-// 		return Ok(Value::Text(Text::new(&source[len..]).unwrap()));
-// 	}
+	// if start == 0 && repl.len() == 0 {
+	// 	return Ok(Value::Text(Text::new(&source[len..]).unwrap()));
+	// }
 
-// 	let mut result = String::with_capacity(source.len() - len + repl.len());
+	// let mut result = String::with_capacity(source.len() - len + repl.len());
 
-// 	result.push_str(&source[..start]);
-// 	result.push_str(&repl);
-// 	result.push_str(&source[start+len..]);
+	// result.push_str(&source[..start]);
+	// result.push_str(&repl);
+	// result.push_str(&source[start+len..]);
 
-// 	Ok(Value::Text(result.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
-// }
+	// Ok(Value::Text(result.try_into().unwrap())) // we know the replacement is valid, as both sources were valid.
+}

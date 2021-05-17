@@ -1,72 +1,42 @@
-use super::{Inner, Text};
-use std::ptr::NonNull;
+use super::*;
 
-pub struct TextStatic(Inner);
+use std::cell::UnsafeCell;
 
-impl TextStatic {
-	pub fn text(&mut self) -> Text {
-		unsafe {
-			todo!()
-			// Text(NonNull::new_unchecked(&self))
-		}
+#[doc(hidden)]
+#[repr(transparent)]
+pub struct Combined<const N: usize>(UnsafeCell<CombinedInner<N>>);
+
+#[repr(C, align(8))]
+struct CombinedInner<const N: usize>(Inner, [u8; N]);
+
+impl<const N: usize> Combined<N> {
+	#[doc(hidden)]
+	pub const fn new(data: [u8; N]) -> Self {
+		Self(UnsafeCell::new(CombinedInner(Inner {
+			len: N,
+			#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
+			rc: AtomicUsize::new(1),
+			#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))]
+			rc: 1,
+			data: []
+		},
+		data)))
+	}
+
+	pub const unsafe fn text_for(&'static self) -> Text {
+		Text(NonNull::new_unchecked(self.0.get() as *mut Inner))
 	}
 }
 
-// #[repr(C, align(8))]
-// struct Inner {
-// 	len: usize,
-// 	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
-// 	rc: AtomicUsize,
-// 	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))]
-// 	rc: usize,
-// 	data: [u8; 0]
-// }
+assert_eq_align!(Combined<0>, Inner);
+assert_eq_size!(Combined<0>, Inner);
 
-// // use super::{Inner, Text};
-// // use std::marker::PhantomData;
-// // use std::mem::ManuallyDrop;
-// // use std::ptr::NonNull;
+#[macro_export]
+macro_rules! static_text {
+	($text:literal) => {unsafe {
+		use $crate::text::r#static::Combined;
 
-// // #[repr(transparent)]
-// // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// // pub struct TextRef<'a>(NonNull<Inner>, PhantomData<&'a ()>);
-
-// // assert_eq_size!(TextRef, Text);
-// // assert_eq_align!(TextRef, Text);
-
-// // impl<'a> TextRef<'a> {
-// // 	#[inline]
-// // 	pub fn new(text: &'a Text) -> Self {
-// // 		Self(text.0, PhantomData)
-// // 	}
-
-// // 	pub(crate) unsafe fn from_raw(raw: *const ()) -> Self {
-// // 		Self(Text::from_raw(raw).0, PhantomData)
-// // 	}
-
-// // 	pub(crate) fn into_owned(self) -> Text {
-// // 		(*self).clone()
-// // 	}
-// // }
-
-// // impl std::ops::Deref for TextRef<'_> {
-// // 	type Target = Text;
-
-// // 	fn deref(&self) -> &Text {
-// // 		unsafe {
-// // 			&*(self as *const Self as *const Text)
-// // 		}
-// // 	}
-// // }
-
-// // impl std::borrow::Borrow<Text> for TextRef<'_> {
-// // 	fn borrow(&self) -> &Text {
-// // 		&self
-// // 	}
-// // }
-
-// // impl AsRef<Text> for TextRef<'_> {
-// // 	fn as_ref(&self) -> &Text {
-// // 		&self
-// // 	}
-// // }
+		static mut INNER: Combined<{ $text.len() }> = Combined::new(*$text);
+		INNER.text_for()
+	}};
+}

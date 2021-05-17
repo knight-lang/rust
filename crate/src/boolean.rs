@@ -1,4 +1,4 @@
-use crate::text::{ToText, TextRef, TextCow};
+use crate::text::{ToText, Text, TextCow};
 use crate::number::{ToNumber, Number};
 
 /// The boolean type within Knight.
@@ -20,8 +20,15 @@ impl ToNumber for Boolean {
 	}
 }
 
-impl ToText for Boolean {
+impl ToText<'_, 'static> for Boolean {
 	fn to_text(&self) -> crate::Result<TextCow<'static>>  {
-		todo!()
+		static TRUE: Text = static_text!(b"true");
+		static FALSE: Text = static_text!(b"false");
+
+		if *self {
+			Ok(TRUE.as_textref().into())
+		} else {
+			Ok(FALSE.as_textref().into())
+		}
 	}
 }

@@ -20,8 +20,9 @@ macro_rules! debug_assert_ne_const {
 	($lhs:expr, $rhs:expr) => (debug_assert_const!($lhs != $rhs));
 }
 
-pub mod function;
+#[macro_use]
 pub mod text;
+pub mod function;
 pub mod null;
 mod boolean;
 mod ast;

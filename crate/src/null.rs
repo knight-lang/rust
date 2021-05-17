@@ -6,9 +6,11 @@ use crate::boolean::{ToBoolean, Boolean};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Null;
 
-impl ToText for Null {
+impl ToText<'_, '_> for Null {
 	fn to_text(&self) -> crate::Result<TextCow<'static>> {
-		todo!()
+		static NULL: Text = static_text!(b"null");
+
+		Ok(NULL.as_textref().into())
 	}
 }
 

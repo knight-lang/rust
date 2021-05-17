@@ -69,8 +69,8 @@ impl Value {
 			0b001 => Tag::Null,
 			0b010 => Tag::Boolean,
 			0b011 => Tag::Number,
-			0b100 => Tag::Text,
-			0b101 => Tag::Variable,
+			0b100 => Tag::Variable,
+			0b101 => Tag::Text,
 			0b110 => Tag::Ast,
 			#[cfg(feature="custom-types")]
 			0b111 => Tag::Custom,
@@ -88,7 +88,7 @@ impl Value {
 	const unsafe fn new_tagged(data: u64, tag: Tag) -> Self {
 		let inner = data | (tag as u64);
 
-		debug_assert_ne_const!(data & TAG_MASK, 0);
+		debug_assert_eq_const!(data & TAG_MASK, 0);
 		debug_assert_ne_const!(inner, 0);
 
 		Self(NonZeroU64::new_unchecked(inner))
@@ -402,15 +402,14 @@ impl ToNumber for Value {
 	}
 }
 
-impl ToText for Value {
-	fn to_text<'a>(&'a self) -> crate::Result<TextCow<'a>> {
+impl<'s> ToText<'s, 's> for Value {
+	fn to_text(&'s self) -> crate::Result<TextCow<'s>> {
 		unsafe {
 			match self.tag() {
 				Tag::Null => Null.to_text(),
-				// Tag::Boolean => self.as_boolean_unchecked().to_text(),
+				Tag::Boolean => self.as_boolean_unchecked().to_text(),
 				Tag::Text => self.as_text_unchecked().as_text().to_text(),
-				_ => todo!(),
-			// 	Tag::Number => self.as_number_unchecked().to_text(),
+				Tag::Number => self.as_number_unchecked().to_text(),
 				_ => Err(Error::UndefinedConversion { into: "Text", kind: self.typename() })
 			}
 		}
@@ -538,7 +537,7 @@ impl Debug for Value {
 			Tag::Null => f.debug_tuple("Null").finish(),
 			Tag::Boolean => f.debug_tuple("Boolean").field(&self.as_boolean().unwrap()).finish(),
 			Tag::Number => Debug::fmt(&self.as_number().unwrap(), f),
-			Tag::Text => Debug::fmt(&self.as_text().unwrap(), f),
+			Tag::Text => Debug::fmt(&*self.as_text().unwrap(), f),
 			Tag::Variable => Debug::fmt(&self.as_variable().unwrap(), f),
 			Tag::Ast => Debug::fmt(&self.as_ast().unwrap(), f),
 			#[cfg(feature="custom-types")]

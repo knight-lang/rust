@@ -38,10 +38,13 @@ cfg_if! {
 
 mod cow;
 mod r#ref;
-mod r#static;
+
 pub use cow::TextCow;
 pub use r#ref::TextRef;
-pub use r#static::TextStatic;
+
+#[macro_use]
+#[doc(hidden)]
+pub mod r#static;
 
 /// The string type within Knight.
 pub struct Text(NonNull<Inner>);
@@ -56,14 +59,22 @@ struct Inner {
 	data: [u8; 0]
 }
 
+cfg_if! {
+	if #[cfg(not(feature="unsafe-single-threaded"))] {
+		unsafe impl Send for Text {}
+		unsafe impl Sync for Text {}
+	}
+}
+
 const_assert!(8 <= std::mem::align_of::<Inner>());
 
-pub trait ToText {
-	fn to_text(&self) -> crate::Result<TextCow>;
+pub trait ToText<'s, 'c> {
+	fn to_text(&'s self) -> crate::Result<TextCow<'c>>;
 }
 
 impl Clone for Text {
 	fn clone(&self) -> Self {
+
 		cfg_if! {
 			if #[cfg(feature="cache-strings")] {
 				// do nothing
@@ -327,6 +338,11 @@ impl Text {
 		}
 	}
 
+	pub fn as_textref(&self) -> TextRef<'_> {
+		TextRef::new(self)
+	}
+
+
 	// safety: must be a valid pointer returned from `into_raw`
 	#[inline]
 	pub(crate) unsafe fn drop_in_place(raw: *const ()) {
@@ -415,8 +431,8 @@ impl Mul<usize> for &Text {
 	}
 }
 
-impl ToText for Text {
-	fn to_text(&self) -> crate::Result<TextCow<'_>> {
+impl<'s> ToText<'s, 's> for Text {
+	fn to_text(&'s self) -> crate::Result<TextCow<'s>> {
 		Ok(TextRef::new(self).into())
 	}
 }

@@ -83,9 +83,9 @@ impl ToBoolean for Number {
 	}
 }
 
-impl ToText for Number {
-	fn to_text(&self) -> crate::Result<TextCow> {
-		todo!();
+impl ToText<'_, 'static> for Number {
+	fn to_text(&self) -> crate::Result<TextCow<'static>> {
+		Ok(Text::new(&self.to_string()).unwrap().into())
 	}
 }
 

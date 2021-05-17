@@ -51,8 +51,8 @@ impl AsRef<Text> for TextRef<'_> {
 	}
 }
 
-impl ToText for TextRef<'_> {
-	fn to_text(&self) -> crate::Result<TextCow<'_>> {
+impl<'t> ToText<'_, 't> for TextRef<'t> {
+	fn to_text(&self) -> crate::Result<TextCow<'t>> {
 		Ok(TextCow::Borrowed(*self))
 	}
 }
