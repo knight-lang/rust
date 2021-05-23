@@ -160,8 +160,12 @@ impl Value {
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),
 			Self::Number(number) => Ok(Self::Number(*number)),
 			Self::Text(text) => Ok(Self::Text(text.clone())),
-			Self::Variable(variable) => variable.fetch()
-				.ok_or_else(|| Error::UnknownIdentifier { identifier: variable.name().into() }),
+			Self::Variable(variable) =>
+				if let Some(var) = variable.fetch() {
+					Ok(var)
+				} else {
+					handle_error!(Error::UnknownIdentifier { identifier: variable.name().into() })
+				},
 			Self::Ast(ast) => ast.run(env),
 		}
 	}

@@ -72,8 +72,13 @@ impl Function {
 	}
 
 	/// Executes this function with the given arguments
+	#[cfg_attr(feature="unsafe-reckless", inline(always))] // inline to ensure the "no error" is propagated.
 	pub fn run(&self, args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-		(self.func)(args, env)
+		match (self.func)(args, env) {
+			Ok(value) => Ok(value),
+
+			Err(err) => handle_error!(err)
+		}
 	}
 
 	/// Gets the arity of this function.
@@ -172,11 +177,12 @@ pub fn prompt(_: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 }
 
 pub fn random(_: &[Value], _: &mut Environment<'_, '_, '_>) -> Result<Value> {
-	Ok((rand::random::<u32>() as Number).into())
+	Ok(rand::random::<Number>().abs().into())
 }
 
 // arity one
 
+// this is only used for BLOCK, and only for strict compliance.
 pub static NOOP_FUNCTION: Function = Function { name: ':', arity: 1, func: noop };
 pub fn noop(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	args[0].run(env)

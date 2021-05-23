@@ -5,6 +5,31 @@
 #[macro_use]
 extern crate cfg_if;
 
+
+cfg_if! {
+	if #[cfg(feature="abort-on-errors")] {
+		macro_rules! handle_error {
+			($err:expr) => (panic!("runtime error: {}", $err))
+		}
+	} else if #[cfg(feature="unsafe-reckless")] {
+		macro_rules! handle_error {
+			($err:expr) => ({
+				#[cfg(debug_assertions)] {
+					unreachable!("reckless condition failed!")
+				}
+
+				#[cfg(not(debug_assertions))] unsafe {
+					std::hint::unreachable_unchecked()
+				}
+			})
+		}
+	} else {
+		macro_rules! handle_error {
+			($err:expr) => (return Err($err))
+		}
+	}
+}
+
 pub mod function;
 pub mod text;
 mod value;
@@ -14,14 +39,9 @@ mod ast;
 pub mod environment;
 
 cfg_if! {
-	if #[cfg(all(feature="strict-numbers", feature="large-numbers"))] {
-		compile_error!("cannot enable both strict-numbers and large-numbers");
-	} else if #[cfg(feature="strict-numbers")] {
+	if #[cfg(feature="strict-numbers")] {
 		/// The number type within Knight.
 		pub type Number = i32;
-	} else if #[cfg(feature = "large-numbers")] {
-		/// The number type within Knight.
-		pub type Number = i128;
 	} else {
 		/// The number type within Knight.
 		pub type Number = i64;
