@@ -69,7 +69,7 @@ dependencies = [
 
 [[package]]
 name = "knightrs"
-version = "0.8.11"
+version = "0.8.12"
 dependencies = [
  "cfg-if",
  "clap",
