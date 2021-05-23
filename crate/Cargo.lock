@@ -74,7 +74,6 @@ dependencies = [
  "cfg-if",
  "clap",
  "lazy_static",
- "likely",
  "once_cell",
  "rand",
 ]
@@ -90,12 +89,6 @@ name = "libc"
 version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
-
-[[package]]
-name = "likely"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d3722166f160163dedaa2fe3c043de863023fbc8cbeff9ae0665d35866e0ca4"
 
 [[package]]
 name = "once_cell"
