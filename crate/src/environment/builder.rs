@@ -18,8 +18,9 @@ pub struct Builder<'i, 'o, 'c> {
 // eg, a `dyn read`, but `io::stdin()` will return a new object. Thus, we simply make a ZST that calls `io::stdin()`
 // every time it needs to read something.
 
+#[derive(Clone, Copy)]
 struct Stdin;
-static mut STDIN: Stdin = Stdin;
+static STDIN: Stdin = Stdin;
 
 impl Read for Stdin {
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
@@ -27,8 +28,9 @@ impl Read for Stdin {
 	}
 }
 
+#[derive(Clone, Copy)]
 struct Stdout;
-static mut STDOUT: Stdout = Stdout;
+static STDOUT: Stdout = Stdout;
 
 impl Write for Stdout {
 	fn write(&mut self, data: &[u8]) -> io::Result<usize> {
@@ -52,7 +54,7 @@ impl Display for NotEnabled {
 impl std::error::Error for NotEnabled {}
 
 fn system_err(_: &str) -> Result<Text> {
-	Err(Error::Custom(Box::new(NotEnabled)))
+	error!(Error::Custom(Box::new(NotEnabled)))
 }
 
 fn system_normal(cmd: &str) -> Result<Text> {
@@ -69,8 +71,8 @@ fn system_normal(cmd: &str) -> Result<Text> {
 	Text::try_from(output).map_err(From::from)
 }
 
-static mut SYSTEM_ERR: fn(&str) -> Result<Text> = system_err;
-static mut SYSTEM_NORMAL: fn(&str) -> Result<Text> = system_normal;
+static SYSTEM_ERR: fn(&str) -> Result<Text> = system_err;
+static SYSTEM_NORMAL: fn(&str) -> Result<Text> = system_normal;
 
 impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	/// Creates a new, default [`Builder`].
@@ -121,7 +123,7 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 	#[must_use = "disabling the system command to does nothing without calling 'build'."]
 	pub fn disable_system(self) -> Self {
 		// SAFETY: We're getting a mutable reference to a ZST, so this is always safe.
-		self.system(unsafe { &mut SYSTEM_ERR })
+		self.system(Box::leak(Box::new(SYSTEM_ERR)))
 	}
 
 	/// Creates a new [`Environment`] with all the supplied options.
@@ -132,9 +134,9 @@ impl<'i, 'o, 'c> Builder<'i, 'o, 'c> {
 		// SAFETY: All of these `unsafe` blocks are simply mutable references to ZSTs, which is always safe.
 		Environment {
 			vars: HashSet::with_capacity(self.capacity.unwrap_or(2048)),
-			stdin: BufReader::new(self.stdin.unwrap_or(unsafe { &mut STDIN })),
-			stdout: self.stdout.unwrap_or(unsafe { &mut STDOUT }),
-			system: self.system.unwrap_or(unsafe { &mut SYSTEM_NORMAL })
+			stdin: BufReader::new(self.stdin.unwrap_or(Box::leak(Box::new(STDIN)))),
+			stdout: self.stdout.unwrap_or(Box::leak(Box::new(STDOUT))),
+			system: self.system.unwrap_or(Box::leak(Box::new(SYSTEM_NORMAL)))
 		}
 	}
 }

@@ -43,9 +43,10 @@ pub struct Text(
 );
 
 impl Default for Text {
+	#[allow(unsafe_code)]
 	fn default() -> Self {
 		// we need it mut so we can have !Send/!Sync in a static.
-		static mut EMPTY: OnceCell<Text> = OnceCell::new();
+		static mut  EMPTY: OnceCell<Text> = OnceCell::new();
 
 		unsafe { &EMPTY }.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
 	}
@@ -138,7 +139,10 @@ impl Text {
 	/// - [`Text::new_unchecked`] For a version which doesn't verify `string`.
 	#[must_use = "Creating an Text does nothing on its own"]
 	pub fn new<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
-		validate_string(string.borrow()).map(|_| unsafe { Self::new_unchecked(string) })
+		validate_string(string.borrow())?;
+
+		#[allow(unsafe_code)] // we just verified it.
+		Ok(unsafe { Self::new_unchecked(string) })
 	}
 
 	/// Creates a new `Text`, without verifying that the string is valid.
@@ -146,6 +150,7 @@ impl Text {
 	/// # Safety
 	/// All characters within the string must be valid for Knight strings. See the specs for what exactly this entails.
 	#[must_use = "Creating an Text does nothing on its own"]
+	#[allow(unsafe_code)]
 	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
 		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
 

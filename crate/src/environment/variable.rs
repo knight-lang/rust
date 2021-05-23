@@ -1,4 +1,4 @@
-use crate::Value;
+use crate::{Value, Result, Error};
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -135,5 +135,16 @@ impl Variable {
 	#[must_use = "simply fetching a value does nothing; the return value should be inspected."]
 	pub fn fetch(&self) -> Option<Value> {
 		self.0.value.borrow().clone()
+	}
+
+
+	/// Executes this variable, returning an [`Error`] if the variable doesn't exist.
+	#[cfg_attr(feature="unsafe-reckless", inline(always))]
+	pub fn run(&self) -> Result<Value> {
+		if let Some(var) = self.fetch() {
+			Ok(var)
+		} else {
+			error!(Error::UnknownIdentifier { identifier: self.name().into() })
+		}
 	}
 }

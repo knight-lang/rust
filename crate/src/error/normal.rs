@@ -75,9 +75,6 @@ pub enum Error {
 	Custom(Box<dyn ErrorTrait>),
 }
 
-/// A type alias for [`std::result::Result`].
-pub type Result<T> = std::result::Result<T, Error>;
-
 impl From<ParseError> for Error {
 	#[inline]
 	fn from(err: ParseError) -> Self {

@@ -2,17 +2,24 @@
 #![allow(clippy::tabs_in_doc_comments, unused)]
 #![warn(/*, missing_doc_code_examples, missing_docs*/)]
 
+#![cfg_attr(not(feature="unsafe-enabled"), deny(unsafe_code))]
+
 #[macro_use]
 extern crate cfg_if;
 
+#[cfg(all(feature="unsafe-reckless", feature="disallow-unicode"))]
+compile_error!("'unsafe-reckless' may not be enabled with 'disallow-unicode'");
+
+#[cfg(all(feature="unsafe-reckless", feature="checked-overflow"))]
+compile_error!("'unsafe-reckless' may not be enabled with 'checked-overflow'");
 
 cfg_if! {
 	if #[cfg(feature="abort-on-errors")] {
-		macro_rules! handle_error {
+		macro_rules! error_inplace {
 			($err:expr) => (panic!("runtime error: {}", $err))
 		}
 	} else if #[cfg(feature="unsafe-reckless")] {
-		macro_rules! handle_error {
+		macro_rules! error_inplace {
 			($err:expr) => ({
 				#[cfg(debug_assertions)] {
 					unreachable!("reckless condition failed!")
@@ -24,11 +31,16 @@ cfg_if! {
 			})
 		}
 	} else {
-		macro_rules! handle_error {
-			($err:expr) => (return Err($err))
+		macro_rules! error_inplace {
+			($err:expr) => ($err)
 		}
 	}
 }
+
+macro_rules! error {
+	($err:expr) => (Err(error_inplace!($err)));
+}
+
 
 pub mod function;
 pub mod text;
@@ -60,5 +72,7 @@ pub use function::Function;
 pub use stream::{Stream, ParseError};
 pub use environment::{Environment, Variable};
 pub use value::Value;
+
+#[doc(inline)]
 pub use error::{Error, Result};
 pub use ast::Ast;

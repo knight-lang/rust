@@ -132,16 +132,7 @@ fn is_whitespace(chr: char) -> bool {
 }
 
 impl<I: Iterator<Item=char>> Stream<I> {
-	pub fn try_whitespace(&mut self) -> bool {
-		if self.peek().map_or(false, is_whitespace) {
-			unsafe { self.whitespace_unchecked() };
-			true
-		} else {
-			false
-		}
-	}
-
-	pub unsafe fn whitespace_unchecked(&mut self) {
+	pub fn whitespace(&mut self) {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some(chr) if is_whitespace(chr) => {},
@@ -158,16 +149,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn try_comment(&mut self) -> bool {
-		if self.peek() == Some('#') {
-			unsafe { self.comment_unchecked() };
-			true
-		} else {
-			false
-		}
-	}
-
-	pub unsafe fn comment_unchecked(&mut self) {
+	pub fn comment(&mut self) {
 		debug_assert_eq!(self.peek(), Some('#'), "stream doesn't start with a '#'");
 
 		for chr in self {
@@ -177,15 +159,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		}
 	}
 
-	pub fn try_number(&mut self) -> Option<Result<Number, ParseError>> {
-		if matches!(self.peek(), Some('0'..='9')) {
-			Some(unsafe { self.number_unchecked() })
-		} else {
-			None
-		}
-	}
-
-	pub unsafe fn number_unchecked(&mut self) -> Result<Number, ParseError> {
+	pub fn number(&mut self) -> Result<Number, ParseError> {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some('0'..='9') => {},
@@ -217,15 +191,7 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		Ok(number)
 	}
 
-	pub fn try_variable(&mut self, env: &mut Environment<'_, '_, '_>) -> Option<Variable> {
-		if matches!(self.peek(), Some('a'..='z') | Some('_')) {
-			Some(unsafe { self.variable_unchecked(env) })
-		} else {
-			None
-		}
-	}
-
-	pub unsafe fn variable_unchecked(&mut self, env: &mut Environment<'_, '_, '_>) -> Variable {
+	pub fn variable(&mut self, env: &mut Environment<'_, '_, '_>) -> Variable {
 		if cfg!(debug_assertions) {
 			match self.peek() {
 				Some('a'..='z') | Some('_') => {},
@@ -247,23 +213,13 @@ impl<I: Iterator<Item=char>> Stream<I> {
 
 		env.get(&ident)
 	}
-
-	pub fn try_text(&mut self) -> Option<Result<Text, ParseError>> {
-		if matches!(self.peek(), Some('\'') | Some('\"')) {
-			Some(unsafe { self.text_unchecked() })
-		} else {
-			None
-		}
-	}
-
-	pub unsafe fn text_unchecked(&mut self) -> Result<Text, ParseError> {
+	pub fn text(&mut self) -> Result<Text, ParseError> {
 		let line = self.line;
 		let quote = 
 			match self.next() {
 				Some(quote @ '\'') | Some(quote @ '\"') => quote,
-				Some(other) if cfg!(debug_assertions) => panic!("character {:?} is not '\\'' or '\\\"'", other),
-				None if cfg!(debug_assertions) => panic!("encountered end of stream"),
-				_ => unsafe { std::hint::unreachable_unchecked() }
+				Some(other) => panic!("character {:?} is not '\\'' or '\\\"'", other),
+				None => panic!("encountered end of stream"),
 			};
 
 		let mut text = String::new();
@@ -279,22 +235,13 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		Err(ParseError { line, kind: ParseErrorKind::UnterminatedQuote })
 	}
 
-	pub fn try_boolean(&mut self) -> Option<Boolean> {
-		if matches!(self.peek(), Some('T') | Some('F')) {
-			Some(unsafe { self.boolean_unchecked() })
-		} else {
-			None
-		}
-	}
-
-	pub unsafe fn boolean_unchecked(&mut self) -> Boolean {
+	pub fn boolean(&mut self) -> Boolean {
 		let is_true =
 			match self.next() {
 				Some('T') => true,
 				Some('F') => false,
-				Some(other) if cfg!(debug_assertions) => panic!("character {:?} is not 'T' or 'F'", other),
-				None if cfg!(debug_assertions) => panic!("encountered end of stream"),
-				_ => unsafe { std::hint::unreachable_unchecked() }
+				Some(other) => panic!("character {:?} is not 'T' or 'F'", other),
+				None => panic!("encountered end of stream"),
 			};
 
 		self.strip_word();
@@ -302,21 +249,11 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		is_true
 	}
 
-	pub fn try_null(&mut self) -> bool {
-		if self.peek() == Some('N') {
-			unsafe { self.null_unchecked() }
-			true
-		} else {
-			false
-		}
-	}
-
-	pub unsafe fn null_unchecked(&mut self) {
+	pub fn null(&mut self) {
 		match self.next() {
 			Some('N') => self.strip_word(),
-			Some(other) if cfg!(debug_assertions) => panic!("character {:?} is not 'N'", other),
-			None if cfg!(debug_assertions) => panic!("encountered end of stream"),
-			_ => unsafe { std::hint::unreachable_unchecked() }
+			Some(other) => panic!("character {:?} is not 'N'", other),
+			None => panic!("encountered end of stream"),
 		}
 	}
 
@@ -361,28 +298,28 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		match self.peek().ok_or_else(|| ParseError { line: self.line, kind: ParseErrorKind::NothingToParse })? {
 			// note that this is ascii whitespace, as non-ascii characters are invalid.
 			' ' | '\n' | '\r' | '\t' | '(' | ')' | '[' | ']' | '{' | '}' | ':' => {
-				unsafe { self.whitespace_unchecked(); }
+				self.whitespace();
 				self.parse(env)
 			},
 
 			// strip comments until eol.
 			'#' => {
-				unsafe { self.comment_unchecked(); }
+				self.comment();
 				self.parse(env)
 			},
 
 			// only ascii digits may start a number.
-			'0'..='9' => Ok(Value::Number(unsafe { self.number_unchecked()? })),
+			'0'..='9' => Ok(Value::Number(self.number()?)),
 
 			// identifiers start only with lower-case digits or `_`.
-			'a'..='z' | '_' => Ok(Value::Variable(unsafe { self.variable_unchecked(env) })),
+			'a'..='z' | '_' => Ok(Value::Variable(self.variable(env))),
 
-			'T' | 'F' => Ok(Value::Boolean(unsafe { self.boolean_unchecked() })),
+			'T' | 'F' => Ok(Value::Boolean(self.boolean())),
 
-			'N' => { unsafe { self.null_unchecked(); }; Ok(Value::Null) },
+			'N' => { self.null(); Ok(Value::Null) },
 			
 			// strings start with a single or double quote (and not `` ` ``).
-			'\'' | '\"' => Ok(Value::Text(unsafe { self.text_unchecked()? })),
+			'\'' | '\"' => Ok(Value::Text(self.text()?)),
 
 			chr => 
 				if let Some(func) = Function::fetch(chr) {

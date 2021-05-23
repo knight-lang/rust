@@ -83,7 +83,7 @@ impl TryFrom<&Value> for Boolean {
 			Value::Boolean(boolean) => Ok(*boolean),
 			Value::Number(number) => Ok(*number != 0),
 			Value::Text(text) => Ok(!text.is_empty()),
-			_ => Err(Error::UndefinedConversion { into: "Boolean", kind: value.typename() })
+			_ => error!(Error::UndefinedConversion { into: "Boolean", kind: value.typename() })
 		}
 	}
 }
@@ -100,15 +100,19 @@ impl TryFrom<&Value> for Text {
 		static mut ZERO: OnceCell<Text> = OnceCell::new();
 		static mut ONE: OnceCell<Text> = OnceCell::new();
 
+		// SAFETY:
+		// Each of the `new_unchecked`s are passing valid knight strings.
+		// The `mut` accesses are just because with `unsafe-single-threaded`, Text is !Send + !Sync.
+		#[allow(unsafe_code)]
 		match value {
-			Value::Null => Ok(unsafe { &NULL }.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
-			Value::Boolean(true) => Ok(unsafe { &TRUE }.get_or_init(|| unsafe { Self::new_unchecked("true") }).clone()),
-			Value::Boolean(false) => Ok(unsafe { &FALSE }.get_or_init(|| unsafe { Self::new_unchecked("false") }).clone()),
-			Value::Number(0) => Ok(unsafe { &ZERO }.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
-			Value::Number(1) => Ok(unsafe { &ONE }.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
+			Value::Null => Ok(unsafe {&NULL}.get_or_init(|| unsafe { Self::new_unchecked("null") }).clone()),
+			Value::Boolean(true) => Ok(unsafe {&TRUE}.get_or_init(|| unsafe { Self::new_unchecked("true") }).clone()),
+			Value::Boolean(false) => Ok(unsafe {&FALSE}.get_or_init(|| unsafe { Self::new_unchecked("false") }).clone()),
+			Value::Number(0) => Ok(unsafe {&ZERO}.get_or_init(|| unsafe { Self::new_unchecked("0") }).clone()),
+			Value::Number(1) => Ok(unsafe {&ONE}.get_or_init(|| unsafe { Self::new_unchecked("1") }).clone()),
 			Value::Number(number) => Ok(Self::try_from(number.to_string()).unwrap()), // all numbers should be valid strings
 			Value::Text(text) => Ok(text.clone()),
-			_ => Err(Error::UndefinedConversion { into: "Text", kind: value.typename() })
+			_ => error!(Error::UndefinedConversion { into: "Text", kind: value.typename() })
 		}
 	}
 }
@@ -139,7 +143,10 @@ impl TryFrom<&Value> for Number {
 							number = number
 								.checked_mul(10)
 								.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
-								.ok_or(Error::TextConversionOverflow)?;
+								.ok_or_else(|| {
+									let err: Error = error_inplace!(Error::TextConversionOverflow);
+									err
+								})?;
 						} else {
 							number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as _);
 						}
@@ -148,7 +155,7 @@ impl TryFrom<&Value> for Number {
 
 				Ok(sign * number) // todo: check for this erroring. ?
 			},
-			_ => Err(Error::UndefinedConversion { into: "Number", kind: value.typename() })
+			_ => error!(Error::UndefinedConversion { into: "Number", kind: value.typename() })
 		}
 	}
 }
@@ -160,12 +167,7 @@ impl Value {
 			Self::Boolean(boolean) => Ok(Self::Boolean(*boolean)),
 			Self::Number(number) => Ok(Self::Number(*number)),
 			Self::Text(text) => Ok(Self::Text(text.clone())),
-			Self::Variable(variable) =>
-				if let Some(var) = variable.fetch() {
-					Ok(var)
-				} else {
-					handle_error!(Error::UnknownIdentifier { identifier: variable.name().into() })
-				},
+			Self::Variable(variable) => variable.run(),
 			Self::Ast(ast) => ast.run(env),
 		}
 	}

@@ -1,4 +1,4 @@
-use knightrs::{Error, Result, Environment};
+use knightrs::{Result, Environment};
 use clap::{App, Arg, ArgMatches};
 
 fn run(matches: ArgMatches<'_>) -> Result<()> {
@@ -39,7 +39,8 @@ fn main() {
 		.get_matches();
 
 	match run(matches) {
-		Err(Error::Quit(code)) => std::process::exit(code),
+		#[cfg(not(any(feature="abort-on-errors", feature="unsafe-reckless")))]
+		Err(knightrs::Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {
 			eprintln!("error: {}", err);
 			std::process::exit(1)
