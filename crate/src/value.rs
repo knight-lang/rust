@@ -1,4 +1,4 @@
-use crate::{Function, Number, Text, Variable, Error, Result, Environment, Boolean};
+use crate::{Function, Number, Text, Variable, Error, Result, Environment, Boolean, Ast};
 use std::fmt::{self, Debug, Formatter};
 use std::rc::Rc;
 use std::convert::TryFrom;
@@ -10,7 +10,7 @@ pub enum Value {
 	Number(Number),
 	Text(Text),
 	Variable(Variable),
-	Function(Function, Rc<[Value]>)
+	Ast(Ast)
 }
 
 impl Default for Value {
@@ -29,7 +29,7 @@ impl PartialEq for Value {
 			(Self::Number(lnum), Self::Number(rnum)) => lnum == rnum,
 			(Self::Text(ltext), Self::Text(rtext)) => ltext == rtext,
 			(Self::Variable(lvar), Self::Variable(rvar)) => lvar == rvar,
-			(Self::Function(lfunc, largs), Self::Function(rfunc, rargs)) => lfunc == rfunc && Rc::ptr_eq(largs, rargs),
+			(Self::Ast(last), Self::Ast(rast)) => last == rast,
 			_ => false
 		}
 	}
@@ -44,7 +44,7 @@ impl Debug for Value {
 			Self::Number(number) => write!(f, "Number({})", number),
 			Self::Text(text) => write!(f, "Text({})", text),
 			Self::Variable(variable) => write!(f, "Variable({})", variable.name()),
-			Self::Function(function, args) => write!(f, "Function({}, {:?})", function.name(), args),
+			Self::Ast(ast) => write!(f, "{:?}", ast)
 		}
 	}
 }
@@ -162,7 +162,7 @@ impl Value {
 			Self::Text(text) => Ok(Self::Text(text.clone())),
 			Self::Variable(variable) => variable.fetch()
 				.ok_or_else(|| Error::UnknownIdentifier { identifier: variable.name().into() }),
-			Self::Function(func, args) => func.run(args, env),
+			Self::Ast(ast) => ast.run(env),
 		}
 	}
 
@@ -174,7 +174,7 @@ impl Value {
 			Self::Number(_) => "Number",
 			Self::Text(_) => "Text",
 			Self::Variable(_) => "Variable",
-			Self::Function(_, _) => "Function",
+			Self::Ast(_) => "Ast",
 		}
 	}
 

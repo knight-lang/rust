@@ -10,6 +10,7 @@ pub mod text;
 mod value;
 mod error;
 mod stream;
+mod ast;
 pub mod environment;
 
 cfg_if! {
@@ -40,3 +41,4 @@ pub use stream::{Stream, ParseError};
 pub use environment::{Environment, Variable};
 pub use value::Value;
 pub use error::{Error, Result};
+pub use ast::Ast;

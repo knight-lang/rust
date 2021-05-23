@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::borrow::Borrow;
 
 cfg_if! {
-	if #[cfg(feature = "single-threaded")] {
+	if #[cfg(feature = "unsafe-single-threaded")] {
 		use once_cell::unsync::OnceCell;
 	} else {
 		use once_cell::sync::OnceCell;
@@ -17,7 +17,7 @@ cfg_if! {
 cfg_if! {
 	if #[cfg(not(feature = "cache-strings"))] {
 		// do nothing
-	} else if #[cfg(feature = "single-threaded")] {
+	} else if #[cfg(feature = "unsafe-single-threaded")] {
 		use std::collections::HashSet;
 		static mut TEXT_CACHE: OnceCell<HashSet<Text>> = OnceCell::new();
 
@@ -32,9 +32,14 @@ cfg_if! {
 /// The string type within Knight.
 #[derive(Clone)]
 pub struct Text(
-	#[cfg(all(not(feature="cache-strings"), not(feature="single-threaded")))] std::sync::Arc<str>,
-	#[cfg(all(not(feature="cache-strings"), feature="single-threaded"))] std::rc::Rc<str>,
-	#[cfg(feature="cache-strings")] &'static str,
+	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
+	std::sync::Arc<str>,
+
+	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))]
+	std::rc::Rc<str>,
+
+	#[cfg(feature="cache-strings")]
+	&'static str,
 );
 
 impl Default for Text {
@@ -152,8 +157,8 @@ impl Text {
 			// initialize if it's not been initialized yet.
 			let cache = TEXT_CACHE.get_or_init(Default::default);
 
-			// in the single-threaded version, we simply use the one below.
-			#[cfg(not(feature="single-threaded"))]
+			// in the unsafe-single-threaded version, we simply use the one below.
+			#[cfg(not(feature="unsafe-single-threaded"))]
 			if let Some(text) = cache.read().unwrap().get(string.borrow()) {
 				return text.clone();
 			}
@@ -161,10 +166,10 @@ impl Text {
 			drop(cache);
 
 			let mut cache = {
-				#[cfg(feature="single-threaded")]
+				#[cfg(feature="unsafe-single-threaded")]
 				{ TEXT_CACHE.get_mut().unwrap_or_else(|| unreachable!()) }
 
-				#[cfg(not(feature="single-threaded"))]
+				#[cfg(not(feature="unsafe-single-threaded"))]
 				{ TEXT_CACHE.get().unwrap().write().unwrap() }
 			};
 

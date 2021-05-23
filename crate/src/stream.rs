@@ -1,4 +1,4 @@
-use crate::{Value, Number, Function, Environment, Text, Variable, Boolean};
+use crate::{Value, Number, Function, Environment, Text, Variable, Boolean, Ast};
 use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter};
 
@@ -340,12 +340,12 @@ impl<I: Iterator<Item=char>> Stream<I> {
 		// If a BLOCk _without_ a function as an argument is encountered, treat it as `: <arg>`.
 		if cfg!(feature = "strict-block-return-value")
 			&& func == crate::function::BLOCK_FUNCTION
-			&& !matches!(args[0], Value::Function(_, _))
+			&& !matches!(args[0], Value::Ast(_))
 		{
-			args = vec![Value::Function(crate::function::NOOP_FUNCTION, args.into_boxed_slice().into())];
+			args = vec![Value::Ast(Ast::new(crate::function::NOOP_FUNCTION, args.into_boxed_slice()))];
 		}
 
-		Ok(Value::Function(func, args.into_boxed_slice().into()))
+		Ok(Value::Ast(Ast::new(func, args.into_boxed_slice())))
 	}
 
 	fn strip_word(&mut self) {
