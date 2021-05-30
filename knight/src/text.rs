@@ -69,6 +69,13 @@ pub struct InvalidSourceByte {
 }
 
 impl Text {
+	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidSourceByte> {
+		// todo
+		unsafe {
+			Ok(Self::new_unchecked(data))
+		}
+	}
+
 	pub unsafe fn new_unchecked(data: Cow<'static, str>) -> Self {
 		Self(Box::into_raw(Box::new(TextInner {
 			rc: AtomicUsize::new(1),

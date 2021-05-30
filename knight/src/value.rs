@@ -93,7 +93,7 @@ impl Debug for Value {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		unsafe {
 			match self.tag() {
-				Tag::Constant if self.is_null() => Debug::fmt(&Null, f),
+				Tag::Constant if Null::is_value_a(self) => Debug::fmt(&Null, f),
 				Tag::Constant => Debug::fmt(&Boolean::downcast_unchecked(self), f),
 				Tag::Number => Debug::fmt(&Number::downcast_unchecked(self), f),
 				Tag::Text => Debug::fmt(&*Text::downcast_unchecked(self), f),
@@ -105,9 +105,9 @@ impl Debug for Value {
 	}
 }
 
-impl Value {
-	pub fn is_null(&self) -> bool {
-		self.raw() == Self::from(crate::Null).raw()
+impl Default for Value {
+	fn default() -> Self {
+		Self::from(Null)
 	}
 }
 

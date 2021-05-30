@@ -4,17 +4,22 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{borrow::Borrow, ops::Deref};
 
-/// A Variable within Knight, which can be used to store values.
-#[repr(transparent)]
-pub struct Variable(*const VariableInner);
 
-struct VariableInner {
-	rc: AtomicUsize,
-	name: Box<str>,
-	value: RefCell<Option<Value>>
+pub struct Environment {
+
 }
 
-impl Debug for Variable {
+/// A Variable within Knight, which can be used to store values.
+#[repr(transparent)]
+pub struct Variable<'env>(*const VariableInner<'env>);
+
+struct VariableInner<'env> {
+	// 
+	name: Box<str>,
+	value: RefCell<Option<Value<'env>>>
+}
+
+impl Debug for Variable<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -29,7 +34,7 @@ impl Debug for Variable {
 	}
 }
 
-impl Clone for Variable {
+impl Clone for Variable<'_> {
 	fn clone(&self) -> Self {
 		self.inner().rc.fetch_add(1, Ordering::Relaxed);
 
@@ -37,7 +42,7 @@ impl Clone for Variable {
 	}
 }
 
-impl Drop for Variable {
+impl Drop for Variable<'_> {
 	fn drop(&mut self) {
 		let rc = self.inner().rc.fetch_sub(1, Ordering::Relaxed);
 
