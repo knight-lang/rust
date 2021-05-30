@@ -1,0 +1,12 @@
+[package]
+name = "knight"
+version = "0.1.0"
+authors = ["Sam Westerman <mail@sampersand.me>"]
+edition = "2018"
+
+
+[features]
+checked-overflow = []
+
+[dependencies]
+static_assertions = "1.1"
