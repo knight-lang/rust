@@ -111,7 +111,7 @@ impl Text {
 	}
 }
 
-impl From<Text> for Value {
+impl From<Text> for Value<'_> {
 	fn from(text: Text) -> Self {
 		unsafe {
 			Self::new_tagged(text.into_raw() as _, Tag::Text)
@@ -119,20 +119,20 @@ impl From<Text> for Value {
 	}
 }
 
-unsafe impl<'a> ValueKind<'a> for Text {
-	type Ref = TextRef<'a>;
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
+	type Ref = TextRef<'value>;
 
-	fn is_value_a(value: &Value) -> bool {
+	fn is_value_a(value: &Value<'env>) -> bool {
 		value.tag() == Tag::Text
 	}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
 		TextRef(&*(value.ptr() as *const TextInner))
 	}
 
-	fn run(&self) -> crate::Result<Value> {
+	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok(self.clone().into())
 	}
 }

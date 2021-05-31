@@ -2,37 +2,37 @@ use crate::value::{Value, ValueKind, Tag};
 use std::{borrow::Borrow, ops::Deref};
 
 #[derive(Debug, Clone)]
-pub struct Custom {
-
+pub struct Custom<'env> {
+	x: &'env ()
 }
 
-impl Custom {
+impl Custom<'_> {
 	pub(crate) unsafe fn drop_in_place(ptr: *mut ()) {
 		let _ = ptr;
 		todo!();
 	}
 }
 
-impl From<Custom> for Value {
+impl<'env> From<Custom<'env>> for Value<'env> {
 	#[inline]
-	fn from(custom: Custom) -> Self {
+	fn from(custom: Custom<'env>) -> Self {
 		let _ = custom;
 		todo!()
 	}
 }
 
-pub struct CustomRef<'a> {
-	_x: &'a () 
+pub struct CustomRef<'a, 'env> {
+	_x: &'a &'env () 
 }
 
-impl<'a> Borrow<Custom> for CustomRef<'a> {
-	fn borrow(&self) -> &Custom {
+impl<'a, 'env> Borrow<Custom<'env>> for CustomRef<'a, 'env> {
+	fn borrow(&self) -> &Custom<'env> {
 		todo!()
 	}
 }
 
-impl Deref for CustomRef<'_> {
-	type Target = Custom;
+impl<'env> Deref for CustomRef<'_, 'env> {
+	type Target = Custom<'env>;
 
 	fn deref(&self) -> &Self::Target {
 		todo!()
@@ -40,21 +40,23 @@ impl Deref for CustomRef<'_> {
 }
 
 
-unsafe impl<'a> ValueKind<'a> for Custom {
-	type Ref = CustomRef<'a>;
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Custom<'env> {
+	type Ref = CustomRef<'value, 'env>;
 
-	fn is_value_a(value: &Value) -> bool {
+	fn is_value_a(value: &Value<'env>) -> bool {
 		value.tag() == Tag::Custom
 	}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
 		todo!();
 		// Self::new_unchecked((value.raw() as NumberInner) >> SHIFT)
 	}
 
-	fn run(&self) -> crate::Result<Value> {
+	fn run(&self, env: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+		let _ = env;
+
 		todo!();
 	}
 }

@@ -15,30 +15,30 @@ impl Display for Null {
 }
 
 // note that 0 is false and 2 is true.
-const NULL_VALUE: Value = unsafe { Value::new_tagged(1 << SHIFT, Tag::Constant) };
+const NULL_VALUE: Value<'static> = unsafe { Value::new_tagged(1 << SHIFT, Tag::Constant) };
 
-impl From<Null> for Value {
+impl From<Null> for Value<'_> {
 	#[inline]
 	fn from(_: Null) -> Self {
 		NULL_VALUE
 	}
 }
 
-unsafe impl<'a> ValueKind<'a> for Null {
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Null {
 	type Ref = Self;
 
-	fn is_value_a(value: &Value) -> bool {
+	fn is_value_a(value: &Value<'env>) -> bool {
 		value.raw() == NULL_VALUE.raw()
 	}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 		let _ = value;
 
 		Self
 	}
 
-	fn run(&self) -> crate::Result<Value> {
+	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }

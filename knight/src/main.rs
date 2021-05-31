@@ -6,14 +6,21 @@ use knight::value::ValueKind;
 static FUNCTION: Function = Function {
 	name: 'D',
 	arity: 1,
-	func: |args| { println!("{:?}", args[0]); Ok(args[0].clone()) }
+	func: |args, _| { println!("{:?}", args[0]); Ok(args[0].clone()) }
 };
 
 fn main() {
+	let mut env = Environment::default();
 	let ast = Ast::new(&FUNCTION, vec![Value::from(Text::new("A".into()).unwrap())].into());
-	dbg!(ast);
 
-// let _ = dbg!(ast.run());
+	let foo = env.fetch_var("foo".into());
+
+	dbg!(foo);
+	foo.set(Value::from(Number::new(123).unwrap()));
+	dbg!(foo);
+	dbg!(env.fetch_var("foo".into()));
+
+	// let _ = dbg!(ast.run(&mut env));
 // dbg!(Value::from(true));
 // dbg!(Value::from(false));
 // dbg!(Value::from(Null));

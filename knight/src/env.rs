@@ -1,144 +1,73 @@
-use std::fmt::{self, Debug, Formatter};
-use crate::value::{Value, Tag, ValueKind};
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{borrow::Borrow, ops::Deref};
+use crate::Variable;
+use std::collections::HashSet;
+use std::borrow::Borrow;
+use std::hash::{Hash, Hasher};
 
-
+#[derive(Default)]
 pub struct Environment {
-
+	vars: HashSet<VariableHash<'static>> // actually 'self, as we know the pointer's always valid.
 }
 
-/// A Variable within Knight, which can be used to store values.
-#[repr(transparent)]
-pub struct Variable<'env>(*const VariableInner<'env>);
-
-struct VariableInner<'env> {
-	// 
-	name: Box<str>,
-	value: RefCell<Option<Value<'env>>>
-}
-
-impl Debug for Variable<'_> {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		if f.alternate() {
-			f.debug_struct("Variable")
-				.field("name", &self.name())
-				.field("value", &self.inner().value.borrow())
-				.finish()
-		} else {
-			f.debug_tuple("Variable")
-				.field(&self.name())
-				.finish()
-		}
-	}
-}
-
-impl Clone for Variable<'_> {
-	fn clone(&self) -> Self {
-		self.inner().rc.fetch_add(1, Ordering::Relaxed);
-
-		Self(self.0)
-	}
-}
-
-impl Drop for Variable<'_> {
+impl Drop for Environment {
 	fn drop(&mut self) {
-		let rc = self.inner().rc.fetch_sub(1, Ordering::Relaxed);
+		// todo!("drop vars")
+	}
+}
 
-		debug_assert_ne!(rc, 0);
-
-		if rc == 1 {
+impl Environment {
+	pub fn fetch_var<'env, N: ?Sized>(&'env mut self, name: &N) -> Variable<'env>
+	where
+		N: Borrow<str> + ToString
+	{
+		if let Some(VariableHash(var)) = self.vars.get(name.borrow()) {
+			// This is ok because the variable will only last as long as `self`'s reference will, and will be thrown away
+			// when it's done.
 			unsafe {
-				Self::drop_in_place(self.0 as _);
+				std::mem::transmute::<Variable<'static>, Variable<'env>>(*var)
 			}
+		} else {
+			let var = Variable::new(name.to_string().into_boxed_str());
+
+			self.vars.insert(VariableHash(unsafe {
+				std::mem::transmute::<Variable<'env>, Variable<'static>>(var)
+			}));
+
+			var
 		}
 	}
 }
 
-impl Variable {
-	fn into_raw(self) -> *const () {
-		self.0 as _
-	}
+struct VariableHash<'env>(Variable<'env>);
 
-	pub(crate) unsafe fn drop_in_place(ptr: *mut ()) {
-		let ptr = ptr as *mut VariableInner;
-
-		debug_assert_eq!((*ptr).rc.load(Ordering::Relaxed), 0);
-
-		std::ptr::drop_in_place(ptr);
-	}
-
-	// SAFETY: `raw` must have been returned from `into_raw`
-	#[allow(unused)]
-	unsafe fn from_raw(raw: *const ()) -> Self {
-		Self(raw as *const VariableInner)
-	}
-
-	fn inner(&self) -> &VariableInner {
-		unsafe { &*self.0 }
-	}
-
-	/// Gets the name associated with this variable.
-	pub fn name(&self) -> &str {
-		&self.inner().name
-	}
-
-	/// Fetches the variable associated with this variable, returning [`None`] if it was never assigned.
-	pub fn get(&self) -> Option<Value> {
-		self.inner().value.borrow().clone()
-	}
-
-	/// Associates `value` with `self`, so the next time [`Self::get`] is called, it will be referenced.
-	pub fn set(&self, value: Value) {
-		*self.inner().value.borrow_mut() = Some(value);
-	}
-}
-
-impl From<Variable> for Value {
-	fn from(var: Variable) -> Self {
+impl Drop for VariableHash<'_> {
+	fn drop(&mut self) {
 		unsafe {
-			Self::new_tagged(var.into_raw() as _, Tag::Variable)
+			self.0.drop_in_place();
 		}
 	}
 }
 
-#[repr(transparent)]
-pub struct VariableRef<'a>(&'a VariableInner);
-
-impl<'a> Borrow<Variable> for VariableRef<'a> {
-	fn borrow(&self) -> &Variable {
-		&self
+impl Hash for VariableHash<'_> {
+	fn hash<H: Hasher>(&self, h: &mut H) {
+		self.0.name().hash(h)
 	}
 }
 
-impl Deref for VariableRef<'_> {
-	type Target = Variable;
-
-	fn deref(&self) -> &Self::Target {
-		// SAFETY:
-		// `Variable` is a transparent pointer to `VariableInner` whereas `VariableRef` is a transparent
-		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
-		unsafe {
-			std::mem::transmute::<&VariableRef<'_>, &Variable>(self)
-		}
+impl Borrow<str> for VariableHash<'_> {
+	fn borrow(&self) -> &str {
+		self.0.name()
 	}
 }
 
-unsafe impl<'a> ValueKind<'a> for Variable {
-	type Ref = VariableRef<'a>;
-
-	fn is_value_a(value: &Value) -> bool {
-		value.tag() == Tag::Variable
+impl Eq for VariableHash<'_> {}
+impl PartialEq<str> for VariableHash<'_> {
+	fn eq(&self, rhs: &str) -> bool {
+		self.0.name() == rhs
 	}
+}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
-		debug_assert!(Self::is_value_a(value));
-
-		VariableRef(&*(value.ptr() as *const VariableInner))
-	}
-
-	fn run(&self) -> crate::Result<Value> {
-		self.get().ok_or_else(|| crate::Error::UndefinedVariable(self.inner().name.clone()))
+impl PartialEq for VariableHash<'_> {
+	fn eq(&self, rhs: &Self) -> bool {
+		(self.0) == (rhs.0)
 	}
 }

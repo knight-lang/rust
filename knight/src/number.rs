@@ -69,7 +69,7 @@ impl Display for Number {
 	}
 }
 
-impl From<Number> for Value {
+impl From<Number> for Value<'_> {
 	#[inline]
 	fn from(num: Number) -> Self {
 		unsafe {
@@ -78,21 +78,21 @@ impl From<Number> for Value {
 	}
 }
 
-unsafe impl<'a> ValueKind<'a> for Number {
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 	type Ref = Self;
 
-	fn is_value_a(value: &Value) -> bool {
+	fn is_value_a(value: &Value<'env>) -> bool {
 		value.tag() == Tag::Number
 	}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
 		Self::new_unchecked((value.raw() as NumberInner) >> SHIFT)
 	}
 
 	#[inline]
-	fn run(&self) -> crate::Result<Value> {
+	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }

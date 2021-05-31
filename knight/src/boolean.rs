@@ -6,7 +6,7 @@ pub type Boolean = bool;
 const FALSE_VALUE: Value = unsafe { Value::new_tagged(0, Tag::Constant) };
 const TRUE_VALUE: Value = unsafe { Value::new_tagged(2 << SHIFT, Tag::Constant) };
 
-impl From<Boolean> for Value {
+impl From<Boolean> for Value<'_> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		debug_assert_eq_const!((false as u64) << (SHIFT + 1), FALSE_VALUE.raw());
@@ -19,20 +19,20 @@ impl From<Boolean> for Value {
 	}
 }
 
-unsafe impl<'a> ValueKind<'a> for Boolean {
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Boolean {
 	type Ref = Self;
 
-	fn is_value_a(value: &Value) -> bool {
+	fn is_value_a(value: &Value<'env>) -> bool {
 		value.raw() == FALSE_VALUE.raw() || value.raw() == TRUE_VALUE.raw()
 	}
 
-	unsafe fn downcast_unchecked(value: &'a Value) -> Self::Ref {
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
 		value.raw() != FALSE_VALUE.raw()
 	}
 
-	fn run(&self) -> crate::Result<Value> {
+	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }

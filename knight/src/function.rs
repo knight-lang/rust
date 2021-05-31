@@ -1,4 +1,4 @@
-use crate::{Value, Result};
+use crate::{Value, Result, Environment};
 use std::fmt::{self, Debug, Formatter};
 
 
@@ -6,7 +6,7 @@ use std::fmt::{self, Debug, Formatter};
 pub struct Function {
 	pub name: char,
 	pub arity: usize,
-	pub func: fn(&[Value]) -> Result<Value>
+	pub func: for<'env> fn(&[Value<'env>], env: &'env mut Environment) -> Result<Value<'env>>
 }
 
 impl Debug for Function {
@@ -38,9 +38,9 @@ impl Function {
 		self.arity
 	}
 
-	pub fn run(&self, args: &[Value]) -> Result<Value> {
+	pub fn run<'env>(&self, args: &[Value<'env>], env: &'env mut Environment) -> Result<Value<'env>> {
 		debug_assert_eq!(self.arity(), args.len());
 
-		(self.func)(args)
+		(self.func)(args, env)
 	}
 }
