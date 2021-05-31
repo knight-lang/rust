@@ -1,4 +1,4 @@
-use crate::value::{Value, ValueKind, Tag};
+use crate::value::{Value, ValueKind, Tag, Runnable};
 use std::{borrow::Borrow, ops::Deref};
 
 #[derive(Debug, Clone)]
@@ -53,7 +53,9 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Custom<'env> {
 		todo!();
 		// Self::new_unchecked((value.raw() as NumberInner) >> SHIFT)
 	}
+}
 
+impl<'env> Runnable<'env> for Custom<'env> {
 	fn run(&self, env: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		let _ = env;
 

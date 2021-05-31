@@ -1,5 +1,5 @@
 use crate::{Value, Boolean, Number};
-use crate::value::{Tag, ValueKind};
+use crate::value::{Tag, ValueKind, Runnable};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::{Cow, Borrow};
 use std::fmt::{self, Debug, Display, Formatter};
@@ -98,6 +98,10 @@ impl Text {
 		self.as_str().len()
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.len() == 0
+	}
+
 	pub(crate) unsafe fn drop_in_place(ptr: *mut ()) {
 		let ptr = ptr as *mut TextInner;
 
@@ -108,6 +112,10 @@ impl Text {
 
 	fn into_raw(self) -> *mut () {
 		std::mem::ManuallyDrop::new(self).0 as _
+	}
+
+	pub fn as_ref(&self) -> TextRef<'_> {
+		TextRef(unsafe { &*self.0 })
 	}
 }
 
@@ -131,7 +139,9 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
 
 		TextRef(&*(value.ptr() as *const TextInner))
 	}
+}
 
+impl<'env> Runnable<'env> for Text {
 	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok(self.clone().into())
 	}
@@ -183,10 +193,10 @@ impl Display for NumberOverflow {
 
 impl Error for NumberOverflow {}
 
-impl TryFrom<Text> for Number {
+impl TryFrom<TextRef<'_>> for Number {
 	type Error = NumberOverflow;
 
-	fn try_from(text: Text) -> Result<Self, Self::Error> {
+	fn try_from(text: TextRef<'_>) -> Result<Self, Self::Error> {
 		use crate::number::NumberInner;
 
 		let mut iter = text.as_str().trim_start().bytes();

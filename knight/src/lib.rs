@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate static_assertions;
 
+// todo: use `NonNull`.
+
 macro_rules! debug_assert_const {
 	($value:expr) => ({
 		#[cfg(debug_assertions)] let _: () = [()][!($value as bool) as usize];

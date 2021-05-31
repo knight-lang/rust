@@ -1,5 +1,5 @@
 use crate::{Value, Boolean, Text};
-use crate::value::{SHIFT, Tag, ValueKind};
+use crate::value::{SHIFT, Tag, ValueKind, Runnable};
 use std::fmt::{self, Display, Formatter};
 
 /// The number type that's used internally within [`Number`].
@@ -90,7 +90,9 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 
 		Self::new_unchecked((value.raw() as NumberInner) >> SHIFT)
 	}
+}
 
+impl<'env> Runnable<'env> for Number {
 	#[inline]
 	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())

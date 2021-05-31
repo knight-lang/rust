@@ -1,8 +1,9 @@
-use crate::{Ast, Text, Variable, Custom, Null, Boolean, Number, Environment};
+use crate::{Ast, Text, Variable, Custom, Null, Boolean, Number, Environment, Error};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::marker::PhantomData;
+use std::convert::TryFrom;
 
 pub(crate) const SHIFT: usize = 3;
 const MASK: u8 = (1u8 << SHIFT) - 1;
@@ -19,8 +20,7 @@ pub struct Value<'env>(u64, PhantomData<&'env ()>);
 /// Implementors of this trait must guarantee that calling `is_value_a` on a [`Value`] will only ever return `true` if
 /// the given `value` was constructed via `<Self as Into<Value>>::into()`, and must not return `true` for any other
 /// type.
-pub unsafe trait ValueKind<'value, 'env: 'value> : Debug + Clone + Into<Value<'env>> {
-
+pub unsafe trait ValueKind<'value, 'env: 'value> : Debug + Clone + Into<Value<'env>> + Runnable<'env> {
 	/// The reference kind when [`downcast`](ValueKind::downcast_unchecked)ing a [`Value`].
 	type Ref: Borrow<Self>;
 
@@ -29,7 +29,10 @@ pub unsafe trait ValueKind<'value, 'env: 'value> : Debug + Clone + Into<Value<'e
 
 	/// Downcast the `value` to a [`Self::Ref`] without checking to see if `value` is a `Self`.
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref;
+}
 
+//// A trait that represents the ability to run something.
+pub trait Runnable<'env> {
 	/// Executes `self`.
 	fn run(&self, env: &'env mut Environment) -> crate::Result<Value<'env>>;
 }
@@ -110,7 +113,25 @@ impl Debug for Value<'_> {
 
 impl Default for Value<'_> {
 	fn default() -> Self {
-		Self::from(Null)
+		Self::NULL
+	}
+}
+
+impl<'env> Runnable<'env> for Value<'env> {
+	fn run(&self, env: &'env mut Environment) -> crate::Result<Value<'env>> {
+		// in order of liklihood.
+		if let Some(ast) = self.downcast::<Ast>() {
+			ast.run(env)
+		} else if let Some(variable) = self.downcast::<Variable>() {
+			variable.run(env)
+		} else if let Some(text) = self.downcast::<Text>() {
+			text.run(env)
+		} else {
+			debug_assert!(matches!(self.tag(), Tag::Constant | Tag::Number));
+			unsafe {
+				Ok(self.copy())
+			}
+		}
 	}
 }
 
@@ -118,6 +139,26 @@ impl<'env> Value<'env> {
 	// pub fn new<K: for<'a> ValueKind<'a>>(kind: K) -> Self {
 	// 	kind.into_value()
 	// }
+
+	pub fn is_a<'a, T: ValueKind<'a, 'env>>(&'a self) -> bool {
+		T::is_value_a(self)
+	}
+
+	pub unsafe fn downcast_unchecked<'a, T: ValueKind<'a, 'env>>(&'a self) -> T::Ref {
+		debug_assert!(self.is_a::<T>());
+
+		T::downcast_unchecked(self)
+	}
+
+	pub fn downcast<'a, T: ValueKind<'a, 'env>>(&'a self) -> Option<T::Ref> {
+		if self.is_a::<T>() {
+			unsafe {
+				Some(self.downcast_unchecked::<T>())
+			}
+		} else {
+			None
+		}
+	}
 
 	// # SAFETY: `raw` must be a valid representation of a value.
 	#[inline]
@@ -168,6 +209,18 @@ impl<'env> Value<'env> {
 		(self.tag() as u64) <= 2
 	}
 
+	#[inline]
+	fn is_literal(&self) -> bool {
+		const_assert!((Tag::Constant as u64) <= 1);
+		const_assert!((Tag::Number as u64) <= 1);
+		const_assert!((Tag::Variable as u64) > 1);
+		const_assert!((Tag::Text as u64) > 1);
+		const_assert!((Tag::Ast as u64) > 1);
+		const_assert!((Tag::Custom as u64) > 1);
+
+		(self.tag() as u64) <= 1
+	}
+
 	// SAFETY: must be a constant or a number.
 	#[inline]
 	unsafe fn copy(&self) -> Self {
@@ -178,5 +231,70 @@ impl<'env> Value<'env> {
 		debug_assert!(!self.is_copy());
 
 		&*(self.ptr() as *const AtomicUsize)
+	}
+
+	pub fn typename(&self) -> &'static str {
+		match self.tag() {
+			Tag::Constant if Null::is_value_a(self) => "Null",
+			Tag::Constant => "Boolean",
+			Tag::Number => "Number",
+			Tag::Variable => "Variable",
+			Tag::Text => "Text",
+			Tag::Ast => "Ast",
+			Tag::Custom => "Custom",
+		}
+	}
+}
+
+// n.b.: while we could use a `match` in these cases, we order them in liklihood.
+impl<'env> Value<'env> {
+	pub fn to_number(&self) -> crate::Result<Number> {
+		if let Some(number) = self.downcast::<Number>() {
+			Ok(number)
+		} else if let Some(textref) = self.downcast::<Text>() {
+			Ok(Number::try_from(textref)?.into())
+		} else if self.is_literal() {
+			Ok(if self.raw() == Self::TRUE.raw() { Number::ONE } else { Number::ZERO })
+		} else {
+			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
+		}
+	}
+
+	pub fn to_text(&self) -> crate::Result<Text> {
+		if let Some(text) = self.downcast::<Text>() {
+			Ok((*text).clone())
+		} else if let Some(number) = self.downcast::<Number>() {
+			Ok(number.into())
+		} else if let Some(boolean) = self.downcast::<Boolean>() {
+			Ok(boolean.into())
+		} else if let Some(null) = self.downcast::<Null>() {
+			Ok(null.into())
+		} else {
+			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
+		}
+	}
+
+	pub fn to_boolean(&self) -> crate::Result<Boolean> {
+
+		if self.is_literal() {
+			let is_true = self.raw() <= Self::NULL.raw();
+
+			debug_assert_eq!(
+				is_true,
+				self.raw() == Self::NULL.raw()
+					|| self.raw() == Self::FALSE.raw()
+					|| self.raw() == unsafe { Self::new_tagged(0, Tag::Number).raw() }
+			);
+
+			return Ok(is_true);
+		}
+
+		if self.is_a::<Text>() {
+			unsafe {
+				Ok(!self.downcast_unchecked::<Text>().is_empty())
+			}
+		} else {
+			Err(Error::UndefinedConversion { from: self.typename(), into: "Boolean" })
+		}
 	}
 }

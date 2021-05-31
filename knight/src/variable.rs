@@ -1,5 +1,5 @@
 use std::fmt::{self, Debug, Formatter};
-use crate::value::{Value, Tag, ValueKind};
+use crate::value::{Value, Tag, ValueKind, Runnable};
 use std::cell::RefCell;
 
 /// A Variable within Knight, which can be used to store values.
@@ -90,7 +90,9 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Variable<'env> {
 
 		Self(&*(value.ptr() as *const VariableInner<'env>))
 	}
+}
 
+impl<'env> Runnable<'env> for Variable<'env> {
 	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		self.get().ok_or_else(|| crate::Error::UndefinedVariable(self.inner().name.clone()))
 	}

@@ -1,6 +1,5 @@
-use crate::{Value, Result, Environment};
+use crate::{Value, Result, Environment, value::Runnable};
 use std::fmt::{self, Debug, Formatter};
-
 
 #[derive(Clone, Copy)]
 pub struct Function {
@@ -32,7 +31,6 @@ impl Debug for Function {
 	}
 }
 
-
 impl Function {
 	pub const fn arity(&self) -> usize {
 		self.arity
@@ -44,3 +42,49 @@ impl Function {
 		(self.func)(args, env)
 	}
 }
+
+macro_rules! declare_function {
+	($static_name:ident, $name:literal, $arity:literal, $body:expr) => {
+		pub static $static_name: Function = Function {
+			name: $name,
+			arity: $arity,
+			func: $body
+		};
+	};
+}
+
+
+declare_function!(NOOP, ':', 1, |args, env| args[0].run(env));
+
+	// RegisterFunction('P', 0, Prompt)
+	// RegisterFunction('R', 0, Random)
+
+	// RegisterFunction('E', 1, Eval)
+	// RegisterFunction('B', 1, Block)
+	// RegisterFunction('C', 1, Call)
+	// RegisterFunction('`', 1, System)
+	// RegisterFunction('Q', 1, Quit)
+	// RegisterFunction('!', 1, Not)
+	// RegisterFunction('L', 1, Length)
+	// RegisterFunction('D', 1, Dump)
+	// RegisterFunction('O', 1, Output)
+
+	// RegisterFunction('+', 2, Add)
+	// RegisterFunction('-', 2, Subtract)
+	// RegisterFunction('*', 2, Multiply)
+	// RegisterFunction('/', 2, Divide)
+	// RegisterFunction('%', 2, Modulo)
+	// RegisterFunction('^', 2, Exponentiate)
+	// RegisterFunction('<', 2, LessThan)
+	// RegisterFunction('>', 2, GreaterThan)
+	// RegisterFunction('?', 2, EqualTo)
+	// RegisterFunction('&', 2, And)
+	// RegisterFunction('|', 2, Or)
+	// RegisterFunction(';', 2, Then)
+	// RegisterFunction('=', 2, Assign)
+	// RegisterFunction('W', 2, While)
+
+	// RegisterFunction('I', 3, If)
+	// RegisterFunction('G', 3, Get)
+
+	// RegisterFunction('S', 4, Substitute)

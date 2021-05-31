@@ -1,6 +1,6 @@
 use crate::Function;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::value::{Value, Tag, ValueKind};
+use crate::value::{Value, Tag, ValueKind, Runnable};
 use std::{borrow::Borrow, ops::Deref};
 use std::fmt::{self, Debug, Formatter};
 
@@ -162,7 +162,9 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Ast<'env> {
 		// std::ptr::drop_in_place(self.0 as *mut AstInner);
 		AstRef(&*(value.ptr() as *const AstInner))
 	}
+}
 
+impl<'env> Runnable<'env> for Ast<'env> {
 	fn run(&self, env: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
 		self.func().run(self.args(), env)
 	}
