@@ -99,9 +99,9 @@ impl Debug for Value<'_> {
 				Tag::Constant if Null::is_value_a(self) => Debug::fmt(&Null, f),
 				Tag::Constant => Debug::fmt(&Boolean::downcast_unchecked(self), f),
 				Tag::Number => Debug::fmt(&Number::downcast_unchecked(self), f),
+				Tag::Variable => Debug::fmt(&Variable::downcast_unchecked(self), f),
 				Tag::Text => Debug::fmt(&*Text::downcast_unchecked(self), f),
 				Tag::Ast => Debug::fmt(&*Ast::downcast_unchecked(self), f),
-				Tag::Variable => Debug::fmt(&*Variable::downcast_unchecked(self), f),
 				Tag::Custom => Debug::fmt(&*Custom::downcast_unchecked(self), f),
 			}
 		}
