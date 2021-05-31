@@ -37,7 +37,7 @@ impl Value<'_> {
 }
 
 impl<'env> Runnable<'env> for Boolean {
-	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, _: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }

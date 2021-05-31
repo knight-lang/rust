@@ -56,7 +56,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Custom<'env> {
 }
 
 impl<'env> Runnable<'env> for Custom<'env> {
-	fn run(&self, env: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, env: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		let _ = env;
 
 		todo!();

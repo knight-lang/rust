@@ -93,7 +93,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Variable<'env> {
 }
 
 impl<'env> Runnable<'env> for Variable<'env> {
-	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, _: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		self.get().ok_or_else(|| crate::Error::UndefinedVariable(self.inner().name.clone()))
 	}
 }

@@ -1,6 +1,8 @@
 use crate::{Value, Boolean, Text};
 use crate::value::{SHIFT, Tag, ValueKind, Runnable};
 use std::fmt::{self, Display, Formatter};
+// use std::convert::TryFrom;
+use try_traits::ops::{TryAdd, TrySub, TryMul, TryDiv, TryRem, TryNeg};
 
 /// The number type that's used internally within [`Number`].
 pub type NumberInner = i64;
@@ -94,7 +96,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 
 impl<'env> Runnable<'env> for Number {
 	#[inline]
-	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, _: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }
@@ -113,4 +115,30 @@ impl From<Number> for Text {
 			Self::new_unchecked(number.to_string().into())
 		}
 	}
+}
+
+
+impl From<Number> for NumberInner {
+	#[inline]
+	fn from(number: Number) -> Self {
+		number.get()
+	}
+}
+// derive
+// pub struct NumberTooLarge;
+
+// impl TryFrom<NumberInner> for Number {
+// 	type Error = std::option::NoneError;
+// 	fn try_from(val: NumberInner) -> Result<Self, Self::Error> {
+// 		Self::new(val)
+// 	}
+// }
+
+#[derive(Debug)]
+pub enum MathError {
+
+}
+
+impl TryAdd for Number {
+
 }

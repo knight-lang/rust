@@ -1,7 +1,23 @@
 #[macro_use]
 extern crate static_assertions;
 
+
 // todo: use `NonNull`.
+
+macro_rules! likely {
+	($cond:expr) => (unlikely!($cond))
+}
+
+macro_rules! unlikely {
+	($cond:expr) => ({
+		#[cold]
+		fn unlikely(){}
+
+		let cond = $cond;
+		if cond { unlikely() }
+		cond
+	})
+}
 
 macro_rules! debug_assert_const {
 	($value:expr) => ({
@@ -32,6 +48,7 @@ mod custom;
 mod null;
 pub mod env;
 mod error;
+pub mod ops;
 
 pub use null::Null;
 pub use value::{Value};

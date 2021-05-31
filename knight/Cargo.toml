@@ -10,3 +10,4 @@ checked-overflow = []
 
 [dependencies]
 static_assertions = "1.1"
+try-traits = "0.1.1"

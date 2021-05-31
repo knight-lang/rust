@@ -1,5 +1,6 @@
 use crate::{Ast, Text, Variable, Custom, Null, Boolean, Number, Environment, Error};
 use std::borrow::Borrow;
+use crate::ops::Runnable;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::marker::PhantomData;
@@ -29,12 +30,6 @@ pub unsafe trait ValueKind<'value, 'env: 'value> : Debug + Clone + Into<Value<'e
 
 	/// Downcast the `value` to a [`Self::Ref`] without checking to see if `value` is a `Self`.
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref;
-}
-
-//// A trait that represents the ability to run something.
-pub trait Runnable<'env> {
-	/// Executes `self`.
-	fn run(&self, env: &'env mut Environment) -> crate::Result<Value<'env>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,7 +113,7 @@ impl Default for Value<'_> {
 }
 
 impl<'env> Runnable<'env> for Value<'env> {
-	fn run(&self, env: &'env mut Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, env: &'env  Environment) -> crate::Result<Value<'env>> {
 		// in order of liklihood.
 		if let Some(ast) = self.downcast::<Ast>() {
 			ast.run(env)
@@ -174,7 +169,7 @@ impl<'env> Value<'env> {
 		Self::from_raw(raw | tag as u64)
 	}
 
-	#[inline]
+	#[inline(always)]
 	pub(crate) const fn raw(&self) -> u64 {
 		self.0
 	}
@@ -211,14 +206,12 @@ impl<'env> Value<'env> {
 
 	#[inline]
 	fn is_literal(&self) -> bool {
-		const_assert!((Tag::Constant as u64) <= 1);
-		const_assert!((Tag::Number as u64) <= 1);
-		const_assert!((Tag::Variable as u64) > 1);
-		const_assert!((Tag::Text as u64) > 1);
-		const_assert!((Tag::Ast as u64) > 1);
-		const_assert!((Tag::Custom as u64) > 1);
-
 		(self.tag() as u64) <= 1
+	}
+
+	// checks to see if self is a literal _and_ falsey
+	pub(crate) fn is_falsey_literal(&self) -> bool {
+		self.raw() <= Self::NULL.raw()
 	}
 
 	// SAFETY: must be a constant or a number.
@@ -296,5 +289,26 @@ impl<'env> Value<'env> {
 		} else {
 			Err(Error::UndefinedConversion { from: self.typename(), into: "Boolean" })
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn is_literal() {
+		assert!(Value::TRUE.is_literal());
+		assert!(Value::FALSE.is_literal());
+		assert!(Value::NULL.is_literal());
+		assert!(Value::from(Number::new(0).unwrap()).is_literal());
+		assert!(Value::from(Number::new(1).unwrap()).is_literal());
+		assert!(Value::from(Number::new(123).unwrap()).is_literal());
+		assert!(Value::from(Number::new(-1).unwrap()).is_literal());
+
+		assert!(!Value::from(Text::new("".into()).unwrap()).is_literal());
+		assert!(!Value::from(Text::new("A".into()).unwrap()).is_literal());
+
+		// todo: from value and ast.
 	}
 }

@@ -1,11 +1,12 @@
 use crate::Variable;
 use std::collections::HashSet;
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 
 #[derive(Default)]
 pub struct Environment {
-	vars: HashSet<VariableHash<'static>> // actually 'self, as we know the pointer's always valid.
+	vars: RefCell<HashSet<VariableHash<'static>>> // actually 'self, as we know the pointer's always valid.
 }
 
 impl Drop for Environment {
@@ -15,25 +16,25 @@ impl Drop for Environment {
 }
 
 impl Environment {
-	pub fn fetch_var<'env, N: ?Sized>(&'env mut self, name: &N) -> Variable<'env>
+	pub fn fetch_var<'env, N: ?Sized>(&'env  self, name: &N) -> Variable<'env>
 	where
 		N: Borrow<str> + ToString
 	{
-		if let Some(VariableHash(var)) = self.vars.get(name.borrow()) {
+		if let Some(VariableHash(var)) = self.vars.borrow().get(name.borrow()) {
 			// This is ok because the variable will only last as long as `self`'s reference will, and will be thrown away
 			// when it's done.
 			unsafe {
-				std::mem::transmute::<Variable<'static>, Variable<'env>>(*var)
+				return std::mem::transmute::<Variable<'static>, Variable<'env>>(*var)
 			}
-		} else {
-			let var = Variable::new(name.to_string().into_boxed_str());
-
-			self.vars.insert(VariableHash(unsafe {
-				std::mem::transmute::<Variable<'env>, Variable<'static>>(var)
-			}));
-
-			var
 		}
+
+		let var = Variable::new(name.to_string().into_boxed_str());
+
+		self.vars.borrow_mut().insert(VariableHash(unsafe {
+			std::mem::transmute::<Variable<'env>, Variable<'static>>(var)
+		}));
+
+		var
 	}
 }
 

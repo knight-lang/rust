@@ -132,7 +132,12 @@ pub struct AstRef<'a, 'env>(&'a AstInner<'env>);
 
 impl<'env> Borrow<Ast<'env>> for AstRef<'_, 'env> {
 	fn borrow(&self) -> &Ast<'env> {
-		todo!()
+		// SAFETY:
+		// `Ast` is a transparent pointer to `AstInner` whereas `AstRef` is a transparent
+		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
+		unsafe {
+			std::mem::transmute::<&AstRef<'_, 'env>, &Ast<'env>>(self)
+		}
 	}
 }
 
@@ -165,7 +170,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Ast<'env> {
 }
 
 impl<'env> Runnable<'env> for Ast<'env> {
-	fn run(&self, env: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, env: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		self.func().run(self.args(), env)
 	}
 }

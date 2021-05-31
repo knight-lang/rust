@@ -37,7 +37,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Null {
 }
 
 impl<'env> Runnable<'env> for Null {
-	fn run(&self, _: &'env mut crate::Environment) -> crate::Result<Value<'env>> {
+	fn run(&self, _: &'env  crate::Environment) -> crate::Result<Value<'env>> {
 		Ok((*self).into())
 	}
 }
