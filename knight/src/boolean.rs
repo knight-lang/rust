@@ -1,5 +1,6 @@
 use crate::{Number, Text};
-use crate::value::{SHIFT, Value, ValueKind, Tag, Runnable};
+use crate::value::{SHIFT, Value, ValueKind, Tag};
+use crate::ops::{Runnable, ToText, Infallible};
 
 /// The boolean type within Knight.
 pub type Boolean = bool;
@@ -53,12 +54,15 @@ impl From<Boolean> for Number {
 	}
 }
 
-impl From<Boolean> for Text {
+impl ToText for Boolean {
+	type Error = Infallible;
+	type Output = Text;
+
 	#[inline]
-	fn from(boolean: Boolean) -> Self {
+	fn to_text(&self) -> Result<Self::Output, Self::Error> {
 		// todo: use a static one
 		unsafe {
-			Self::new_unchecked(std::borrow::Cow::Borrowed(if boolean { "true" } else { "false" }))
+			Ok(Text::new_unchecked(std::borrow::Cow::Borrowed(if *self { "true" } else { "false" })))
 		}
 	}
 }

@@ -2,6 +2,7 @@
 
 use crate::{Value, Result, Environment, Ast, Number, value::Runnable};
 use std::fmt::{self, Debug, Formatter};
+use crate::ops::*;
 use std::convert::TryFrom;
 
 #[derive(Clone, Copy)]

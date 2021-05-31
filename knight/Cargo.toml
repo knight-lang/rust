@@ -1,13 +1,17 @@
 [package]
-name = "knight"
+name = "knight-lang"
 version = "0.1.0"
 authors = ["Sam Westerman <mail@sampersand.me>"]
 edition = "2018"
 
 
 [features]
+default=["strict-numbers"]
+
 checked-overflow = []
+strict-numbers = []
 
 [dependencies]
 static_assertions = "1.1"
 try-traits = "0.1.1"
+cfg-if = "1.0"

@@ -1,6 +1,7 @@
 use crate::{Ast, Text, Variable, Custom, Null, Boolean, Number, Environment, Error};
+pub use crate::ops::{Runnable, ToText, ToNumber, ToBoolean};
+
 use std::borrow::Borrow;
-use crate::ops::Runnable;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::marker::PhantomData;
@@ -240,8 +241,10 @@ impl<'env> Value<'env> {
 }
 
 // n.b.: while we could use a `match` in these cases, we order them in liklihood.
-impl<'env> Value<'env> {
-	pub fn to_number(&self) -> crate::Result<Number> {
+impl<'env> ToNumber for Value<'env> {
+	type Error = crate::Error;
+
+	fn to_number(&self) -> crate::Result<Number> {
 		if let Some(number) = self.downcast::<Number>() {
 			Ok(number)
 		} else if let Some(textref) = self.downcast::<Text>() {
@@ -252,23 +255,31 @@ impl<'env> Value<'env> {
 			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 		}
 	}
+}
 
-	pub fn to_text(&self) -> crate::Result<Text> {
+impl<'env> ToText for Value<'env> {
+	type Error = crate::Error;
+	type Output = Text;
+
+	fn to_text(&self) -> crate::Result<Self::Output> {
 		if let Some(text) = self.downcast::<Text>() {
 			Ok((*text).clone())
 		} else if let Some(number) = self.downcast::<Number>() {
-			Ok(number.into())
+			Ok(number.to_text()?)
 		} else if let Some(boolean) = self.downcast::<Boolean>() {
-			Ok(boolean.into())
+			Ok(boolean.to_text()?)
 		} else if let Some(null) = self.downcast::<Null>() {
-			Ok(null.into())
+			Ok(null.to_text()?)
 		} else {
 			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 		}
 	}
+}
 
-	pub fn to_boolean(&self) -> crate::Result<Boolean> {
+impl<'env> ToBoolean for Value<'env> {
+	type Error = crate::Error;
 
+	fn to_boolean(&self) -> crate::Result<Boolean> {
 		if self.is_literal() {
 			let is_true = self.raw() <= Self::NULL.raw();
 

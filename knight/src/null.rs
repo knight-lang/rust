@@ -1,6 +1,7 @@
 use crate::{Value, Boolean, Number, Text};
-use crate::value::{Tag, ValueKind, SHIFT, Runnable};
+use crate::value::{Tag, ValueKind, SHIFT};
 use std::fmt::{self, Display, Formatter};
+use crate::ops::{Runnable, ToText, Infallible};
 
 /// The null type within Knight.
 ///
@@ -64,12 +65,14 @@ impl From<Null> for Boolean {
 	}
 }
 
-impl From<Null> for Text {
-	#[inline]
-	fn from(_: Null) -> Self {
+impl ToText for Null {
+	type Error = Infallible;
+	type Output = Text;
+
+	fn to_text(&self) -> Result<Self::Output, Self::Error> {
 		// todo: use a static one
 		unsafe {
-			Self::new_unchecked(std::borrow::Cow::Borrowed("null"))
+			Ok(Text::new_unchecked(std::borrow::Cow::Borrowed("null")))
 		}
 	}
 }
