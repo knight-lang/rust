@@ -40,9 +40,9 @@ macro_rules! debug_assert_eq_const {
 // 	});
 // }
 
+pub mod number;
 pub mod value;
 pub mod text;
-pub mod number;
 pub mod ast;
 pub mod variable;
 mod boolean;
@@ -54,13 +54,14 @@ mod error;
 pub mod ops;
 
 pub use null::Null;
-pub use value::{Value};
+pub use value::Value;
 pub use boolean::Boolean;
 pub use custom::Custom;
 pub use text::Text;
 pub use env::Environment;
 pub use variable::Variable;
 pub use ast::Ast;
+
 pub use number::Number;
 pub use error::{Error, Result};
 pub use function::Function;

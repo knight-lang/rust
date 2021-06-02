@@ -1,3 +1,5 @@
+//! Types relating to [`Number`]s.
+
 use crate::{Value, Boolean, Text};
 use crate::value::{SHIFT, Tag, ValueKind};
 use crate::ops::{Runnable, ToText, TryAdd, TrySub, TryMul, TryDiv, TryRem, TryPow, TryNeg, Infallible};
