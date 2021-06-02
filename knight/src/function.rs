@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::{Value, Result, Environment, Ast, Number};
+use crate::{Value, Result, Environment, Ast, Number, Error, Variable};
 use std::fmt::{self, Debug, Formatter};
 use crate::ops::*;
 use std::convert::TryFrom;
@@ -97,32 +97,35 @@ impl Function {
 
 macro_rules! declare_function {
 	($static_name:ident, $name:literal, $arity:literal, $body:expr) => {
-		// pub static $static_name: Function = Function::new(name, 
-		// 	name: $name,
-		// 	arity: $arity,
-		// 	func: $body
-		// };
+		pub static $static_name: Function = static_function!($name, $arity, $body);
 	};
 }
 
-pub static RANDOM: Function = static_function!('R', 0, |&[], _| todo!());
-pub static PROMPT: Function = static_function!('P', 0, |&[], _| todo!());
+pub static PROMPT: Function = static_function!('P', 0, |[], _| todo!());
+pub static RANDOM: Function = static_function!('R', 0, |[], _| todo!());
 
-declare_function!(PROMPT, 'P', 0, |_, _| todo!());
+pub static NOOP: Function = static_function!(':', 1, |[arg], env| {
+	arg.run(env)
+});
 
-declare_function!(NOOP, ':', 1, |args, env| args[0].run(env));
-declare_function!(EVAL, 'E', 1, |args, env| { let _ = (args, env); todo!() });
-declare_function!(BLOCK, 'B', 1, |[block], _| {
+pub static EVAL: Function = static_function!('E', 1, |[text], env| {
+	let text = text.run(env)?.to_text();
+
+	let _ = env;
+	todo!();
+});
+
+pub static BLOCK: Function = static_function!('B', 1, |[block], _| {
 	let dup = block.clone();
 
 	if dup.is_a::<Ast>() {
-		Ok(dup)
-	} else {
-		Ok(Ast::new(&NOOP, vec![dup].into()).into())
+		return Ok(dup);
 	}
+
+	Ok(Ast::new(&NOOP, vec![dup].into()).into())
 });
 
-declare_function!(CALL, 'C', 1, |[block], env| {
+pub static CALL: Function = static_function!('C', 1, |[block], env| {
 	if let Some(ast) = block.downcast::<Ast>() {
 		let ran = ast.run(env)?;
 		ran.run(env)
@@ -131,13 +134,13 @@ declare_function!(CALL, 'C', 1, |[block], env| {
 	}
 });
 
-declare_function!(SYSTEM, '`', 1, |[command], env| {
+pub static SYSTEM: Function = static_function!('`', 1, |[command], env| {
 	let text = command.run(env)?.to_text()?;
 	let _ = text;
 	todo!();
 });
 
-declare_function!(QUIT, 'Q', 1, |[code], env| {
+pub static QUIT: Function = static_function!('Q', 1, |[code], env| {
 	let code = code.run(env)?.to_number()?;
 
 	if let Ok(code) = i32::try_from(code.get()) {
@@ -147,13 +150,13 @@ declare_function!(QUIT, 'Q', 1, |[code], env| {
 	}
 });
 
-declare_function!(LENGTH, 'L', 1, |[text], env| {
+pub static LENGTH: Function = static_function!('L', 1, |[text], env| {
 	let text = text.run(env)?.to_text()?;
 
 	Ok(Number::new(text.len() as i64).unwrap().into())
 });
 
-declare_function!(DUMP, 'D', 1, |[arg], env| {
+pub static DUMP: Function = static_function!('D', 1, |[arg], env| {
 	let ran = arg.run(env)?;
 
 	println!("{:?}", ran);
@@ -161,7 +164,7 @@ declare_function!(DUMP, 'D', 1, |[arg], env| {
 	Ok(ran)
 });
 
-declare_function!(OUTPUT, 'O', 1, |[arg], env| {
+pub static OUTPUT: Function = static_function!('O', 1, |[arg], env| {
 	let text = arg.run(env)?.to_text()?;
 
 	println!("{}", text); // todo
@@ -169,139 +172,107 @@ declare_function!(OUTPUT, 'O', 1, |[arg], env| {
 	Ok(Value::NULL)
 });
 
-declare_function!(ADD, '+', 2, |[lhs, rhs], env| {
+pub static ADD: Function = static_function!('+', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_add(rhs)
 });
 
-declare_function!(SUB, '-', 2, |[lhs, rhs], env| {
+pub static SUB: Function = static_function!('-', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_sub(rhs)
 });
 
-declare_function!(MUL, '*', 2, |[lhs, rhs], env| {
+pub static MUL: Function = static_function!('*', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_mul(rhs)
 });
 
-declare_function!(DIV, '/', 2, |[lhs, rhs], env| {
+pub static DIV: Function = static_function!('/', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_div(rhs)
 });
 
-declare_function!(MOD, '%', 2, |[lhs, rhs], env| {
+pub static MOD: Function = static_function!('%', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_rem(rhs)
 });
 
-declare_function!(POW, '^', 2, |[lhs, rhs], env| {
+pub static POW: Function = static_function!('^', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
 	lhs.try_pow(rhs)
 });
 
-declare_function!(LTH, '<', 2, |[lhs, rhs], env| {
+pub static LTH: Function = static_function!('<', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
-	Ok((lhs.try_cmp(rhs)? == std::cmp::Ordering::Less).into())
+	Ok((lhs.try_cmp(&rhs)? == std::cmp::Ordering::Less).into())
 });
 
-declare_function!(GTH, '>', 2, |[lhs, rhs], env| {
+pub static GTH: Function = static_function!('>', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
-	Ok((lhs.try_cmp(rhs)? == std::cmp::Ordering::Greater).into())
+	Ok((lhs.try_cmp(&rhs)? == std::cmp::Ordering::Greater).into())
 });
 
-declare_function!(EQL, '?', 2, |[lhs, rhs], env| {
+pub static EQL: Function = static_function!('?', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
-	Ok(lhs.try_eq(rhs)?.into())
+	Ok(lhs.try_eq(&rhs)?.into())
 });
 
-declare_function!(AND, '&', 2, |args, env| {
-	let _ = (args, env);
+pub static AND: Function = static_function!('&', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
 
-	todo!()
-});
-
-declare_function!(OR, '|', 2, |args, env| {
-	let _ = (args, env);
-
-	todo!()
-});
-
-// pub fn r#while<'env>(args: &[Value<'env>; 2], env: &'env Environment) -> crate::Result<Value<'env>> {
-// 	#[cold]
-
-
-declare_function!(THEN, ';', 2, |args, env| {
-
-	let _ = (args, env);
-
-	todo!()
-});
-
-declare_function!(ASSIGN, '=', 2, |args, env| {
-	let _ = (args, env);
-
-	todo!()
-});
-
-pub fn r#while<'env>(args: &[Value<'env>; 2], env: &'env Environment) -> crate::Result<Value<'env>> {
-	#[cold]
-	fn while_non_ast<'env>(condition: &Value<'env>, body: &Value<'env>, env: &'env Environment) -> Result<Value<'env>> {
-		while condition.run(env)?.to_boolean()? {
-			body.run(env)?;
-		}
-
-		Ok(Value::NULL)
+	if lhs.to_boolean()? {
+		rhs.run(env)
+	} else {
+		Ok(lhs)
 	}
+});
 
-	let [condition, body] = args;
+pub static OR: Function = static_function!('|', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
 
-	if !condition.is_a::<Ast<'_>>() || !body.is_a::<Ast<'_>>() {
-		return while_non_ast(condition, body, env);
+	if lhs.to_boolean()? {
+		Ok(lhs)
+	} else {
+		rhs.run(env)
 	}
+});
 
-	let condition = unsafe { condition.downcast_unchecked::<Ast<'env>>() };
-	let body = unsafe { body.downcast_unchecked::<Ast<'env>>() };
 
-	loop {
-		let cond = condition.run(env)?;
+pub static THEN: Function = static_function!(';', 2, |[lhs, rhs], env| {
+	lhs.run(env)?;
+	rhs.run(env)
+});
 
-		// it's likely for us to have a TRUE or FALSE as the value.
-		if likely!(cond.tag() == crate::value::Tag::Constant) {
-			if cond.raw() != Value::TRUE.raw() {
-				break;
-			}
-		} else if !cond.to_boolean()? {
-			break;
-		}
+pub static ASSIGN: Function = static_function!('=', 2, |[variable, value], env| {
+	let value = value.run(env)?;
 
-		body.run(env)?;
+	if let Some(variable) = variable.downcast::<Variable>() {
+		variable.set(value.clone());
+		Ok(value)
+	} else {
+		Err(Error::InvalidArgument { func: '=', kind: variable.typename() })
 	}
+});
 
-	Ok(Value::NULL)
-}
-
-declare_function!(WHILE, 'W', 2, |args, env| {
-	let cond = &args[0];
-	let body = &args[1];
-
+pub static WHILE: Function = static_function!('W', 2, |[cond, body], env| {
 	while cond.run(env)?.to_boolean()? {
 		body.run(env)?;
 	}
@@ -309,22 +280,29 @@ declare_function!(WHILE, 'W', 2, |args, env| {
 	Ok(Value::NULL)
 });
 
-declare_function!(IF, 'I', 3, |args, env| {
-	if args[0].run(env)?.to_boolean()? {
-		args[1].run(env)
+pub static IF: Function = static_function!('I', 3, |[cond, if_true, if_false], env| {
+	if cond.run(env)?.to_boolean()? {
+		if_true.run(env)
 	} else {
-		args[2].run(env)
+		if_false.run(env)
 	}
 });
 
-declare_function!(GET, 'G', 3, |args, env| {
-	let _ = (args, env);
+pub static GET: Function = static_function!('G', 3, |[text, start, length], env| {
+	let text = text.run(env)?.to_text()?;
+	let start = start.run(env)?.to_number()?;
+	let length = length.run(env)?.to_number()?;
 
+	let _ = (text, start, length);
 	todo!()
 });
 
-declare_function!(SET, 'S', 4, |args, env| {
-	let _ = (args, env);
+pub static SET: Function = static_function!('S', 4, |[text, start, length, replacement], env| {
+	let text = text.run(env)?.to_text()?;
+	let start = start.run(env)?.to_number()?;
+	let length = length.run(env)?.to_number()?;
+	let replacement = replacement.run(env)?.to_text()?;
 
+	let _ = (text, start, length, replacement);
 	todo!()
 });
