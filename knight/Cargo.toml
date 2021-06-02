@@ -6,10 +6,10 @@ edition = "2018"
 
 
 [features]
-default=["strict-numbers"]
+default=[]
 
 checked-overflow = []
-strict-numbers = []
+strict-numbers = ["checked-overflow"]
 
 [dependencies]
 static_assertions = "1.1"

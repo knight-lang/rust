@@ -204,16 +204,14 @@ impl TryFrom<TextRef<'_>> for Number {
 	type Error = NumberOverflow;
 
 	fn try_from(text: TextRef<'_>) -> Result<Self, Self::Error> {
-		use crate::number::NumberPrimitive;
-
 		let mut iter = text.as_str().trim_start().bytes();
-		let mut num = 0 as NumberPrimitive;
+		let mut num = 0 as i64;
 		let mut is_neg = false;
 
 		match iter.next() {
 			Some(b'-') => is_neg = true,
 			Some(b'+') => { /* do nothing */ },
-			Some(digit @ b'0'..=b'9') => num = (digit - b'0') as NumberPrimitive,
+			Some(digit @ b'0'..=b'9') => num = (digit - b'0') as i64,
 			_ => return Ok(Self::ZERO)
 		}
 
@@ -222,7 +220,7 @@ impl TryFrom<TextRef<'_>> for Number {
 				break;
 			}
 
-			let digit = (digit - b'0') as NumberPrimitive;
+			let digit = (digit - b'0') as i64;
 
 			if cfg!(feature="checked-overflow") {
 				if let Some(new) = num.checked_mul(10).and_then(|n| n.checked_add(digit)) {
