@@ -54,7 +54,7 @@ impl From<Boolean> for Number {
 	}
 }
 
-impl ToText for Boolean {
+impl ToText<'_> for Boolean {
 	type Error = Infallible;
 	type Output = Text;
 

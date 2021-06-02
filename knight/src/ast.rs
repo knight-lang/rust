@@ -1,12 +1,14 @@
 use crate::Function;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::value::{Value, Tag, ValueKind, Runnable};
+use crate::value::{Value, Tag, ValueKind};
+use crate::ops::Runnable;
 use std::{borrow::Borrow, ops::Deref};
 use std::fmt::{self, Debug, Formatter};
 use std::ptr::NonNull;
 use std::mem::{self, ManuallyDrop};
 use std::alloc::{alloc, dealloc, Layout};
 
+#[repr(transparent)]
 pub struct Ast<'env>(NonNull<AstInner<'env>>);
 
 #[repr(C, align(8))] // todo: why do we needthese? should rc at the start be enough

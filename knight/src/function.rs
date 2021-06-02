@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::{Value, Result, Environment, Ast, Number, value::Runnable};
+use crate::{Value, Result, Environment, Ast, Number};
 use std::fmt::{self, Debug, Formatter};
 use crate::ops::*;
 use std::convert::TryFrom;
@@ -112,8 +112,8 @@ declare_function!(PROMPT, 'P', 0, |_, _| todo!());
 
 declare_function!(NOOP, ':', 1, |args, env| args[0].run(env));
 declare_function!(EVAL, 'E', 1, |args, env| { let _ = (args, env); todo!() });
-declare_function!(BLOCK, 'B', 1, |args, _| {
-	let dup = args[0].clone();
+declare_function!(BLOCK, 'B', 1, |[block], _| {
+	let dup = block.clone();
 
 	if dup.is_a::<Ast>() {
 		Ok(dup)
@@ -121,19 +121,24 @@ declare_function!(BLOCK, 'B', 1, |args, _| {
 		Ok(Ast::new(&NOOP, vec![dup].into()).into())
 	}
 });
-declare_function!(CALL, 'C', 1, |args, env| {
-	let ran = args[0].run(env)?;
-	ran.run(env)
+
+declare_function!(CALL, 'C', 1, |[block], env| {
+	if let Some(ast) = block.downcast::<Ast>() {
+		let ran = ast.run(env)?;
+		ran.run(env)
+	} else {
+		Err(Error::InvalidArgument { func: 'C', kind: block.typename() })
+	}
 });
 
-declare_function!(SYSTEM, '`', 1, |args, env| {
-	let text = args[0].run(env)?.to_text()?;
+declare_function!(SYSTEM, '`', 1, |[command], env| {
+	let text = command.run(env)?.to_text()?;
 	let _ = text;
 	todo!();
 });
 
-declare_function!(QUIT, 'Q', 1, |args, env| {
-	let code = args[0].run(env)?.to_number()?;
+declare_function!(QUIT, 'Q', 1, |[code], env| {
+	let code = code.run(env)?.to_number()?;
 
 	if let Ok(code) = i32::try_from(code.get()) {
 		std::process::exit(code);
@@ -142,80 +147,89 @@ declare_function!(QUIT, 'Q', 1, |args, env| {
 	}
 });
 
-declare_function!(LENGTH, 'L', 1, |args, env| {
-	let text = args[0].run(env)?.to_text()?;
+declare_function!(LENGTH, 'L', 1, |[text], env| {
+	let text = text.run(env)?.to_text()?;
 
 	Ok(Number::new(text.len() as i64).unwrap().into())
 });
 
-declare_function!(DUMP, 'D', 1, |args, env| {
-	let ran = args[0].run(env)?;
+declare_function!(DUMP, 'D', 1, |[arg], env| {
+	let ran = arg.run(env)?;
 
 	println!("{:?}", ran);
 
 	Ok(ran)
 });
 
-declare_function!(OUTPUT, 'O', 1, |args, env| {
-	let text = args[0].run(env)?.to_text()?;
+declare_function!(OUTPUT, 'O', 1, |[arg], env| {
+	let text = arg.run(env)?.to_text()?;
 
 	println!("{}", text); // todo
 
 	Ok(Value::NULL)
 });
 
-declare_function!(ADD, '+', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(ADD, '+', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_add(rhs)
 });
 
-declare_function!(SUB, '-', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(SUB, '-', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_sub(rhs)
 });
 
-declare_function!(MUL, '%', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(MUL, '*', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_mul(rhs)
 });
 
-declare_function!(DIV, '/', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(DIV, '/', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_div(rhs)
 });
 
-declare_function!(MOD, '%', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(MOD, '%', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_rem(rhs)
 });
 
-declare_function!(POW, '^', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(POW, '^', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	lhs.try_pow(rhs)
 });
 
-declare_function!(LTH, '<', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(LTH, '<', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	Ok((lhs.try_cmp(rhs)? == std::cmp::Ordering::Less).into())
 });
 
-declare_function!(GTH, '>', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(GTH, '>', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	Ok((lhs.try_cmp(rhs)? == std::cmp::Ordering::Greater).into())
 });
 
-declare_function!(EQL, '?', 2, |args, env| {
-	let _ = (args, env);
+declare_function!(EQL, '?', 2, |[lhs, rhs], env| {
+	let lhs = lhs.run(env)?;
+	let rhs = rhs.run(env)?;
 
-	todo!()
+	Ok(lhs.try_eq(rhs)?.into())
 });
 
 declare_function!(AND, '&', 2, |args, env| {

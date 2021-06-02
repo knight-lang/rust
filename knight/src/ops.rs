@@ -1,12 +1,13 @@
 use crate::{Environment, Value, Number, Boolean, Text};
 
 pub use try_traits::ops::{TryAdd, TrySub, TryMul, TryDiv, TryRem, TryNeg};
-pub use try_traits::cmp::{TryPartialEq, TryOrd};
+pub use try_traits::cmp::{TryPartialEq, TryEq, TryPartialOrd, TryOrd};
 pub use std::convert::Infallible;
 
 pub trait TryPow<Rhs=Self> {
 	type Error;
 	type Output;
+
 	fn try_pow(self, rhs: Rhs) -> Result<Self::Output, Self::Error>;
 }
 
@@ -22,11 +23,11 @@ pub trait ToBoolean {
 	fn to_boolean(&self) -> Result<Boolean, Self::Error>;
 }
 
-pub trait ToText {
+pub trait ToText<'a> {
 	type Error: Into<crate::Error>;
 	type Output: std::borrow::Borrow<Text>;
 
-	fn to_text(&self) -> Result<Self::Output, Self::Error>;
+	fn to_text(&'a self) -> Result<Self::Output, Self::Error>;
 }
 
 pub trait ToNumber {

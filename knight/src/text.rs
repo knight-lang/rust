@@ -1,16 +1,15 @@
 use crate::{Value, Boolean, Number};
-use crate::ops::{Runnable, /*ToText, Infallible*/};
+use crate::ops::{Runnable, ToNumber, ToBoolean, ToText, Infallible};
 use crate::value::{Tag, ValueKind};
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::{Cow, Borrow};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::convert::TryFrom;
-use std::ops::Deref;
-use std::error::Error;
+use std::ops::{Deref, Add, Mul};
 use std::ptr::NonNull;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct Text(NonNull<TextInner>);
 
 #[repr(C, align(8))]
@@ -21,6 +20,7 @@ struct TextInner {
 }
 
 #[derive(Clone, Copy)]
+#[repr(transparent)]
 pub struct TextRef<'a>(&'a TextInner);
 
 impl Clone for Text {
@@ -125,6 +125,12 @@ impl Text {
 	}
 }
 
+impl AsRef<str> for Text {
+	fn as_ref(&self) -> &str {
+		self.as_str()
+	}
+}
+
 impl From<Text> for Value<'_> {
 	fn from(text: Text) -> Self {
 		unsafe {
@@ -178,14 +184,6 @@ impl Display for Text {
 	}
 }
 
-
-impl From<Text> for Boolean {
-	#[inline]
-	fn from(text: Text) -> Self {
-		text.len() != 0
-	}
-}
-
 /// An error trait to indicate that [converting](<Number as TryFrom<Text>>::try_From) from a [`Text`] to a [`Number`]
 /// overflowed the maximum size for a number.
 #[derive(Debug)]
@@ -197,18 +195,30 @@ impl Display for NumberOverflow {
 	}
 }
 
-impl Error for NumberOverflow {}
+impl std::error::Error for NumberOverflow {}
 
-// impl ToText for Text {
-// 	type Error = Infallible;
-// 	type Output = TextInner<'a>
-// 	fn to_text(&self)
-// }
-impl TryFrom<TextRef<'_>> for Number {
+impl<'a> ToText<'a> for Text {
+	type Error = Infallible;
+	type Output = TextRef<'a>;
+
+	fn to_text(&'a self) -> Result<Self::Output, Self::Error> {
+		Ok(self.as_ref())
+	}
+}
+
+impl ToBoolean for Text {
+	type Error = Infallible;
+
+	fn to_boolean(&self) -> Result<Boolean, Self::Error> {
+		Ok(!self.is_empty())
+	}
+}
+
+impl ToNumber for Text {
 	type Error = NumberOverflow;
 
-	fn try_from(text: TextRef<'_>) -> Result<Self, Self::Error> {
-		let mut iter = text.as_str().trim_start().bytes();
+	fn to_number(&self) -> Result<Number, Self::Error> {
+		let mut iter = self.as_str().trim_start().bytes();
 		let mut num = 0 as i64;
 		let mut is_neg = false;
 
@@ -216,7 +226,7 @@ impl TryFrom<TextRef<'_>> for Number {
 			Some(b'-') => is_neg = true,
 			Some(b'+') => { /* do nothing */ },
 			Some(digit @ b'0'..=b'9') => num = (digit - b'0') as i64,
-			_ => return Ok(Self::ZERO)
+			_ => return Ok(Number::ZERO)
 		}
 
 		while let Some(digit) = iter.next() {
@@ -244,4 +254,38 @@ impl TryFrom<TextRef<'_>> for Number {
 		}
 	}
 }
+
+
+impl<T: AsRef<str>> Add<T> for TextRef<'_> {
+	type Output = Text;
+
+	fn add(self, rhs: T) -> Self::Output {
+		let rhs = rhs.as_ref();
+
+		if rhs.is_empty() {
+			return (*self).clone();
+		}
+
+		let mut result = String::with_capacity(self.len() + rhs.len());
+		result.push_str(self.as_str());
+		result.push_str(rhs);
+
+		Text::new(result.into()).unwrap()
+	}
+}
+
+impl Mul<usize> for TextRef<'_> {
+	type Output = Text;
+
+	fn mul(self, amnt: usize) -> Self::Output {
+		let mut result = String::with_capacity(self.len() * amnt);
+
+		for _ in 0..amnt {
+			result.push_str(self.as_str());
+		}
+
+		Text::new(result.into()).unwrap()
+	}
+}
+
 

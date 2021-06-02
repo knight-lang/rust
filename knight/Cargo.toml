@@ -10,6 +10,7 @@ default=[]
 
 checked-overflow = []
 strict-numbers = ["checked-overflow"]
+strict-compliance = []
 
 [dependencies]
 static_assertions = "1.1"

@@ -5,6 +5,7 @@ pub enum Error {
 	UndefinedVariable(Box<str>),
 	NumberOverflow,
 	UndefinedConversion { from: &'static str, into: &'static str },
+	InvalidArgument { func: char, kind: &'static str },
 	Math(MathError)
 }
 

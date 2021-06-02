@@ -1,4 +1,5 @@
-use crate::value::{Value, ValueKind, Tag, Runnable};
+use crate::value::{Value, ValueKind, Tag};
+use crate::ops::Runnable;
 use std::{borrow::Borrow, ops::Deref};
 
 #[derive(Debug, Clone)]

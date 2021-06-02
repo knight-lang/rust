@@ -65,7 +65,7 @@ impl From<Null> for Boolean {
 	}
 }
 
-impl ToText for Null {
+impl ToText<'_> for Null {
 	type Error = Infallible;
 	type Output = Text;
 

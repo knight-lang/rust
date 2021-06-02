@@ -12,6 +12,7 @@ macro_rules! likely {
 }
 
 macro_rules! unlikely {
+	() => (unlikely!(true));
 	($cond:expr) => ({
 		#[cold]
 		fn unlikely(){}

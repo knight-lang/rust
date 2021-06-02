@@ -1,5 +1,6 @@
 use std::fmt::{self, Debug, Formatter};
-use crate::value::{Value, Tag, ValueKind, Runnable};
+use crate::value::{Value, Tag, ValueKind};
+use crate::ops::Runnable;
 use std::cell::RefCell;
 use std::ptr::NonNull;
 

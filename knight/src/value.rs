@@ -1,11 +1,9 @@
 use crate::{Ast, Text, Variable, Custom, Null, Boolean, Number, Environment, Error};
-pub use crate::ops::{Runnable, ToText, ToNumber, ToBoolean};
-
+use crate::ops::*;
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::marker::PhantomData;
-use std::convert::TryFrom;
 
 pub(crate) const SHIFT: usize = 3;
 const MASK: u8 = (1u8 << SHIFT) - 1;
@@ -215,6 +213,10 @@ impl<'env> Value<'env> {
 		(self.tag() as u64) <= 1
 	}
 
+	pub fn is_idempotent(&self) -> bool {
+		self.is_literal() || self.is_a::<Text>()
+	}
+
 	// SAFETY: must be a constant or a number.
 	#[inline]
 	unsafe fn copy(&self) -> Self {
@@ -242,13 +244,13 @@ impl<'env> Value<'env> {
 
 // n.b.: while we could use a `match` in these cases, we order them in liklihood.
 impl<'env> ToNumber for Value<'env> {
-	type Error = crate::Error;
+	type Error = Error;
 
 	fn to_number(&self) -> crate::Result<Number> {
 		if let Some(number) = self.downcast::<Number>() {
 			Ok(number)
 		} else if let Some(textref) = self.downcast::<Text>() {
-			Ok(Number::try_from(textref)?.into())
+			Ok(textref.to_number()?)
 		} else if self.is_literal() {
 			Ok(if self.raw() == Self::TRUE.raw() { Number::ONE } else { Number::ZERO })
 		} else {
@@ -257,8 +259,8 @@ impl<'env> ToNumber for Value<'env> {
 	}
 }
 
-impl<'env> ToText for Value<'env> {
-	type Error = crate::Error;
+impl<'env> ToText<'_> for Value<'env> {
+	type Error = Error;
 	type Output = Text;
 
 	fn to_text(&self) -> crate::Result<Self::Output> {
@@ -277,7 +279,7 @@ impl<'env> ToText for Value<'env> {
 }
 
 impl<'env> ToBoolean for Value<'env> {
-	type Error = crate::Error;
+	type Error = Error;
 
 	fn to_boolean(&self) -> crate::Result<Boolean> {
 		if self.is_literal() {
@@ -302,6 +304,164 @@ impl<'env> ToBoolean for Value<'env> {
 		}
 	}
 }
+
+impl<'env> TryAdd for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_add(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(text) = self.downcast::<Text>() {
+			return Ok((text + rhs.to_text()?).into());
+		}
+
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_add(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '+', kind: self.typename() })
+	}
+}
+
+impl<'env> TrySub for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_sub(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_sub(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '-', kind: self.typename() })
+	}
+}
+
+impl<'env> TryMul for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_mul(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(text) = self.downcast::<Text>() {
+			let rhs = rhs.to_number()?.get() as usize; // todo
+			return Ok((text * rhs).into());
+		}
+
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_mul(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '*', kind: self.typename() })
+	}
+}
+
+impl<'env> TryDiv for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_div(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_div(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '/', kind: self.typename() })
+	}
+}
+
+impl<'env> TryRem for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_rem(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_rem(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '%', kind: self.typename() })
+	}
+}
+
+impl<'env> TryPow for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_pow(self, rhs: Self) -> crate::Result<Self> {
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_pow(rhs.to_number()?)?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '^', kind: self.typename() })
+	}
+}
+
+impl<'env> TryNeg for Value<'env> {
+	type Error = Error;
+	type Output = Self;
+
+	fn try_neg(self) -> crate::Result<Self> {
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.try_neg()?.into())
+		}
+
+		unlikely!();
+		Err(Error::InvalidArgument { func: '~', kind: self.typename() })
+	}
+}
+
+impl TryEq for Value<'_> {}
+impl TryPartialEq for Value<'_> {
+	type Error = Error;
+
+	fn try_eq(&self, rhs: &Self) -> crate::Result<bool> {
+		if cfg!(feature = "strict-compliance") {
+			if !self.is_idempotent() {
+				return Err(Error::InvalidArgument { func: '?', kind: self.typename() })
+			}
+
+			if !rhs.is_idempotent() {
+				return Err(Error::InvalidArgument { func: '?', kind: rhs.typename() })
+			}
+		}
+
+		if self.raw() == rhs.raw() {
+			Ok(true)
+		} else if let (Some(lhs), Some(rhs)) = (self.downcast::<Text>(), rhs.downcast::<Text>()) {
+			Ok(*lhs == *rhs)
+		} else {
+			Ok(false)
+		}
+	}
+}
+
+impl TryPartialOrd for Value<'_> {
+	fn try_partial_cmp(&self, rhs: &Self) -> crate::Result<Option<std::cmp::Ordering>> {
+		self.try_cmp(rhs).map(Some)
+	}
+}
+
+impl TryOrd for Value<'_> {
+	fn try_cmp(&self, rhs: &Self) -> crate::Result<std::cmp::Ordering> {
+		if let Some(text) = self.downcast::<Text>() {
+			return Ok(text.cmp(&rhs.to_text()?));
+		}
+
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.cmp(&rhs.to_number()?));
+		}
+
+		if let Some(boolean) = self.downcast::<Boolean>() {
+			return Ok(boolean.cmp(&rhs.to_boolean()?));
+		}
+
+		// todo: how do we want to deal with `func` here?
+		Err(Error::InvalidArgument { func: 'C', kind: self.typename() })
+	}
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -228,7 +228,7 @@ impl From<Number> for Boolean {
 	}
 }
 
-impl ToText for Number {
+impl ToText<'_> for Number {
 	type Error = Infallible;
 	type Output = Text;
 
