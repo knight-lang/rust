@@ -3,10 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::value::{Value, Tag, ValueKind, Runnable};
 use std::{borrow::Borrow, ops::Deref};
 use std::fmt::{self, Debug, Formatter};
-
+use std::ptr::NonNull;
+use std::mem::{self, ManuallyDrop};
 use std::alloc::{alloc, dealloc, Layout};
 
-pub struct Ast<'env>(*const AstInner<'env>);
+pub struct Ast<'env>(NonNull<AstInner<'env>>);
 
 #[repr(C, align(8))] // todo: why do we needthese? should rc at the start be enough
 struct AstInner<'env> {
@@ -31,7 +32,7 @@ impl Drop for Ast<'_> {
 
 		if rc == 1 {
 			unsafe {
-				Ast::drop_in_place(self.0 as *mut _)
+				Self::drop_in_place(self.0.as_ptr() as *mut _)
 			}
 		}
 	}
@@ -66,18 +67,16 @@ impl<'env> AstInner<'env> {
 
 impl<'env> Ast<'env> {
 	pub fn new(func: &'env Function, args: Box<[Value<'env>]>) -> Self {
-		use std::mem::{self, ManuallyDrop};
-
 		assert_eq!(func.arity(), args.len());
 
 		let mut builder = Self::alloc(func);
 
 		// copy over the arguments, and then build it.
 		unsafe {
-			let mut args = mem::ManuallyDrop::new(args);
+			let mut args = ManuallyDrop::new(args);
 			std::ptr::copy_nonoverlapping(args.as_mut_ptr(), builder.args_ptr(), mem::size_of::<Value>() * func.arity());
 
-			Self(ManuallyDrop::new(builder).inner as *const AstInner<'env>)
+			Self(NonNull::new_unchecked(ManuallyDrop::new(builder).inner as *mut AstInner<'env>))
 		}
 	}
 
@@ -87,12 +86,12 @@ impl<'env> Ast<'env> {
 
 	fn inner(&self) -> &AstInner<'env> {
 		unsafe {
-			&*self.0
+			&*self.0.as_ptr()
 		}
 	}
 
 	fn into_raw(self) -> *const () {
-		std::mem::ManuallyDrop::new(self).0 as _
+		ManuallyDrop::new(self).0.as_ptr() as _
 	}
 
 	pub(crate) unsafe fn drop_in_place(ptr: *mut ()) {
@@ -115,7 +114,7 @@ impl<'env> Ast<'env> {
 
 	pub fn args(&self) -> &[Value<'env>] {
 		unsafe {
-			std::slice::from_raw_parts((*self.0).args_ptr(), self.func().arity())
+			std::slice::from_raw_parts((*self.0.as_ptr()).args_ptr(), self.func().arity())
 		}
 	}
 }
@@ -136,7 +135,7 @@ impl<'env> Borrow<Ast<'env>> for AstRef<'_, 'env> {
 		// `Ast` is a transparent pointer to `AstInner` whereas `AstRef` is a transparent
 		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
 		unsafe {
-			std::mem::transmute::<&AstRef<'_, 'env>, &Ast<'env>>(self)
+			mem::transmute::<&AstRef<'_, 'env>, &Ast<'env>>(self)
 		}
 	}
 }
@@ -149,7 +148,7 @@ impl<'env> Deref for AstRef<'_, 'env> {
 		// `Ast` is a transparent pointer to `AstInner` whereas `AstRef` is a transparent
 		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
 		unsafe {
-			std::mem::transmute::<&AstRef<'_, 'env>, &Ast<'env>>(self)
+			mem::transmute::<&AstRef<'_, 'env>, &Ast<'env>>(self)
 		}
 	}
 }
@@ -165,7 +164,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Ast<'env> {
 		debug_assert!(Self::is_value_a(value));
 
 		// std::ptr::drop_in_place(self.0 as *mut AstInner);
-		AstRef(&*(value.ptr() as *const AstInner))
+		AstRef(&*value.ptr::<AstInner>().as_ptr())
 	}
 }
 
@@ -222,6 +221,6 @@ impl<'env> AstBuilder<'env> {
 	pub unsafe fn build(self) -> Ast<'env> {
 		debug_assert_eq!(self.next_insert_location, self.arity());
 
-		Ast(std::mem::ManuallyDrop::new(self).inner as *const AstInner<'env>)
+		Ast(NonNull::new_unchecked(ManuallyDrop::new(self).inner as *mut AstInner<'env>))
 	}
 }

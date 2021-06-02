@@ -85,7 +85,7 @@ impl Drop for Value<'_> {
 			debug_assert_ne!(rc, 0);
 
 			if rc == 1 {
-				drop_inner(self.ptr() as _, self.tag())
+				drop_inner(self.ptr::<()>().as_ptr(), self.tag())
 			}
 		}
 	}
@@ -189,8 +189,13 @@ impl<'env> Value<'env> {
 		self.0 & !(MASK as u64)
 	}
 
-	pub(crate) const fn ptr(&self) -> *const () {
-		self.unmask() as _
+	pub(crate) fn ptr<T>(&self) -> std::ptr::NonNull<T> {
+		let ptr = self.unmask() as *mut T;
+		debug_assert!(!ptr.is_null());
+
+		unsafe {
+			std::ptr::NonNull::new_unchecked(ptr)
+		}
 	}
 
 	#[inline]
@@ -210,11 +215,6 @@ impl<'env> Value<'env> {
 		(self.tag() as u64) <= 1
 	}
 
-	// checks to see if self is a literal _and_ falsey
-	pub(crate) fn is_falsey_literal(&self) -> bool {
-		self.raw() <= Self::NULL.raw()
-	}
-
 	// SAFETY: must be a constant or a number.
 	#[inline]
 	unsafe fn copy(&self) -> Self {
@@ -224,7 +224,7 @@ impl<'env> Value<'env> {
 	unsafe fn refcount(&self) -> &AtomicUsize {
 		debug_assert!(!self.is_copy());
 
-		&*(self.ptr() as *const AtomicUsize)
+		&*self.ptr::<AtomicUsize>().as_ptr()
 	}
 
 	pub fn typename(&self) -> &'static str {

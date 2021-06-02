@@ -1,13 +1,14 @@
 use std::fmt::{self, Debug, Formatter};
 use crate::value::{Value, Tag, ValueKind, Runnable};
 use std::cell::RefCell;
+use std::ptr::NonNull;
 
 /// A Variable within Knight, which can be used to store values.
 ///
 /// Variables are considered the same if they're identical.
 #[derive(Clone, Copy, PartialEq, Eq)] // you can copy variables as theyre just references. The environment drops the `VariableInner` for us.
 #[repr(transparent)]
-pub struct Variable<'env>(*const VariableInner<'env>);
+pub struct Variable<'env>(NonNull<VariableInner<'env>>);
 
 struct VariableInner<'env> {
 	name: Box<str>,
@@ -33,21 +34,23 @@ impl<'env> Variable<'env> {
 	pub(crate) fn new(name: Box<str>) -> Self {
 		let inner = Box::new(VariableInner { name, value: RefCell::new(None) });
 
-		Self(Box::leak(inner) as *const VariableInner<'env>)
+		Self(unsafe { NonNull::new_unchecked(Box::leak(inner)) })
 	}
 
 	fn into_raw(self) -> *const () {
-		self.0 as _
+		self.0.as_ptr() as _
 	}
 
 	// SAFETY: `raw` must have been returned from `into_raw`
 	#[allow(unused)]
 	unsafe fn from_raw(raw: *const ()) -> Self {
-		Self(raw as *const VariableInner<'env>)
+		debug_assert!(!raw.is_null());
+
+		Self(NonNull::new_unchecked(raw as *mut VariableInner<'env>))
 	}
 
 	fn inner(self) -> &'env VariableInner<'env> {
-		unsafe { &*self.0 }
+		unsafe { &*self.0.as_ptr() }
 	}
 
 	/// Gets the name associated with this variable.
@@ -66,7 +69,7 @@ impl<'env> Variable<'env> {
 	}
 
 	pub(crate) unsafe fn drop_in_place(self) {
-		(self.0 as *mut VariableInner<'env>).drop_in_place();
+		(self.0.as_ptr() as *mut VariableInner<'env>).drop_in_place();
 	}
 }
 
@@ -79,7 +82,7 @@ impl<'env> From<Variable<'env>> for Value<'env> {
 }
 
 unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Variable<'env> {
-	type Ref = Variable<'env>;
+	type Ref = Self;
 
 	fn is_value_a(value: &Value<'env>) -> bool {
 		value.tag() == Tag::Variable
@@ -88,7 +91,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Variable<'env> {
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
-		Self(&*(value.ptr() as *const VariableInner<'env>))
+		Self(value.ptr::<VariableInner>())
 	}
 }
 

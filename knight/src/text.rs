@@ -1,5 +1,5 @@
 use crate::{Value, Boolean, Number};
-use crate::ops::{Runnable, ToText, Infallible};
+use crate::ops::{Runnable, /*ToText, Infallible*/};
 use crate::value::{Tag, ValueKind};
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -8,10 +8,12 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::convert::TryFrom;
 use std::ops::Deref;
 use std::error::Error;
+use std::ptr::NonNull;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Text(*const TextInner);
+pub struct Text(NonNull<TextInner>);
 
+#[repr(C, align(8))]
 struct TextInner {
 	rc: AtomicUsize,
 	data: Cow<'static, str>,
@@ -39,7 +41,7 @@ impl Drop for Text {
 
 		if rc == 1 {
 			unsafe {
-				Self::drop_in_place(self.0 as *mut ());
+				Self::drop_in_place(self.0.as_ptr() as *mut ());
 			}
 		}
 	}
@@ -54,7 +56,7 @@ impl Default for Text {
 				alloc: false
 			};
 
-		Self(&EMPTY as *const _)
+		Self(NonNull::from(&EMPTY))
 	}
 }
 
@@ -79,20 +81,22 @@ impl Text {
 	}
 
 	pub unsafe fn new_unchecked(data: Cow<'static, str>) -> Self {
-		Self(Box::into_raw(Box::new(TextInner {
+		let inner = TextInner {
 			rc: AtomicUsize::new(1),
 			data,
 			alloc: true
-		})))
+		};
+
+		Self(NonNull::new_unchecked(Box::into_raw(Box::new(inner))))
 	}
 
 	fn inner(&self) -> &TextInner {
-		unsafe { &*self.0 }
+		unsafe { &*self.0.as_ptr() }
 	}
 
 	pub fn as_str(&self) -> &str {
 		unsafe {
-			(*self.0).data.as_ref()
+			(*self.0.as_ptr()).data.as_ref()
 		}
 	}
 
@@ -113,11 +117,11 @@ impl Text {
 	}
 
 	fn into_raw(self) -> *mut () {
-		std::mem::ManuallyDrop::new(self).0 as _
+		std::mem::ManuallyDrop::new(self).0.as_ptr() as _
 	}
 
 	pub fn as_ref(&self) -> TextRef<'_> {
-		TextRef(unsafe { &*self.0 })
+		TextRef(self.inner())
 	}
 }
 
@@ -139,7 +143,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value));
 
-		TextRef(&*(value.ptr() as *const TextInner))
+		TextRef(&*value.ptr::<TextInner>().as_ptr())
 	}
 }
 
