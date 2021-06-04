@@ -1,7 +1,7 @@
 use super::{Text, TextInner, InvalidSourceByte};
 use std::borrow::{Borrow, Cow};
 
-#[repr(C, align(8))]
+#[repr(transparent)]
 pub struct TextStatic(TextInner);
 
 impl TextStatic {

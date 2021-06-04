@@ -2,7 +2,7 @@
 
 use crate::{Value, Boolean, Text};
 use crate::value::{SHIFT, Tag, ValueKind};
-use crate::ops::{Runnable, ToText, TryAdd, TrySub, TryMul, TryDiv, TryRem, TryPow, TryNeg, Infallible};
+use crate::ops::{Idempotent, ToText, TryAdd, TrySub, TryMul, TryDiv, TryRem, TryPow, TryNeg, Infallible};
 use std::fmt::{self, Display, Formatter};
 use std::num::TryFromIntError;
 use std::convert::TryFrom;
@@ -98,6 +98,7 @@ impl Number {
 	/// assert_eq!(Number::new(i64::MAX), None);
 	/// assert_eq!(Number::new(i64::MIN), None);
 	/// ```
+	#[must_use="Simply creating a Number does nothing."]
 	pub const fn new(num: i64) -> Option<Self> {
 		// can't use a range, as that's not const.
 		if Self::MIN.0 <= num && num <= Self::MAX.0 {
@@ -119,6 +120,7 @@ impl Number {
 	/// assert_eq!(unsafe { Number::new_unchecked(-456) }.get(), -456);
 	/// ```
 	#[inline]
+	#[must_use="Simply creating a Number does nothing."]
 	pub const unsafe fn new_unchecked(num: i64) -> Self {
 		debug_assert_const!(Number::new(num).is_some());
 
@@ -141,6 +143,7 @@ impl Number {
 	/// assert_eq!(Number::new_truncate(Number::MAX.get() + 1).get(), !Number::MAX.get());
 	/// ```
 	#[inline]
+	#[must_use="Simply creating a Number does nothing."]
 	pub const fn new_truncate(num: i64) -> Self {
 		#[cfg(feature = "strict-numbers")]
 		{ Self(num as i32 as i64) }
@@ -157,7 +160,7 @@ impl Number {
 	/// assert_eq!(Number::new(1234).unwrap().get(), 1234);
 	/// assert_eq!(Number::new(-56789).unwrap().get(), -56789);
 	/// ```
-	#[inline]
+	#[must_use="Fetching a Number's value does nothing on its own."]
 	pub const fn get(self) -> i64 {
 		self.0
 	}
@@ -170,21 +173,32 @@ impl Display for Number {
 }
 
 impl From<Number> for Value<'_> {
+	/// Converts the `number` to its corresponding [`Value`] representation.
+	///
+	/// # Examples
+	/// ```rust
+	/// # use knight_lang::{Value, Number};
+	/// let twelve = Number::new(12).unwrap();
+	/// let neg_four = Number::new(-4).unwrap();
+	///
+	/// assert_eq!(Value::from(twelve).downcast::<Number>(), Some(twelve));
+	/// assert_eq!(Value::from(neg_four).downcast::<Number>(), Some(neg_four));
+	/// ```
 	#[inline]
-	fn from(num: Number) -> Self {
+	fn from(number: Number) -> Self {
 		// SAFETY:
 		// - We shifted the number left, so we know the bottom `SHIFT` bits aren't set.
 		// - All numbers are valid discriminant for `Tag::Number`
 		unsafe {
-			Self::new_tagged((num.get() as u64) << SHIFT, Tag::Number)
+			Self::new_tagged((number.get() as u64) << SHIFT, Tag::Number)
 		}
 	}
 }
 
 // SAFETY: 
-// - `is_value_a` : only returns true when we're made with a `Tag::Number`. Assuming all other `ValueKind`s are
+// - `is_value_a` : Only returns true when we're made with a `Tag::Number`. Assuming all other `ValueKind`s are
 //   well-defined, then it will only ever return `true` when the value was constructed via `Number::into`
-// - `downcast_unchecked` :  when passed a valid `Number` value, will always recover the original one.
+// - `downcast_unchecked` :  When passed a valid `Number` value, will always recover the original one.
 unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 	type Ref = Self;
 
@@ -197,19 +211,13 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
 		debug_assert!(Self::is_value_a(value), "Number::downcast_unchecked ran with a bad value: {:#016x}", value.raw());
 
-		// SAFETY: The caller guarantees that this function was only called with a valid `Number` value, so it
-		// must be within range. (Additionally, shifting right by `SHIFT` makes it valid tautologically)
+		// SAFETY: The caller guarantees that `value` was returned by `Value::from(Number)` (or `Number::into()`)---as
+		// such, a valid number must have originally been used before shifting it.
 		Self::new_unchecked((value.raw() as i64) >> SHIFT)
 	}
 }
 
-impl<'env> Runnable<'env> for Number {
-	/// Runs the [`Number`] by simply converting it to a [`Value`].
-	#[inline]
-	fn run(&self, _: &'env crate::Environment) -> crate::Result<Value<'env>> {
-		Ok((*self).into())
-	}
-}
+impl Idempotent<'_> for Number {}
 
 impl From<Number> for Boolean {
 	/// Returns `false` for [`Number::ZERO`] and `true` for all other values.
@@ -232,6 +240,7 @@ impl ToText<'_> for Number {
 	type Error = Infallible;
 	type Output = Text;
 
+	// TODO: examples? tests?
 	#[inline]
 	fn to_text(&self) -> Result<Self::Output, Self::Error> {
 		// TODO: use some form of caching here.
@@ -287,7 +296,6 @@ macro_rules! impl_number_conversions {
 }
 
 impl_number_conversions!(i8, u8, i16, u16, i32, u32; i64, u64, i128, u128);
-
 
 /// Errors that can arise during math operations on a [`Number`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -595,5 +603,22 @@ impl TryPow for Number {
 				Ok(Self::new_truncate((base as f64).powf(exponent as f64) as i64))
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn value_from_number() {
+		let twelve = Number::new(12).unwrap();
+		let neg_four = Number::new(-4).unwrap();
+		
+		assert_eq!(Value::from(Number::ZERO).downcast::<Number>(), Some(Number::ZERO));
+		assert_eq!(Value::from(Number::ONE).downcast::<Number>(), Some(Number::ONE));
+		assert_eq!(Value::from(Number::NEG_ONE).downcast::<Number>(), Some(Number::NEG_ONE));
+		assert_eq!(Value::from(twelve).downcast::<Number>(), Some(twelve));
+		assert_eq!(Value::from(neg_four).downcast::<Number>(), Some(neg_four));
 	}
 }

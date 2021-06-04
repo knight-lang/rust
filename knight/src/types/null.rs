@@ -1,7 +1,7 @@
 use crate::{Value, Boolean, Number};
 use crate::value::{Tag, ValueKind, SHIFT};
 use std::fmt::{self, Display, Formatter};
-use crate::ops::{Runnable, ToText, Infallible};
+use crate::ops::{Idempotent, ToText, Infallible};
 use crate::types::text::TextStatic;
 
 /// The null type within Knight.
@@ -38,10 +38,15 @@ impl Value<'_> {
 	/// # use knight_lang::{Value, Null};
 	/// assert!(Value::NULL.is_a::<Null>());
 	/// ```
-	// note that (0<<SHIFT) is false and (2<<SHIFT) is true.
+	// SAFETY: definition of `NULL`; doesn't overlap with any other constants. (Note `0 << SHIFt` and `2 << SHIFT` are
+	// booleans.)
 	pub const NULL: Self = unsafe { Value::new_tagged(1 << SHIFT, Tag::Constant) };
 }
 
+// SAFETY: 
+// - `is_value_a` : Only returns true when we're `Value::NULL`, which is only created via `Value::from(Null)` (or the 
+//   associated constant, they're identical).
+// - `downcast_unchecked` : Wwhen passed a valid `Null` value, will always recover the original one.
 unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Null {
 	type Ref = Self;
 
@@ -52,31 +57,14 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Null {
 
 	#[inline]
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
-		debug_assert!(Self::is_value_a(value));
+		debug_assert!(Self::is_value_a(value), "Null::downcast_unchecked ran with a bad value: {:#016x}", value.raw());
 		let _ = value;
 
 		Self
 	}
 }
 
-
-impl<'env> Runnable<'env> for Null {
-	/// Simply converts the [`Null`] to a [`Value`].
-	/// 
-	/// That is, [`run`](Self::run)ning null is idempotent.
-	///
-	/// # Examples
-	/// ```rust
-	/// # use knight_lang::{Environment, Value, Null, ops::Runnable};
-	/// let env = Environment::default();
-	///
-	/// assert!(Null.run(&env).unwrap().is_a::<Null>());
-	/// ```
-	#[inline]
-	fn run(&self, _env: &'env  crate::Environment) -> crate::Result<Value<'env>> {
-		Ok((*self).into())
-	}
-}
+impl Idempotent<'_> for Null {}
 
 impl From<Null> for Number {
 	/// Converting [`Null`] to a [`Number`] simply returns [zero](Number::ZERO).

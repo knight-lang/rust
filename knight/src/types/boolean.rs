@@ -1,5 +1,5 @@
 use crate::{Value, Number};
-use crate::ops::{Runnable, ToText, Infallible};
+use crate::ops::{Idempotent, ToText, Infallible};
 use crate::value::{SHIFT, ValueKind, Tag};
 use crate::types::text::TextStatic;
 
@@ -44,7 +44,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Boolean {
 
 	#[inline]
 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
-		debug_assert!(Self::is_value_a(value));
+		debug_assert!(Self::is_value_a(value), "Boolean::downcast_unchecked ran with a bad value: {:#016x}", value.raw());
 
 		value.raw() != Value::FALSE.raw()
 	}
@@ -58,7 +58,8 @@ impl Value<'_> {
 	/// # use knight_lang::{Value, Boolean};
 	/// assert_eq!(Value::FALSE.downcast::<Boolean>(), Some(false));
 	/// ```
-	pub const FALSE: Self = unsafe { Value::new_tagged(0, Tag::Constant) };
+	// SAFETY: definition of `FALSE`; doesn't overlap with any other constants. (Note `1 << SHIFT` is `NULL`)
+	pub const FALSE: Self = unsafe { Value::new_tagged(0 << SHIFT, Tag::Constant) };
 
 	/// A shorthand for `Value::from(true)`.
 	///
@@ -67,28 +68,11 @@ impl Value<'_> {
 	/// # use knight_lang::{Value, Boolean};
 	/// assert_eq!(Value::TRUE.downcast::<Boolean>(), Some(true));
 	/// ```
+	// SAFETY: definition of `TRUE`; doesn't overlap with any other constants. (Note `1 << SHIFT` is `NULL`)
 	pub const TRUE: Self = unsafe { Value::new_tagged(2 << SHIFT, Tag::Constant) };
-
 }
 
-impl<'env> Runnable<'env> for Boolean {
-	/// Simply converts the [`Boolean`] to a [`Value`].
-	/// 
-	/// That is, [`run`](Self::run)ning a boolean is idempotent.
-	///
-	/// # Examples
-	/// ```rust
-	/// # use knight_lang::{Environment, Value, Boolean, ops::Runnable};
-	/// let env = Environment::default();
-	///
-	/// assert_eq!(true.run(&env).unwrap().downcast::<Boolean>(), Some(true));
-	/// assert_eq!(false.run(&env).unwrap().downcast::<Boolean>(), Some(false));
-	/// ```
-	#[inline]
-	fn run(&self, _env: &'env crate::Environment) -> crate::Result<Value<'env>> {
-		Ok((*self).into())
-	}
-}
+impl Idempotent<'_> for Boolean {}
 
 impl From<Boolean> for Number {
 	/// Converts `false` to [zero](Number::ZERO) and `true` to [one](Number::ONE).

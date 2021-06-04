@@ -1,15 +1,16 @@
 use crate::{Value, Boolean, Number};
-use crate::ops::{Runnable, ToNumber, ToBoolean, ToText, Infallible};
+use crate::ops::{Idempotent, ToNumber, ToBoolean, ToText, Infallible};
 use crate::value::{Tag, ValueKind};
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::borrow::{Cow, Borrow};
+use std::borrow::Cow;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::ops::{Deref, Add, Mul};
 use std::ptr::NonNull;
 
 mod r#static;
+mod r#ref;
 pub use r#static::TextStatic;
+pub use r#ref::TextRef;
 
 #[repr(transparent)]
 pub struct Text(NonNull<TextInner>);
@@ -21,9 +22,7 @@ struct TextInner {
 	alloc: bool
 }
 
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct TextRef<'a>(&'a TextInner);
+const_assert!(std::mem::align_of::<TextInner>() >= (1 << crate::value::SHIFT));
 
 impl Clone for Text {
 	fn clone(&self) -> Self {
@@ -179,30 +178,7 @@ unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
 	}
 }
 
-impl<'env> Runnable<'env> for Text {
-	fn run(&self, _: &'env  crate::Environment) -> crate::Result<Value<'env>> {
-		Ok(self.clone().into())
-	}
-}
-
-impl Borrow<Text> for TextRef<'_> {
-	fn borrow(&self) -> &Text {
-		&self
-	}
-}
-
-impl Deref for TextRef<'_> {
-	type Target = Text;
-
-	fn deref(&self) -> &Self::Target {
-		// SAFETY:
-		// `Text` is a transparent pointer to `TextInner` whereas `TextRef` is a transparent
-		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
-		unsafe {
-			std::mem::transmute::<&TextRef<'_>, &Text>(self)
-		}
-	}
-}
+impl Idempotent<'_> for Text {}
 
 impl Display for Text {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -278,38 +254,5 @@ impl ToNumber for Text {
 		} else {
 			Ok(Number::new_truncate(if is_neg { num.wrapping_neg() } else { num }))
 		}
-	}
-}
-
-
-impl<T: AsRef<str>> Add<T> for TextRef<'_> {
-	type Output = Text;
-
-	fn add(self, rhs: T) -> Self::Output {
-		let rhs = rhs.as_ref();
-
-		if rhs.is_empty() {
-			return (*self).clone();
-		}
-
-		let mut result = String::with_capacity(self.len() + rhs.len());
-		result.push_str(self.as_str());
-		result.push_str(rhs);
-
-		Text::new(result.into()).unwrap()
-	}
-}
-
-impl Mul<usize> for TextRef<'_> {
-	type Output = Text;
-
-	fn mul(self, amnt: usize) -> Self::Output {
-		let mut result = String::with_capacity(self.len() * amnt);
-
-		for _ in 0..amnt {
-			result.push_str(self.as_str());
-		}
-
-		Text::new(result.into()).unwrap()
 	}
 }

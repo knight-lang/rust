@@ -12,12 +12,6 @@ pub struct Environment {
 	functions: Functions
 }
 
-impl Drop for Environment {
-	fn drop(&mut self) {
-		// todo!("drop vars")
-	}
-}
-
 impl Environment {
 	pub fn system(&self, cmd: &str) -> crate::Result<crate::Text> {
 		todo!("system {}", cmd)

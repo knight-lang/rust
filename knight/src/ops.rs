@@ -17,6 +17,17 @@ pub trait Runnable<'env> {
 	fn run(&self, env: &'env Environment) -> crate::Result<Value<'env>>;
 }
 
+/// A trait that represents the fact that nothing happens when a type is [run](Runnable::run).
+pub trait Idempotent<'env> : Clone + Into<Value<'env>> {}
+
+impl<'env, T: Idempotent<'env>> Runnable<'env> for T {
+	/// Simply clones `self` and converts it to a [`Value`].
+	#[inline]
+	fn run(&self, _env: &'env Environment) -> crate::Result<Value<'env>> {
+		Ok(self.clone().into())
+	}
+}
+
 pub trait ToBoolean {
 	type Error: Into<crate::Error>;
 
