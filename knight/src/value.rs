@@ -269,9 +269,9 @@ impl<'env> ToText<'_> for Value<'env> {
 		} else if let Some(number) = self.downcast::<Number>() {
 			Ok(number.to_text()?)
 		} else if let Some(boolean) = self.downcast::<Boolean>() {
-			Ok(boolean.to_text()?)
+			Ok((*boolean.to_text()?).as_text()) // TODO: not use a literal Text result.
 		} else if let Some(null) = self.downcast::<Null>() {
-			Ok(null.to_text()?)
+			Ok((*null.to_text()?).as_text()) // TODO: not use a literal Text result.
 		} else {
 			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 		}
@@ -458,10 +458,9 @@ impl TryOrd for Value<'_> {
 		}
 
 		// todo: how do we want to deal with `func` here?
-		Err(Error::InvalidArgument { func: 'C', kind: self.typename() })
+		Err(Error::InvalidArgument { func: 'c', kind: self.typename() })
 	}
 }
-
 
 #[cfg(test)]
 mod tests {

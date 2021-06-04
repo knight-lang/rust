@@ -9,6 +9,7 @@ edition = "2018"
 default=[]
 
 checked-overflow = []
+disallow-unicode = []
 strict-numbers = ["checked-overflow"]
 strict-compliance = []
 

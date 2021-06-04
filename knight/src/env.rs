@@ -3,10 +3,13 @@ use std::collections::HashSet;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
+use std::io::{self, Read, Write};
+use crate::parse::Functions;
 
 #[derive(Default)]
 pub struct Environment {
-	vars: RefCell<HashSet<VariableHash<'static>>> // actually 'self, as we know the pointer's always valid.
+	vars: RefCell<HashSet<VariableHash<'static>>>, // actually 'self, as we know the pointer's always valid.
+	functions: Functions
 }
 
 impl Drop for Environment {
@@ -16,6 +19,14 @@ impl Drop for Environment {
 }
 
 impl Environment {
+	pub fn system(&self, cmd: &str) -> crate::Result<crate::Text> {
+		todo!("system {}", cmd)
+	}
+
+	pub fn functions(&self) -> &Functions {
+		&self.functions
+	}
+
 	pub fn fetch_var<'env, N: ?Sized>(&'env  self, name: &N) -> Variable<'env>
 	where
 		N: Borrow<str> + ToString
@@ -70,5 +81,24 @@ impl PartialEq<str> for VariableHash<'_> {
 impl PartialEq for VariableHash<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
 		(self.0) == (rhs.0)
+	}
+}
+
+
+impl Read for Environment {
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		let _ = buf;
+		todo!();
+	}
+}
+
+impl Write for Environment {
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		let _ = buf;
+		todo!();
+	}
+
+	fn flush(&mut self) -> io::Result<()> {
+		todo!()
 	}
 }

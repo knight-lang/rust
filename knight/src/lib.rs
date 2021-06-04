@@ -7,9 +7,9 @@ extern crate cfg_if;
 
 // todo: use `NonNull`.
 
-macro_rules! likely {
-	($cond:expr) => (unlikely!($cond))
-}
+// macro_rules! likely {
+// 	($cond:expr) => (unlikely!($cond))
+// }
 
 macro_rules! unlikely {
 	() => (unlikely!(true));
@@ -41,28 +41,27 @@ macro_rules! debug_assert_eq_const {
 // 	});
 // }
 
-pub mod number;
+macro_rules! if_feature {
+	($feature:literal $if_true:block $(else $if_false:block)?) => {{
+		#[cfg(feature=$feature)]
+		$if_true
+
+		$(#[cfg(not(feature=$feature))]
+		$if_false)?
+	}}
+}
+
+pub mod types;
+pub use types::*;
+
 pub mod value;
-pub mod text;
-pub mod ast;
-pub mod variable;
-mod boolean;
 pub mod function;
-mod custom;
-mod null;
 pub mod env;
 mod error;
 pub mod ops;
-
-pub use null::Null;
-pub use value::Value;
-pub use boolean::Boolean;
-pub use custom::Custom;
-pub use text::Text;
+pub mod parse;
 pub use env::Environment;
-pub use variable::Variable;
-pub use ast::Ast;
 
-pub use number::Number;
+pub use value::Value;
 pub use error::{Error, Result};
 pub use function::Function;

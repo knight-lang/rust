@@ -182,9 +182,9 @@ impl From<Number> for Value<'_> {
 }
 
 // SAFETY: 
-// - `is_value_a` only returns true when we're made with a `Tag::Number`. Assuming all other `ValueKind`s are
+// - `is_value_a` : only returns true when we're made with a `Tag::Number`. Assuming all other `ValueKind`s are
 //   well-defined, then it will only ever return `true` when the value was constructed via `Number::into`
-// - `downcast_unchecked`, when passed a valid `Number` value, will always recover the original one.
+// - `downcast_unchecked` :  when passed a valid `Number` value, will always recover the original one.
 unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Number {
 	type Ref = Self;
 
@@ -324,7 +324,7 @@ impl TryNeg for Number {
 	/// Attempts to negate `self`.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (This is only
 	/// possible when negating [`Number::MIN`].)
 	///
@@ -357,7 +357,7 @@ impl TryAdd for Number {
 	/// Attempts to add `addend` to `self`, returning the sum.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is too large to fit within a [`Number`].
 	///
 	/// # Examples
@@ -391,7 +391,7 @@ impl TrySub for Number {
 	/// Attempts to subtract `subtrahend` from `self`, returning the difference.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is too small to fit within a [`Number`].
 	///
 	/// # Examples
@@ -425,7 +425,7 @@ impl TryMul for Number {
 	/// Attempts to multiply `self` by `multiplier`, returning their product.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
 	///
 	/// # Examples
@@ -461,7 +461,7 @@ impl TryDiv for Number {
 	/// # Errors
 	/// If `divisor` is zero, this will return a [`MathError::DivisionByZero`].
 	///
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (Note that this
 	/// will only happen if [`Number::MIN`] is divided by negative one.)
 	///
@@ -546,7 +546,7 @@ impl TryPow for Number {
 	/// # Errors
 	/// If `self` is zero and `exponent` is negative, this will return a [`MathError::DivisionByZero`].
 	///
-	/// Without the `checked-overflow` feature, this will [truncate](Number:new_truncate) the result. With the feature, a
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
 	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
 	///
 	/// # Examples

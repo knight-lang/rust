@@ -8,7 +8,9 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::{Deref, Add, Mul};
 use std::ptr::NonNull;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+mod r#static;
+pub use r#static::TextStatic;
+
 #[repr(transparent)]
 pub struct Text(NonNull<TextInner>);
 
@@ -49,14 +51,9 @@ impl Drop for Text {
 
 impl Default for Text {
 	fn default() -> Self {
-		static EMPTY: TextInner =
-			TextInner { 
-				rc: AtomicUsize::new(0),
-				data: Cow::Borrowed(""),
-				alloc: false
-			};
+		static EMPTY: TextStatic = unsafe { TextStatic::new_unchecked("") };
 
-		Self(NonNull::from(&EMPTY))
+		EMPTY.as_text()
 	}
 }
 
@@ -128,6 +125,35 @@ impl Text {
 impl AsRef<str> for Text {
 	fn as_ref(&self) -> &str {
 		self.as_str()
+	}
+}
+
+impl Eq for Text {}
+impl PartialEq for Text {
+	#[inline]
+	fn eq(&self, rhs: &Self) -> bool {
+		self.as_str() == rhs.as_str()
+	}
+}
+
+impl PartialEq<str> for Text {
+	#[inline]
+	fn eq(&self, rhs: &str) -> bool {
+		self.as_str() == rhs
+	}
+}
+
+impl PartialOrd for Text {
+	#[inline]
+	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(rhs))
+	}
+}
+
+impl Ord for Text {
+	#[inline]
+	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+		self.as_str().cmp(rhs.as_str())
 	}
 }
 
@@ -287,5 +313,3 @@ impl Mul<usize> for TextRef<'_> {
 		Text::new(result.into()).unwrap()
 	}
 }
-
-

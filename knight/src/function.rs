@@ -135,9 +135,9 @@ pub static CALL: Function = static_function!('C', 1, |[block], env| {
 });
 
 pub static SYSTEM: Function = static_function!('`', 1, |[command], env| {
-	let text = command.run(env)?.to_text()?;
-	let _ = text;
-	todo!();
+	let command = command.run(env)?.to_text()?;
+
+	Ok(env.system(command.as_str())?.into())
 });
 
 pub static QUIT: Function = static_function!('Q', 1, |[code], env| {
@@ -218,14 +218,24 @@ pub static LTH: Function = static_function!('<', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
-	Ok((lhs.try_cmp(&rhs)? == std::cmp::Ordering::Less).into())
+	match lhs.try_cmp(&rhs) {
+		Err(Error::InvalidArgument { kind, func: 'c' }) => Err(Error::InvalidArgument { kind, func: '<' }),
+		Err(other) => Err(other),
+		Ok(std::cmp::Ordering::Less) => Ok(Value::TRUE),
+		Ok(_)  => Ok(Value::FALSE)
+	}
 });
 
 pub static GTH: Function = static_function!('>', 2, |[lhs, rhs], env| {
 	let lhs = lhs.run(env)?;
 	let rhs = rhs.run(env)?;
 
-	Ok((lhs.try_cmp(&rhs)? == std::cmp::Ordering::Greater).into())
+	match lhs.try_cmp(&rhs) {
+		Err(Error::InvalidArgument { kind, func: 'c' }) => Err(Error::InvalidArgument { kind, func: '>' }),
+		Err(other) => Err(other),
+		Ok(std::cmp::Ordering::Greater) => Ok(Value::TRUE),
+		Ok(_)  => Ok(Value::FALSE)
+	}
 });
 
 pub static EQL: Function = static_function!('?', 2, |[lhs, rhs], env| {
