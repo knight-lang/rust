@@ -101,7 +101,7 @@ impl Number {
 	#[must_use="Simply creating a Number does nothing."]
 	pub const fn new(num: i64) -> Option<Self> {
 		// can't use a range, as that's not const.
-		if Self::MIN.0 <= num && num <= Self::MAX.0 {
+		if likely!(Self::MIN.0 <= num && num <= Self::MAX.0) {
 			Some(Self(num))
 		} else {
 			None
@@ -145,11 +145,13 @@ impl Number {
 	#[inline]
 	#[must_use="Simply creating a Number does nothing."]
 	pub const fn new_truncate(num: i64) -> Self {
-		#[cfg(feature = "strict-numbers")]
-		{ Self(num as i32 as i64) }
+		Self(
+			#[cfg(feature = "strict-numbers")]
+			{ num as i32 as i64 },
 
-		#[cfg(not(feature = "strict-numbers"))]
-		{ Self((num << SHIFT) >> SHIFT) }
+			#[cfg(not(feature = "strict-numbers"))]
+			{ (num << SHIFT) >> SHIFT }
+		)
 	}
 
 	/// Fetches the number that `self` internally stores.
@@ -252,6 +254,7 @@ macro_rules! impl_number_conversions {
 	($($smaller:ty),*; $($larger:ty),*) => {
 		$(
 			impl From<$smaller> for Number {
+				#[inline]
 				fn from(num: $smaller) -> Self {
 					// SAFETY: `num` is always within range.
 					unsafe {
@@ -263,6 +266,7 @@ macro_rules! impl_number_conversions {
 			impl TryFrom<Number> for $smaller {
 				type Error = TryFromIntError;
 
+				#[inline]
 				fn try_from(num: Number) -> Result<Self, TryFromIntError> {
 					Self::try_from(num.get())
 				}
@@ -273,12 +277,14 @@ macro_rules! impl_number_conversions {
 			impl TryFrom<$larger> for Number {
 				type Error = TryFromIntError;
 
+				#[inline]
 				fn try_from(num: $larger) -> Result<Self, TryFromIntError> {
 					i64::try_from(num)
 						.ok()
 						.and_then(Number::new)
 						.ok_or_else(||
 							match i8::try_from(-1234i32) {
+								// SAFETY: literally impossible for this to be true.
 								Ok(_) => unsafe { std::hint::unreachable_unchecked() },
 								Err(err) => err
 							}
@@ -287,6 +293,7 @@ macro_rules! impl_number_conversions {
 			}
 
 			impl From<Number> for $larger {
+				#[inline]
 				fn from(num: Number) -> Self {
 					num.get() as Self
 				}
@@ -332,8 +339,8 @@ impl TryNeg for Number {
 	/// Attempts to negate `self`.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (This is only
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (This is only
 	/// possible when negating [`Number::MIN`].)
 	///
 	/// # Examples
@@ -346,14 +353,12 @@ impl TryNeg for Number {
 	fn try_neg(self) -> Result<Self::Output, Self::Error> {
 		let number = self.get();
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				number.checked_neg()
-					.and_then(Self::new)
-					.ok_or(MathError::Overflow) 
-			} else {
-				Ok(Self::new_truncate(number.wrapping_neg()))
-			}
+		if cfg!(feature="checked-overflow") {
+			number.checked_neg()
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow)
+		} else {
+			Ok(Self::new_truncate(number.wrapping_neg()))
 		}
 	}
 }
@@ -365,8 +370,8 @@ impl TryAdd for Number {
 	/// Attempts to add `addend` to `self`, returning the sum.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is too large to fit within a [`Number`].
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is too large to fit within a [`Number`].
 	///
 	/// # Examples
 	/// ```rust
@@ -380,14 +385,12 @@ impl TryAdd for Number {
 		let augend = self.get();
 		let addend = addend.get();
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				augend.checked_add(addend)
-					.and_then(Self::new)
-					.ok_or(MathError::Overflow) 
-			} else {
-				Ok(Self::new_truncate(augend.wrapping_add(addend)))
-			}
+		if cfg!(feature="checked-overflow") {
+			augend.checked_add(addend)
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow) 
+		} else {
+			Ok(Self::new_truncate(augend.wrapping_add(addend)))
 		}
 	}
 }
@@ -399,8 +402,8 @@ impl TrySub for Number {
 	/// Attempts to subtract `subtrahend` from `self`, returning the difference.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is too small to fit within a [`Number`].
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is too small to fit within a [`Number`].
 	///
 	/// # Examples
 	/// ```rust
@@ -414,14 +417,12 @@ impl TrySub for Number {
 		let minuend = self.get();
 		let subtrahend = subtrahend.get();
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				minuend.checked_sub(subtrahend)
-					.and_then(Self::new)
-					.ok_or(MathError::Overflow) 
-			} else {
-				Ok(Self::new_truncate(minuend.wrapping_sub(subtrahend)))
-			}
+		if cfg!(feature="checked-overflow") {
+			minuend.checked_sub(subtrahend)
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow) 
+		} else {
+			Ok(Self::new_truncate(minuend.wrapping_sub(subtrahend)))
 		}
 	}
 }
@@ -433,8 +434,8 @@ impl TryMul for Number {
 	/// Attempts to multiply `self` by `multiplier`, returning their product.
 	///
 	/// # Errors
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
 	///
 	/// # Examples
 	/// ```rust
@@ -448,14 +449,12 @@ impl TryMul for Number {
 		let multiplicand = self.get();
 		let multiplier = multiplier.get();
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				multiplicand.checked_mul(multiplier)
-					.and_then(Self::new)
-					.ok_or(MathError::Overflow) 
-			} else {
-				Ok(Self::new_truncate(multiplicand.wrapping_mul(multiplier)))
-			}
+		if cfg!(feature="checked-overflow") {
+			multiplicand.checked_mul(multiplier)
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow) 
+		} else {
+			Ok(Self::new_truncate(multiplicand.wrapping_mul(multiplier)))
 		}
 	}
 }
@@ -469,8 +468,8 @@ impl TryDiv for Number {
 	/// # Errors
 	/// If `divisor` is zero, this will return a [`MathError::DivisionByZero`].
 	///
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (Note that this
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`]. (Note that this
 	/// will only happen if [`Number::MIN`] is divided by negative one.)
 	///
 	/// # Examples
@@ -488,18 +487,16 @@ impl TryDiv for Number {
 		let dividend = self.get();
 		let divisor = divisor.get();
 
-		if divisor == 0 {
+		if unlikely!(divisor == 0) {
 			return Err(MathError::DivisionByZero);
 		}
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				dividend.checked_div(divisor)
-					.and_then(Self::new)
-					.ok_or(MathError::Overflow) 
-			} else {
-				Ok(Self::new_truncate(dividend.wrapping_div(divisor)))
-			}
+		if cfg!(feature="checked-overflow") {
+			dividend.checked_div(divisor)
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow) 
+		} else {
+			Ok(Self::new_truncate(dividend.wrapping_div(divisor)))
 		}
 	}
 }
@@ -534,9 +531,9 @@ impl TryRem for Number {
 		let dividend = self.get();
 		let divisor = divisor.get();
 
-		if divisor == 0 {
+		if unlikely!(divisor == 0) {
 			return Err(MathError::DivisionByZero);
-		} else if dividend < 0 || divisor < 0 {
+		} else if unlikely!(dividend < 0 || divisor < 0) {
 			return Err(MathError::NegativeModulo);
 		}
 
@@ -554,8 +551,8 @@ impl TryPow for Number {
 	/// # Errors
 	/// If `self` is zero and `exponent` is negative, this will return a [`MathError::DivisionByZero`].
 	///
-	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature, a
-	/// [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
+	/// Without the `checked-overflow` feature, this will [truncate](Number::new_truncate) the result. With the feature,
+	/// a [`MathError::Overflow`] will be returned if the result is unable to fit within a [`Number`].
 	///
 	/// # Examples
 	/// ```rust
@@ -571,37 +568,37 @@ impl TryPow for Number {
 		let base = self.get();
 		let exponent = exponent.get();
 
-		if base == 0 && exponent < 0 {
+		if unlikely!(base == 0 && exponent < 0) {
 			return Err(MathError::DivisionByZero);
-		} else if base == 1 {
+		} else if unlikely!(base == 1) {
 			return Ok(Self::ONE);
 		}
 
-		cfg_if! {
-			if #[cfg(feature="checked-overflow")] {
-				// if we're able to use the builtlin `checked_pow`, use that.
-				if let Ok(exponent) = u32::try_from(exponent) {
-					base.checked_pow(exponent)
-						.and_then(Self::new)
-						.ok_or(MathError::Overflow) 
-				} else if exponent < 0 {
-					// if the exponent is negative, then the result is 0 for all non-`-1` numbers (we handled `1` above).
-					if base != -1 {
-						Ok(Self::ZERO)
-					} else if exponent & 1 == 1 {
-						Ok(Self::NEG_ONE)
-					} else {
-						Ok(Self::ONE)
-					}
-				} else {
-					debug_assert!(exponent > (u32::MAX as i64));
-					Err(MathError::Overflow)
-				}
+		if !cfg!(feature="checked-overflow") {
+			// For all 32-bit numbers where the result of `x^y` is a 32-bit number, converting them to a `f64` and
+			// exponentiating them via `f64::powf` will always be valid. As such, it's faster than doing it with `i64`s.
+			return Ok(Self::new_truncate((base as f64).powf(exponent as f64) as i64));
+		}
+
+
+		// if we're able to use the builtlin `checked_pow`, use that.
+		if let Ok(exponent) = u32::try_from(exponent) {
+			base.checked_pow(exponent)
+				.and_then(Self::new)
+				.ok_or(MathError::Overflow) 
+		} else if exponent < 0 {
+			// if the exponent is negative, then the result is 0 for all non-`-1` numbers (we handled `1` above).
+			if base != -1 {
+				Ok(Self::ZERO)
+			} else if exponent & 1 == 1 {
+				Ok(Self::NEG_ONE)
 			} else {
-				// For all 32-bit numbers where the result of `x^y` is a 32-bit number, converting them to a `f64` and
-				// exponentiating them via `f64::powf` will always be valid. As such, it's faster than doing it with `i64`s.
-				Ok(Self::new_truncate((base as f64).powf(exponent as f64) as i64))
+				Ok(Self::ONE)
 			}
+		} else {
+			debug_assert!(exponent > (u32::MAX as i64));
+
+			Err(MathError::Overflow)
 		}
 	}
 }

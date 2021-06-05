@@ -1,4 +1,4 @@
-use super::{ParseError, ParseErrorKind};
+use super::{Character, ParseError, ParseErrorKind};
 
 #[derive(Debug)]
 pub struct Stream<'a> {
@@ -21,7 +21,7 @@ impl<'a> Stream<'a> {
 }
 
 impl Iterator for Stream<'_> {
-	type Item = char;
+	type Item = Character;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		todo!()

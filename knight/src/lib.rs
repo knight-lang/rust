@@ -7,15 +7,15 @@ extern crate cfg_if;
 
 // todo: use `NonNull`.
 
-// macro_rules! likely {
-// 	($cond:expr) => (unlikely!($cond))
-// }
+macro_rules! likely {
+	($cond:expr) => (unlikely!($cond))
+}
 
 macro_rules! unlikely {
 	() => (unlikely!(true));
 	($cond:expr) => ({
 		#[cold]
-		fn unlikely(){}
+		const fn unlikely(){}
 
 		let cond = $cond;
 		if cond { unlikely() }
@@ -40,6 +40,17 @@ macro_rules! debug_assert_eq_const {
 // 		#[cfg(debug_assertions)] let _: () = [()][($lhs == $rhs) as bool as usize];
 // 	});
 // }
+/*
+macro_rules! error {
+	($($tt:tt)+) => {{
+		#[cfg(feature="panic-on-error")]
+		{ panic!("{}", $($tt)+) }
+
+		#[cfg(not(feature="panic-on-error"))]
+		{ Err($($tt)+) }
+	}}
+}
+*/
 
 macro_rules! if_feature {
 	($feature:literal $if_true:block $(else $if_false:block)?) => {{

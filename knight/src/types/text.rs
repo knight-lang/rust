@@ -12,8 +12,15 @@ mod r#ref;
 pub use r#static::TextStatic;
 pub use r#ref::TextRef;
 
+/// The text type within Knight.
+///
+/// According to the specs, implementations are only required to accept a limited subset of ASCII. However, since Rust
+/// only  TODO
 #[repr(transparent)]
 pub struct Text(NonNull<TextInner>);
+// todo: rename `Text` to `TextOwned` or something and make `TextRef` into `Text`---ie have `TextRef` be equiv to `str`,
+// and have all functions take it.
+
 
 #[repr(C, align(8))]
 struct TextInner {
@@ -25,15 +32,17 @@ struct TextInner {
 const_assert!(std::mem::align_of::<TextInner>() >= (1 << crate::value::SHIFT));
 
 impl Clone for Text {
+	#[inline]
 	fn clone(&self) -> Self {
 		self.inner().rc.fetch_add(1, Ordering::Relaxed);
+
 		Self(self.0)
 	}
 }
 
 impl Drop for Text {
 	fn drop(&mut self) {
-		if !self.inner().alloc {
+		if unlikely!(!self.inner().alloc) {
 			return; // we just ignore unallocated things.
 		}
 

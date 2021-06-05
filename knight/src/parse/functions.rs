@@ -1,20 +1,14 @@
-use crate::Value;
-use super::{Parser, ParseResult};
+use super::{TokenizeFn, Character};
 use std::fmt::{self, Debug, Formatter};
 
 cfg_if! {
 	if #[cfg(feature="disallow-unicode")] {
-		pub type Prefix = u8;
-		type ParseMap = [Option<ParseFn>; Prefix::MAX as usize];
+		type ParseMap = [Option<TokenizeFn>; Character::MAX as usize + 1];
 	} else {
 		use std::collections::HashMap;
-
-		pub type Prefix = char;
-		type ParseMap = HashMap<Prefix, ParseFn>;
+		type ParseMap = HashMap<Character, TokenizeFn>;
 	}
 }
-
-pub type ParseFn = for<'env> fn(Prefix, &mut Parser<'env, '_>) -> ParseResult<Value<'env>>;
 
 pub struct Functions(ParseMap);
 
@@ -48,24 +42,29 @@ impl Debug for Functions {
 impl Default for Functions {
 	fn default() -> Self {
 		// todo: actual default
-		Self(Default::default())
+		Self::empty()
 	}
 }
 
 impl Functions {
 	pub fn empty() -> Self {
-		Self(Default::default())
+		Self(
+			#[cfg(feature="disallow-unicode")]
+			{ [None; Character::MAX as usize + 1] },
+			#[cfg(not(feature="disallow-unicode"))]
+			{ Default::default() }
+		)
 	}
 
-	pub fn register_parser(&mut self, prefix: Prefix, parsefn: ParseFn) {
+	pub fn register_parser(&mut self, prefix: Character, parsefn: TokenizeFn) {
 		if_feature!("disallow-unicode" {
-			self.0[prefix] = Some(parsefn);
+			self.0[prefix as usize] = Some(parsefn);
 		} else {
 			self.0.insert(prefix, parsefn);
 		});
 	}
 
-	// pub fn register_function(&mut self, prefix: Prefix, function: Function) {
+	// pub fn register_function(&mut self, prefix: Character, function: Function) {
 	// 	self.register_parser(|)
 	// 	if_feature!("disallow-unicode" {
 	// 		self.0[prefix] = Some(parsefn);
@@ -74,9 +73,9 @@ impl Functions {
 	// 	});
 	// }
 
-	pub fn get(&self, prefix: Prefix) -> Option<ParseFn> {
+	pub fn get(&self, prefix: Character) -> Option<TokenizeFn> {
 		if_feature!("disallow-unicode" {
-			self.0[prefix]
+			self.0[prefix as usize]
 		} else {
 			self.0.get(&prefix).cloned()
 		})

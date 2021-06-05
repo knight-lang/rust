@@ -6,8 +6,9 @@ edition = "2018"
 
 
 [features]
-default=[]
+default=["disallow-unicode"]
 
+panic-on-error = []
 checked-overflow = []
 disallow-unicode = []
 strict-numbers = ["checked-overflow"]
