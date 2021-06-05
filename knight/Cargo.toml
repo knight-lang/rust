@@ -18,3 +18,4 @@ strict-compliance = []
 static_assertions = "1.1"
 try-traits = "0.1.1"
 cfg-if = "1.0"
+bitflags = "1.2"

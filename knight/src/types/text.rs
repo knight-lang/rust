@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::{Value, Boolean, Number};
 use crate::ops::{Idempotent, ToNumber, ToBoolean, ToText, Infallible};
 use crate::value::{Tag, ValueKind};
@@ -9,8 +10,27 @@ use std::ptr::NonNull;
 
 mod r#static;
 mod r#ref;
+mod owned;
+mod inner;
+mod builder;
+// use inner::TextInner;
 pub use r#static::TextStatic;
 pub use r#ref::TextRef;
+pub use owned::TextOwned;
+pub use builder::TextBuilder;
+
+
+
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InvalidSourceByte {
+
+}
+
+pub fn validate_text(text: &str) -> Result<(), InvalidSourceByte> {
+	// todo
+	Ok(())
+}
 
 /// The text type within Knight.
 ///
@@ -20,16 +40,12 @@ pub use r#ref::TextRef;
 pub struct Text(NonNull<TextInner>);
 // todo: rename `Text` to `TextOwned` or something and make `TextRef` into `Text`---ie have `TextRef` be equiv to `str`,
 // and have all functions take it.
-
-
 #[repr(C, align(8))]
 struct TextInner {
 	rc: AtomicUsize,
 	data: Cow<'static, str>,
 	alloc: bool
 }
-
-const_assert!(std::mem::align_of::<TextInner>() >= (1 << crate::value::SHIFT));
 
 impl Clone for Text {
 	#[inline]
@@ -69,12 +85,6 @@ impl Debug for Text {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_tuple("Text").field(&self.as_str()).finish()
 	}
-}
-
-
-#[derive(Debug)]
-pub struct InvalidSourceByte {
-
 }
 
 impl Text {
