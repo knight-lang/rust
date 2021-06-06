@@ -256,14 +256,19 @@ impl<'env> ToNumber for Value<'env> {
 
 	fn to_number(&self) -> crate::Result<Number> {
 		if let Some(number) = self.downcast::<Number>() {
-			Ok(number)
-		} else if let Some(textref) = self.downcast::<Text>() {
-			Ok(textref.to_number()?)
-		} else if self.is_literal() {
-			Ok(if self.raw() == Self::TRUE.raw() { Number::ONE } else { Number::ZERO })
-		} else {
-			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
+			return Ok(number);
 		}
+
+		if let Some(textref) = self.downcast::<Text>() {
+			return Ok(textref.to_number()?);
+		}
+
+		if self.is_literal() {
+			return Ok(if self.raw() == Self::TRUE.raw() { Number::ONE } else { Number::ZERO });
+		}
+
+		unlikely!();
+		Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 	}
 }
 
@@ -273,18 +278,23 @@ impl<'env> ToText<'_> for Value<'env> {
 
 	fn to_text(&self) -> crate::Result<Self::Output> {
 		if let Some(text) = self.downcast::<Text>() {
-			Ok((*text).clone())
-		} else if let Some(number) = self.downcast::<Number>() {
-			Ok(number.to_text()?)
-		} else if let Some(boolean) = self.downcast::<Boolean>() {
-			// Ok((*boolean.to_text()?).a.borrow()) // TODO: not use a literal Text result.
-			let _=boolean;todo!();
-		} else if let Some(null) = self.downcast::<Null>() {
-			// Ok((*null.to_text()?).a.borrow()) // TODO: not use a literal Text result.
-			let _=null;todo!();
-		} else {
-			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
+			return Ok((*text).clone());
 		}
+
+		if let Some(number) = self.downcast::<Number>() {
+			return Ok(number.to_text()?);
+		}
+
+		if let Some(boolean) = self.downcast::<Boolean>() {
+			return Ok(boolean.to_text()?.as_ref().clone()); // TODO: not use a literal Text result.
+		}
+
+		if let Some(null) = self.downcast::<Null>() {
+			return Ok(null.to_text()?.as_ref().clone()); // TODO: not use a literal Text result.
+		}
+
+		unlikely!();
+		Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 	}
 }
 
@@ -299,7 +309,7 @@ impl<'env> ToBoolean for Value<'env> {
 				is_true,
 				self.raw() == Self::NULL.raw()
 					|| self.raw() == Self::FALSE.raw()
-					|| self.raw() == unsafe { Self::new_tagged(0, Tag::Number).raw() }
+					|| self.raw() == Self::from(Number::ZERO).raw()
 			);
 
 			return Ok(is_true);
@@ -321,8 +331,9 @@ impl<'env> TryAdd for Value<'env> {
 
 	fn try_add(self, rhs: Self) -> crate::Result<Self> {
 		if let Some(text) = self.downcast::<Text>() {
-			// return Ok((text + rhs.to_text()?).into());
-			let _=text;todo!();
+			let rhs = rhs.to_text()?;
+
+			return Ok((&*text + rhs.as_str()).into());
 		}
 
 		if let Some(number) = self.downcast::<Number>() {
@@ -354,9 +365,9 @@ impl<'env> TryMul for Value<'env> {
 
 	fn try_mul(self, rhs: Self) -> crate::Result<Self> {
 		if let Some(text) = self.downcast::<Text>() {
-			let rhs = rhs.to_number()?.get() as usize; // todo
-			let _=rhs;let _=text;todo!();
-			// return Ok((text * rhs).into());
+			let rhs = rhs.to_number()?.get() as usize; // todo: check for usize.
+
+			return Ok((&*text * rhs).into());
 		}
 
 		if let Some(number) = self.downcast::<Number>() {

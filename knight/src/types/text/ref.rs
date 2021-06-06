@@ -12,6 +12,7 @@ pub struct TextRef<'a>(pub(super) &'a TextInner);
 impl Deref for TextRef<'_> {
 	type Target = Text;
 
+	#[inline]
 	fn deref(&self) -> &Self::Target {
 		// SAFETY:
 		// /*`Text` is a transparent pointer to `TextInner` whereas `TextRef` is a transparent
@@ -23,12 +24,14 @@ impl Deref for TextRef<'_> {
 }
 
 impl AsRef<Text> for TextRef<'_> {
+	#[inline]
 	fn as_ref(&self) -> &Text {
 		&self
 	}
 }
 
 impl Borrow<Text> for TextRef<'_> {
+	#[inline]
 	fn borrow(&self) -> &Text {
 		&self
 	}
@@ -40,4 +43,3 @@ impl<'a> From<&'a Text> for TextRef<'a> {
 		Self(text.inner())
 	}
 }
-

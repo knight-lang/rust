@@ -28,6 +28,7 @@ impl Borrow<Text> for &'static TextStatic {
 }
 
 impl AsRef<Text> for &'static TextStatic {
+	#[inline]
 	fn as_ref(&self) -> &Text {
 		self.borrow()
 	}
