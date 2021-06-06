@@ -1,6 +1,6 @@
 #![allow(unused)]
 use super::inner::TextInner;
-use super::InvalidSourceByte;
+use super::InvalidText;
 use std::ptr::NonNull;
 
 use crate::{Value, Boolean, Number};
@@ -54,7 +54,7 @@ impl TextOwned {
 }
 
 impl TextOwned {
-	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidSourceByte> {
+	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidText> {
 		super::validate_text(data.borrow())?;
 
 		unsafe {
@@ -84,7 +84,7 @@ impl TextOwned {
 }
 
 // impl Text {
-// 	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidSourceByte> {
+// 	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidText> {
 // 		// todo
 // 		unsafe {
 // 			Ok(Self::new_unchecked(data))

@@ -1,4 +1,4 @@
-use super::{TextOwned, validate_text, InvalidSourceByte, inner::TextInner};
+use super::{TextOwned, validate_text, InvalidText, inner::TextInner};
 use std::ptr::{self, NonNull};
 
 /// A Builder for [`TextOwned`]s.
@@ -63,7 +63,7 @@ impl TextBuilder {
 	/// assert_eq!(builder.capacity(), 6);
 	/// ```
 	pub fn with_capacity(capacity: usize) -> Self {
-		assert!(capacity <= isize::MAX as usize);
+		assert!(capacity <= isize::MAX as usize, "capacity is too large");
 
 		Self {
 			inner: TextInner::alloc(capacity),
@@ -131,7 +131,7 @@ impl TextBuilder {
 	/// Concatenates `segment` to the end of the underlying buffer, increasing the [`len`](Self::len) appropriately.
 	///
 	/// # Errors
-	/// If `segment` is not a [valid Knight text](validate_text), then a [`InvalidSourceByte`] is returned. Note that
+	/// If `segment` is not a [valid Knight text](validate_text), then a [`InvalidText`] is returned. Note that
 	/// this is only returned if the `disallow-unicode` feature is enabled: Without it, all `segment`s are valid.
 	///
 	/// # Panics
@@ -146,8 +146,8 @@ impl TextBuilder {
 	/// assert!(builder.write("ar").is_ok());
 	/// assert_eq!(builder.build().as_str(), "foobar");
 	/// ```
-	pub fn write(&mut self, segment: &str) -> Result<(), InvalidSourceByte> {
-		assert!(segment.len() <= self.bytes_remaining(), "allocated capacity overflowed!");
+	pub fn write(&mut self, segment: &str) -> Result<(), InvalidText> {
+		assert!(segment.len() <= self.bytes_remaining(), "too many bytes written");
 		validate_text(segment)?;
 
 		unsafe {
@@ -196,14 +196,13 @@ impl TextBuilder {
 
 	/// Creates a new [`TextOwned`] from the underlying buffer.
 	///
-	/// Note that this should only be called when the underlying buffer is completely full—that is, when [`len()`] is
-	/// equal to [`capacity()`].
+	/// Note that this should only be called when the underlying buffer is completely full—that is, when
+	/// [`bytes_remaining()`] is zero.
 	///
 	/// # Panics
-	/// Panics if the [`len()`] and [`capacity()`] are not equal.
+	/// Panics if the [`bytes_remaining()`] is not zero.
 	///
-	/// [`len()`]: Self::len
-	/// [`capacity()`]: Self::capacity
+	/// [`bytes_remaining()`]: Self::bytes_remaining
 	///
 	/// # Examples
 	/// ```rust
@@ -215,8 +214,10 @@ impl TextBuilder {
 	///
 	/// assert_eq!(builder.build().as_str(), "foobar");
 	/// ```
+	#[must_use="`build` consumes the TextBuilder"]
+	#[inline]
 	pub fn build(self) -> TextOwned {
-		assert_eq!(self.len(), self.capacity());
+		assert_eq!(self.bytes_remaining(), 0, "underlying buffer is not full");
 
 		unsafe { self.build_unchecked() }
 	}
@@ -224,7 +225,7 @@ impl TextBuilder {
 	/// Creates a new [`TextOwned`] from the underlying buffer, without verifying the buffer is fully written to.
 	///
 	/// # Safety
-	/// It's up to the caller to ensure that [`len()`](Self::len) is equal to [`capacity()`](Self::capacity).
+	/// It's up to the caller to ensure that [`bytes_remaining()`](Self::bytes_remaining) is zero.
 	///
 	/// # Examples
 	/// ```rust
@@ -240,10 +241,158 @@ impl TextBuilder {
 	/// 	assert_eq!(builder.build_unchecked().as_str(), "foobar");
 	/// }
 	/// ```
+	#[must_use="`build` consumes the TextBuilder"]
+	#[inline]
 	pub unsafe fn build_unchecked(self) -> TextOwned {
-		debug_assert_eq!(self.len(), self.capacity(), "not all bytes were written.");
+		debug_assert_eq!(self.bytes_remaining(), 0, "not all bytes were written");
 
-		// manually drop so we don't free the inner too.
+		// Manually drop so we don't free `inner` too.
 		TextOwned::from_inner(std::mem::ManuallyDrop::new(self).inner)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn zero_capacity() {
+		let mut builder = TextBuilder::with_capacity(0);
+
+		assert_eq!(builder.len(), 0);
+		assert_eq!(builder.capacity(), 0);
+		assert_eq!(builder.bytes_remaining(), 0);
+		assert_eq!(builder.write(""), Ok(()));
+
+		assert_eq!(builder.len(), 0);
+		assert_eq!(builder.capacity(), 0);
+		assert_eq!(builder.bytes_remaining(), 0);
+		assert_eq!(builder.build().as_str(), "");
+	}
+
+	#[test]
+	fn normal_path() {
+		let mut builder = TextBuilder::with_capacity(10);
+
+		assert_eq!(builder.len(), 0);
+		assert_eq!(builder.capacity(), 10);
+
+		assert_eq!(builder.write("samp"), Ok(()));
+		assert_eq!(builder.len(), 4);
+		assert_eq!(builder.capacity(), 10);
+		assert_eq!(builder.bytes_remaining(), 6);
+
+		assert_eq!(builder.write("er"), Ok(()));
+		assert_eq!(builder.len(), 6);
+		assert_eq!(builder.capacity(), 10);
+		assert_eq!(builder.bytes_remaining(), 4);
+
+		// write nothing should still work.
+		assert_eq!(builder.write(""), Ok(()));
+		assert_eq!(builder.len(), 6);
+		assert_eq!(builder.capacity(), 10);
+		assert_eq!(builder.bytes_remaining(), 4);
+
+		assert_eq!(builder.write("sand"), Ok(()));
+		assert_eq!(builder.len(), 10);
+		assert_eq!(builder.capacity(), 10);
+		assert_eq!(builder.bytes_remaining(), 0);
+
+		assert_eq!(builder.build().as_str(), "sampersand");
+	}
+
+	#[test]
+	#[should_panic(expected="capacity is too large")]
+	fn capacity_too_large() {
+		let _ = TextBuilder::with_capacity(isize::MAX as usize + 1);
+	}
+
+	#[test]
+	#[should_panic(expected="too many bytes written")]
+	fn too_many_bytes_written_one_shot() {
+		let mut builder = TextBuilder::with_capacity(3);
+		let _ = builder.write("foobar");
+	}
+
+	#[test]
+	#[should_panic(expected="too many bytes written")]
+	fn too_many_bytes_written_overlapping() {
+		let mut builder = TextBuilder::with_capacity(4);
+
+		assert_eq!(builder.write("foo"), Ok(()));
+		let _ = builder.write("bar");
+	}
+
+	#[test]
+	#[should_panic(expected="too many bytes written")]
+	fn too_many_bytes_written_exact() {
+		let mut builder = TextBuilder::with_capacity(3);
+
+		assert_eq!(builder.write("foo"), Ok(()));
+		let _ = builder.write("bar");
+	}
+
+	#[test]
+	#[should_panic(expected="underlying buffer is not full")]
+	fn build_when_empty() {
+		let builder = TextBuilder::with_capacity(3);
+
+		let _ = builder.build();
+	}
+
+	#[test]
+	#[should_panic(expected="underlying buffer is not full")]
+	fn build_when_not_full() {
+		let mut builder = TextBuilder::with_capacity(6);
+		assert_eq!(builder.write("foo"), Ok(()));
+
+		let _ = builder.build();
+	}
+
+	#[test]
+	#[cfg(feature="disallow-unicode")]
+	fn write_validates_text() {
+		let mut builder = TextBuilder::with_capacity(15);
+
+		assert_eq!(builder.write("hey"), Ok(()));
+		assert_eq!(builder.len(), 3);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 12);
+
+		assert!(builder.write("s☀️shine").is_err());
+		assert_eq!(builder.len(), 3);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 12);
+
+		assert!(builder.write("💖").is_err());
+		assert_eq!(builder.len(), 3);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 12);
+
+		assert_eq!(builder.write(" friend. :-D"), Ok(()));
+		assert_eq!(builder.len(), 15);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 0);
+
+		assert_eq!(builder.build().as_str(), "hey friend. :-D");
+	}
+
+	#[test]
+	#[cfg(not(feature="disallow-unicode"))]
+	fn write_allows_unicode() {
+		let mut builder = TextBuilder::with_capacity(15);
+
+		assert_eq!(builder.write("hi "), Ok(()));
+		assert_eq!(builder.len(), 3);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 12);
+
+		assert_eq!(builder.write("s☀️shine"), Ok(()));
+		assert_eq!(builder.len(), 15);
+		assert_eq!(builder.capacity(), 15);
+		assert_eq!(builder.bytes_remaining(), 0);
+		assert_eq!(builder.bytes_remaining(), 0);
+
+		assert_eq!(builder.build().as_str(), "hi s☀️shine");
 	}
 }

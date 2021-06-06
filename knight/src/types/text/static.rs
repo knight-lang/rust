@@ -1,4 +1,4 @@
-use super::{Text, TextInner, InvalidSourceByte};
+use super::{Text, TextInner, InvalidText};
 use std::borrow::{Borrow, Cow};
 
 #[repr(transparent)]
@@ -6,7 +6,7 @@ pub struct TextStatic(TextInner);
 
 impl TextStatic {
 	#[inline]
-	pub const fn new(data: &'static str) -> Result<Self, InvalidSourceByte> {
+	pub const fn new(data: &'static str) -> Result<Self, InvalidText> {
 		unsafe {
 			// todo
 			Ok(Self::new_unchecked(data))

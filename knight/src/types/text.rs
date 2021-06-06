@@ -20,15 +20,22 @@ pub use owned::TextOwned;
 pub use builder::TextBuilder;
 
 
-
-
 #[derive(Debug, PartialEq, Eq)]
-pub struct InvalidSourceByte {
-
+pub struct InvalidText {
+	pub index: usize,
+	pub byte: u8
 }
 
-pub fn validate_text(text: &str) -> Result<(), InvalidSourceByte> {
-	// todo
+#[cfg_attr(not(feature="disallow-unicode"), inline)]
+pub fn validate_text(text: &str) -> Result<(), InvalidText> {
+	#[cfg(feature="disallow-unicode")]
+	for (index, byte) in text.bytes().enumerate() {
+		if !matches!(byte, b'\r' | b'\n' | b'\t' | b' '..=b'~') {
+			return Err(InvalidText { index, byte })
+		}
+	}
+
+	// note that for `not(feature="disallow-unicode")`, all text is valid.
 	Ok(())
 }
 
@@ -88,7 +95,7 @@ impl Debug for Text {
 }
 
 impl Text {
-	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidSourceByte> {
+	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidText> {
 		// todo
 		unsafe {
 			Ok(Self::new_unchecked(data))
