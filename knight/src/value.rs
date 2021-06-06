@@ -138,10 +138,6 @@ impl<'env> Runnable<'env> for Value<'env> {
 }
 
 impl<'env> Value<'env> {
-	// pub fn new<K: for<'a> ValueKind<'a>>(kind: K) -> Self {
-	// 	kind.into_value()
-	// }
-
 	pub fn is_a<'a, T: ValueKind<'a, 'env>>(&'a self) -> bool {
 		T::is_value_a(self)
 	}
@@ -521,7 +517,6 @@ mod tests {
 	}
 
 	#[test]
-	#[ignore]
 	fn run() {
 		let env = Environment::default();
 
@@ -636,31 +631,145 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn try_add() {}
+	macro_rules! inval_arg {
+		($func:literal, $kind:literal) => (Error::InvalidArgument { func: $func, kind: $kind });
+	}
 
 	#[test]
-	fn try_sub() {}
-	
-	#[test]
-	fn try_mul() {}
-	
-	#[test]
-	fn try_div() {}
-	
-	#[test]
-	fn try_rem() {}
-	
-	#[test]
-	fn try_pow() {}
-	
-	#[test]
-	fn try_neg() {}
-	
-	#[test]
-	fn try_cmp() {}
+	fn try_add() {
+		assert_matches!(Value::NULL.try_add(number!(1).into()).unwrap_err(), inval_arg!('+', "Null"));
+		assert_matches!(Value::TRUE.try_add(number!(1).into()).unwrap_err(), inval_arg!('+', "Boolean"));
+		assert_matches!(Value::FALSE.try_add(number!(1).into()).unwrap_err(), inval_arg!('+', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_add(number!(1).into()).unwrap_err(), inval_arg!('+', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_add(number!(1).into()).unwrap_err(), inval_arg!('+', "Variable"));
+
+		assert_eq!(Value::from(number!(1)).try_add(Value::TRUE).unwrap().downcast::<Number>(), Some(number!(2)));
+		assert_eq!(*Value::from(text!("!")).try_add(Value::TRUE).unwrap().downcast::<Text>().unwrap(), text!("!true"));
+	}
 
 	#[test]
-	fn try_eq() {}
+	fn try_sub() {
+		assert_matches!(Value::NULL.try_sub(number!(1).into()).unwrap_err(), inval_arg!('-', "Null"));
+		assert_matches!(Value::TRUE.try_sub(number!(1).into()).unwrap_err(), inval_arg!('-', "Boolean"));
+		assert_matches!(Value::FALSE.try_sub(number!(1).into()).unwrap_err(), inval_arg!('-', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_sub(Value::NULL).unwrap_err(), inval_arg!('-', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_sub(Value::NULL).unwrap_err(), inval_arg!('-', "Variable"));
+
+		assert_matches!(Value::from(text!("!")).try_sub(number!(1).into()).unwrap_err(), inval_arg!('-', "Text"));
+
+		assert_eq!(Value::from(number!(12)).try_sub(text!("3").into()).unwrap().downcast::<Number>(), Some(number!(9)));
+	}
+	
+	#[test]
+	fn try_mul() {
+		assert_matches!(Value::NULL.try_mul(number!(1).into()).unwrap_err(), inval_arg!('*', "Null"));
+		assert_matches!(Value::TRUE.try_mul(number!(1).into()).unwrap_err(), inval_arg!('*', "Boolean"));
+		assert_matches!(Value::FALSE.try_mul(number!(1).into()).unwrap_err(), inval_arg!('*', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_mul(number!(1).into()).unwrap_err(), inval_arg!('*', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_mul(number!(1).into()).unwrap_err(), inval_arg!('*', "Variable"));
+
+		assert_eq!(Value::from(number!(9)).try_mul(text!("3").into()).unwrap().downcast::<Number>(), Some(number!(27)));
+		assert_eq!(*Value::from(text!("hi")).try_mul(text!("3").into()).unwrap().downcast::<Text>().unwrap(), text!("hihihi"));
+	}
+	
+	#[test]
+	fn try_div() {
+		assert_matches!(Value::NULL.try_div(number!(1).into()).unwrap_err(), inval_arg!('/', "Null"));
+		assert_matches!(Value::TRUE.try_div(number!(1).into()).unwrap_err(), inval_arg!('/', "Boolean"));
+		assert_matches!(Value::FALSE.try_div(number!(1).into()).unwrap_err(), inval_arg!('/', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_div(Value::NULL).unwrap_err(), inval_arg!('/', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_div(Value::NULL).unwrap_err(), inval_arg!('/', "Variable"));
+
+		assert_matches!(Value::from(text!("!")).try_div(number!(1).into()).unwrap_err(), inval_arg!('/', "Text"));
+
+		assert_eq!(Value::from(number!(12)).try_div(text!("3").into()).unwrap().downcast::<Number>(), Some(number!(4)));
+	}
+	
+	#[test]
+	fn try_rem() {
+		assert_matches!(Value::NULL.try_rem(number!(1).into()).unwrap_err(), inval_arg!('%', "Null"));
+		assert_matches!(Value::TRUE.try_rem(number!(1).into()).unwrap_err(), inval_arg!('%', "Boolean"));
+		assert_matches!(Value::FALSE.try_rem(number!(1).into()).unwrap_err(), inval_arg!('%', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_rem(Value::NULL).unwrap_err(), inval_arg!('%', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_rem(Value::NULL).unwrap_err(), inval_arg!('%', "Variable"));
+
+		assert_matches!(Value::from(text!("!")).try_rem(number!(1).into()).unwrap_err(), inval_arg!('%', "Text"));
+
+		assert_eq!(Value::from(number!(13)).try_rem(text!("3").into()).unwrap().downcast::<Number>(), Some(number!(1)));
+	}
+	
+	#[test]
+	fn try_pow() {
+		assert_matches!(Value::NULL.try_pow(number!(1).into()).unwrap_err(), inval_arg!('^', "Null"));
+		assert_matches!(Value::TRUE.try_pow(number!(1).into()).unwrap_err(), inval_arg!('^', "Boolean"));
+		assert_matches!(Value::FALSE.try_pow(number!(1).into()).unwrap_err(), inval_arg!('^', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_pow(Value::NULL).unwrap_err(), inval_arg!('^', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_pow(Value::NULL).unwrap_err(), inval_arg!('^', "Variable"));
+
+		assert_matches!(Value::from(text!("!")).try_pow(number!(1).into()).unwrap_err(), inval_arg!('^', "Text"));
+
+		assert_eq!(Value::from(number!(13)).try_pow(text!("3").into()).unwrap().downcast::<Number>(), Some(number!(2197)));
+	}
+	
+	#[test]
+	fn try_neg() {
+		assert_matches!(Value::NULL.try_neg().unwrap_err(), inval_arg!('~', "Null"));
+		assert_matches!(Value::TRUE.try_neg().unwrap_err(), inval_arg!('~', "Boolean"));
+		assert_matches!(Value::FALSE.try_neg().unwrap_err(), inval_arg!('~', "Boolean"));
+
+		assert_matches!(Value::from(ast![RANDOM]).try_neg().unwrap_err(), inval_arg!('~', "Ast"));
+
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_neg().unwrap_err(), inval_arg!('~', "Variable"));
+
+		assert_matches!(Value::from(text!("!")).try_neg().unwrap_err(), inval_arg!('~', "Text"));
+
+		assert_eq!(Value::from(number!(13)).try_neg().unwrap().downcast::<Number>(), Some(number!(-13)));
+	}
+	
+	#[test]
+	fn try_cmp() {
+		assert_matches!(Value::NULL.try_cmp(&number!(1).into()).unwrap_err(), inval_arg!('c', "Null"));
+		assert_matches!(Value::from(ast![RANDOM]).try_cmp(&number!(1).into()).unwrap_err(), inval_arg!('c', "Ast"));
+		let env = Environment::default();
+		assert_matches!(Value::from(env.fetch_var("foo")).try_cmp(&number!(1).into()).unwrap_err(), inval_arg!('c', "Variable"));
+
+		assert_eq!(Value::TRUE.try_cmp(&text!("").into()).unwrap(), std::cmp::Ordering::Greater);
+		assert_eq!(Value::from(number!(-12)).try_cmp(&text!("34").into()).unwrap(), std::cmp::Ordering::Less);
+		assert_eq!(Value::from(text!("a")).try_cmp(&text!("A").into()).unwrap(), std::cmp::Ordering::Greater);
+	}
+
+	#[test]
+	#[ignore]
+	fn try_eq() {
+		todo!();
+		// assert_matches!(Value::from(ast![RANDOM]).try_cmp(&number!(1).into()).unwrap_err(), inval_arg!('~', "Ast"));
+		// let env = Environment::default();
+		// assert_matches!(Value::from(env.fetch_var("foo")).try_cmp(&number!(1).into()).unwrap_err(), inval_arg!('~', "Variable"));
+
+
+		// assert_matches!(Value::NULL.try_eq(&number!(1).into()).unwrap_err(), inval_arg!('~', "Null"));
+		// assert_eq!(Value::TRUE.try_eq(&text!("").into()).unwrap(), std::cmp::Ordering::Greater);
+		// assert_eq!(Value::from(number!(-12)).try_eq(&text!("34").into()).unwrap(), std::cmp::Ordering::Less);
+		// assert_eq!(Value::from(text!("a")).try_eq(&text!("A").into()).unwrap(), std::cmp::Ordering::Greater);
+	}
 }
 
