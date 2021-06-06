@@ -10,12 +10,13 @@ use std::ptr::NonNull;
 
 mod r#static;
 mod r#ref;
+mod r#ref_old;
 mod owned;
 mod inner;
 mod builder;
 // use inner::TextInner;
 pub use r#static::TextStatic;
-pub use r#ref::TextRef;
+pub use r#ref_old::TextRef;
 pub use owned::TextOwned;
 pub use builder::TextBuilder;
 

@@ -6,6 +6,7 @@ use std::alloc::{self, Layout};
 
 bitflags::bitflags! {
 	struct TextFlags: usize {
+		const NONE        = 0b0000;
 		const EMBEDDED    = 0b0001;
 		const SHOULD_FREE = 0b0010;
 		const CACHED      = 0b0100;
@@ -24,12 +25,12 @@ pub(super) struct TextInner {
 	data: TextInnerData
 }
 
+
 #[repr(packed)]
 union TextInnerData {
 	embed: [u8; EMBED_SIZE],
-	ptr: *mut u8 // todo: make sure that this doesn't have alignment conflicts
+	ptr: *const u8 // todo: make sure that this doesn't have alignment conflicts
 }
-
 
 // TODO: verify that `EMPTY` isn't used incorrectly to introduce UB.
 static mut EMPTY: TextInner = TextInner {
@@ -53,6 +54,17 @@ impl TextInner {
 			flags: TextFlags::EMBEDDED,
 			len: size,
 			data: TextInnerData { embed: [0; EMBED_SIZE] }
+		}
+	}
+
+	pub const unsafe fn new_static_from_str_unchecked(static_str: &'static str) -> Self {
+		Self {
+			rc: AtomicUsize::new(1),
+			flags: TextFlags::NONE,
+			len: static_str.len(),
+			data: TextInnerData {
+				ptr: static_str.as_ptr()
+			}
 		}
 	}
 
@@ -114,7 +126,7 @@ impl TextInner {
 	pub unsafe fn dealloc_unchecked(inner: *mut Self) {
 		if unlikely!(!(*inner).is_embedded()) {
 			let layout = Layout::from_size_align_unchecked((*inner).len(), 1);
-			alloc::dealloc((*inner).data.ptr, layout);
+			alloc::dealloc((*inner).data.ptr as *mut u8, layout);
 		}
 
 		alloc::dealloc(inner as *mut u8, Layout::new::<Self>())
@@ -152,18 +164,14 @@ impl TextInner {
 	}
 
 	#[inline]
-	pub fn as_mut_ptr(&mut self) -> *mut u8 {
-		if self.is_embedded() {
-			unsafe { self.data.embed.as_mut_ptr() }
-		} else {
-			unsafe { self.data.ptr }
-		}
-	}
+	// safety: we can only call this on things that were allocated, ie not static.
+	pub unsafe fn as_mut_ptr(&mut self) -> *mut u8 {
+		debug_assert!(self.should_free());
 
-	#[inline]
-	pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-		unsafe {
-			std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len())
+		if self.is_embedded() {
+			self.data.embed.as_mut_ptr()
+		} else {
+			self.data.ptr as *mut u8
 		}
 	}
 }
