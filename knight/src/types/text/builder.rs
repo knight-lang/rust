@@ -87,6 +87,7 @@ impl TextBuilder {
 	/// assert_eq!(builder.build().len(), 6);
 	/// ```
 	pub fn capacity(&self) -> usize {
+		// SAFETY: `self.inner` is guaranteed to be valid because `TextInner::alloc` returned it.
 		unsafe { self.inner.as_ref() }.len()
 	}
 
@@ -150,6 +151,8 @@ impl TextBuilder {
 		assert!(segment.len() <= self.bytes_remaining(), "too many bytes written");
 		validate_text(segment)?;
 
+		// SAFETY: We just checked both conditions: That the buffer can hold `segment.len()` new bytes, and that
+		// `segment` is a valid knight text.
 		unsafe {
 			Ok(self.write_unchecked(segment.as_bytes()))
 		}
@@ -219,7 +222,10 @@ impl TextBuilder {
 	pub fn build(self) -> TextOwned {
 		assert_eq!(self.bytes_remaining(), 0, "underlying buffer is not full");
 
-		unsafe { self.build_unchecked() }
+		// SAFETY: We just checked to make sure that `bytes_remaining` was zero.
+		unsafe {
+			self.build_unchecked()
+		}
 	}
 
 	/// Creates a new [`TextOwned`] from the underlying buffer, without verifying the buffer is fully written to.
