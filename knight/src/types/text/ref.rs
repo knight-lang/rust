@@ -1,61 +1,43 @@
-use super::inner::TextInner;
+use super::{TextInner, Text};
 use std::borrow::Borrow;
-use std::ops::{Add, Mul, Deref};
+use std::ops::Deref;
 
-/// A reference to a [`TextOwned`].
+/// A reference to a [`Text`].
 ///
-/// Due to how [`TextOwned`] is laid out internally, some functions aren't ble to return owned references.
+/// Due to how [`Text`] is laid out internally, some functions aren't able to return owned references.
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct TextRef<'a>(pub(super) &'a TextInner);
 
-// impl Deref for TextRef<'_> {
-// 	type Target = str;
+impl Deref for TextRef<'_> {
+	type Target = Text;
 
-// 	fn deref(&self) -> &Self::Target {
-// 		// SAFETY:
-// 		// `Text` is a transparent pointer to `TextInner` whereas `TextRef` is a transparent
-// 		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.
-// 		unsafe {
-// 			std::mem::transmute::<&TextRef<'_>, &Text>(self)
-// 		}
-// 	}
-// }
+	fn deref(&self) -> &Self::Target {
+		// SAFETY:
+		// /*`Text` is a transparent pointer to `TextInner` whereas `TextRef` is a transparent
+		// reference to the same type. Since pointers and references can be transmuted safely, this is valid.*/ <-- old
+		unsafe {
+			&*(self as *const TextRef<'_> as *const Text)
+		}
+	}
+}
 
-// impl Borrow<Text> for TextRef<'_> {
-// 	fn borrow(&self) -> &Text {
-// 		&self
-// 	}
-// }
+impl AsRef<Text> for TextRef<'_> {
+	fn as_ref(&self) -> &Text {
+		&self
+	}
+}
 
-// impl<T: AsRef<str>> Add<T> for TextRef<'_> {
-// 	type Output = Text;
+impl Borrow<Text> for TextRef<'_> {
+	fn borrow(&self) -> &Text {
+		&self
+	}
+}
 
-// 	fn add(self, rhs: T) -> Self::Output {
-// 		let rhs = rhs.as_ref();
+impl<'a> From<&'a Text> for TextRef<'a> {
+	#[inline]
+	fn from(text: &'a Text) -> Self {
+		Self(text.inner())
+	}
+}
 
-// 		if rhs.is_empty() {
-// 			return (*self).clone();
-// 		}
-
-// 		let mut result = String::with_capacity(self.len() + rhs.len());
-// 		result.push_str(self.as_str());
-// 		result.push_str(rhs);
-
-// 		Text::new(result.into()).unwrap()
-// 	}
-// }
-
-// impl Mul<usize> for TextRef<'_> {
-// 	type Output = Text;
-
-// 	fn mul(self, amnt: usize) -> Self::Output {
-// 		let mut result = String::with_capacity(self.len() * amnt);
-
-// 		for _ in 0..amnt {
-// 			result.push_str(self.as_str());
-// 		}
-
-// 		Text::new(result.into()).unwrap()
-// 	}
-// }

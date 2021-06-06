@@ -77,11 +77,19 @@ impl Drop for Value<'_> {
 			return;
 		}
 
+		let rc = unsafe { self.refcount() }.fetch_sub(1, Ordering::Relaxed);
+
+		if cfg!(debug_assertions) {
+			if let Some(text) = self.downcast::<Text>() {
+				if text.should_free() {
+					debug_assert_ne!(rc, 0);
+				}
+			} else {
+				debug_assert_ne!(rc, 0);
+			}
+		}
+
 		unsafe {
-			let rc = self.refcount().fetch_sub(1, Ordering::Relaxed);
-
-			debug_assert_ne!(rc, 0);
-
 			if rc == 1 {
 				drop_inner(self.ptr::<()>().as_ptr(), self.tag())
 			}
@@ -269,9 +277,11 @@ impl<'env> ToText<'_> for Value<'env> {
 		} else if let Some(number) = self.downcast::<Number>() {
 			Ok(number.to_text()?)
 		} else if let Some(boolean) = self.downcast::<Boolean>() {
-			Ok((*boolean.to_text()?).as_text()) // TODO: not use a literal Text result.
+			// Ok((*boolean.to_text()?).a.borrow()) // TODO: not use a literal Text result.
+			let _=boolean;todo!();
 		} else if let Some(null) = self.downcast::<Null>() {
-			Ok((*null.to_text()?).as_text()) // TODO: not use a literal Text result.
+			// Ok((*null.to_text()?).a.borrow()) // TODO: not use a literal Text result.
+			let _=null;todo!();
 		} else {
 			Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
 		}
@@ -311,7 +321,8 @@ impl<'env> TryAdd for Value<'env> {
 
 	fn try_add(self, rhs: Self) -> crate::Result<Self> {
 		if let Some(text) = self.downcast::<Text>() {
-			return Ok((text + rhs.to_text()?).into());
+			// return Ok((text + rhs.to_text()?).into());
+			let _=text;todo!();
 		}
 
 		if let Some(number) = self.downcast::<Number>() {
@@ -344,7 +355,8 @@ impl<'env> TryMul for Value<'env> {
 	fn try_mul(self, rhs: Self) -> crate::Result<Self> {
 		if let Some(text) = self.downcast::<Text>() {
 			let rhs = rhs.to_number()?.get() as usize; // todo
-			return Ok((text * rhs).into());
+			let _=rhs;let _=text;todo!();
+			// return Ok((text * rhs).into());
 		}
 
 		if let Some(number) = self.downcast::<Number>() {

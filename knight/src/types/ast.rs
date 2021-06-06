@@ -73,16 +73,17 @@ impl<'env> Ast<'env> {
 
 		let mut builder = Self::alloc(func);
 
-		// copy over the arguments, and then build it.
 		unsafe {
-			let mut args = ManuallyDrop::new(args);
-			std::ptr::copy_nonoverlapping(args.as_mut_ptr(), builder.args_ptr(), mem::size_of::<Value>() * func.arity());
+			for value in args.into_iter() {
+				builder.set_next(value.clone());
+			}
 
-			Self(NonNull::new_unchecked(ManuallyDrop::new(builder).inner as *mut AstInner<'env>))
+			builder.build()
 		}
+
 	}
 
-	pub(crate) fn alloc(func: &'env Function) -> AstBuilder<'env> {
+	pub/*(crate)*/ fn alloc(func: &'env Function) -> AstBuilder<'env> {
 		AstBuilder::new(func)
 	}
 
@@ -178,7 +179,7 @@ impl<'env> Runnable<'env> for Ast<'env> {
 
 #[must_use="not using this will leak memory."]
 #[allow(unused)]
-pub(crate) struct AstBuilder<'env> {
+pub/*(crate) */struct AstBuilder<'env> {
 	inner: *mut AstInner<'env>,
 	next_insert_location: usize
 }
@@ -214,7 +215,7 @@ impl<'env> AstBuilder<'env> {
 	}
 
 	pub unsafe fn set_next(&mut self, value: Value<'env>) {
-		debug_assert!(self.arity() <= self.next_insert_location);
+		debug_assert!(self.next_insert_location <= self.arity());
 
 		self.args_ptr().offset(self.next_insert_location as isize).write(value);
 		self.next_insert_location += 1;

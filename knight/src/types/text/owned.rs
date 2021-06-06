@@ -1,20 +1,17 @@
-#![allow(unused)]
-use super::inner::TextInner;
-use super::InvalidText;
+use super::{TextInner, InvalidText, TextRef};
 use std::ptr::NonNull;
 
 use crate::{Value, Boolean, Number};
 use crate::ops::{Idempotent, ToNumber, ToBoolean, ToText, Infallible};
 use crate::value::{Tag, ValueKind};
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::{Cow, Borrow};
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[repr(transparent)]
-pub struct TextOwned(NonNull<TextInner>);
+pub struct Text(NonNull<TextInner>);
 
-impl Clone for TextOwned {
+impl Clone for Text {
 	#[inline]
 	fn clone(&self) -> Self {
 		unsafe {
@@ -25,7 +22,7 @@ impl Clone for TextOwned {
 	}
 }
 
-impl Drop for TextOwned {
+impl Drop for Text {
 	#[inline]
 	fn drop(&mut self) {
 		unsafe {
@@ -34,26 +31,32 @@ impl Drop for TextOwned {
 	}
 }
 
-impl Default for TextOwned {
+impl Default for Text {
 	#[inline]
 	fn default() -> Self {
 		Self(TextInner::empty())
 	}
 }
 
-impl Debug for TextOwned {
+impl Debug for Text {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		f.debug_tuple("TextOwned").field(&self.as_str()).finish()
+		f.debug_tuple("Text").field(&self.as_str()).finish()
 	}
 }
 
-impl TextOwned {
-	fn inner(&self) -> &TextInner {
+impl std::ops::Deref for Text {
+	type Target = str;
+
+	fn deref(&self) -> &Self::Target {
+		self.inner().as_ref()
+	}
+}
+
+impl Text {
+	pub(super) fn inner(&self) -> &TextInner {
 		unsafe { &*self.0.as_ptr() }
 	}
-}
 
-impl TextOwned {
 	pub fn new(data: Cow<'static, str>) -> Result<Self, InvalidText> {
 		super::validate_text(data.borrow())?;
 
@@ -62,24 +65,38 @@ impl TextOwned {
 		}
 	}
 
-	// todo: remove this in favor of deref to `TextRef`.
-	pub fn len(&self) -> usize {
-		self.as_str().len()
+	pub unsafe fn new_unchecked(data: Cow<'static, str>) -> Self {
+		debug_assert_eq!(super::validate_text(data.borrow()), Ok(()));
+
+		let mut builder = Self::builder(data.as_ref().len());
+		builder.write(data.borrow()).unwrap();
+		builder.build()
 	}
+
 
 	#[inline]
 	pub(super) unsafe fn from_inner(inner: NonNull<TextInner>) -> Self {
 		Self(inner)
 	}
 
-	pub unsafe fn new_unchecked(data: Cow<'static, str>) -> Self {
-		debug_assert_eq!(super::validate_text(data.borrow()), Ok(()));
-
-		todo!()
+	pub fn builder(capacity: usize) -> super::TextBuilder {
+		super::TextBuilder::with_capacity(capacity)
 	}
 
 	pub fn as_str(&self) -> &str {
-		self.inner().as_ref()
+		&self
+	}
+
+	pub(crate) unsafe fn drop_in_place(ptr: *mut ()) {
+		TextInner::dealloc(ptr as *mut TextInner);
+	}
+
+	pub(crate) fn should_free(&self) -> bool {
+		self.inner().should_free()
+	}
+
+	fn into_raw(self) -> *mut () {
+		std::mem::ManuallyDrop::new(self).0.as_ptr() as _
 	}
 }
 
@@ -136,138 +153,169 @@ impl TextOwned {
 // 	}
 // }
 
-// impl AsRef<str> for Text {
-// 	fn as_ref(&self) -> &str {
-// 		self.as_str()
-// 	}
-// }
+impl AsRef<str> for Text {
+	fn as_ref(&self) -> &str {
+		self.as_str()
+	}
+}
 
-// impl Eq for Text {}
-// impl PartialEq for Text {
-// 	#[inline]
-// 	fn eq(&self, rhs: &Self) -> bool {
-// 		self.as_str() == rhs.as_str()
-// 	}
-// }
+impl Eq for Text {}
+impl PartialEq for Text {
+	#[inline]
+	fn eq(&self, rhs: &Self) -> bool {
+		self.as_str() == rhs.as_str()
+	}
+}
 
-// impl PartialEq<str> for Text {
-// 	#[inline]
-// 	fn eq(&self, rhs: &str) -> bool {
-// 		self.as_str() == rhs
-// 	}
-// }
+impl PartialEq<str> for Text {
+	#[inline]
+	fn eq(&self, rhs: &str) -> bool {
+		self.as_str() == rhs
+	}
+}
 
-// impl PartialOrd for Text {
-// 	#[inline]
-// 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-// 		Some(self.cmp(rhs))
-// 	}
-// }
+impl PartialOrd for Text {
+	#[inline]
+	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(rhs))
+	}
+}
 
-// impl Ord for Text {
-// 	#[inline]
-// 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-// 		self.as_str().cmp(rhs.as_str())
-// 	}
-// }
+impl Ord for Text {
+	#[inline]
+	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+		self.as_str().cmp(rhs.as_str())
+	}
+}
 
-// impl From<Text> for Value<'_> {
-// 	fn from(text: Text) -> Self {
-// 		unsafe {
-// 			Self::new_tagged(text.into_raw() as _, Tag::Text)
-// 		}
-// 	}
-// }
+impl From<Text> for Value<'_> {
+	fn from(text: Text) -> Self {
+		unsafe {
+			Self::new_tagged(text.into_raw() as _, Tag::Text)
+		}
+	}
+}
 
-// unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
-// 	type Ref = TextRef<'value>;
+unsafe impl<'value, 'env: 'value> ValueKind<'value, 'env> for Text {
+	type Ref = TextRef<'value>;
 
-// 	fn is_value_a(value: &Value<'env>) -> bool {
-// 		value.tag() == Tag::Text
-// 	}
+	fn is_value_a(value: &Value<'env>) -> bool {
+		value.tag() == Tag::Text
+	}
 
-// 	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
-// 		debug_assert!(Self::is_value_a(value));
+	unsafe fn downcast_unchecked(value: &'value Value<'env>) -> Self::Ref {
+		debug_assert!(Self::is_value_a(value));
 
-// 		TextRef(&*value.ptr::<TextInner>().as_ptr())
-// 	}
-// }
+		TextRef(&*value.ptr::<TextInner>().as_ptr())
+	}
+}
 
-// impl Idempotent<'_> for Text {}
+impl Idempotent<'_> for Text {}
 
-// impl Display for Text {
-// 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-// 		Display::fmt(&self.as_str(), f)
-// 	}
-// }
+impl Display for Text {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		Display::fmt(&self.as_str(), f)
+	}
+}
 
-// /// An error trait to indicate that [converting](<Number as TryFrom<Text>>::try_From) from a [`Text`] to a [`Number`]
-// /// overflowed the maximum size for a number.
-// #[derive(Debug)]
-// pub struct NumberOverflow;
+/// An error trait to indicate that [converting](<Number as TryFrom<Text>>::try_From) from a [`Text`] to a [`Number`]
+/// overflowed the maximum size for a number.
+#[derive(Debug)]
+pub struct NumberOverflow;
 
-// impl Display for NumberOverflow {
-// 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-// 		write!(f, "string to number conversion overflowed the maximum number size!")
-// 	}
-// }
+impl Display for NumberOverflow {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "string to number conversion overflowed the maximum number size!")
+	}
+}
 
-// impl std::error::Error for NumberOverflow {}
+impl std::error::Error for NumberOverflow {}
 
-// impl<'a> ToText<'a> for Text {
-// 	type Error = Infallible;
-// 	type Output = TextRef<'a>;
+impl<'a> ToText<'a> for Text {
+	type Error = Infallible;
+	type Output = &'a Self;
 
-// 	fn to_text(&'a self) -> Result<Self::Output, Self::Error> {
-// 		Ok(self.as_ref())
-// 	}
-// }
+	fn to_text(&'a self) -> Result<Self::Output, Self::Error> {
+		Ok(self)
+	}
+}
 
-// impl ToBoolean for Text {
-// 	type Error = Infallible;
+impl ToBoolean for Text {
+	type Error = Infallible;
 
-// 	fn to_boolean(&self) -> Result<Boolean, Self::Error> {
-// 		Ok(!self.is_empty())
-// 	}
-// }
+	fn to_boolean(&self) -> Result<Boolean, Self::Error> {
+		Ok(!self.is_empty())
+	}
+}
 
-// impl ToNumber for Text {
-// 	type Error = NumberOverflow;
+impl ToNumber for Text {
+	type Error = NumberOverflow;
 
-// 	fn to_number(&self) -> Result<Number, Self::Error> {
-// 		let mut iter = self.as_str().trim_start().bytes();
-// 		let mut num = 0 as i64;
-// 		let mut is_neg = false;
+	fn to_number(&self) -> Result<Number, Self::Error> {
+		let mut iter = self.as_str().trim_start().bytes();
+		let mut num = 0 as i64;
+		let mut is_neg = false;
 
-// 		match iter.next() {
-// 			Some(b'-') => is_neg = true,
-// 			Some(b'+') => { /* do nothing */ },
-// 			Some(digit @ b'0'..=b'9') => num = (digit - b'0') as i64,
-// 			_ => return Ok(Number::ZERO)
-// 		}
+		match iter.next() {
+			Some(b'-') => is_neg = true,
+			Some(b'+') => { /* do nothing */ },
+			Some(digit @ b'0'..=b'9') => num = (digit - b'0') as i64,
+			_ => return Ok(Number::ZERO)
+		}
 
-// 		while let Some(digit) = iter.next() {
-// 			if !digit.is_ascii_digit() {
-// 				break;
-// 			}
+		while let Some(digit) = iter.next() {
+			if !digit.is_ascii_digit() {
+				break;
+			}
 
-// 			let digit = (digit - b'0') as i64;
+			let digit = (digit - b'0') as i64;
 
-// 			if cfg!(feature="checked-overflow") {
-// 				if let Some(new) = num.checked_mul(10).and_then(|n| n.checked_add(digit)) {
-// 					num = new
-// 				} else {
-// 					return Err(NumberOverflow);
-// 				}
-// 			} else {
-// 				num = num.wrapping_mul(10).wrapping_add(digit);
-// 			}
-// 		}
+			if cfg!(feature="checked-overflow") {
+				if let Some(new) = num.checked_mul(10).and_then(|n| n.checked_add(digit)) {
+					num = new
+				} else {
+					return Err(NumberOverflow);
+				}
+			} else {
+				num = num.wrapping_mul(10).wrapping_add(digit);
+			}
+		}
 
-// 		if cfg!(feature="checked-overflow") {
-// 			if is_neg { num.checked_neg() } else { Some(num) }.and_then(Number::new).ok_or(NumberOverflow)
-// 		} else {
-// 			Ok(Number::new_truncate(if is_neg { num.wrapping_neg() } else { num }))
-// 		}
-// 	}
-// }
+		if cfg!(feature="checked-overflow") {
+			if is_neg { num.checked_neg() } else { Some(num) }.and_then(Number::new).ok_or(NumberOverflow)
+		} else {
+			Ok(Number::new_truncate(if is_neg { num.wrapping_neg() } else { num }))
+		}
+	}
+}
+
+impl std::ops::Add<&str> for &Text {
+	type Output = Text;
+
+	fn add(self, rhs: &str) -> Self::Output {
+		if rhs.is_empty() {
+			return self.clone();
+		}
+
+		let mut builder = Text::builder(self.len() + rhs.len());
+
+		builder.write(&self).unwrap();
+		builder.write(rhs).unwrap();
+
+		builder.build()
+	}
+}
+
+impl std::ops::Mul<usize> for &Text {
+	type Output = Text;
+
+	fn mul(self, amnt: usize) -> Self::Output {
+		let mut builder = Text::builder(self.len() * amnt);
+
+		for _ in 0..amnt {
+			builder.write(&self).unwrap();
+		}
+
+		builder.build()
+	}
+}

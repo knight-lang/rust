@@ -1,7 +1,5 @@
-use super::{Text, InvalidText};
-use super::inner::TextInner;
-use super::r#ref::TextRef;
-use std::borrow::{Borrow, Cow};
+use super::{TextInner, Text};
+use std::borrow::Borrow;
 
 /// A struct that represents a Knight text with a static lifetime.
 ///
@@ -9,15 +7,9 @@ use std::borrow::{Borrow, Cow};
 #[repr(transparent)]
 pub struct TextStatic(TextInner);
 
-// SAFETY: No methods on `TextStatic` modify `TextInner`. Additionally, 
+// TODO: explain safety
 unsafe impl Send for TextStatic {}
 unsafe impl Sync for TextStatic {}
-
-// impl Drop for TextStatic {
-// 	fn drop(&mut self) {
-		
-// 	}
-// }
 
 impl TextStatic {
 	#[inline]
@@ -26,18 +18,9 @@ impl TextStatic {
 	}
 }
 
-impl &'static TextStatic {
-	#[inline]
-	pub fn as_text(&self) -> &Text {
-		unsafe {
-			TextRef(&*(self as *const TextStatic as *const TextInner))
-		}
-	}
-}
-
 impl Borrow<Text> for &'static TextStatic {
 	#[inline]
-	fn borrow(&self) -> &Text {
+	fn borrow(&self) -> &'static Text {
 		unsafe {
 			&*(self as *const &'static TextStatic as *const Text)
 		}

@@ -1,9 +1,9 @@
-use super::{TextOwned, validate_text, InvalidText, inner::TextInner};
+use super::{Text, validate_text, InvalidText, inner::TextInner};
 use std::ptr::{self, NonNull};
 
-/// A Builder for [`TextOwned`]s.
+/// A Builder for [`Text`]s.
 ///
-/// As text within Knight is immutable, there's no way to incrementally build a [`TextOwned`]. This type is the solution
+/// As text within Knight is immutable, there's no way to incrementally build a [`Text`]. This type is the solution
 /// to that: You can incrementally write to the buffer via [`TextBuilder::write`] and finish it via
 /// [`TextBuilder::build`]. However, you must write exactly the amount of bytes required, otherwise it'll `panic!`.
 ///
@@ -24,7 +24,7 @@ use std::ptr::{self, NonNull};
 /// ```
 #[must_use="Finalize builders via TextBuilder::build"]
 pub struct TextBuilder {
-	/// The `TextInner` that'll be written to and converted to a `TextOwned`.
+	/// The `TextInner` that'll be written to and converted to a `Text`.
 	inner: NonNull<TextInner>,
 
 	/// The amount of bytes written so far.
@@ -34,7 +34,7 @@ pub struct TextBuilder {
 impl Drop for TextBuilder {
 	fn drop(&mut self) {
 		// if the builder is dropped, we need to first write the remaining bytes, and then free it.
-		self.write(&"&".repeat(self.bytes_remaining()));
+		self.write(&"&".repeat(self.bytes_remaining())).expect("'&' should be valid");
 
 		// SAFETY: 
 		// - `inner` is a valid `TextInner`, as we allocated it with `with_capacity`.
@@ -74,7 +74,7 @@ impl TextBuilder {
 
 	/// Fetches the length of the underlying buffer.
 	///
-	/// This is also the length of the resulting [`TextOwned`] after [`build()`](Self::build)ing `self`.
+	/// This is also the length of the resulting [`Text`] after [`build()`](Self::build)ing `self`.
 	///
 	/// # Examples
 	/// ```rust
@@ -188,6 +188,11 @@ impl TextBuilder {
 		debug_assert!(segment.len() <= self.bytes_remaining());
 		debug_assert!(validate_text(std::str::from_utf8(segment).unwrap()).is_ok());
 
+		// NOTE: When building empty `Text`s, we shouldn't write anything as `EMPTY` is read-only.
+		if unlikely!(self.capacity() == 0) {
+			return;
+		}
+
 		// Note that `self.len` is always a valid `isize`, as it's `<= capacity`, which is guaranteed to be no larger
 		// than `isize::MAX`.
 		let ptr = (*self.inner.as_ptr()).as_mut_ptr().offset(self.len() as isize);
@@ -197,7 +202,7 @@ impl TextBuilder {
 		self.len += segment.len();
 	}
 
-	/// Creates a new [`TextOwned`] from the underlying buffer.
+	/// Creates a new [`Text`] from the underlying buffer.
 	///
 	/// Note that this should only be called when the underlying buffer is completely full—that is, when
 	/// [`bytes_remaining()`] is zero.
@@ -219,7 +224,7 @@ impl TextBuilder {
 	/// ```
 	#[must_use="`build` consumes the TextBuilder"]
 	#[inline]
-	pub fn build(self) -> TextOwned {
+	pub fn build(self) -> Text {
 		assert_eq!(self.bytes_remaining(), 0, "underlying buffer is not full");
 
 		// SAFETY: We just checked to make sure that `bytes_remaining` was zero.
@@ -228,7 +233,7 @@ impl TextBuilder {
 		}
 	}
 
-	/// Creates a new [`TextOwned`] from the underlying buffer, without verifying the buffer is fully written to.
+	/// Creates a new [`Text`] from the underlying buffer, without verifying the buffer is fully written to.
 	///
 	/// # Safety
 	/// It's up to the caller to ensure that [`bytes_remaining()`](Self::bytes_remaining) is zero.
@@ -249,11 +254,11 @@ impl TextBuilder {
 	/// ```
 	#[must_use="`build` consumes the TextBuilder"]
 	#[inline]
-	pub unsafe fn build_unchecked(self) -> TextOwned {
+	pub unsafe fn build_unchecked(self) -> Text {
 		debug_assert_eq!(self.bytes_remaining(), 0, "not all bytes were written");
 
 		// Manually drop so we don't free `inner` too.
-		TextOwned::from_inner(std::mem::ManuallyDrop::new(self).inner)
+		Text::from_inner(std::mem::ManuallyDrop::new(self).inner)
 	}
 }
 

@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::fmt::{self, Debug, Display, Formatter};
-use std::mem::{size_of, align_of};
-use std::ptr::{self, addr_of_mut, NonNull};
+use std::mem::{size_of};
+use std::ptr::{addr_of_mut, NonNull};
 use std::alloc::{self, Layout};
 
 bitflags::bitflags! {
@@ -46,16 +45,16 @@ impl TextInner {
 		return unsafe { NonNull::from(&mut EMPTY) }
 	}
 
-	pub const unsafe fn new_static_embedded(size: usize) -> Self {
-		debug_assert_const!(size <= EMBED_SIZE);
+	// pub const unsafe fn new_static_embedded(size: usize) -> Self {
+	// 	debug_assert_const!(size <= EMBED_SIZE);
 
-		Self {
-			rc: AtomicUsize::new(1),
-			flags: TextFlags::EMBEDDED,
-			len: size,
-			data: TextInnerData { embed: [0; EMBED_SIZE] }
-		}
-	}
+	// 	Self {
+	// 		rc: AtomicUsize::new(1),
+	// 		flags: TextFlags::EMBEDDED,
+	// 		len: size,
+	// 		data: TextInnerData { embed: [0; EMBED_SIZE] }
+	// 	}
+	// }
 
 	pub const unsafe fn new_static_from_str_unchecked(static_str: &'static str) -> Self {
 		Self {
@@ -143,7 +142,7 @@ impl TextInner {
 	}
 
 	#[inline]
-	const fn should_free(&self) -> bool {
+	pub(super) const fn should_free(&self) -> bool {
 		self.flags.contains(TextFlags::SHOULD_FREE)
 	}
 
