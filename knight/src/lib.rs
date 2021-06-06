@@ -4,6 +4,10 @@ extern crate static_assertions;
 #[macro_use]
 extern crate cfg_if;
 
+#[cfg(test)]
+#[macro_use]
+extern crate assert_matches;
+
 
 // todo: use `NonNull`.
 

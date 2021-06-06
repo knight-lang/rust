@@ -294,7 +294,7 @@ impl<'env> ToText<'_> for Value<'env> {
 		}
 
 		unlikely!();
-		Err(Error::UndefinedConversion { from: self.typename(), into: "Number" })
+		Err(Error::UndefinedConversion { from: self.typename(), into: "Text" })
 	}
 }
 
@@ -303,13 +303,13 @@ impl<'env> ToBoolean for Value<'env> {
 
 	fn to_boolean(&self) -> crate::Result<Boolean> {
 		if self.is_literal() {
-			let is_true = self.raw() <= Self::NULL.raw();
+			let is_true = self.raw() > Self::NULL.raw();
 
 			debug_assert_eq!(
 				is_true,
-				self.raw() == Self::NULL.raw()
-					|| self.raw() == Self::FALSE.raw()
-					|| self.raw() == Self::from(Number::ZERO).raw()
+				self.raw() != Self::NULL.raw()
+					&& self.raw() != Self::FALSE.raw()
+					&& self.raw() != Self::from(Number::ZERO).raw()
 			);
 
 			return Ok(is_true);
@@ -489,19 +489,178 @@ impl TryOrd for Value<'_> {
 mod tests {
 	use super::*;
 
+	macro_rules! number {
+		($number:expr) => (Number::new($number).unwrap());
+	}
+
+	macro_rules! text {
+		($text:expr) => (Text::new($text.into()).unwrap());
+	}
+
+	macro_rules! ast {
+		($which:ident $(, $values:expr)* $(,)?) => (Ast::new(&crate::function::$which, vec![$($values.into()),*].into_boxed_slice()));
+	}
+
 	#[test]
 	fn is_literal() {
 		assert!(Value::TRUE.is_literal());
 		assert!(Value::FALSE.is_literal());
 		assert!(Value::NULL.is_literal());
-		assert!(Value::from(Number::new(0).unwrap()).is_literal());
-		assert!(Value::from(Number::new(1).unwrap()).is_literal());
-		assert!(Value::from(Number::new(123).unwrap()).is_literal());
-		assert!(Value::from(Number::new(-1).unwrap()).is_literal());
+		assert!(Value::from(number!(0)).is_literal());
+		assert!(Value::from(number!(1)).is_literal());
+		assert!(Value::from(number!(-1)).is_literal());
+		assert!(Value::from(number!(123)).is_literal());
 
-		assert!(!Value::from(Text::new("".into()).unwrap()).is_literal());
-		assert!(!Value::from(Text::new("A".into()).unwrap()).is_literal());
+		assert!(!Value::from(text!("")).is_literal());
+		assert!(!Value::from(text!("A")).is_literal());
 
-		// todo: from value and ast.
+		assert!(!Value::from(ast![RANDOM]).is_literal());
+
+		let env = Environment::default();
+		assert!(!Value::from(env.fetch_var("foo")).is_literal());
 	}
+
+	#[test]
+	#[ignore]
+	fn run() {
+		let env = Environment::default();
+
+		assert_eq!(Value::NULL.run(&env).unwrap().downcast::<Null>(), Some(Null));
+
+		assert_eq!(Value::TRUE.run(&env).unwrap().downcast::<Boolean>(), Some(true));
+		assert_eq!(Value::FALSE.run(&env).unwrap().downcast::<Boolean>(), Some(false));
+
+		assert_eq!(Value::from(number!(1)).run(&env).unwrap().downcast::<Number>(), Some(number!(1)));
+		assert_eq!(Value::from(number!(0)).run(&env).unwrap().downcast::<Number>(), Some(number!(0)));
+		assert_eq!(Value::from(number!(-1)).run(&env).unwrap().downcast::<Number>(), Some(number!(-1)));
+		assert_eq!(Value::from(number!(123)).run(&env).unwrap().downcast::<Number>(), Some(number!(123)));
+		assert_eq!(Value::from(number!(-12)).run(&env).unwrap().downcast::<Number>(), Some(number!(-12)));
+
+		assert_eq!(*Value::from(text!("")).run(&env).unwrap().downcast::<Text>().unwrap(), text!(""));
+		assert_eq!(*Value::from(text!("hello world")).run(&env).unwrap().downcast::<Text>().unwrap(), text!("hello world"));
+		assert_eq!(*Value::from(text!("-123")).run(&env).unwrap().downcast::<Text>().unwrap(), text!("-123"));
+
+		assert_eq!(Value::from(ast![NOOP, number!(4)]).run(&env).unwrap().downcast::<Number>(), Some(number!(4)));
+
+		let env = Environment::default();
+		let var = env.fetch_var("foo");
+		var.set(number!(5).into());
+
+		assert_eq!(Value::from(var).run(&env).unwrap().downcast::<Number>(), Some(number!(5)));
+	}
+
+	#[test]
+	fn to_number() {
+		assert_eq!(Value::NULL.to_number().unwrap(), Null.to_number().unwrap());
+
+		assert_eq!(Value::TRUE.to_number().unwrap(), true.to_number().unwrap());
+		assert_eq!(Value::FALSE.to_number().unwrap(), false.to_number().unwrap());
+
+		assert_eq!(Value::from(number!(1)).to_number().unwrap(), number!(1).to_number().unwrap());
+		assert_eq!(Value::from(number!(0)).to_number().unwrap(), number!(0).to_number().unwrap());
+		assert_eq!(Value::from(number!(-1)).to_number().unwrap(), number!(-1).to_number().unwrap());
+		assert_eq!(Value::from(number!(123)).to_number().unwrap(), number!(123).to_number().unwrap());
+		assert_eq!(Value::from(number!(-12)).to_number().unwrap(), number!(-12).to_number().unwrap());
+
+		assert_eq!(Value::from(text!("")).to_number().unwrap(), text!("").to_number().unwrap());
+		assert_eq!(Value::from(text!("hello world")).to_number().unwrap(), text!("hello world").to_number().unwrap());
+		assert_eq!(Value::from(text!("-123")).to_number().unwrap(), text!("-123").to_number().unwrap());
+
+		assert_matches!(
+			Value::from(ast![RANDOM]).to_number().unwrap_err(),
+			Error::UndefinedConversion { from: "Ast", into: "Number" }
+		);
+
+		let env = Environment::default();
+		assert_matches!(
+			Value::from(env.fetch_var("foo")).to_number().unwrap_err(),
+			Error::UndefinedConversion { from: "Variable", into: "Number" }
+		);
+	}
+
+	#[test]
+	fn to_text() {
+		assert_eq!(Value::NULL.to_text().unwrap(), *Null.to_text().unwrap().as_ref());
+
+		assert_eq!(Value::TRUE.to_text().unwrap(), *true.to_text().unwrap().as_ref());
+		assert_eq!(Value::FALSE.to_text().unwrap(), *false.to_text().unwrap().as_ref());
+
+		assert_eq!(Value::from(number!(1)).to_text().unwrap(), number!(1).to_text().unwrap());
+		assert_eq!(Value::from(number!(0)).to_text().unwrap(), number!(0).to_text().unwrap());
+		assert_eq!(Value::from(number!(-1)).to_text().unwrap(), number!(-1).to_text().unwrap());
+		assert_eq!(Value::from(number!(123)).to_text().unwrap(), number!(123).to_text().unwrap());
+		assert_eq!(Value::from(number!(-12)).to_text().unwrap(), number!(-12).to_text().unwrap());
+
+		assert_eq!(Value::from(text!("")).to_text().unwrap(), *text!("").to_text().unwrap());
+		assert_eq!(Value::from(text!("hello world")).to_text().unwrap(), *text!("hello world").to_text().unwrap());
+		assert_eq!(Value::from(text!("-123")).to_text().unwrap(), *text!("-123").to_text().unwrap());
+
+		assert_matches!(
+			Value::from(ast![RANDOM]).to_text().unwrap_err(),
+			Error::UndefinedConversion { from: "Ast", into: "Text" }
+		);
+
+		let env = Environment::default();
+		assert_matches!(
+			Value::from(env.fetch_var("foo")).to_text().unwrap_err(),
+			Error::UndefinedConversion { from: "Variable", into: "Text" }
+		);
+	}
+
+	#[test]
+	fn to_boolean() {
+		assert_eq!(Value::NULL.to_boolean().unwrap(), Null.to_boolean().unwrap());
+
+		assert_eq!(Value::TRUE.to_boolean().unwrap(), true.to_boolean().unwrap());
+		assert_eq!(Value::FALSE.to_boolean().unwrap(), false.to_boolean().unwrap());
+
+		assert_eq!(Value::from(number!(1)).to_boolean().unwrap(), number!(1).to_boolean().unwrap());
+		assert_eq!(Value::from(number!(0)).to_boolean().unwrap(), number!(0).to_boolean().unwrap());
+		assert_eq!(Value::from(number!(-1)).to_boolean().unwrap(), number!(-1).to_boolean().unwrap());
+		assert_eq!(Value::from(number!(123)).to_boolean().unwrap(), number!(123).to_boolean().unwrap());
+		assert_eq!(Value::from(number!(-12)).to_boolean().unwrap(), number!(-12).to_boolean().unwrap());
+
+		assert_eq!(Value::from(text!("")).to_boolean().unwrap(), text!("").to_boolean().unwrap());
+		assert_eq!(Value::from(text!("hello world")).to_boolean().unwrap(), text!("hello world").to_boolean().unwrap());
+		assert_eq!(Value::from(text!("-123")).to_boolean().unwrap(), text!("-123").to_boolean().unwrap());
+
+		assert_matches!(
+			Value::from(ast![RANDOM]).to_boolean().unwrap_err(),
+			Error::UndefinedConversion { from: "Ast", into: "Boolean" }
+		);
+
+		let env = Environment::default();
+		assert_matches!(
+			Value::from(env.fetch_var("foo")).to_boolean().unwrap_err(),
+			Error::UndefinedConversion { from: "Variable", into: "Boolean" }
+		);
+	}
+
+	#[test]
+	fn try_add() {}
+
+	#[test]
+	fn try_sub() {}
+	
+	#[test]
+	fn try_mul() {}
+	
+	#[test]
+	fn try_div() {}
+	
+	#[test]
+	fn try_rem() {}
+	
+	#[test]
+	fn try_pow() {}
+	
+	#[test]
+	fn try_neg() {}
+	
+	#[test]
+	fn try_cmp() {}
+
+	#[test]
+	fn try_eq() {}
 }
+
