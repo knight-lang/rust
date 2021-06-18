@@ -9,9 +9,11 @@ use serenity::{
 
 struct Handler;
 
-fn run_str(cmd: &str) -> String {
+const BLOCK_QUOTE: &str = "```";
+
+fn run_str(cmd: &str, stdin: &str) -> String {
 	let mut stdout = Vec::new();
-	let mut stdin = std::io::Cursor::new("");
+	let mut stdin = std::io::Cursor::new(stdin);
 
 	Environment::builder()
 		.stdin(&mut stdin)
@@ -19,8 +21,33 @@ fn run_str(cmd: &str) -> String {
 		.disable_system()
 		.build()
 		.run_str(cmd)
-		.map(|_| format!("result:\n```\n{}\n```", String::from_utf8_lossy(&stdout)))
-		.unwrap_or_else(|err| format!("error: {}", err))
+		.map(|result| {
+			if stdout.is_empty() {
+				format!("result:\n```\n{}\n```", format!("{:?}", result).replace(BLOCK_QUOTE, r#"\`\`\`"#))
+			} else {
+				format!("stdout:\n```\n{}\n```", String::from_utf8_lossy(&stdout).replace(BLOCK_QUOTE, r#"\`\`\`"#))
+			}
+		})
+		.unwrap_or_else(|err| format!("stderr:\n```error: {}\n```", err.to_string().replace(BLOCK_QUOTE, r#"\`\`\`"#)	))
+
+}
+
+fn get_cmd(msg: &str) -> Option<(String, String)> {
+	let mut iter = msg.split(BLOCK_QUOTE).skip(1); // ignore prefix
+
+	let msg =
+		if let Some(msg) = iter.next() {
+			msg
+		} else {
+			iter = msg.split("`").skip(1); // ignore prefix
+			if let Some(msg) = iter.next() {
+				msg
+			} else {
+				return None;
+			}
+		};
+
+	Some((msg.to_owned(), iter.skip(1).next().unwrap_or("").to_owned()))
 }
 
 #[async_trait]
@@ -30,26 +57,15 @@ impl EventHandler for Handler {
 			return;
 		}
 
-		let cmd =
-			if let Some(cmd) =
-				msg.content
-					.splitn(3, "```")
-					.skip(1) // ignore prefix
-					.next() // next is the contents
-					.or_else(|| msg.content.splitn(3, "`").skip(1).next())
-			{
-				cmd.to_owned()
-			} else {
-				return;
-			};
+		let (cmd, stdin) = if let Some(cmd) = get_cmd(&msg.content) { cmd } else { return; };
 
-    let response_fut = tokio::spawn(async move { run_str(&cmd) });
-    let response = tokio::time::timeout(Duration::from_secs(5), response_fut).await
-    		.map(|x| x.unwrap())
- 			.unwrap_or_else(|_| "error: timed out".to_string());
+		let response_fut = tokio::spawn(async move { run_str(&cmd, &stdin) });
+		let response = tokio::time::timeout(Duration::from_secs(5), response_fut).await
+				.map(|x| x.unwrap())
+				.unwrap_or_else(|_| "error: timed out".to_string());
 
 		if let Err(why) = msg.channel_id.say(&ctx.http, response).await {
-			println!("Error sending message: {:?}", why);
+			eprintln!("Error sending message: {:?}", why);
 		}
 	}
 

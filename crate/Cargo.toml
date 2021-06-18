@@ -17,6 +17,58 @@ default = []
 # Leak strings for fast access later.
 cache-strings = []
 
+
+# Instead of propagating exceptions, abort when an error occurs.
+abort-on-errors = []
+
+# Enable all optimizations
+optimized = ["abort-on-errors", "cache-strings"]
+
+#######################################
+##      `Unsafe`  Optimizations      ##
+#######################################
+
+# Indicates unsafe code is enabled; used to deny unsafe code otherwise.
+unsafe-enabled = []
+
+# Assume knight will be run in one thread.
+#
+# WARNING: this can cause undefined behaviour if multiple threads use knight.
+unsafe-single-threaded = ["unsafe-enabled"]
+
+# Assume that all knight programs are 100% well-defined.
+#
+# WARNING: This **will** cause undefined behaviour if anything goes wrong, such as a system call failing.
+# This should be used with caution.
+#
+# If `abort-on-errors` is enabled, this will be ignored.
+unsafe-reckless = ["unsafe-enabled"]
+
+# Enable all optimizations for knight
+#
+# WARNING: Read the descriptions of each `unsafe` feature to prevent undefined behaviour.
+unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"]
+
+#######################################
+##         Knight Extensions         ##
+#######################################
+
+# Allow programs to assign to non-variables by converting to value to a variable first.
+assign-to-anything = []
+
+# Enables the `~` function, which is used for unary negation.
+unary-negation = []
+
+# Enables the `V` function, which can be used to dynamically look variables up without `EVAL`.
+variable-lookup = []
+
+# Just enable all extensions.
+extensions = ["assign-to-anything", "unary-negation", "variable-lookup"]
+
+#######################################
+##          Spec Compliance          ##
+#######################################
+
 # Restrict source files and strings to the bytes defined in the Knight spec.
 disallow-unicode = []
 

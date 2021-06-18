@@ -4,9 +4,7 @@ version = "0.1.0"
 authors = ["Sam Westerman <mail@sampersand.me>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-knightrs = "^0.8.9"
+knightrs = { version = "0.8.10", path = "../crate", features=["strict-compliance"] }
 tokio = { version = "1.0", features = ["macros", "sync", "rt-multi-thread"] }
 serenity = { version = "0.10", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
