@@ -125,6 +125,8 @@ lazy_static::lazy_static! {
 		insert!('L', 1, length);
 		insert!('D', 1, dump);
 		insert!('O', 1, output);
+		insert!('A', 1, ascii);
+		insert!('~', 1, neg);
 
 		insert!('+', 2, add);
 		insert!('-', 2, subtract);
@@ -144,9 +146,6 @@ lazy_static::lazy_static! {
 		insert!('I', 3, r#if);
 		insert!('G', 3, get);
 		insert!('S', 4, substitute);
-
-		#[cfg(feature="unary-negation")]
-		insert!('~', 1, neg);
 
 		#[cfg(Feature="variable-lookup")]
 		insert!('V', 1, variable_lookup);
@@ -233,11 +232,6 @@ pub fn not(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	Ok((!args[0].run(env)?.to_boolean()?).into())
 }
 
-#[cfg(feature = "unary-negation")]
-pub fn neg(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-	Ok((-args[0].run(env)?.to_number()?).into())
-}
-
 pub fn length(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
 	args[0].run(env)?.to_text()
 		.map(|text| text.len() as Number) // todo: check for number overflow?
@@ -263,6 +257,22 @@ pub fn output(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value
 	}
 
 	Ok(Value::default())
+}
+
+pub fn ascii(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	match args[0].run(env)? {
+		Value::Number(num) => {
+			// TODO: check for out of bounds, maybe also allow for unicode
+			Ok(Value::Text(char::try_from(num as u8).expect("bad ascii").to_string().try_into().expect("oops invalid")))
+		},
+		Value::Text(text) if text.is_empty() => panic!("todo: error for empty text"),
+		Value::Text(text) => Ok(Value::Number(text.as_str().chars().next().unwrap() as i64)),
+		other => error!(Error::InvalidOperand { func: 'A', operand: other.typename() })
+	}
+}
+
+pub fn neg(args: &[Value], env: &mut Environment<'_, '_, '_>) -> Result<Value> {
+	Ok((-args[0].run(env)?.to_number()?).into())
 }
 
 // arity two
