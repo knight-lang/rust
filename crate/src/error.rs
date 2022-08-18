@@ -4,12 +4,17 @@ use std::io;
 
 #[derive(Debug)]
 pub enum Error {
-	NoConversion { from: &'static str, to: &'static str },
+	NoConversion {
+		from: &'static str,
+		to: &'static str,
+	},
 	IllegalByte(IllegalByte),
 	UndefinedVariable(String),
 	IoError(io::Error),
 	DomainError(&'static str),
-	TypeError(char, &'static str),
+	TypeError(&'static str),
+	DivisionByZero,
+	#[cfg(feature = "checked-overflow")]
 	IntegerOverflow,
 }
 
@@ -45,7 +50,10 @@ impl Display for Error {
 			Self::UndefinedVariable(name) => write!(f, "undefined variable {name} was accessed"),
 			Self::IoError(err) => write!(f, "an io error occurred: {err}"),
 			Self::DomainError(err) => write!(f, "an domain error occurred: {err}"),
-			Self::TypeError(name, kind) => write!(f, "invalid kind {kind} for function {name:?}"),
+			Self::TypeError(kind) => write!(f, "invalid type {kind} given"),
+			Self::DivisionByZero => write!(f, "division/modulo by zero"),
+
+			#[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 		}
 	}

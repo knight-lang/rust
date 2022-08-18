@@ -43,6 +43,12 @@ impl Debug for Value {
 	}
 }
 
+impl From<()> for Value {
+	fn from(_: ()) -> Self {
+		Self::Null
+	}
+}
+
 impl From<bool> for Value {
 	#[inline]
 	fn from(boolean: bool) -> Self {
@@ -123,6 +129,11 @@ impl Value {
 			Self::Variable(_) => "Variable",
 			Self::Ast(_) => "Ast",
 		}
+	}
+
+	/// Checks to see if `self` is one of the four builtin types: Null, Boolean, Number, or Text.
+	pub const fn is_builtin_type(&self) -> bool {
+		matches!(self, Self::Null | Self::Boolean(_) | Self::Number(_) | Self::Text(_))
 	}
 
 	/// Converts `self` to a [`bool`] according to the Knight spec.

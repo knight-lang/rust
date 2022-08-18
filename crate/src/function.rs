@@ -1,6 +1,7 @@
 use crate::{value::Number, Environment, Error, Result, Text, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::io::Write;
+use tap::prelude::*;
 
 #[derive(Clone, Copy)]
 pub struct Function {
@@ -81,11 +82,18 @@ functions! { env;
 	}
 
 	fn NOT ('!', arg) {
-		(!arg.run(env)?.to_bool()?).into()
+		arg.run(env)?
+			.to_bool()?
+			.pipe(|x| !x)
+			.into()
 	}
 
 	fn LENGTH ('L', arg) {
-		(arg.run(env)?.to_text()?.len() as Number).into()
+		arg.run(env)?
+			.to_text()?
+			.len()
+			.pipe(|x| x as Number)
+			.into()
 	}
 
 	fn DUMP ('D', arg) {
@@ -103,11 +111,12 @@ functions! { env;
 			writeln!(env, "{text}")?;
 		}
 
-		Default::default()
+		Value::Null
 	}
 
+
 	fn ASCII ('A', arg) {
-			match arg.run(env)? {
+		match arg.run(env)? {
 			Value::Number(num) =>
 				u32::try_from(num)
 					.ok()
@@ -116,42 +125,217 @@ functions! { env;
 					.ok_or(Error::DomainError("number isn't in bounds"))?
 					.into(),
 
-			Value::Text(text) => (text.chars().next()
-				.ok_or(Error::DomainError("Empty string"))? as Number).into(),
+			Value::Text(text) =>
+				text.chars()
+					.next()
+					.ok_or(Error::DomainError("Empty string"))?
+					.pipe(|x| x as Number)
+					.into(),
 
-			other => return Err(Error::TypeError(ASCII.name, other.typename()))
+			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
 
-
 	fn NEG ('~', arg) {
-		arg.run(env)?
-			.to_number()?
-			.checked_neg()
-			.ok_or(Error::IntegerOverflow)?
-			.into()
+		let num = arg.run(env)?.to_number()?;
+
+		#[cfg(feature = "checked-overflow")]
+		{ num.checked_neg().ok_or(Error::IntegerOverflow)?.into() }
+
+		#[cfg(not(feature = "checked-overflow"))]
+		{ num.wrapping_neg().into() }
 	}
 
+	fn ADD('+', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?.to_number()?;
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_add(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_add(rnum).into() }
+			},
+			Value::Text(_text) => todo!(),
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn SUBTRACT('-', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?.to_number()?;
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_sub(rnum).into() }
+			},
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn MULTIPLY('*', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?.to_number()?;
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_mul(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_mul(rnum).into() }
+			},
+			Value::Text(_text) => todo!(),
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn DIVIDE('/', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?.to_number()?;
+
+				if rnum == 0 {
+					return Err(Error::DivisionByZero);
+				}
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_div(rnum).into() }
+			},
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn MODULO('%', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?.to_number()?;
+
+				if rnum == 0 {
+					return Err(Error::DivisionByZero);
+				}
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_rem(rnum).into() }
+			},
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn POWER('^', lhs, rhs) {
+		// TODO: verify this is actually power work
+		match lhs.run(env)? {
+			Value::Number(lnum) => {
+				let rnum = rhs.run(env)?
+					.to_number()?
+					.try_conv::<u32>()
+					.or(Err(Error::DomainError("invalid exponent")))?;
+
+				#[cfg(feature = "checked-overflow")]
+				{ lnum.checked_pow(rnum).ok_or(Error::IntegerOverflow)?.into() }
+
+				#[cfg(not(feature = "checked-overflow"))]
+				{ lnum.wrapping_pow(rnum).into() }
+			}
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn EQUALS('?', lhs, rhs) {
+		let l = lhs.run(env)?;
+		let r = rhs.run(env)?;
+
+		if cfg!(feature = "strict-compliance") {
+			if !l.is_builtin_type() {
+				return Err(Error::TypeError(l.typename()));
+			}
+
+			if !r.is_builtin_type() {
+				return Err(Error::TypeError(r.typename()));
+			}
+		}
+
+		(l == r).into()
+	}
+
+	fn LESS_THAN('<', lhs, rhs) {
+		match lhs.run(env)? {
+			Value::Number(lnum) => (lnum < rhs.run(env)?.to_number()?).into(),
+			Value::Boolean(lbool) => (!lbool & rhs.run(env)?.to_bool()?).into(),
+			Value::Text(_text) => todo!(),
+			other => return Err(Error::TypeError(other.typename()))
+		}
+	}
+
+	fn GREATER_THAN('>', lhs, rhs) {
+		let _ = (lhs, rhs); todo!();
+	}
+
+	fn AND('&', lhs, rhs) {
+		let l = lhs.run(env)?;
+
+		if l.to_bool()? {
+			rhs.run(env)?
+		} else {
+			l
+		}
+	}
+
+	fn OR('|', lhs, rhs) {
+		let l = lhs.run(env)?;
+
+		if l.to_bool()? {
+			l
+		} else {
+			rhs.run(env)?
+		}
+	}
+
+	fn THEN(';', lhs, rhs) {
+		lhs.run(env)?;
+		rhs.run(env)?
+	}
+
+	fn ASSIGN('=', var, value) {
+		if let Value::Variable(v) = var {
+			let r = value.run(env)?;
+			v.assign(r.clone());
+			r
+		} else {
+			return Err(Error::TypeError(var.typename()));
+		}
+	}
+
+	fn WHILE('W', cond, body) {
+		while cond.run(env)?.to_bool()? {
+			body.run(env)?;
+		}
+
+		Value::Null
+	}
+
+	fn IF('I', cond, iftrue, iffalse) {
+		if cond.run(env)?.to_bool()? {
+			iftrue.run(env)?
+		} else {
+			iffalse.run(env)?
+		}
+	}
+
+	fn GET('G', string, start, length) {
+		let _ = (string, start, length); todo!();
+	}
+
+	fn SUBSTITUTE('S', string, start, length, replacement) {
+		let _ = (string, start, length, replacement); todo!();
+	}
 }
-
-// insert!('+', 2, add);
-// insert!('-', 2, subtract);
-// insert!('*', 2, multiply);
-// insert!('/', 2, divide);
-// insert!('%', 2, modulo);
-// insert!('^', 2, power);
-// insert!('?', 2, equals);
-// insert!('<', 2, less_than);
-// insert!('>', 2, greater_than);
-// insert!('&', 2, and);
-// insert!('|', 2, or);
-// insert!(';', 2, then);
-// insert!('=', 2, assign);
-// insert!('W', 2, r#while);
-
-// insert!('I', 3, r#if);
-// insert!('G', 3, get);
-// insert!('S', 4, substitute);
-
-// #[cfg(feature = "variable-lookup")]
-// insert!('V', 1, variable_lookup);

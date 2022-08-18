@@ -106,7 +106,7 @@ impl Variable {
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&mut self, new: Value) -> Option<Value> {
+	pub fn assign(&self, new: Value) -> Option<Value> {
 		(self.0).1.replace(Some(new))
 	}
 
