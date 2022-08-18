@@ -1,231 +1,114 @@
-//! Types relating to the [`Text`].
+use crate::{value::Number, Error, Result};
+use std::fmt::{self, Display, Formatter};
+use std::rc::Rc;
 
-use std::sync::Arc;
-use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
-use std::convert::TryFrom;
-use std::borrow::Borrow;
-
-cfg_if! {
-	if #[cfg(feature = "unsafe-single-threaded")] {
-		use once_cell::unsync::OnceCell;
-	} else {
-		use once_cell::sync::OnceCell;
-	}
-}
-
-cfg_if! {
-	if #[cfg(not(feature = "cache-strings"))] {
-		// do nothing
-	} else if #[cfg(feature = "unsafe-single-threaded")] {
-		use std::collections::HashSet;
-		static mut TEXT_CACHE: OnceCell<HashSet<Text>> = OnceCell::new();
-
-	} else {
-		use std::collections::HashSet;
-		use std::sync::RwLock;
-
-		static TEXT_CACHE: OnceCell<RwLock<HashSet<Text>>> = OnceCell::new();
-	}
-}
-
-/// The string type within Knight.
-#[derive(Clone)]
-pub struct Text(
-	#[cfg(all(not(feature="cache-strings"), not(feature="unsafe-single-threaded")))]
-	std::sync::Arc<str>,
-
-	#[cfg(all(not(feature="cache-strings"), feature="unsafe-single-threaded"))]
-	std::rc::Rc<str>,
-
-	#[cfg(feature="cache-strings")]
-	&'static str,
-);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Text(Rc<str>);
 
 impl Default for Text {
-	#[allow(unsafe_code)]
 	fn default() -> Self {
-		// we need it mut so we can have !Send/!Sync in a static.
-		static mut  EMPTY: OnceCell<Text> = OnceCell::new();
-
-		unsafe { &EMPTY }.get_or_init(|| unsafe { Self::new_unchecked("") }).clone()
-	}
-}
-
-impl Debug for Text {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		Debug::fmt(self.as_str(), f)
+		Text(Rc::from(""))
 	}
 }
 
 impl Display for Text {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		Display::fmt(self.as_str(), f)
-	}
-}
-
-impl Hash for Text {
-	fn hash<H: Hasher>(&self, h: &mut H) {
-		self.as_str().hash(h)
-	}
-}
-
-impl Borrow<str> for Text {
-	fn borrow(&self) -> &str {
-		self.as_ref()
-	}
-}
-
-impl Eq for Text {}
-impl PartialEq for Text {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.as_str() == rhs.as_str()
-	}
-}
-
-impl PartialOrd for Text {
-	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		self.as_str().partial_cmp(rhs.as_str())
-	}
-}
-
-impl Ord for Text {
-	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.as_str().cmp(rhs.as_str())
-	}
-}
-
-/// An error that indicates a character within a Knight string wasn't valid.
-#[derive(Debug, PartialEq, Eq)]
-pub struct InvalidChar {
-	/// The byte that was invalid.
-	pub chr: char,
-
-	/// The index of the invalid byte in the given string.
-	pub idx: usize
-}
-
-impl Display for InvalidChar {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "invalid byte {:?} found at position {}", self.chr, self.idx)
-	}
-}
-
-impl std::error::Error for InvalidChar {}
-
-/// Checks to see if `chr` is a valid knight character.
-#[must_use]
-pub const fn is_valid_char(chr: char) -> bool {
-	return !cfg!(feature="disallow-unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~');
-}
-
-fn validate_string(data: &str) -> Result<(), InvalidChar> {
-	for (idx, chr) in data.chars().enumerate() {
-		if !is_valid_char(chr) {
-			return Err(InvalidChar { chr, idx });
-		}
-	}
-
-	Ok(())
-}
-
-impl Text {
-	/// Creates a new `Text` with the given input string.
-	///
-	/// # Errors
-	/// If `string` contains any characters which aren't valid in Knight source code, an `InvalidChar` is returned.
-	///
-	/// # See Also
-	/// - [`Text::new_unchecked`] For a version which doesn't verify `string`.
-	#[must_use = "Creating an Text does nothing on its own"]
-	pub fn new<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Result<Self, InvalidChar> {
-		validate_string(string.borrow())?;
-
-		#[allow(unsafe_code)] // we just verified it.
-		Ok(unsafe { Self::new_unchecked(string) })
-	}
-
-	/// Creates a new `Text`, without verifying that the string is valid.
-	///
-	/// # Safety
-	/// All characters within the string must be valid for Knight strings. See the specs for what exactly this entails.
-	#[must_use = "Creating an Text does nothing on its own"]
-	#[allow(unsafe_code)]
-	pub unsafe fn new_unchecked<T: ToString + Borrow<str> + ?Sized>(string: &T) -> Self {
-		debug_assert_eq!(validate_string(string.borrow()), Ok(()), "invalid string encountered: {:?}", string.borrow());
-
-		#[cfg(not(feature="cache-strings"))] {
-			Self(string.to_string().into())
-		}
-
-		#[cfg(feature="cache-strings")] {
-			// initialize if it's not been initialized yet.
-			let cache = TEXT_CACHE.get_or_init(Default::default);
-
-			// in the unsafe-single-threaded version, we simply use the one below.
-			#[cfg(not(feature="unsafe-single-threaded"))]
-			if let Some(text) = cache.read().unwrap().get(string.borrow()) {
-				return text.clone();
-			}
-
-			drop(cache);
-
-			let mut cache = {
-				#[cfg(feature="unsafe-single-threaded")]
-				{ TEXT_CACHE.get_mut().unwrap_or_else(|| unreachable!()) }
-
-				#[cfg(not(feature="unsafe-single-threaded"))]
-				{ TEXT_CACHE.get().unwrap().write().unwrap() }
-			};
-
-			if let Some(text) = cache.get(string.borrow()) {
-				text.clone()
-			} else {
-				let leaked = Box::leak(string.to_string().into_boxed_str());
-				cache.insert(Text(leaked));
-				Text(leaked)
-			}
-		}
-	}
-
-	/// Gets a reference to the contained string.
-	#[inline]
-	#[must_use]
-	pub fn as_str(&self) -> &str {
-		self.0.as_ref()
-	}
-}
-
-impl TryFrom<&str> for Text {
-	type Error = InvalidChar;
-
-	#[inline]
-	fn try_from(string: &str) -> Result<Self, Self::Error> {
-		Self::new(string)
-	}
-}
-
-impl TryFrom<String> for Text {
-	type Error = InvalidChar;
-
-	#[inline]
-	fn try_from(string: String) -> Result<Self, Self::Error> {
-		Self::new(&string)
-	}
-}
-
-impl AsRef<str> for Text {
-	#[inline]
-	fn as_ref(&self) -> &str {
-		self.as_str()
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Display::fmt(&**self, f)
 	}
 }
 
 impl std::ops::Deref for Text {
 	type Target = str;
 
-	#[inline]
 	fn deref(&self) -> &Self::Target {
-		self.as_str()
+		&self.0
+	}
+}
+
+/// An error that indicates a character within a Knight string wasn't valid.
+#[derive(Debug, PartialEq, Eq)]
+pub struct IllegalByte {
+	/// The byte that was invalid.
+	pub byte: u8,
+	/// The index of the invalid byte in the given string.
+	pub index: usize,
+}
+
+impl Display for IllegalByte {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "illegal byte {:?} found at position {}", self.byte, self.index)
+	}
+}
+
+impl std::error::Error for IllegalByte {}
+
+pub const fn is_valid_char(chr: char) -> bool {
+	!cfg!(feature = "disallow-unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
+}
+
+pub fn validate(data: &str) -> std::result::Result<(), IllegalByte> {
+	if cfg!(not(feature = "disallow-unicode")) {
+		return Ok(());
+	}
+
+	// We're in const context, so we must use `while` with bytes.
+	// Since we're not using unicode, everything's just a byte anyways.
+	let bytes = data.as_bytes();
+	let mut index = 0;
+
+	while index < bytes.len() {
+		let byte = bytes[index];
+
+		if !char::from_u32(byte as u32).map_or(false, is_valid_char) {
+			return Err(IllegalByte { byte, index });
+		}
+
+		index += 1
+	}
+
+	Ok(())
+}
+
+impl Text {
+	pub fn new(inp: impl ToString) -> std::result::Result<Self, IllegalByte> {
+		let inp = inp.to_string();
+
+		if let Err(err) = validate(&inp) {
+			return Err(err);
+		}
+
+		Ok(Self(Rc::from(inp)))
+	}
+
+	pub fn to_number(&self) -> Result<Number> {
+		todo!()
+		// let mut chars = text.trim().bytes();
+		// let mut sign = 1;
+		// let mut number: Number = 0;
+
+		// match chars.next() {
+		// 	Some(b'-') => sign = -1,
+		// 	Some(b'+') => { /* do nothing */ }
+		// 	Some(digit @ b'0'..=b'9') => number = (digit - b'0') as _,
+		// 	_ => return Ok(0),
+		// };
+
+		// while let Some(digit @ b'0'..=b'9') = chars.next() {
+		// 	cfg_if! {
+		// 		 if #[cfg(feature="checked-overflow")] {
+		// 			  number = number
+		// 					.checked_mul(10)
+		// 					.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
+		// 					.ok_or_else(|| {
+		// 						 let err: Error = error_inplace!(Error::TextConversionOverflow);
+		// 						 err
+		// 					})?;
+		// 		 } else {
+		// 			  number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as _);
+		// 		 }
+		// 	}
+		// }
+
+		// Ok(sign * number) // todo: check for this erroring. ?
 	}
 }

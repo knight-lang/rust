@@ -1,28 +1,25 @@
-use std::rc::Rc;
-use crate::{Function, Result, Environment, Value};
+use crate::{Environment, Function, Result, Value};
 
-#[derive(Debug, Clone)]
-pub struct Ast(Rc<AstInner>);
-
-#[derive(Debug)]
-struct AstInner {
-	func: Function,
-	args: Box<[Value]>
-}
-
-impl Eq for Ast {}
-impl PartialEq for Ast {
-	fn eq(&self, rhs: &Self) -> bool {
-		Rc::ptr_eq(&self.0, &rhs.0)
-	}
-}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ast(Box<(&'static Function, Vec<Value>)>);
 
 impl Ast {
-	pub fn new(func: Function, args: Box<[Value]>) -> Self {
-		Self(Rc::new(AstInner { func, args }))
+	/// Creates a new `Ast` from the given arguments.
+	///
+	/// This will panic if `args.len()` isnt equal to `func.arity.`
+	pub fn new(func: &'static Function, args: Vec<Value>) -> Self {
+		assert_eq!(args.len(), func.arity);
+
+		Self(Box::new((func, args)))
 	}
 
-	pub fn run(&self, env: &mut Environment<'_, '_, '_>) -> Result<Value> {
-		self.0.func.run(&self.0.args, env)
+	/// Gets the function associated with the ast.
+	pub fn function(&self) -> &'static Function {
+		(self.0).0
+	}
+
+	/// Executes the function associated with `self`.
+	pub fn run(&self, env: &mut Environment<'_>) -> Result<Value> {
+		(self.function().func)(&(self.0).1, env)
 	}
 }
