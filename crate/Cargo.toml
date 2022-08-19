@@ -69,8 +69,10 @@ extensions = ["assign-to-anything", "variable-lookup"]
 ##          Spec Compliance          ##
 #######################################
 
+forbid-trailing-tokens = []
+
 # Restrict source files and strings to the bytes defined in the Knight spec.
-disallow-unicode = []
+strict-charset = [] # TODO: make this work
 
 # Catch undefined integer arithmetic
 checked-overflow = []
@@ -82,7 +84,13 @@ strict-numbers = []
 strict-block-return-value = []
 
 # Exactly follow knight specs.
-strict-compliance = ["strict-numbers", "checked-overflow", "disallow-unicode", "strict-block-return-value"]
+strict-compliance = [
+	"strict-numbers",
+	"checked-overflow",
+	"forbid-trailing-tokens",
+	"strict-charset",
+	"strict-block-return-value"
+]
 
 [dependencies]
 rand = "0.8"
@@ -95,4 +103,4 @@ tap = "1.0"
 [[bin]]
 name = "knight"
 path = "src/main.rs"
-required-features = ["clap"]
+# required-features = ["clap"]

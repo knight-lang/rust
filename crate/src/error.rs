@@ -1,4 +1,5 @@
-use crate::text::IllegalByte;
+use crate::knightstr::IllegalChar;
+use crate::KnightStr;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -8,8 +9,8 @@ pub enum Error {
 		from: &'static str,
 		to: &'static str,
 	},
-	IllegalByte(IllegalByte),
-	UndefinedVariable(String),
+	IllegalChar(IllegalChar),
+	UndefinedVariable(Box<KnightStr>),
 	IoError(io::Error),
 	DomainError(&'static str),
 	TypeError(&'static str),
@@ -26,16 +27,16 @@ impl From<io::Error> for Error {
 	}
 }
 
-impl From<IllegalByte> for Error {
-	fn from(err: IllegalByte) -> Self {
-		Self::IllegalByte(err)
+impl From<IllegalChar> for Error {
+	fn from(err: IllegalChar) -> Self {
+		Self::IllegalChar(err)
 	}
 }
 
 impl std::error::Error for Error {
 	fn cause(&self) -> Option<&(dyn std::error::Error)> {
 		match self {
-			Self::IllegalByte(err) => Some(err),
+			Self::IllegalChar(err) => Some(err),
 			Self::IoError(err) => Some(err),
 			_ => None,
 		}
@@ -46,7 +47,7 @@ impl Display for Error {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::NoConversion { from, to } => write!(f, "undefined conversion from {from} to {to}"),
-			Self::IllegalByte(err) => Display::fmt(&err, f),
+			Self::IllegalChar(err) => Display::fmt(&err, f),
 			Self::UndefinedVariable(name) => write!(f, "undefined variable {name} was accessed"),
 			Self::IoError(err) => write!(f, "an io error occurred: {err}"),
 			Self::DomainError(err) => write!(f, "an domain error occurred: {err}"),

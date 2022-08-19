@@ -38,6 +38,12 @@ macro_rules! functions {
 		$env:ident;
 		$($(#[$meta:meta])* fn $name:ident ($chr:literal $(,$args:ident)*) $body:block)*
 	) => {
+		pub fn fetch(name: char) -> Option<&'static Function> {
+			match name {
+				$($chr => Some(&$name),)*
+				_ => None
+			}
+		}
 		$(
 			$(#[$meta])*
 			pub const $name: Function = Function {
@@ -271,13 +277,18 @@ functions! { env;
 		match lhs.run(env)? {
 			Value::Number(lnum) => (lnum < rhs.run(env)?.to_number()?).into(),
 			Value::Boolean(lbool) => (!lbool & rhs.run(env)?.to_bool()?).into(),
-			Value::Text(_text) => todo!(),
+			Value::Text(ltext) => (ltext < rhs.run(env)?.to_text()?).into(),
 			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
 
 	fn GREATER_THAN('>', lhs, rhs) {
-		let _ = (lhs, rhs); todo!();
+		match lhs.run(env)? {
+			Value::Number(lnum) => (lnum > rhs.run(env)?.to_number()?).into(),
+			Value::Boolean(lbool) => (lbool & !rhs.run(env)?.to_bool()?).into(),
+			Value::Text(ltext) => (ltext > rhs.run(env)?.to_text()?).into(),
+			other => return Err(Error::TypeError(other.typename()))
+		}
 	}
 
 	fn AND('&', lhs, rhs) {
@@ -306,13 +317,15 @@ functions! { env;
 	}
 
 	fn ASSIGN('=', var, value) {
-		if let Value::Variable(v) = var {
-			let r = value.run(env)?;
-			v.assign(r.clone());
-			r
+		let variable = if let Value::Variable(v) = var {
+			v
 		} else {
 			return Err(Error::TypeError(var.typename()));
-		}
+		};
+
+		let ran = value.run(env)?;
+		variable.assign(ran.clone());
+		ran
 	}
 
 	fn WHILE('W', cond, body) {

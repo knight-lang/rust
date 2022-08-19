@@ -77,6 +77,12 @@ impl From<Variable> for Value {
 	}
 }
 
+impl From<Ast> for Value {
+	fn from(inp: Ast) -> Self {
+		Self::Ast(inp)
+	}
+}
+
 pub trait Context: Sized {
 	fn convert(value: &Value) -> Result<Self>;
 }
@@ -158,4 +164,21 @@ impl Value {
 			_ => Ok(self.clone()),
 		}
 	}
+
+	// pub fn not(&self) -> Result<Self> {
+	// 	Ok((!self.to_bool()?).into())
+	// }
+
+	// pub fn length(&self) -> Result<usize> {
+
+	// }
+
+	// pub fn compare(&self, rhs: &Self) -> Result<std::cmp::Ordering> {
+	// 	match self {
+	// 		Self::Number(lhs) => Ok(lhs.cmp(&rhs.to_number()?)),
+	// 		Self::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_bool()?)),
+	// 		Self::Text(_text) => todo!(),
+	// 		_ => Err(Error::TypeError(self.typename())),
+	// 	}
+	// }
 }

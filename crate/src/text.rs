@@ -1,13 +1,14 @@
-use crate::{value::Number, Error, Result};
+use crate::knightstr::{IllegalChar, KnightStr};
+use crate::{value::Number, Error};
 use std::fmt::{self, Display, Formatter};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Text(Rc<str>);
+pub struct Text(Rc<KnightStr>);
 
 impl Default for Text {
 	fn default() -> Self {
-		Text(Rc::from(""))
+		Text::new("").unwrap()
 	}
 }
 
@@ -18,69 +19,25 @@ impl Display for Text {
 }
 
 impl std::ops::Deref for Text {
-	type Target = str;
+	type Target = KnightStr;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
-/// An error that indicates a character within a Knight string wasn't valid.
-#[derive(Debug, PartialEq, Eq)]
-pub struct IllegalByte {
-	/// The byte that was invalid.
-	pub byte: u8,
-	/// The index of the invalid byte in the given string.
-	pub index: usize,
-}
-
-impl Display for IllegalByte {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "illegal byte {:?} found at position {}", self.byte, self.index)
+impl From<Box<KnightStr>> for Text {
+	fn from(kstr: Box<KnightStr>) -> Self {
+		Self(kstr.into())
 	}
-}
-
-impl std::error::Error for IllegalByte {}
-
-pub const fn is_valid_char(chr: char) -> bool {
-	!cfg!(feature = "disallow-unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
-}
-
-pub fn validate(data: &str) -> std::result::Result<(), IllegalByte> {
-	if cfg!(not(feature = "disallow-unicode")) {
-		return Ok(());
-	}
-
-	// We're in const context, so we must use `while` with bytes.
-	// Since we're not using unicode, everything's just a byte anyways.
-	let bytes = data.as_bytes();
-	let mut index = 0;
-
-	while index < bytes.len() {
-		let byte = bytes[index];
-
-		if !char::from_u32(byte as u32).map_or(false, is_valid_char) {
-			return Err(IllegalByte { byte, index });
-		}
-
-		index += 1
-	}
-
-	Ok(())
 }
 
 impl Text {
-	pub fn new(inp: impl ToString) -> std::result::Result<Self, IllegalByte> {
-		let inp = inp.to_string();
-
-		if let Err(err) = validate(&inp) {
-			return Err(err);
-		}
-
-		Ok(Self(Rc::from(inp)))
+	pub fn new(inp: impl ToString) -> Result<Self, IllegalChar> {
+		Box::<KnightStr>::try_from(inp.to_string().into_boxed_str()).map(Self::from)
 	}
 
-	pub fn to_number(&self) -> Result<Number> {
+	pub fn to_number(&self) -> crate::Result<Number> {
 		todo!()
 		// let mut chars = text.trim().bytes();
 		// let mut sign = 1;
