@@ -1,4 +1,5 @@
 use crate::knightstr::IllegalChar;
+use crate::parser::ParseError;
 use crate::KnightStr;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -17,6 +18,7 @@ pub enum Error {
 	DivisionByZero,
 	#[cfg(feature = "checked-overflow")]
 	IntegerOverflow,
+	ParseError(ParseError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -33,10 +35,17 @@ impl From<IllegalChar> for Error {
 	}
 }
 
+impl From<ParseError> for Error {
+	fn from(err: ParseError) -> Self {
+		Self::ParseError(err)
+	}
+}
+
 impl std::error::Error for Error {
 	fn cause(&self) -> Option<&(dyn std::error::Error)> {
 		match self {
 			Self::IllegalChar(err) => Some(err),
+			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
 			_ => None,
 		}
@@ -53,6 +62,7 @@ impl Display for Error {
 			Self::DomainError(err) => write!(f, "an domain error occurred: {err}"),
 			Self::TypeError(kind) => write!(f, "invalid type {kind} given"),
 			Self::DivisionByZero => write!(f, "division/modulo by zero"),
+			Self::ParseError(err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),

@@ -74,11 +74,8 @@ fn is_whitespace(chr: char) -> bool {
 }
 
 impl<'a> Parser<'a> {
-	pub const fn new(source: &'a str) -> Result<Self, IllegalChar> {
-		match KnightStr::new(source) {
-			Err(err) => Err(err), // const functions don't allow for `?` rn.
-			Ok(source) => Ok(Self { source, line: 1 }),
-		}
+	pub const fn new(source: &'a KnightStr) -> Self {
+		Self { source, line: 1 }
 	}
 
 	pub const fn source(&self) -> &KnightStr {

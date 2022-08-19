@@ -1,6 +1,6 @@
 use crate::{value::Number, Environment, Error, Result, Text, Value};
 use std::fmt::{self, Debug, Formatter};
-use std::io::Write;
+use std::io::{BufRead, Write};
 use tap::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -60,7 +60,22 @@ macro_rules! functions {
 
 functions! { env;
 	fn PROMPT ('P') {
-		todo!();
+		let mut buf = String::new();
+
+		env.read_line(&mut buf)?;
+
+		// remove trailing newlines
+		match buf.pop() {
+			Some('\n') => match buf.pop() {
+				Some('\r') => {},
+				Some(other) => buf.push(other), // ie `<anything>\n`
+				None => {}
+			},
+			Some(other) => buf.push(other),
+			None => {}
+		}
+
+		Text::try_from(buf)?.into()
 	}
 
 	fn RANDOM ('R') {
@@ -68,7 +83,9 @@ functions! { env;
 	}
 
 	fn EVAL ('E', arg) {
-		let _ = arg; todo!();
+		let input = arg.run(env)?.to_text()?;
+
+		env.play(&input)?
 	}
 
 	fn BLOCK ('B', arg) {

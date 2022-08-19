@@ -30,6 +30,14 @@ impl Environment<'_> {
 		self.variables.insert(variable.clone());
 		variable
 	}
+
+	pub fn play(&mut self, input: &KnightStr) -> Result<Value> {
+		crate::parser::Parser::new(input).parse_program(self)?.run(self)
+	}
+
+	pub fn system(&mut self, command: &KnightStr) -> Result<Text> {
+		todo!();
+	}
 }
 
 impl Read for Environment<'_> {

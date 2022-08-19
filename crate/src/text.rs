@@ -31,10 +31,19 @@ impl From<Box<KnightStr>> for Text {
 		Self(kstr.into())
 	}
 }
+impl TryFrom<String> for Text {
+	type Error = IllegalChar;
+
+	fn try_from(inp: String) -> Result<Self, Self::Error> {
+		let boxed = Box::<KnightStr>::try_from(inp.into_boxed_str())?;
+
+		Ok(Self(boxed.into()))
+	}
+}
 
 impl Text {
 	pub fn new(inp: impl ToString) -> Result<Self, IllegalChar> {
-		Box::<KnightStr>::try_from(inp.to_string().into_boxed_str()).map(Self::from)
+		inp.to_string().try_into()
 	}
 
 	pub fn to_number(&self) -> crate::Result<Number> {
