@@ -1,6 +1,6 @@
 use crate::{Error, KnStr, Result, SharedStr, Value};
 use std::collections::HashSet;
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 
@@ -50,18 +50,70 @@ impl Default for Environment {
 	}
 }
 
+/// Maximum length a name can have; only used when `verify-variable-names` is enabled.
+const MAX_NAME_LEN: usize = 65535;
+
+/// Indicates that a a variable name was illegal.
+///
+/// This is only ever returned if the `verify-variable-names` is enabled.
+#[derive(Debug, PartialEq)]
+pub enum IllegalVariableName {
+	/// The name was empty
+	Empty,
+	/// The name was too long.
+	TooLong(usize),
+	/// The name had an illegal character at the beginning.
+	IllegalStartingChar(char),
+	/// The name had an illegal character in the middle.
+	IllegalBodyChar(char),
+}
+
+impl Display for IllegalVariableName {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			Self::Empty => write!(f, "empty variable name supplied"),
+			Self::TooLong(count) => write!(f, "variable name was too long ({count} > {MAX_NAME_LEN})"),
+			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
+			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
+		}
+	}
+}
+
+impl std::error::Error for IllegalVariableName {}
+
+#[cfg(feature = "verify-variable-names")]
+fn verify_variable_name(name: &KnStr) -> std::result::Result<(), IllegalVariableName> {
+	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
+	if !matches!(first, '_' | 'a'..='z') {
+		return Err(IllegalVariableName::IllegalStartingChar(first));
+	}
+
+	if MAX_NAME_LEN < name.len() {
+		return Err(IllegalVariableName::TooLong(name.len()));
+	}
+
+	if let Some(bad) = name.find(|c| !matches!(c, '_' | 'a'..='z' | '0'..='9')) {
+		return Err(IllegalVariableName::IllegalBodyChar(first));
+	}
+
+	Ok(())
+}
+
 impl Environment {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &KnStr) -> Variable {
+	pub fn lookup(&mut self, name: &KnStr) -> std::result::Result<Variable, IllegalVariableName> {
+		#[cfg(feature = "verify-variable-names")]
+		verify_variable_name(name)?;
+
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
-			return var.clone();
+			return Ok(var.clone());
 		}
 
 		let variable = Variable(((name.to_boxed().into(), None.into())).into());
 		self.variables.insert(variable.clone());
-		variable
+		Ok(variable)
 	}
 
 	pub fn run_command(&mut self, command: &KnStr) -> Result<SharedStr> {
@@ -70,7 +122,11 @@ impl Environment {
 
 	// this is here in case we want to add seeding
 	pub fn random(&mut self) -> crate::Integer {
-		rand::random::<crate::Integer>().abs()
+		if cfg!(feature = "strict-compliance") {
+			(rand::random::<u16>() & 0x7fff) as crate::Integer
+		} else {
+			rand::random::<crate::Integer>().abs()
+		}
 	}
 
 	pub fn play(&mut self, source: &KnStr) -> Result<Value> {

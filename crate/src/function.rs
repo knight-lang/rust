@@ -114,7 +114,7 @@ pub const RANDOM: Function = function!('R', env, |/*.*/| env.random());
 /// **4.2.2** `VALUE`  
 pub const VALUE: Function = function!('V', env, |arg| {
 	let name = arg.run(env)?.to_knstr()?;
-	env.lookup(&name)
+	env.lookup(&name)?
 });
 
 /// **4.2.3** `BLOCK`  
@@ -154,13 +154,17 @@ pub const SYSTEM: Function = function!('`', env, |arg| {
 
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!('Q', env, |arg| {
-	return arg
+	let status = arg
 		.run(env)?
 		.to_integer()?
 		.try_conv::<i32>()
-		.map(|status| Err(Error::Quit(status)))
 		.or(Err(Error::DomainError("exit code out of bounds")))?;
 
+	if cfg!(feature = "strict-compliance") && !(0..=127).contains(&status) {
+		return Err(Error::DomainError("exit code out of bounds"));
+	}
+
+	return Err(Error::Quit(status));
 	// The `function!` macro calls `.into()` on the return value, so we need _something_ here.
 	#[allow(dead_code)]
 	Value::Null
@@ -188,6 +192,8 @@ pub const OUTPUT: Function = function!('O', env, |arg| {
 	} else {
 		writeln!(env, "{text}")?;
 	}
+
+	env.flush()?;
 
 	Value::Null
 });
@@ -373,7 +379,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 			}
 			Value::Ast(ast) => {
 				let mut result = Vec::with_capacity(lary.len());
-				let arg = env.lookup("_".try_into().unwrap());
+				let arg = env.lookup("_".try_into().unwrap())?;
 
 				for ele in lary.iter() {
 					arg.assign(ele.clone());
@@ -428,13 +434,13 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 		#[cfg(feature = "arrays")]
 		Value::Array(lary) => match rhs.run(env)? {
 			Value::Ast(ast) => {
-				let acc_var = env.lookup("a".try_into().unwrap());
+				let acc_var = env.lookup("a".try_into().unwrap())?;
 
 				if let Some(init) = lary.as_slice().get(0) {
 					acc_var.assign(init.clone());
 				}
 
-				let arg_var = env.lookup("_".try_into().unwrap());
+				let arg_var = env.lookup("_".try_into().unwrap())?;
 
 				for ele in lary.iter().skip(1) {
 					arg_var.assign(ele);
@@ -458,6 +464,10 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 
 			if rnum == 0 {
 				return Err(Error::DivisionByZero);
+			}
+
+			if cfg!(feature = "strict-compliance") && rnum < 0 {
+				return Err(Error::DomainError("modulo by a negative base"));
 			}
 
 			#[cfg(feature = "checked-overflow")]
@@ -515,7 +525,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 		Value::Array(lary) => match rhs.run(env)? {
 			Value::Ast(ast) => {
 				let mut result = Vec::new();
-				let arg_var = env.lookup("_".try_into().unwrap());
+				let arg_var = env.lookup("_".try_into().unwrap())?;
 
 				for ele in lary.iter() {
 					arg_var.assign(ele.clone());
@@ -690,7 +700,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 
 		_ => {
 			let name = variable.run(env)?.to_knstr()?;
-			env.lookup(&name).assign(value);
+			env.lookup(&name)?.assign(value);
 		}
 	}
 

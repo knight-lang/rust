@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions"]
+default = ["extensions", "verify-variable-names"]
 
 #######################################
 ##           Optimizations           ##
@@ -99,6 +99,9 @@ strict-numbers = []
 # Ensure BLOCK return values are handled correctly.
 strict-block-return-value = []
 
+# Ensure that all variable names are valid (eg `VALUE 1` would fail.)
+verify-variable-names = ["strict-charset"]
+
 # Exactly follow knight specs.
 strict-compliance = [
 	"strict-numbers",
@@ -107,6 +110,7 @@ strict-compliance = [
 	"strict-charset",
 	"strict-block-return-value",
 	"no-extensions",
+	"verify-variable-names"
 ]
 
 [dependencies]

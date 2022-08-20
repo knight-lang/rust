@@ -1,3 +1,4 @@
+use crate::env::IllegalVariableName;
 use crate::knstr::IllegalChar;
 use crate::parser::ParseError;
 use crate::SharedStr;
@@ -31,6 +32,9 @@ pub enum Error {
 	/// The `QUIT` command was run.
 	Quit(i32),
 
+	/// A variable name was illegal.
+	IllegalVariableName(IllegalVariableName),
+
 	/// An illegal character appeared in the source code. Only used when the `strict-charset`
 	/// feature is enabled.
 	#[cfg(feature = "strict-charset")]
@@ -62,7 +66,7 @@ impl From<IllegalChar> for Error {
 
 		#[cfg(not(feature = "strict-charset"))]
 		{
-			panic!()
+			todo!()
 		}
 	}
 }
@@ -73,6 +77,12 @@ impl From<ParseError> for Error {
 	}
 }
 
+impl From<IllegalVariableName> for Error {
+	fn from(err: IllegalVariableName) -> Self {
+		Self::IllegalVariableName(err)
+	}
+}
+
 impl std::error::Error for Error {
 	fn cause(&self) -> Option<&(dyn std::error::Error)> {
 		match self {
@@ -80,6 +90,7 @@ impl std::error::Error for Error {
 			Self::IllegalChar(err) => Some(err),
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
+			Self::IllegalVariableName(err) => Some(err),
 			_ => None,
 		}
 	}
@@ -96,6 +107,7 @@ impl Display for Error {
 			Self::DivisionByZero => write!(f, "division/modulo by zero"),
 			Self::ParseError(err) => Display::fmt(&err, f),
 			Self::Quit(status) => write!(f, "quitting with status code {status}"),
+			Self::IllegalVariableName(err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "strict-charset")]
 			Self::IllegalChar(err) => Display::fmt(&err, f),

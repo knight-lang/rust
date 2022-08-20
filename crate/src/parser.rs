@@ -1,3 +1,4 @@
+use crate::env::IllegalVariableName;
 use crate::knstr::{IllegalChar, KnStr};
 use crate::{Environment, Value};
 use std::fmt::{self, Display, Formatter};
@@ -43,6 +44,9 @@ pub enum ParseErrorKind {
 	/// Indicates that there were some tokens trailing. Only used in `forbid-trailing-tokens` mode.
 	#[cfg(feature = "forbid-trailing-tokens")]
 	TrailingTokens,
+
+	/// A variable name wasn't valid for some reason
+	IllegalVariableName(IllegalVariableName),
 }
 
 impl Display for ParseError {
@@ -61,6 +65,7 @@ impl Display for ParseError {
 			IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
 			#[cfg(feature = "forbid-trailing-tokens")]
 			TrailingTokens => write!(f, "trailing tokens encountered"),
+			IllegalVariableName(ref err) => Display::fmt(&err, f),
 		}
 	}
 }
@@ -190,7 +195,11 @@ impl<'a> Parser<'a> {
 			_ if is_lower(start) => {
 				let ident = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
 
-				Ok(Some(env.lookup(ident).into()))
+				Ok(Some(
+					env.lookup(ident)
+						.map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))?
+						.into(),
+				))
 			}
 
 			'\'' | '\"' => {
