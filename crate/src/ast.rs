@@ -19,7 +19,7 @@ impl Ast {
 	}
 
 	/// Executes the function associated with `self`.
-	pub fn run(&self, env: &mut Environment<'_>) -> Result<Value> {
+	pub fn run(&self, env: &mut Environment) -> Result<Value> {
 		(self.function().func)(&(self.0).1, env)
 	}
 }

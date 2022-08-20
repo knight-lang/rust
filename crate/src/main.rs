@@ -8,10 +8,10 @@ fn main() {
 ; WHILE < å 100
 	; = j + j å
 	: = å + å 1
-: O j
+; O j
 ; = a 3
 #: O + a a
-1
+O + 3 "   -4a"
 
 "##
 			.try_into()

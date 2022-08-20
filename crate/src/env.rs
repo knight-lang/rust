@@ -6,19 +6,40 @@ use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::rc::Rc;
 
-type SystemCommand = dyn FnMut(&str) -> Result<SharedStr>;
+type SystemCommand = dyn FnMut(&KnStr) -> Result<SharedStr>;
 
-#[derive(Default)]
-pub struct Environment<'a> {
+pub struct Environment {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable>,
-	stdin: Option<BufReader<&'a mut dyn Read>>,
-	stdout: Option<&'a mut dyn Write>,
-	system: Option<&'a mut SystemCommand>,
+	stdin: BufReader<Box<dyn Read>>,
+	stdout: Box<dyn Write>,
+	system: Box<SystemCommand>,
 }
 
-impl Environment<'_> {
+impl Default for Environment {
+	fn default() -> Self {
+		Self {
+			variables: HashSet::default(),
+			stdin: BufReader::new(Box::new(std::io::stdin())),
+			stdout: Box::new(std::io::stdout()),
+			system: Box::new(|cmd: &KnStr| {
+				use std::process::{Command, Stdio};
+
+				let output = Command::new("/bin/sh")
+					.arg("-c")
+					.arg(&**cmd)
+					.stdin(Stdio::inherit())
+					.output()
+					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
+
+				Ok(SharedStr::try_from(output)?)
+			}),
+		}
+	}
+}
+
+impl Environment {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
 	pub fn lookup(&mut self, name: &KnStr) -> Variable {
@@ -36,7 +57,7 @@ impl Environment<'_> {
 	}
 
 	pub fn run_command(&mut self, command: &KnStr) -> Result<SharedStr> {
-		todo!();
+		(self.system)(command)
 	}
 
 	// this is here in case we want to add seeding
@@ -45,62 +66,36 @@ impl Environment<'_> {
 	}
 }
 
-impl Read for Environment<'_> {
+impl Read for Environment {
 	/// Read bytes into `data` from `self`'s `stdin`.
 	///
 	/// The `stdin` can be customized at creation via [`Builder::stdin`].
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-		if let Some(ref mut stdin) = self.stdin {
-			stdin.read(data)
-		} else {
-			std::io::stdin().read(data)
-		}
+		self.stdin.read(data)
 	}
 }
 
-impl BufRead for Environment<'_> {
+impl BufRead for Environment {
 	fn fill_buf(&mut self) -> io::Result<&[u8]> {
-		if let Some(ref mut stdin) = self.stdin {
-			stdin.fill_buf()
-		} else {
-			todo!()
-			// std::io::stdin().fill_buf()
-		}
+		self.stdin.fill_buf()
 	}
 
 	fn consume(&mut self, amnt: usize) {
-		if let Some(ref mut stdin) = self.stdin {
-			stdin.consume(amnt)
-		} else {
-			todo!()
-			// std::io::stdin().consume(amnt)
-		}
+		self.stdin.consume(amnt);
 	}
 
 	fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
-		if let Some(ref mut stdin) = self.stdin {
-			stdin.read_line(buf)
-		} else {
-			std::io::stdin().read_line(buf)
-		}
+		self.stdin.read_line(buf)
 	}
 }
 
-impl Write for Environment<'_> {
+impl Write for Environment {
 	fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-		if let Some(ref mut stdout) = self.stdout {
-			stdout.write(data)
-		} else {
-			std::io::stdout().write(data)
-		}
+		self.stdout.write(data)
 	}
 
 	fn flush(&mut self) -> io::Result<()> {
-		if let Some(ref mut stdout) = self.stdout {
-			stdout.flush()
-		} else {
-			std::io::stdout().flush()
-		}
+		self.stdout.flush()
 	}
 }
 

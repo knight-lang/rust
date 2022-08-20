@@ -128,7 +128,7 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_program(mut self, env: &mut Environment<'_>) -> Result<Value, ParseError> {
+	pub fn parse_program(mut self, env: &mut Environment) -> Result<Value, ParseError> {
 		let return_value =
 			self.parse(env)?.ok_or_else(|| self.error(ParseErrorKind::NothingToParse))?;
 
@@ -143,7 +143,7 @@ impl<'a> Parser<'a> {
 		Ok(return_value)
 	}
 
-	pub fn parse(&mut self, env: &mut Environment<'_>) -> Result<Option<Value>, ParseError> {
+	pub fn parse(&mut self, env: &mut Environment) -> Result<Option<Value>, ParseError> {
 		fn is_lower(chr: char) -> bool {
 			chr == '_'
 				|| if cfg!(feature = "strict-charset") {

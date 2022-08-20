@@ -192,34 +192,41 @@ impl SharedStr {
 	}
 
 	pub fn to_number(&self) -> crate::Result<Number> {
-		todo!()
-		// let mut chars = text.trim().bytes();
-		// let mut sign = 1;
-		// let mut number: Number = 0;
+		let mut bytes = self.trim_start().bytes();
 
-		// match chars.next() {
-		// 	Some(b'-') => sign = -1,
-		// 	Some(b'+') => { /* do nothing */ }
-		// 	Some(digit @ b'0'..=b'9') => number = (digit - b'0') as _,
-		// 	_ => return Ok(0),
-		// };
+		let (is_negative, mut number) = match bytes.next() {
+			Some(b'+') => (false, 0),
+			Some(b'-') => (true, 0),
+			Some(num @ b'0'..=b'9') => (false, (num - b'0') as Number),
+			_ => return Ok(0),
+		};
 
-		// while let Some(digit @ b'0'..=b'9') = chars.next() {
-		// 	cfg_if! {
-		// 		 if #[cfg(feature="checked-overflow")] {
-		// 			  number = number
-		// 					.checked_mul(10)
-		// 					.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
-		// 					.ok_or_else(|| {
-		// 						 let err: Error = error_inplace!(Error::KnStringConversionOverflow);
-		// 						 err
-		// 					})?;
-		// 		 } else {
-		// 			  number = number.wrapping_mul(10).wrapping_add((digit as u8 - b'0') as _);
-		// 		 }
-		// 	}
-		// }
+		while let Some(digit @ b'0'..=b'9') = bytes.next() {
+			#[cfg(feature = "checked-overflow")]
+			{
+				number = number
+					.checked_mul(10)
+					.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
+					.ok_or_else(|| Err(Error::IntegerOverflow))?;
+			}
+			#[cfg(not(feature = "checked-overflow"))]
+			{
+				number = (number * 10) + (digit - b'0') as Number;
+			}
+		}
 
-		// Ok(sign * number) // todo: check for this erroring. ?
+		if is_negative {
+			#[cfg(feature = "checked-overflow")]
+			{
+				number = number.checked_neg().ok_or(Error::IntegerOverflow)?;
+			}
+
+			#[cfg(not(feature = "checked-overflow"))]
+			{
+				number = -number;
+			}
+		}
+
+		Ok(number)
 	}
 }

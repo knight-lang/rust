@@ -6,7 +6,7 @@ use tap::prelude::*;
 #[derive(Clone, Copy)]
 pub struct Function {
 	/// The code associated with this function
-	pub func: fn(&[Value], &mut Environment<'_>) -> Result<Value>,
+	pub func: fn(&[Value], &mut Environment) -> Result<Value>,
 
 	/// The single character name of this function
 	pub name: char,

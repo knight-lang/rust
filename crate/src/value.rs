@@ -157,28 +157,11 @@ impl Value {
 		Context::convert(self)
 	}
 
-	pub fn run(&self, env: &mut Environment<'_>) -> Result<Self> {
+	pub fn run(&self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => variable.run(),
 			Self::Ast(ast) => ast.run(env),
 			_ => Ok(self.clone()),
 		}
 	}
-
-	// pub fn not(&self) -> Result<Self> {
-	// 	Ok((!self.to_bool()?).into())
-	// }
-
-	// pub fn length(&self) -> Result<usize> {
-
-	// }
-
-	// pub fn compare(&self, rhs: &Self) -> Result<std::cmp::Ordering> {
-	// 	match self {
-	// 		Self::Number(lhs) => Ok(lhs.cmp(&rhs.to_number()?)),
-	// 		Self::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_bool()?)),
-	// 		Self::SharedStr(_text) => todo!(),
-	// 		_ => Err(Error::TypeError(self.typename())),
-	// 	}
-	// }
 }
