@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 
-cfg_if::cfg_if! {
+cfg_if! {
 	if #[cfg(feature="multithreaded")] {
 		type SystemCommand = dyn FnMut(&KnStr) -> Result<SharedStr> + Send + Sync;
 		type Stdin = dyn Read + Send + Sync;
@@ -110,12 +110,7 @@ impl Write for Environment {
 
 #[derive(Clone)]
 #[rustfmt::skip]
-pub struct Variable(
-	#[cfg(feature = "multithreaded")]
-	std::sync::Arc<(SharedStr, std::sync::RwLock<Option<Value>>)>,
-	#[cfg(not(feature = "multithreaded"))]
-	std::rc::Rc<(SharedStr, std::cell::RefCell<Option<Value>>)>,
-);
+pub struct Variable(crate::RefCount<(SharedStr, crate::Mutable<Option<Value>>)>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable: Send, Sync);

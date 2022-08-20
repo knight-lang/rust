@@ -1,14 +1,35 @@
 #![allow(unused)]
 
 extern crate static_assertions as sa;
+#[macro_use]
+extern crate cfg_if;
 
-#[cfg(feature = "strict-numbers")]
-/// The number type within Knight.
-pub type Integer = i32;
+cfg_if! {
+	if #[cfg(feature = "strict-numbers")] {
+		/// The number type within Knight.
+		pub type Integer = i32;
+	} else {
+		/// The number type within Knight.
+		pub type Integer = i64;
+	}
+}
 
-#[cfg(not(feature = "strict-numbers"))]
-/// The number type within Knight.
-pub type Integer = i64;
+cfg_if! {
+	if #[cfg(feature = "multithreaded")] {
+		type RefCount<T> = std::sync::Arc<T>;
+		type Mutable<T> = std::sync::RwLock<T>;
+	} else {
+		type RefCount<T> = std::rc::Rc<T>;
+		type Mutable<T> = std::cell::RefCell<T>;
+	}
+}
+
+cfg_if! {
+	if #[cfg(not(feature = "no-arrays"))] {
+		mod array;
+		pub use array::Array;
+	}
+}
 
 pub mod ast;
 pub mod env;

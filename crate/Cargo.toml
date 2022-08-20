@@ -67,6 +67,9 @@ disable-eval = []
 # Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
 out-of-bounds-errors = []
 
+# Disable the use of arrays.
+no-arrays = []
+
 # Just disable all extensions.
 no-extensions = ["disable-eval", "out-of-bounds-errors", "no-arrays"]
 

@@ -23,6 +23,9 @@ pub enum Value {
 
 	/// Represents a block of code.
 	Ast(Ast),
+
+	#[cfg(not(feature = "no-arrays"))]
+	Array(crate::Array),
 }
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value: Send, Sync);
@@ -44,6 +47,8 @@ impl Debug for Value {
 			Self::SharedStr(text) => write!(f, "Text({text})"),
 			Self::Variable(variable) => write!(f, "Identifier({})", variable.name()),
 			Self::Ast(ast) => write!(f, "{ast:?}"),
+			#[cfg(not(feature = "no-arrays"))]
+			Self::Array(ary) => Debug::fmt(&ary, f),
 		}
 	}
 }
@@ -101,6 +106,7 @@ impl Context for bool {
 			Value::Boolean(boolean) => Ok(*boolean),
 			Value::Integer(number) => Ok(*number != 0),
 			Value::SharedStr(text) => Ok(!text.is_empty()),
+			// #[cfg(not(feature="no-arrays")]
 			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
 		}
 	}
