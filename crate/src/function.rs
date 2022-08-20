@@ -779,6 +779,12 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 
 	#[cfg(feature = "arrays")]
 	if let Value::Array(ary) = source {
+		if length == 0 {
+			let mut dup = ary.iter().collect::<Vec<Value>>();
+			dup[start] = replacement_source.into();
+			return Ok(crate::Array::from(dup).into());
+		}
+
 		let replacement = replacement_source.to_array()?;
 
 		let mut ret = Vec::new();
