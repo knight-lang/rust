@@ -23,7 +23,7 @@ pub enum Error {
 	/// The correct type was supplied, but some requirements for it weren't met.
 	DomainError(&'static str),
 
-	/// Division/Modulo by zero, or raising 0 to the -1th power. TODO: shoudl we remove negative powers?
+	/// Division/Modulo by zero.
 	DivisionByZero,
 
 	/// There was an issue with parsing (eg `EVAL` failed).

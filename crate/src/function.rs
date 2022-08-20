@@ -544,36 +544,21 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 
 /// **4.3.6** `^`  
 pub const POWER: Function = function!('^', env, |lhs, rhs| {
-	// TODO: verify this is actually power work
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-			let base = lnum;
-			let exponent = rnum;
+		Value::Integer(base) => match (base, rhs.run(env)?.to_integer()?) {
+			(_, Integer::MIN..=-1) => return Err(Error::DomainError("negative exponent")),
+			(_, 0) => 1.into(),
+			(0 | 1, _) => base.into(),
 
-			// TODO: clean me up
-			if base == 1 {
-				1
-			} else if base == -1 {
-				if exponent & 1 == 1 {
-					-1
-				} else {
-					1
-				}
-			} else {
-				match exponent {
-					1 => base,
-					0 => 1,
-					_ if base == 0 && exponent < 0 => return Err(Error::DivisionByZero),
-					_ if exponent < 0 => 0,
-					#[cfg(feature = "checked-overflow")]
-					_ => lnum.checked_pow(rnum as u32).ok_or(Error::IntegerOverflow)?,
-					#[cfg(not(feature = "checked-overflow"))]
-					_ => lnum.wrapping_pow(rnum as u32),
-				}
+			#[cfg(feature = "checked-overflow")]
+			(_, exponent) => {
+				let exp =
+					exponent.try_conv::<u32>().or(Err(Error::DomainError("negative exponent")))?;
+				base.checked_pow(exp).ok_or(Error::IntegerOverflow)?.conv::<Value>()
 			}
-			.conv::<Value>()
-		}
+			#[cfg(not(feature = "checked-overflow"))]
+			(_, exponent) => base.wrapping_pow(exponent as u32).conv::<Value>(),
+		},
 		#[cfg(feature = "arrays")]
 		Value::Array(lary) => {
 			let max = rhs.run(env)?.to_integer()?;
