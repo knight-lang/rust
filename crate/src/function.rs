@@ -1,4 +1,4 @@
-use crate::{value::Number, Environment, Error, Result, SharedStr, Value};
+use crate::{Environment, Error, Integer, Result, SharedStr, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -84,7 +84,7 @@ functions! { env;
 
 	fn EVAL ('E', arg) {
 		let input = arg.run(env)?.to_knstr()?;
-		env.play(&input)?
+		crate::Parser::new(&input).parse(env)?.run(env)?
 	}
 
 	fn BLOCK ('B', arg) {
@@ -103,7 +103,7 @@ functions! { env;
 	fn QUIT ('Q', arg) {
 		let status = arg
 			.run(env)?
-			.to_number()?
+			.to_integer()?
 			.try_conv::<i32>()
 			.or(Err(Error::DomainError("exit code out of bounds")))?;
 
@@ -115,7 +115,7 @@ functions! { env;
 	}
 
 	fn LENGTH ('L', arg) {
-		(arg.run(env)?.to_knstr()?.len() as Number).into()
+		(arg.run(env)?.to_knstr()?.len() as Integer).into()
 	}
 
 	fn DUMP ('D', arg) {
@@ -139,7 +139,7 @@ functions! { env;
 
 	fn ASCII ('A', arg) {
 		match arg.run(env)? {
-			Value::Number(num) =>
+			Value::Integer(num) =>
 				u32::try_from(num)
 					.ok()
 					.and_then(char::from_u32)
@@ -151,7 +151,7 @@ functions! { env;
 				text.chars()
 					.next()
 					.ok_or(Error::DomainError("empty string"))?
-					.pipe(|x| x as Number)
+					.pipe(|x| x as Integer)
 					.into(),
 
 			other => return Err(Error::TypeError(other.typename()))
@@ -159,7 +159,7 @@ functions! { env;
 	}
 
 	fn NEG ('~', arg) {
-		let num = arg.run(env)?.to_number()?;
+		let num = arg.run(env)?.to_integer()?;
 
 		#[cfg(feature = "checked-overflow")]
 		{ num.checked_neg().ok_or(Error::IntegerOverflow)?.into() }
@@ -170,8 +170,8 @@ functions! { env;
 
 	fn ADD('+', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 
 				#[cfg(feature = "checked-overflow")]
 				{ lnum.checked_add(rnum).ok_or(Error::IntegerOverflow)?.into() }
@@ -194,8 +194,8 @@ functions! { env;
 
 	fn SUBTRACT('-', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 
 				#[cfg(feature = "checked-overflow")]
 				{ lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.into() }
@@ -209,8 +209,8 @@ functions! { env;
 
 	fn MULTIPLY('*', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 
 				#[cfg(feature = "checked-overflow")]
 				{ lnum.checked_mul(rnum).ok_or(Error::IntegerOverflow)?.into() }
@@ -222,7 +222,7 @@ functions! { env;
 				// clean me up
 				let amount = rhs
 					.run(env)?
-					.to_number()?
+					.to_integer()?
 					.try_conv::<usize>()
 					.map_err(|_| Error::DomainError("repetition length not within bounds"))?;
 
@@ -238,8 +238,8 @@ functions! { env;
 
 	fn DIVIDE('/', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 
 				if rnum == 0 {
 					return Err(Error::DivisionByZero);
@@ -257,8 +257,8 @@ functions! { env;
 
 	fn MODULO('%', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 
 				if rnum == 0 {
 					return Err(Error::DivisionByZero);
@@ -277,8 +277,8 @@ functions! { env;
 	fn POWER('^', lhs, rhs) {
 		// TODO: verify this is actually power work
 		match lhs.run(env)? {
-			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?.to_number()?;
+			Value::Integer(lnum) => {
+				let rnum = rhs.run(env)?.to_integer()?;
 				let base = lnum;
 				let exponent = rnum;
 
@@ -327,7 +327,7 @@ functions! { env;
 
 	fn LESS_THAN('<', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => (lnum < rhs.run(env)?.to_number()?).into(),
+			Value::Integer(lnum) => (lnum < rhs.run(env)?.to_integer()?).into(),
 			Value::Boolean(lbool) => (!lbool & rhs.run(env)?.to_bool()?).into(),
 			Value::SharedStr(ltext) => (ltext < rhs.run(env)?.to_knstr()?).into(),
 			other => return Err(Error::TypeError(other.typename()))
@@ -336,7 +336,7 @@ functions! { env;
 
 	fn GREATER_THAN('>', lhs, rhs) {
 		match lhs.run(env)? {
-			Value::Number(lnum) => (lnum > rhs.run(env)?.to_number()?).into(),
+			Value::Integer(lnum) => (lnum > rhs.run(env)?.to_integer()?).into(),
 			Value::Boolean(lbool) => (lbool & !rhs.run(env)?.to_bool()?).into(),
 			Value::SharedStr(ltext) => (ltext > rhs.run(env)?.to_knstr()?).into(),
 			other => return Err(Error::TypeError(other.typename()))
@@ -398,8 +398,8 @@ functions! { env;
 
 	fn GET('G', string, start, length) {
 		let string = string.run(env)?.to_knstr()?;
-		let start = start.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
-		let length = length.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+		let start = start.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
+		let length = length.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
 
 		// lol, todo, optimize me
 		string
@@ -412,8 +412,8 @@ functions! { env;
 
 	fn SUBSTITUTE('S', string, start, length, replacement) {
 		let string = string.run(env)?.to_knstr()?;
-		let start = start.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
-		let length = length.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+		let start = start.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
+		let length = length.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
 		let replacement = replacement.run(env)?.to_knstr()?;
 
 		// lol, todo, optimize me

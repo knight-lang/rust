@@ -1,4 +1,4 @@
-use crate::{value::Number, Error};
+use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -191,13 +191,13 @@ impl SharedStr {
 		inp.to_string().try_into()
 	}
 
-	pub fn to_number(&self) -> crate::Result<Number> {
+	pub fn to_integer(&self) -> crate::Result<Integer> {
 		let mut bytes = self.trim_start().bytes();
 
 		let (is_negative, mut number) = match bytes.next() {
 			Some(b'+') => (false, 0),
 			Some(b'-') => (true, 0),
-			Some(num @ b'0'..=b'9') => (false, (num - b'0') as Number),
+			Some(num @ b'0'..=b'9') => (false, (num - b'0') as Integer),
 			_ => return Ok(0),
 		};
 
@@ -211,7 +211,7 @@ impl SharedStr {
 			}
 			#[cfg(not(feature = "checked-overflow"))]
 			{
-				number = (number * 10) + (digit - b'0') as Number;
+				number = (number * 10) + (digit - b'0') as Integer;
 			}
 		}
 

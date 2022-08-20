@@ -3,9 +3,13 @@ use crate::{Environment, Value};
 use std::fmt::{self, Display, Formatter};
 use tap::prelude::*;
 
+/// A type that represents errors that happen during parsing.
 #[derive(Debug)]
 pub struct ParseError {
+	/// What line the error occurred on.
 	pub line: usize,
+
+	/// What kind of error was it.
 	pub kind: ParseErrorKind,
 }
 
@@ -33,10 +37,10 @@ pub enum ParseErrorKind {
 		idx: usize,
 	},
 
-	/// A number literal was too large
+	/// A number literal was too large.
 	IntegerLiteralOverflow,
 
-	/// Indicates that there were some tokens trailing
+	/// Indicates that there were some tokens trailing. Only used in `forbid-trailing-tokens` mode.
 	#[cfg(feature = "forbid-trailing-tokens")]
 	TrailingTokens,
 }
@@ -63,38 +67,28 @@ impl Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+/// Parse source code.
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
 	source: &'a KnStr,
 	line: usize,
 }
 
-fn is_whitespace(chr: char) -> bool {
-	" \r\n\t()[]{}:".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
-}
-
 impl<'a> Parser<'a> {
+	/// Create a new `Parser` from the given source.
 	pub const fn new(source: &'a KnStr) -> Self {
 		Self { source, line: 1 }
 	}
 
-	pub const fn source(&self) -> &KnStr {
-		&self.source
-	}
-
-	pub const fn line(&self) -> usize {
-		self.line
-	}
-
 	fn error(&self, kind: ParseErrorKind) -> ParseError {
-		ParseError { line: self.line(), kind }
+		ParseError { line: self.line, kind }
 	}
 
-	pub fn peek(&self) -> Option<char> {
+	fn peek(&self) -> Option<char> {
 		self.source.chars().next()
 	}
 
-	pub fn advance(&mut self) -> Option<char> {
+	fn advance(&mut self) -> Option<char> {
 		let mut chars = self.source.chars();
 
 		let ret = chars.next();
@@ -106,7 +100,7 @@ impl<'a> Parser<'a> {
 		ret
 	}
 
-	pub fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnStr {
+	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnStr {
 		let start = self.source;
 
 		while let Some(chr) = self.peek() {
@@ -120,7 +114,11 @@ impl<'a> Parser<'a> {
 		KnStr::new(&start[..start.len() - self.source.len()]).unwrap()
 	}
 
-	pub fn strip(&mut self) {
+	fn strip(&mut self) {
+		fn is_whitespace(chr: char) -> bool {
+			" \r\n\t()[]{}:".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
+		}
+
 		while !self.take_while(is_whitespace).is_empty() {
 			if self.peek() == Some('#') {
 				self.take_while(|chr| chr != '\n');
@@ -128,9 +126,10 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	pub fn parse_program(mut self, env: &mut Environment) -> Result<Value, ParseError> {
+	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
+	pub fn parse(mut self, env: &mut Environment) -> Result<Value, ParseError> {
 		let return_value =
-			self.parse(env)?.ok_or_else(|| self.error(ParseErrorKind::NothingToParse))?;
+			self.parse_value(env)?.ok_or_else(|| self.error(ParseErrorKind::NothingToParse))?;
 
 		#[cfg(feature = "forbid-trailing-tokens")]
 		{
@@ -143,7 +142,7 @@ impl<'a> Parser<'a> {
 		Ok(return_value)
 	}
 
-	pub fn parse(&mut self, env: &mut Environment) -> Result<Option<Value>, ParseError> {
+	fn parse_value(&mut self, env: &mut Environment) -> Result<Option<Value>, ParseError> {
 		fn is_lower(chr: char) -> bool {
 			chr == '_'
 				|| if cfg!(feature = "strict-charset") {
@@ -180,7 +179,7 @@ impl<'a> Parser<'a> {
 		match start {
 			'0'..='9' => self
 				.take_while(|chr| chr.is_ascii_digit())
-				.parse::<crate::Number>()
+				.parse::<crate::Integer>()
 				.map(|num| Some(num.into()))
 				.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow)),
 
@@ -223,7 +222,7 @@ impl<'a> Parser<'a> {
 				let mut args = Vec::with_capacity(func.arity);
 
 				for idx in 0..func.arity {
-					if let Some(arg) = self.parse(env)? {
+					if let Some(arg) = self.parse_value(env)? {
 						args.push(arg);
 					} else {
 						return Err(self.error(ParseErrorKind::MissingFunctionArgument { func, idx }));

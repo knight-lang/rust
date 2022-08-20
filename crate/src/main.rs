@@ -1,8 +1,11 @@
 use knightrs::*;
 
 fn main() {
-	match Environment::default()
-		.play(std::env::args().skip(2).next().unwrap().as_str().try_into().unwrap())
+	let mut env = Environment::default();
+	match Parser::new(std::env::args().skip(2).next().unwrap().as_str().try_into().unwrap())
+		.parse(&mut env)
+		.unwrap()
+		.run(&mut env)
 	{
 		Err(Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {

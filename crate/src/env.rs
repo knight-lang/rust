@@ -47,13 +47,9 @@ impl Environment {
 			return var.clone();
 		}
 
-		let variable = Variable(Rc::new((name.to_boxed(), RefCell::new(None))));
+		let variable = Variable(Rc::new((name.to_boxed().into(), RefCell::new(None))));
 		self.variables.insert(variable.clone());
 		variable
-	}
-
-	pub fn play(&mut self, input: &KnStr) -> Result<Value> {
-		crate::parser::Parser::new(input).parse_program(self)?.run(self)
 	}
 
 	pub fn run_command(&mut self, command: &KnStr) -> Result<SharedStr> {
@@ -61,8 +57,8 @@ impl Environment {
 	}
 
 	// this is here in case we want to add seeding
-	pub fn random(&mut self) -> crate::Number {
-		rand::random::<crate::Number>().abs()
+	pub fn random(&mut self) -> crate::Integer {
+		rand::random::<crate::Integer>().abs()
 	}
 }
 
@@ -106,7 +102,7 @@ impl std::borrow::Borrow<KnStr> for Variable {
 }
 
 #[derive(Clone)]
-pub struct Variable(Rc<(Box<KnStr>, RefCell<Option<Value>>)>);
+pub struct Variable(Rc<(SharedStr, RefCell<Option<Value>>)>);
 
 impl Eq for Variable {}
 impl PartialEq for Variable {
@@ -147,7 +143,7 @@ impl Variable {
 	/// Gets the last value assigned to `self`, or returns an [`Error::UndefinedVariable`] if we
 	/// haven't been assigned to yet.
 	pub fn run(&self) -> Result<Value> {
-		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_boxed()))
+		self.fetch().ok_or_else(|| Error::UndefinedVariable((self.0).0.clone()))
 	}
 }
 
