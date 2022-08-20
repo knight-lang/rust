@@ -1,8 +1,15 @@
 use crate::{KnStr, Mutable, RefCount, SharedStr, Value};
+use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Array(RefCount<Mutable<Vec<Value>>>);
+
+impl Debug for Array {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		f.debug_list().entries(&*self.as_slice()).finish()
+	}
+}
 
 impl Array {
 	pub fn is_empty(&self) -> bool {
