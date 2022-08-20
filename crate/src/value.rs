@@ -142,12 +142,6 @@ impl Value {
 		}
 	}
 
-	/// Checks to see if `self` is one of the four builtin types: [`Null`], [`Boolean`], [`Integer`],
-	/// or [`SharedStr`].
-	pub const fn is_builtin_type(&self) -> bool {
-		matches!(self, Self::Null | Self::Boolean(_) | Self::Integer(_) | Self::SharedStr(_))
-	}
-
 	/// Converts `self` to a [`bool`] according to the Knight spec.
 	pub fn to_bool(&self) -> Result<bool> {
 		Context::convert(self)

@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions"]
+default = []
 
 #######################################
 ##           Optimizations           ##
@@ -55,14 +55,14 @@ unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"
 ##         Knight Extensions         ##
 #######################################
 
-# Allow programs to assign to non-variables by converting to value to a variable first.
-assign-to-anything = []
+# # Allow programs to assign to non-variables by converting to value to a variable first.
+# assign-to-anything = []
 
 # Enables the `V` function, which can be used to dynamically look variables up without `EVAL`.
-variable-lookup = []
+disable-eval = []
 
-# Just enable all extensions.
-extensions = ["assign-to-anything", "variable-lookup"]
+# Just disable all extensions.
+no-extensions = ["disable-eval"]
 
 
 #######################################
@@ -89,7 +89,8 @@ strict-compliance = [
 	"checked-overflow",
 	"forbid-trailing-tokens",
 	"strict-charset",
-	"strict-block-return-value"
+	"strict-block-return-value",
+	"no-extensions",
 ]
 
 [dependencies]
