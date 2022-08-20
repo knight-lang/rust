@@ -176,6 +176,10 @@ impl<'a> Parser<'a> {
 			return Ok(None);
 		};
 
+		if is_upper(start) && start != '_' {
+			self.take_while(is_upper);
+		}
+
 		match start {
 			'0'..='9' => self
 				.take_while(|chr| chr.is_ascii_digit())
@@ -202,19 +206,13 @@ impl<'a> Parser<'a> {
 				Ok(Some(body.to_boxed().conv::<crate::SharedStr>().into()))
 			}
 
-			'T' | 'F' => {
-				self.take_while(is_upper);
-				Ok(Some((start == 'T').into()))
-			}
-			'N' => {
-				self.take_while(is_upper);
-				Ok(Some(Value::Null))
-			}
+			'T' | 'F' => Ok(Some((start == 'T').into())),
+			'N' => Ok(Some(Value::Null)),
+			#[cfg(feature = "arrays")]
+			'Z' => Ok(Some(Value::Array(Default::default()))),
 
 			_ => {
-				if is_upper(start) {
-					self.take_while(is_upper);
-				} else {
+				if !is_upper(start) {
 					self.advance();
 				}
 

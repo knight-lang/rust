@@ -32,8 +32,6 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 	match name {
 		_ if name == PROMPT.name => Some(&PROMPT),
 		_ if name == RANDOM.name => Some(&RANDOM),
-		#[cfg(not(feature = "no-extensions"))]
-		_ if name == EVAL.name => Some(&EVAL),
 		_ if name == VALUE.name => Some(&VALUE),
 		_ if name == BLOCK.name => Some(&BLOCK),
 		_ if name == CALL.name => Some(&CALL),
@@ -62,6 +60,13 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == IF.name => Some(&IF),
 		_ if name == GET.name => Some(&GET),
 		_ if name == SUBSTITUTE.name => Some(&SUBSTITUTE),
+
+		#[cfg(feature = "eval-function")]
+		_ if name == EVAL.name => Some(&EVAL),
+
+		#[cfg(feature = "arrays")]
+		_ if name == BOX.name => Some(&BOX),
+
 		_ => None,
 	}
 }
@@ -138,14 +143,6 @@ pub const CALL: Function = function!('C', env, |arg| {
 	}
 
 	block.run(env)?
-});
-
-/// **6.6** `EVAL`
-#[cfg(not(feature = "no-extensions"))]
-pub const EVAL: Function = function!('E', env, |arg| {
-	let input = arg.run(env)?.to_knstr()?;
-
-	env.play(&input)?
 });
 
 /// **4.2.5** `` ` ``  
@@ -247,7 +244,15 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 				lnum.wrapping_add(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(lstr) => lstr.concat(&rhs.run(env)?.to_knstr()?).conv::<Value>(),
+		Value::SharedStr(string) => string.concat(&rhs.run(env)?.to_knstr()?).conv::<Value>(),
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => {
+			let rary = rhs.run(env)?.to_array()?;
+			let mut cat = Vec::with_capacity(lary.len() + rary.len());
+			cat.extend(lary.iter());
+			cat.extend(rary.iter());
+			crate::Array::from(cat).into()
+		}
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -260,14 +265,29 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 
 			#[cfg(feature = "checked-overflow")]
 			{
-				lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?
+				lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
 			}
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{
-				lnum.wrapping_sub(rnum)
+				lnum.wrapping_sub(rnum).conv::<Value>()
 			}
 		}
+
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => {
+			let rary = rhs.run(env)?.to_array()?;
+			let mut array = Vec::with_capacity(lary.len());
+
+			for ele in &*lary.as_slice() {
+				if !rary.contains(ele) && !array.contains(ele) {
+					array.push(ele.clone());
+				}
+			}
+
+			crate::Array::from(array).into()
+		}
+
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -288,19 +308,80 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 				lnum.wrapping_mul(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(string) => {
+		Value::SharedStr(lstr) => {
 			let amount = rhs
 				.run(env)?
 				.to_integer()?
 				.try_conv::<usize>()
 				.or(Err(Error::DomainError("repetition count is negative")))?;
 
-			if isize::MAX as usize <= amount * string.len() {
+			if isize::MAX as usize <= amount * lstr.len() {
 				return Err(Error::DomainError("repetition is too large"));
 			}
 
-			string.repeat(amount).conv::<Value>()
+			lstr.repeat(amount).conv::<Value>()
 		}
+
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => match rhs.run(env)? {
+			Value::Boolean(true) => lary.into(),
+			Value::Boolean(false) => crate::Array::default().into(),
+			Value::Integer(-1) => {
+				let mut copy = lary.iter().collect::<Vec<Value>>();
+				copy.reverse();
+				crate::Array::from(copy).into()
+			}
+			Value::Integer(Integer::MIN..=-2) => todo!(),
+			Value::Integer(amount @ 0..) => {
+				let mut array = Vec::with_capacity(lary.len() * (amount as usize));
+
+				for _ in 0..amount {
+					array.extend(lary.iter());
+				}
+
+				crate::Array::from(array).into()
+			}
+			Value::SharedStr(string) => {
+				let mut joined = String::new();
+
+				let mut is_first = true;
+				for ele in &*lary.as_slice() {
+					if is_first {
+						is_first = false;
+					} else {
+						joined.push_str(&string);
+					}
+
+					joined.push_str(&ele.to_knstr()?);
+				}
+
+				SharedStr::try_from(joined).unwrap().into()
+			}
+			Value::Array(rary) => {
+				let mut result = Vec::with_capacity(lary.len() * rary.len());
+
+				for lele in lary.iter() {
+					for rele in rary.iter() {
+						result.push(crate::Array::from(vec![lele.clone(), rele.clone()]).into());
+					}
+				}
+
+				crate::Array::from(result).into()
+			}
+			Value::Ast(ast) => {
+				let mut result = Vec::with_capacity(lary.len());
+				let arg = env.lookup("_".try_into().unwrap());
+
+				for ele in lary.iter() {
+					arg.assign(ele.clone());
+					result.push(ast.run(env)?);
+				}
+
+				crate::Array::from(result).into()
+			}
+			other => return Err(Error::TypeError(other.typename())),
+		},
+
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -317,14 +398,33 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 
 			#[cfg(feature = "checked-overflow")]
 			{
-				lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?
+				lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
 			}
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{
-				lnum.wrapping_div(rnum)
+				lnum.wrapping_div(rnum).conv::<Value>()
 			}
 		}
+
+		#[cfg(feature = "split-strings")]
+		Value::SharedStr(lstr) => {
+			let rstr = rhs.run(env)?.to_knstr()?;
+
+			if rstr.is_empty() {
+				return Ok(Value::SharedStr(lstr).to_array()?.into());
+			}
+
+			lstr
+				.split(&**rstr)
+				.map(|x| SharedStr::new(x).unwrap().into())
+				.collect::<crate::Array>()
+				.into()
+		}
+
+		#[cfg(feature = "arrays")]
+		Value::Array(_) => todo!("what should division with arrays be?"),
+
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -341,13 +441,53 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 
 			#[cfg(feature = "checked-overflow")]
 			{
-				lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?
+				lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
 			}
 
 			#[cfg(not(feature = "checked-overflow"))]
 			{
-				lnum.wrapping_rem(rnum)
+				lnum.wrapping_rem(rnum).conv::<Value>()
 			}
+		}
+
+		#[cfg(feature = "string-formatting")]
+		Value::SharedStr(lstr) => {
+			let values = rhs.run(env)?.to_array()?;
+			let mut values_index = 0;
+
+			let mut formatted = String::new();
+			let mut chars = lstr.chars();
+
+			while let Some(chr) = chars.next() {
+				match chr {
+					'\\' => {
+						formatted.push(match chars.next().expect("<todo error for nothing next>") {
+							'n' => '\n',
+							'r' => '\r',
+							't' => '\t',
+							'{' => '{',
+							'}' => '}',
+							_ => panic!("todo: error for unknown escape code"),
+						});
+					}
+					'{' => {
+						if chars.next() != Some('}') {
+							panic!("todo, missing closing `}}`");
+						}
+						formatted.push_str(
+							&values
+								.as_slice()
+								.get(values_index)
+								.expect("no values left to format")
+								.to_knstr()?,
+						);
+						values_index += 1;
+					}
+					_ => formatted.push(chr),
+				}
+			}
+
+			SharedStr::new(formatted).unwrap().into()
 		}
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -388,24 +528,35 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 	}
 });
 
+fn compare(lhs: Value, rhs: Value) -> Result<std::cmp::Ordering> {
+	match lhs {
+		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
+		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_bool()?)),
+		Value::SharedStr(ltext) => Ok(ltext.cmp(&rhs.to_knstr()?)),
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => {
+			let rary = rhs.to_array()?;
+			for (lele, rele) in lary.iter().zip(rary.iter()) {
+				match compare(lele, rele)? {
+					std::cmp::Ordering::Equal => {}
+					other => return Ok(other),
+				}
+			}
+
+			Ok(lary.len().cmp(&rary.len()))
+		}
+		other => Err(Error::TypeError(other.typename())),
+	}
+}
+
 /// **4.3.7** `<`  
 pub const LESS_THAN: Function = function!('<', env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(lnum) => lnum < rhs.run(env)?.to_integer()?,
-		Value::Boolean(lbool) => !lbool & rhs.run(env)?.to_bool()?,
-		Value::SharedStr(ltext) => ltext < rhs.run(env)?.to_knstr()?,
-		other => return Err(Error::TypeError(other.typename())),
-	}
+	compare(lhs.run(env)?, rhs.run(env)?)? == std::cmp::Ordering::Less
 });
 
 /// **4.3.8** `>`  
 pub const GREATER_THAN: Function = function!('>', env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(lnum) => lnum > rhs.run(env)?.to_integer()?,
-		Value::Boolean(lbool) => lbool & !rhs.run(env)?.to_bool()?,
-		Value::SharedStr(ltext) => ltext > rhs.run(env)?.to_knstr()?,
-		other => return Err(Error::TypeError(other.typename())),
-	}
+	compare(lhs.run(env)?, rhs.run(env)?)? == std::cmp::Ordering::Greater
 });
 
 /// **4.3.9** `?`  
@@ -488,7 +639,7 @@ pub const IF: Function = function!('I', env, |cond, iftrue, iffalse| {
 
 /// **4.4.2** `GET`  
 pub const GET: Function = function!('G', env, |string, start, length| {
-	let string = string.run(env)?.to_knstr()?;
+	let source = string.run(env)?;
 	let start = start
 		.run(env)?
 		.to_integer()?
@@ -500,6 +651,22 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 		.try_conv::<usize>()
 		.or(Err(Error::DomainError("negative length")))?;
 
+	#[cfg(feature = "arrays")]
+	if let Value::Array(ary) = source {
+		return Ok(if length == 0 {
+			ary.as_slice().get(start).unwrap().clone()
+		} else {
+			ary.as_slice()
+				.get(start..start + length)
+				.expect("Todo: error")
+				.iter()
+				.cloned()
+				.collect::<crate::Array>()
+				.into()
+		});
+	}
+
+	let string = source.to_knstr()?;
 	match string.get(start..start + length) {
 		Some(value) => value.to_boxed().conv::<SharedStr>(),
 
@@ -513,7 +680,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 
 /// **4.5.1** `SUBSTITUTE`  
 pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, replacement| {
-	let string = string.run(env)?.to_knstr()?;
+	let source = string.run(env)?;
 	let start = start
 		.run(env)?
 		.to_integer()?
@@ -524,8 +691,22 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 		.to_integer()?
 		.try_conv::<usize>()
 		.or(Err(Error::DomainError("negative length")))?;
-	let replacement = replacement.run(env)?.to_knstr()?;
+	let replacement_source = replacement.run(env)?;
 
+	#[cfg(feature = "arrays")]
+	if let Value::Array(ary) = source {
+		let replacement = replacement_source.to_array()?;
+
+		let mut ret = Vec::new();
+		ret.extend(ary.iter().take(start));
+		ret.extend(replacement.iter());
+		ret.extend(ary.iter().skip(start + length));
+
+		return Ok(crate::Array::from(ret).into());
+	}
+
+	let string = source.to_knstr()?;
+	let replacement = replacement_source.to_knstr()?;
 	// TODO: `out-of-bounds-errors` here
 	// lol, todo, optimize me
 	let mut s = String::new();
@@ -534,3 +715,14 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 	s.push_str(&string[start + length..]);
 	s.try_conv::<SharedStr>().unwrap()
 });
+
+/// EXT: Eval
+#[cfg(feature = "eval-function")]
+pub const EVAL: Function = function!('E', env, |val| {
+	let code = val.run(env)?.to_knstr()?;
+	env.play(&code)?
+});
+
+/// EXT: Box
+#[cfg(feature = "arrays")]
+pub const BOX: Function = function!(',', env, |val| crate::Array::from(vec![val.run(env)?]));

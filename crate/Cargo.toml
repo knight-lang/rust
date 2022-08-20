@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = []
+default = ["extensions"]
 
 #######################################
 ##           Optimizations           ##
@@ -62,16 +62,23 @@ unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"
 #######################################
 
 # Disables the use of `EVAL`.
-disable-eval = []
+eval-function = []
 
 # Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
 out-of-bounds-errors = []
 
-# Disable the use of arrays.
-no-arrays = []
+# Enables the use of arrays
+arrays = []
+
+# Dividing strings by a string will split on that string.
+split-strings = ["arrays"]
+
+string-formatting = ["arrays"]
+
+extensions = ["eval-function", "arrays", "split-strings", "string-formatting"]
 
 # Just disable all extensions.
-no-extensions = ["disable-eval", "out-of-bounds-errors", "no-arrays"]
+no-extensions = ["out-of-bounds-errors"]
 
 
 #######################################

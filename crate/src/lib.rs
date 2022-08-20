@@ -25,7 +25,7 @@ cfg_if! {
 }
 
 cfg_if! {
-	if #[cfg(not(feature = "no-arrays"))] {
+	if #[cfg(feature = "arrays")] {
 		mod array;
 		pub use array::Array;
 	}
