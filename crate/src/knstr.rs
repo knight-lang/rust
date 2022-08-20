@@ -108,6 +108,14 @@ impl KnStr {
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
 		Some(Self::new(self.0.get(range)?).unwrap())
 	}
+
+	pub fn concat(&self, rhs: &Self) -> SharedStr {
+		let mut cat = String::with_capacity(self.len() + rhs.len());
+		cat.push_str(self);
+		cat.push_str(rhs);
+
+		SharedStr::try_from(cat).unwrap()
+	}
 }
 
 impl<'a> TryFrom<&'a str> for &'a KnStr {

@@ -183,9 +183,11 @@ impl<'a> Parser<'a> {
 				.map(|num| Some(num.into()))
 				.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow)),
 
-			_ if is_lower(start) => self
-				.take_while(|chr| is_lower(chr) || is_numeric(chr))
-				.pipe(|name| Ok(Some(env.lookup(name).into()))),
+			_ if is_lower(start) => {
+				let ident = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
+
+				Ok(Some(env.lookup(ident).into()))
+			}
 
 			'\'' | '\"' => {
 				let quote = start;

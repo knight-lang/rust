@@ -15,10 +15,6 @@ pub struct Function {
 	pub arity: usize,
 }
 
-// impl Function {
-// 	pub const fn new(func: )
-// }
-
 impl Eq for Function {}
 impl PartialEq for Function {
 	fn eq(&self, rhs: &Self) -> bool {
@@ -111,22 +107,22 @@ pub const PROMPT: Function = function!('P', env, |/*.*/| {
 pub const RANDOM: Function = function!('R', env, |/*.*/| env.random());
 
 /// **4.2.2** `VALUE`  
-pub const VALUE: Function =
-	function!('V', e, |name| name.run(e)?.to_knstr()?.pipe(|name| e.lookup(&name)));
+pub const VALUE: Function = function!('V', env, |arg| {
+	let name = arg.run(env)?.to_knstr()?;
+	env.lookup(&name)
+});
 
 /// **4.2.3** `BLOCK`  
 pub const BLOCK: Function = function!('B', env, |arg| {
 	#[cfg(feature = "strict-block-return-value")]
-	{
+	if !matches!(arg, Value::Ast(_)) {
 		const NOOP: Function = function!(':', _, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
 
 			arg.clone()
 		});
 
-		if !matches!(arg, Value::Ast(_)) {
-			return Ok(crate::Ast::new(&NOOP, vec![arg.clone()]).into());
-		}
+		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()]).into());
 	}
 
 	arg.clone()
@@ -134,48 +130,50 @@ pub const BLOCK: Function = function!('B', env, |arg| {
 
 /// **4.2.4** `CALL`  
 pub const CALL: Function = function!('C', env, |arg| {
-	let torun = arg.run(env)?;
+	let block = arg.run(env)?;
 
-	if cfg!(feature = "strict-block-return-value") && !matches!(torun, Value::Ast(_)) {
+	#[cfg(feature = "strict-block-return-value")]
+	if !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError("only blocks may be executed via `CALL`."));
 	}
 
-	torun.run(env)?.run(env)?
+	block.run(env)?
 });
 
 /// **6.6** `EVAL`
 #[cfg(not(feature = "no-extensions"))]
 pub const EVAL: Function = function!('E', env, |arg| {
 	let input = arg.run(env)?.to_knstr()?;
-	crate::Parser::new(&input).parse(env)?.run(env)?
+
+	env.play(&input)?
 });
 
 /// **4.2.5** `` ` ``  
 pub const SYSTEM: Function = function!('`', env, |arg| {
 	let command = arg.run(env)?.to_knstr()?;
+
 	env.run_command(&command)?
 });
 
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!('Q', env, |arg| {
-	let status = arg
+	return arg
 		.run(env)?
 		.to_integer()?
 		.try_conv::<i32>()
+		.map(|status| Err(Error::Quit(status)))
 		.or(Err(Error::DomainError("exit code out of bounds")))?;
 
-	return Err(Error::Quit(status));
-
+	// The `function!` macro calls `.into()` on the return value, so we need _something_ here.
 	#[allow(dead_code)]
 	Value::Null
 });
 
 /// **4.2.7** `!`  
-pub const NOT: Function = function!('!', env, |arg| { (!arg.run(env)?.to_bool()?) });
+pub const NOT: Function = function!('!', env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function =
-	function!('L', env, |arg| { (arg.run(env)?.to_knstr()?.len() as Integer) });
+pub const LENGTH: Function = function!('L', env, |arg| arg.run(env)?.to_knstr()?.len() as Integer);
 
 /// **4.2.9** `DUMP`  
 pub const DUMP: Function = function!('D', env, |arg| {
@@ -188,7 +186,7 @@ pub const DUMP: Function = function!('D', env, |arg| {
 pub const OUTPUT: Function = function!('O', env, |arg| {
 	let text = arg.run(env)?.to_knstr()?;
 
-	if text.chars().last() == Some('\\') {
+	if text.ends_with('\\') {
 		write!(env, "{}", &text[..text.len() - 1])?
 	} else {
 		writeln!(env, "{text}")?;
@@ -249,15 +247,7 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 				lnum.wrapping_add(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(lstr) => {
-			let rstr = rhs.run(env)?.to_knstr()?;
-			let mut cat = String::with_capacity(lstr.len() + rstr.len());
-			cat.push_str(&lstr);
-			cat.push_str(&rstr);
-
-			SharedStr::try_from(cat).unwrap().conv::<Value>()
-		}
-
+		Value::SharedStr(lstr) => lstr.concat(&rhs.run(env)?.to_knstr()?).conv::<Value>(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -299,6 +289,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 			}
 		}
 		Value::SharedStr(lstr) => {
+			//@@@@
 			// clean me up
 			let amount = rhs
 				.run(env)?

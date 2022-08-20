@@ -60,6 +60,10 @@ impl Environment {
 	pub fn random(&mut self) -> crate::Integer {
 		rand::random::<crate::Integer>().abs()
 	}
+
+	pub fn play(&mut self, source: &KnStr) -> Result<Value> {
+		crate::Parser::new(source).parse(self)?.run(self)
+	}
 }
 
 impl Read for Environment {
