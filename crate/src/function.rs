@@ -423,7 +423,25 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "arrays")]
-		Value::Array(_) => todo!("what should division with arrays be?"),
+		Value::Array(lary) => match rhs.run(env)? {
+			Value::Ast(ast) => {
+				let acc_var = env.lookup("a".try_into().unwrap());
+
+				if let Some(init) = lary.as_slice().get(0) {
+					acc_var.assign(init.clone());
+				}
+
+				let arg_var = env.lookup("_".try_into().unwrap());
+
+				for ele in lary.iter().skip(1) {
+					arg_var.assign(ele);
+					acc_var.assign(ast.run(env)?);
+				}
+
+				acc_var.fetch().unwrap_or_default()
+			}
+			other => return Err(Error::TypeError(other.typename())),
+		},
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -489,6 +507,24 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 
 			SharedStr::new(formatted).unwrap().into()
 		}
+
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => match rhs.run(env)? {
+			Value::Ast(ast) => {
+				let mut result = Vec::new();
+				let arg_var = env.lookup("_".try_into().unwrap());
+
+				for ele in lary.iter() {
+					arg_var.assign(ele.clone());
+					if ast.run(env)?.to_bool()? {
+						result.push(ele);
+					}
+				}
+
+				crate::Array::from(result).into()
+			}
+			other => return Err(Error::TypeError(other.typename())),
+		},
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -606,17 +642,54 @@ pub const THEN: Function = function!(';', env, |lhs, rhs| {
 });
 
 /// **4.3.13** `=`  
-pub const ASSIGN: Function = function!('=', env, |var, value| {
-	let variable = if let Value::Variable(v) = var {
-		v.clone()
-	} else {
-		let name = var.run(env)?.to_knstr()?;
-		env.lookup(&name)
-	};
+fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
+	match variable {
+		Value::Variable(var) => {
+			var.assign(value);
+		}
 
-	let ran = value.run(env)?;
-	variable.assign(ran.clone());
-	ran
+		#[cfg(feature = "arrays")]
+		Value::Array(ary) => {
+			if ary.is_empty() {
+				panic!("todo: error for this case");
+			}
+			let rhs = value.run(env)?.to_array()?;
+
+			for (name, val) in ary.as_slice().iter().zip(rhs.iter()) {
+				assign(name, val, env)?;
+			}
+
+			match ary.len().cmp(&rhs.len()) {
+				std::cmp::Ordering::Equal => {}
+				std::cmp::Ordering::Less => assign(
+					ary.as_slice().iter().last().unwrap(),
+					rhs.as_slice()[ary.len() - 1..].iter().cloned().collect::<crate::Array>().into(),
+					env,
+				)?,
+				std::cmp::Ordering::Greater => {
+					for extra in &ary.as_slice()[rhs.len()..] {
+						assign(extra, Value::default(), env)?;
+					}
+				}
+			}
+		}
+
+		#[cfg(feature = "arrays")]
+		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
+
+		_ => {
+			let name = variable.run(env)?.to_knstr()?;
+			env.lookup(&name).assign(value);
+		}
+	}
+
+	Ok(())
+}
+
+pub const ASSIGN: Function = function!('=', env, |var, value| {
+	let ret = value.run(env)?;
+	assign(var, ret.clone(), env)?;
+	ret
 });
 
 /// **4.3.14** `WHILE`  
