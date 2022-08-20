@@ -288,20 +288,18 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 				lnum.wrapping_mul(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(lstr) => {
-			//@@@@
-			// clean me up
+		Value::SharedStr(string) => {
 			let amount = rhs
 				.run(env)?
 				.to_integer()?
 				.try_conv::<usize>()
-				.map_err(|_| Error::DomainError("repetition length not within bounds"))?;
+				.or(Err(Error::DomainError("repetition count is negative")))?;
 
-			if amount * lstr.len() >= (isize::MAX as usize) {
-				return Err(Error::DomainError("repetition length not within bounds"));
+			if isize::MAX as usize <= amount * string.len() {
+				return Err(Error::DomainError("repetition is too large"));
 			}
 
-			lstr.repeat(amount).try_conv::<SharedStr>().unwrap().conv::<Value>()
+			string.repeat(amount).conv::<Value>()
 		}
 		other => return Err(Error::TypeError(other.typename())),
 	}

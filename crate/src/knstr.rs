@@ -116,6 +116,10 @@ impl KnStr {
 
 		SharedStr::try_from(cat).unwrap()
 	}
+
+	pub fn repeat(&self, amount: usize) -> SharedStr {
+		(**self).repeat(amount).try_into().unwrap()
+	}
 }
 
 impl<'a> TryFrom<&'a str> for &'a KnStr {
