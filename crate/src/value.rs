@@ -36,7 +36,7 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Number(number) => write!(f, "Number({number})"),
-			Self::SharedStr(text) => write!(f, "SharedStr({text})"),
+			Self::SharedStr(text) => write!(f, "Text({text})"),
 			Self::Variable(variable) => write!(f, "Variable({})", variable.name()),
 			Self::Ast(ast) => write!(f, "{ast:?}"),
 		}

@@ -62,7 +62,7 @@ impl Environment {
 
 	// this is here in case we want to add seeding
 	pub fn random(&mut self) -> crate::Number {
-		rand::random()
+		rand::random::<crate::Number>().abs()
 	}
 }
 

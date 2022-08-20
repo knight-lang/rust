@@ -128,7 +128,7 @@ functions! { env;
 		let text = arg.run(env)?.to_knstr()?;
 
 		if text.chars().last() == Some('\\') {
-			write!(env, "{}", &text[..text.len() - 2])?
+			write!(env, "{}", &text[..text.len() - 1])?
 		} else {
 			writeln!(env, "{text}")?;
 		}
@@ -278,18 +278,33 @@ functions! { env;
 		// TODO: verify this is actually power work
 		match lhs.run(env)? {
 			Value::Number(lnum) => {
-				let rnum = rhs.run(env)?
-					.to_number()?
-					.try_conv::<u32>()
-					.or(Err(Error::DomainError("invalid exponent")))?;
+				let rnum = rhs.run(env)?.to_number()?;
+				let base = lnum;
+				let exponent = rnum;
 
-				#[cfg(feature = "checked-overflow")]
-				{ lnum.checked_pow(rnum).ok_or(Error::IntegerOverflow)?.into() }
-
-				#[cfg(not(feature = "checked-overflow"))]
-				{ lnum.wrapping_pow(rnum).into() }
+				// TODO: clean me up
+				(if base == 1 {
+						  1
+					 } else if base == -1 {
+						  if exponent & 1 == 1 {
+								-1
+						  } else {
+								1
+						  }
+					 } else {
+						  match exponent {
+								1 => base,
+								0 => 1,
+								_ if base == 0 && exponent < 0 => return Err(Error::DivisionByZero),
+								_ if exponent < 0 => 0,
+								#[cfg(feature = "checked-overflow")]
+								_ => lnum.checked_pow(rnum as u32).ok_or(Error::IntegerOverflow)?,
+								#[cfg(not(feature = "checked-overflow"))]
+								_ => lnum.wrapping_pow(rnum as u32).into(),
+						  }
+					 }).into()
 			}
-			other => return Err(Error::TypeError(other.typename()))
+			other => return Err(Error::TypeError(other.typename())),
 		}
 	}
 
@@ -388,7 +403,7 @@ functions! { env;
 
 		// lol, todo, optimize me
 		string
-			.get(start..=start + length)
+			.get(start..start + length)
 			.expect("todo: error for out of bounds")
 			.to_boxed()
 			.conv::<SharedStr>()
@@ -405,7 +420,7 @@ functions! { env;
 		let mut s = String::new();
 		s.push_str(&string[..start]);
 		s.push_str(&replacement);
-		s.push_str(&string[start..]);
+		s.push_str(&string[start + length..]);
 		s.try_conv::<SharedStr>().unwrap().into()
 	}
 }
