@@ -215,7 +215,16 @@ pub const ASCII: Function = function!('A', env, |arg| {
 
 /// **4.2.12** `~`  
 pub const NEG: Function = function!('~', env, |arg| {
-	let num = arg.run(env)?.to_integer()?;
+	let ran = arg.run(env)?;
+
+	#[cfg(feature = "arrays")]
+	if let Value::Array(ary) = ran {
+		let mut copy = ary.iter().collect::<Vec<Value>>();
+		copy.reverse();
+		return Ok(crate::Array::from(copy).into());
+	}
+
+	let num = ran.to_integer()?;
 
 	#[cfg(feature = "checked-overflow")]
 	{
@@ -326,12 +335,6 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 		Value::Array(lary) => match rhs.run(env)? {
 			Value::Boolean(true) => lary.into(),
 			Value::Boolean(false) => crate::Array::default().into(),
-			Value::Integer(-1) => {
-				let mut copy = lary.iter().collect::<Vec<Value>>();
-				copy.reverse();
-				crate::Array::from(copy).into()
-			}
-			Value::Integer(Integer::MIN..=-2) => todo!(),
 			Value::Integer(amount @ 0..) => {
 				let mut array = Vec::with_capacity(lary.len() * (amount as usize));
 
@@ -539,7 +542,7 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 			let exponent = rnum;
 
 			// TODO: clean me up
-			(if base == 1 {
+			if base == 1 {
 				1
 			} else if base == -1 {
 				if exponent & 1 == 1 {
@@ -556,10 +559,18 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 					#[cfg(feature = "checked-overflow")]
 					_ => lnum.checked_pow(rnum as u32).ok_or(Error::IntegerOverflow)?,
 					#[cfg(not(feature = "checked-overflow"))]
-					_ => lnum.wrapping_pow(rnum as u32).into(),
+					_ => lnum.wrapping_pow(rnum as u32),
 				}
-			})
+			}
+			.conv::<Value>()
 		}
+		#[cfg(feature = "arrays")]
+		Value::Array(lary) => {
+			let max = rhs.run(env)?.to_integer()?;
+			assert!(max >= 0, "todo, negative amounts");
+			(0..max).map(Value::from).collect::<crate::Array>().into()
+		}
+
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
