@@ -1,4 +1,4 @@
-use crate::{Error, KnightStr, Result, Text, Value};
+use crate::{Error, KnStr, Result, SharedStr, Value};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::rc::Rc;
 
-type SystemCommand = dyn FnMut(&str) -> Result<Text>;
+type SystemCommand = dyn FnMut(&str) -> Result<SharedStr>;
 
 #[derive(Default)]
 pub struct Environment<'a> {
@@ -21,7 +21,7 @@ pub struct Environment<'a> {
 impl Environment<'_> {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &KnightStr) -> Variable {
+	pub fn lookup(&mut self, name: &KnStr) -> Variable {
 		if let Some(var) = self.variables.get(name) {
 			return var.clone();
 		}
@@ -31,12 +31,17 @@ impl Environment<'_> {
 		variable
 	}
 
-	pub fn play(&mut self, input: &KnightStr) -> Result<Value> {
+	pub fn play(&mut self, input: &KnStr) -> Result<Value> {
 		crate::parser::Parser::new(input).parse_program(self)?.run(self)
 	}
 
-	pub fn system(&mut self, command: &KnightStr) -> Result<Text> {
+	pub fn run_command(&mut self, command: &KnStr) -> Result<SharedStr> {
 		todo!();
+	}
+
+	// this is here in case we want to add seeding
+	pub fn random(&mut self) -> crate::Number {
+		rand::random()
 	}
 }
 
@@ -99,14 +104,14 @@ impl Write for Environment<'_> {
 	}
 }
 
-impl std::borrow::Borrow<KnightStr> for Variable {
-	fn borrow(&self) -> &KnightStr {
+impl std::borrow::Borrow<KnStr> for Variable {
+	fn borrow(&self) -> &KnStr {
 		self.name()
 	}
 }
 
 #[derive(Clone)]
-pub struct Variable(Rc<(Box<KnightStr>, RefCell<Option<Value>>)>);
+pub struct Variable(Rc<(Box<KnStr>, RefCell<Option<Value>>)>);
 
 impl Eq for Variable {}
 impl PartialEq for Variable {
@@ -129,7 +134,7 @@ impl Hash for Variable {
 impl Variable {
 	/// Fetches the name of the variable.
 	#[must_use]
-	pub fn name(&self) -> &KnightStr {
+	pub fn name(&self) -> &KnStr {
 		&(self.0).0
 	}
 

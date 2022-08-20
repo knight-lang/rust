@@ -1,4 +1,4 @@
-use crate::knightstr::{IllegalChar, KnightStr};
+use crate::knstr::{IllegalChar, KnStr};
 use crate::{Environment, Value};
 use std::fmt::{self, Display, Formatter};
 use tap::prelude::*;
@@ -65,7 +65,7 @@ impl std::error::Error for ParseError {}
 
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
-	source: &'a KnightStr,
+	source: &'a KnStr,
 	line: usize,
 }
 
@@ -74,11 +74,11 @@ fn is_whitespace(chr: char) -> bool {
 }
 
 impl<'a> Parser<'a> {
-	pub const fn new(source: &'a KnightStr) -> Self {
+	pub const fn new(source: &'a KnStr) -> Self {
 		Self { source, line: 1 }
 	}
 
-	pub const fn source(&self) -> &KnightStr {
+	pub const fn source(&self) -> &KnStr {
 		&self.source
 	}
 
@@ -102,11 +102,11 @@ impl<'a> Parser<'a> {
 			self.line += 1;
 		}
 
-		self.source = KnightStr::new(chars.as_str()).unwrap();
+		self.source = KnStr::new(chars.as_str()).unwrap();
 		ret
 	}
 
-	pub fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnightStr {
+	pub fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnStr {
 		let start = self.source;
 
 		while let Some(chr) = self.peek() {
@@ -117,7 +117,7 @@ impl<'a> Parser<'a> {
 			}
 		}
 
-		KnightStr::new(&start[..start.len() - self.source.len()]).unwrap()
+		KnStr::new(&start[..start.len() - self.source.len()]).unwrap()
 	}
 
 	pub fn strip(&mut self) {
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
 					return Err(self.error(ParseErrorKind::UnterminatedQuote { quote }));
 				}
 
-				Ok(Some(body.to_boxed().conv::<crate::Text>().into()))
+				Ok(Some(body.to_boxed().conv::<crate::SharedStr>().into()))
 			}
 
 			'T' | 'F' => {

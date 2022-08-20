@@ -1,6 +1,6 @@
-// use crate::{Ast, Boolean, Environment, Error, Function, Number, Result, Text, Variable};
+// use crate::{Ast, Boolean, Environment, Error, Function, Number, Result, SharedStr, Variable};
 use crate::env::{Environment, Variable};
-use crate::{Ast, Error, Result, Text};
+use crate::{Ast, Error, Result, SharedStr};
 use std::fmt::{self, Debug, Formatter};
 
 #[cfg(feature = "strict-numbers")]
@@ -17,7 +17,7 @@ pub enum Value {
 	Null,
 	Boolean(bool),
 	Number(Number),
-	Text(Text),
+	SharedStr(SharedStr),
 	Variable(Variable),
 	Ast(Ast),
 }
@@ -36,7 +36,7 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Number(number) => write!(f, "Number({number})"),
-			Self::Text(text) => write!(f, "Text({text})"),
+			Self::SharedStr(text) => write!(f, "SharedStr({text})"),
 			Self::Variable(variable) => write!(f, "Variable({})", variable.name()),
 			Self::Ast(ast) => write!(f, "{ast:?}"),
 		}
@@ -63,10 +63,10 @@ impl From<Number> for Value {
 	}
 }
 
-impl From<Text> for Value {
+impl From<SharedStr> for Value {
 	#[inline]
-	fn from(text: Text) -> Self {
-		Self::Text(text)
+	fn from(text: SharedStr) -> Self {
+		Self::SharedStr(text)
 	}
 }
 
@@ -93,7 +93,7 @@ impl Context for bool {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(*boolean),
 			Value::Number(number) => Ok(*number != 0),
-			Value::Text(text) => Ok(!text.is_empty()),
+			Value::SharedStr(text) => Ok(!text.is_empty()),
 			_ => Err(Error::NoConversion { from: "Boolean", to: value.typename() }),
 		}
 	}
@@ -105,20 +105,20 @@ impl Context for Number {
 			Value::Null => Ok(0),
 			Value::Boolean(boolean) => Ok(*boolean as Self),
 			Value::Number(number) => Ok(*number),
-			Value::Text(text) => text.to_number(),
+			Value::SharedStr(text) => text.to_number(),
 			_ => Err(Error::NoConversion { from: "Number", to: value.typename() }),
 		}
 	}
 }
 
-impl Context for Text {
+impl Context for SharedStr {
 	fn convert(value: &Value) -> Result<Self> {
 		match value {
-			Value::Null => Ok(Text::new("null").unwrap()),
-			Value::Boolean(boolean) => Ok(Text::new(boolean).unwrap()),
-			Value::Number(number) => Ok(Text::new(number).unwrap()),
-			Value::Text(text) => Ok(text.clone()),
-			_ => Err(Error::NoConversion { from: "Text", to: value.typename() }),
+			Value::Null => Ok(SharedStr::new("null").unwrap()),
+			Value::Boolean(boolean) => Ok(SharedStr::new(boolean).unwrap()),
+			Value::Number(number) => Ok(SharedStr::new(number).unwrap()),
+			Value::SharedStr(text) => Ok(text.clone()),
+			_ => Err(Error::NoConversion { from: "SharedStr", to: value.typename() }),
 		}
 	}
 }
@@ -131,15 +131,15 @@ impl Value {
 			Self::Null => "Null",
 			Self::Boolean(_) => "Boolean",
 			Self::Number(_) => "Number",
-			Self::Text(_) => "Text",
+			Self::SharedStr(_) => "SharedStr",
 			Self::Variable(_) => "Variable",
 			Self::Ast(_) => "Ast",
 		}
 	}
 
-	/// Checks to see if `self` is one of the four builtin types: Null, Boolean, Number, or Text.
+	/// Checks to see if `self` is one of the four builtin types: Null, Boolean, Number, or SharedStr.
 	pub const fn is_builtin_type(&self) -> bool {
-		matches!(self, Self::Null | Self::Boolean(_) | Self::Number(_) | Self::Text(_))
+		matches!(self, Self::Null | Self::Boolean(_) | Self::Number(_) | Self::SharedStr(_))
 	}
 
 	/// Converts `self` to a [`bool`] according to the Knight spec.
@@ -152,8 +152,8 @@ impl Value {
 		Context::convert(self)
 	}
 
-	/// Converts `self` to a [`Text`] according to the Knight spec.
-	pub fn to_text(&self) -> Result<Text> {
+	/// Converts `self` to a [`SharedStr`] according to the Knight spec.
+	pub fn to_knstr(&self) -> Result<SharedStr> {
 		Context::convert(self)
 	}
 
@@ -177,7 +177,7 @@ impl Value {
 	// 	match self {
 	// 		Self::Number(lhs) => Ok(lhs.cmp(&rhs.to_number()?)),
 	// 		Self::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_bool()?)),
-	// 		Self::Text(_text) => todo!(),
+	// 		Self::SharedStr(_text) => todo!(),
 	// 		_ => Err(Error::TypeError(self.typename())),
 	// 	}
 	// }

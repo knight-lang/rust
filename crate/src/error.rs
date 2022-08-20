@@ -1,6 +1,6 @@
-use crate::knightstr::IllegalChar;
+use crate::knstr::IllegalChar;
 use crate::parser::ParseError;
-use crate::KnightStr;
+use crate::KnStr;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -11,7 +11,7 @@ pub enum Error {
 		to: &'static str,
 	},
 	IllegalChar(IllegalChar),
-	UndefinedVariable(Box<KnightStr>),
+	UndefinedVariable(Box<KnStr>),
 	IoError(io::Error),
 	DomainError(&'static str),
 	TypeError(&'static str),
@@ -19,6 +19,8 @@ pub enum Error {
 	#[cfg(feature = "checked-overflow")]
 	IntegerOverflow,
 	ParseError(ParseError),
+
+	Quit(i32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -63,6 +65,7 @@ impl Display for Error {
 			Self::TypeError(kind) => write!(f, "invalid type {kind} given"),
 			Self::DivisionByZero => write!(f, "division/modulo by zero"),
 			Self::ParseError(err) => Display::fmt(&err, f),
+			Self::Quit(status) => write!(f, "quitting with status code {status}"),
 
 			#[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),

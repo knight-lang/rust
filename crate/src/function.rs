@@ -1,4 +1,4 @@
-use crate::{value::Number, Environment, Error, Result, Text, Value};
+use crate::{value::Number, Environment, Error, Result, SharedStr, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -75,16 +75,15 @@ functions! { env;
 			None => {}
 		}
 
-		Text::try_from(buf)?.into()
+		SharedStr::try_from(buf)?.into()
 	}
 
 	fn RANDOM ('R') {
-		todo!();
+		env.random().into()
 	}
 
 	fn EVAL ('E', arg) {
-		let input = arg.run(env)?.to_text()?;
-
+		let input = arg.run(env)?.to_knstr()?;
 		env.play(&input)?
 	}
 
@@ -97,26 +96,26 @@ functions! { env;
 	}
 
 	fn SYSTEM ('`', arg) {
-		let _ = arg; todo!();
+		let command = arg.run(env)?.to_knstr()?;
+		env.run_command(&command)?.into()
 	}
 
 	fn QUIT ('Q', arg) {
-		let _ = arg; todo!();
+		let status = arg
+			.run(env)?
+			.to_number()?
+			.try_conv::<i32>()
+			.or(Err(Error::DomainError("exit code out of bounds")))?;
+
+		return Err(Error::Quit(status));
 	}
 
 	fn NOT ('!', arg) {
-		arg.run(env)?
-			.to_bool()?
-			.pipe(|x| !x)
-			.into()
+		(!arg.run(env)?.to_bool()?).into()
 	}
 
 	fn LENGTH ('L', arg) {
-		arg.run(env)?
-			.to_text()?
-			.len()
-			.pipe(|x| x as Number)
-			.into()
+		(arg.run(env)?.to_knstr()?.len() as Number).into()
 	}
 
 	fn DUMP ('D', arg) {
@@ -126,7 +125,7 @@ functions! { env;
 	}
 
 	fn OUTPUT ('O', arg) {
-		let text = arg.run(env)?.to_text()?;
+		let text = arg.run(env)?.to_knstr()?;
 
 		if text.chars().last() == Some('\\') {
 			write!(env, "{}", &text[..text.len() - 2])?
@@ -144,14 +143,14 @@ functions! { env;
 				u32::try_from(num)
 					.ok()
 					.and_then(char::from_u32)
-					.and_then(|chr| Text::new(chr).ok())
-					.ok_or(Error::DomainError("number isn't in bounds"))?
+					.and_then(|chr| SharedStr::new(chr).ok())
+					.ok_or(Error::DomainError("number isn't a valid char"))?
 					.into(),
 
-			Value::Text(text) =>
+			Value::SharedStr(text) =>
 				text.chars()
 					.next()
-					.ok_or(Error::DomainError("Empty string"))?
+					.ok_or(Error::DomainError("empty string"))?
 					.pipe(|x| x as Number)
 					.into(),
 
@@ -180,7 +179,15 @@ functions! { env;
 				#[cfg(not(feature = "checked-overflow"))]
 				{ lnum.wrapping_add(rnum).into() }
 			},
-			Value::Text(_text) => todo!(),
+			Value::SharedStr(lstr) => {
+				let rstr = rhs.run(env)?.to_knstr()?;
+				let mut cat = String::with_capacity(lstr.len() + rstr.len());
+				cat.push_str(&lstr);
+				cat.push_str(&rstr);
+
+				SharedStr::try_from(cat).unwrap().into()
+			},
+
 			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
@@ -211,7 +218,20 @@ functions! { env;
 				#[cfg(not(feature = "checked-overflow"))]
 				{ lnum.wrapping_mul(rnum).into() }
 			},
-			Value::Text(_text) => todo!(),
+			Value::SharedStr(lstr) => {
+				// clean me up
+				let amount = rhs
+					.run(env)?
+					.to_number()?
+					.try_conv::<usize>()
+					.map_err(|_| Error::DomainError("repetition length not within bounds"))?;
+
+				if amount * lstr.len() >= (isize::MAX as usize) {
+					return Err(Error::DomainError("repetition length not within bounds"));
+				}
+
+				lstr.repeat(amount).try_conv::<SharedStr>().unwrap().into()
+			},
 			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
@@ -294,7 +314,7 @@ functions! { env;
 		match lhs.run(env)? {
 			Value::Number(lnum) => (lnum < rhs.run(env)?.to_number()?).into(),
 			Value::Boolean(lbool) => (!lbool & rhs.run(env)?.to_bool()?).into(),
-			Value::Text(ltext) => (ltext < rhs.run(env)?.to_text()?).into(),
+			Value::SharedStr(ltext) => (ltext < rhs.run(env)?.to_knstr()?).into(),
 			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
@@ -303,7 +323,7 @@ functions! { env;
 		match lhs.run(env)? {
 			Value::Number(lnum) => (lnum > rhs.run(env)?.to_number()?).into(),
 			Value::Boolean(lbool) => (lbool & !rhs.run(env)?.to_bool()?).into(),
-			Value::Text(ltext) => (ltext > rhs.run(env)?.to_text()?).into(),
+			Value::SharedStr(ltext) => (ltext > rhs.run(env)?.to_knstr()?).into(),
 			other => return Err(Error::TypeError(other.typename()))
 		}
 	}
@@ -362,10 +382,30 @@ functions! { env;
 	}
 
 	fn GET('G', string, start, length) {
-		let _ = (string, start, length); todo!();
+		let string = string.run(env)?.to_knstr()?;
+		let start = start.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+		let length = length.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+
+		// lol, todo, optimize me
+		string
+			.get(start..=start + length)
+			.expect("todo: error for out of bounds")
+			.to_boxed()
+			.conv::<SharedStr>()
+			.into()
 	}
 
 	fn SUBSTITUTE('S', string, start, length, replacement) {
-		let _ = (string, start, length, replacement); todo!();
+		let string = string.run(env)?.to_knstr()?;
+		let start = start.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+		let length = length.run(env)?.to_number()?.try_conv::<usize>().expect("todo");
+		let replacement = replacement.run(env)?.to_knstr()?;
+
+		// lol, todo, optimize me
+		let mut s = String::new();
+		s.push_str(&string[..start]);
+		s.push_str(&replacement);
+		s.push_str(&string[start..]);
+		s.try_conv::<SharedStr>().unwrap().into()
 	}
 }
