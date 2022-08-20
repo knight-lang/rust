@@ -27,8 +27,14 @@ abort-on-errors = []
 optimized = ["abort-on-errors", "cache-strings"]
 
 #######################################
+##      Disabling Optimizations      ##
+#######################################
+multithreaded = []
+
+#######################################
 ##      `Unsafe`  Optimizations      ##
 #######################################
+
 
 # Indicates unsafe code is enabled; used to deny unsafe code otherwise.
 unsafe-enabled = []
@@ -52,17 +58,17 @@ unsafe-reckless = ["unsafe-enabled"]
 unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"]
 
 #######################################
-##         Knight Extensions         ##
+##        Disabling Extensions       ##
 #######################################
 
-# # Allow programs to assign to non-variables by converting to value to a variable first.
-# assign-to-anything = []
-
-# Enables the `V` function, which can be used to dynamically look variables up without `EVAL`.
+# Disables the use of `EVAL`.
 disable-eval = []
 
+# Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
+out-of-bounds-errors = []
+
 # Just disable all extensions.
-no-extensions = ["disable-eval"]
+no-extensions = ["disable-eval", "out-of-bounds-errors", "no-arrays"]
 
 
 #######################################
@@ -100,6 +106,7 @@ lazy_static = "1.4"
 cfg-if = "1.0"
 clap = { version = "2.33", optional = true }
 tap = "1.0"
+static_assertions = "1.1"
 
 [[bin]]
 name = "knight"

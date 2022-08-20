@@ -1,5 +1,6 @@
 #![allow(unused)]
-// pub mod stream;
+
+extern crate static_assertions as sa;
 
 #[cfg(feature = "strict-numbers")]
 /// The number type within Knight.

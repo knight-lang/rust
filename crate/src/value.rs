@@ -24,6 +24,8 @@ pub enum Value {
 	/// Represents a block of code.
 	Ast(Ast),
 }
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Value: Send, Sync);
 
 impl Default for Value {
 	#[inline]

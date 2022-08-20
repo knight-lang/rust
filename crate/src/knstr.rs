@@ -1,15 +1,16 @@
 use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct KnStr(str);
 
 impl Default for &KnStr {
+	#[inline]
 	fn default() -> Self {
-		KnStr::new("").unwrap()
+		// SAFETY: we know that `""` is a valid string, as it contains nothing.
+		unsafe { KnStr::new_unchecked("") }
 	}
 }
 
@@ -90,15 +91,26 @@ const fn validate(data: &str) -> Result<(), IllegalChar> {
 }
 
 impl KnStr {
-	pub const fn new(inp: &str) -> Result<&Self, IllegalChar> {
-		if let Err(err) = validate(inp) {
-			return Err(err);
-		}
+	/// Creates a new `KnStr` without validating `inp`.
+	///
+	/// # Safety
+	/// - `inp` must be a valid `KnStr`.
+	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
+		debug_assert!(validate(inp).is_ok());
 
-		#[allow(unsafe_code)]
 		// SAFETY: Since `KnStr` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
-		Ok(unsafe { &*(inp as *const str as *const Self) })
+		&*(inp as *const str as *const Self)
+	}
+
+	pub const fn new(inp: &str) -> Result<&Self, IllegalChar> {
+		match validate(inp) {
+			// SAFETY: we justverified it was valid
+			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
+
+			// Can't use `?` or `Result::map` in const functions
+			Err(err) => Err(err),
+		}
 	}
 
 	pub fn to_boxed(&self) -> Box<Self> {
@@ -106,7 +118,10 @@ impl KnStr {
 	}
 
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-		Some(Self::new(self.0.get(range)?).unwrap())
+		let substring = self.0.get(range)?;
+
+		// SAFETY: We're getting a substring of a valid KnStr, which thus will itself be valid.
+		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
 	pub fn concat(&self, rhs: &Self) -> SharedStr {
@@ -161,7 +176,13 @@ impl From<Box<KnStr>> for Box<str> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SharedStr(Rc<KnStr>);
+pub struct SharedStr(
+	#[cfg(not(feature = "multithreaded"))] std::rc::Rc<KnStr>,
+	#[cfg(feature = "multithreaded")] std::sync::Arc<KnStr>,
+);
+
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(SharedStr: Send, Sync);
 
 impl Default for SharedStr {
 	fn default() -> Self {
@@ -219,8 +240,9 @@ impl SharedStr {
 				number = number
 					.checked_mul(10)
 					.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
-					.ok_or_else(|| Err(Error::IntegerOverflow))?;
+					.ok_or(Error::IntegerOverflow)?;
 			}
+
 			#[cfg(not(feature = "checked-overflow"))]
 			{
 				number = (number * 10) + (digit - b'0') as Integer;

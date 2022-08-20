@@ -39,6 +39,9 @@ pub enum Error {
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
 	#[cfg(feature = "checked-overflow")]
 	IntegerOverflow,
+
+	#[cfg(feature = "out-of-bounds-errors")]
+	IndexOutOfBounds { len: usize, index: usize },
 }
 
 /// A type alias for `Result<T, Error>`.
@@ -99,6 +102,11 @@ impl Display for Error {
 
 			#[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
+
+			#[cfg(feature = "out-of-bounds-errors")]
+			Self::IndexOutOfBounds { len, index } => {
+				write!(f, "end index {index} is out of bounds for string of length {len}")
+			}
 		}
 	}
 }

@@ -489,24 +489,44 @@ pub const IF: Function = function!('I', env, |cond, iftrue, iffalse| {
 /// **4.4.2** `GET`  
 pub const GET: Function = function!('G', env, |string, start, length| {
 	let string = string.run(env)?.to_knstr()?;
-	let start = start.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
-	let length = length.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
+	let start = start
+		.run(env)?
+		.to_integer()?
+		.try_conv::<usize>()
+		.or(Err(Error::DomainError("negative start position")))?;
+	let length = length
+		.run(env)?
+		.to_integer()?
+		.try_conv::<usize>()
+		.or(Err(Error::DomainError("negative length")))?;
 
-	// lol, todo, optimize me
-	string
-		.get(start..start + length)
-		.expect("todo: error for out of bounds")
-		.to_boxed()
-		.conv::<SharedStr>()
+	match string.get(start..start + length) {
+		Some(value) => value.to_boxed().conv::<SharedStr>(),
+
+		#[cfg(feature = "out-of-bounds-errors")]
+		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
+
+		#[cfg(not(feature = "out-of-bounds-errors"))]
+		None => SharedStr::default(),
+	}
 });
 
 /// **4.5.1** `SUBSTITUTE`  
 pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, replacement| {
 	let string = string.run(env)?.to_knstr()?;
-	let start = start.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
-	let length = length.run(env)?.to_integer()?.try_conv::<usize>().expect("todo");
+	let start = start
+		.run(env)?
+		.to_integer()?
+		.try_conv::<usize>()
+		.or(Err(Error::DomainError("negative start position")))?;
+	let length = length
+		.run(env)?
+		.to_integer()?
+		.try_conv::<usize>()
+		.or(Err(Error::DomainError("negative length")))?;
 	let replacement = replacement.run(env)?.to_knstr()?;
 
+	// TODO: `out-of-bounds-errors` here
 	// lol, todo, optimize me
 	let mut s = String::new();
 	s.push_str(&string[..start]);

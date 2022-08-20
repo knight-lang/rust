@@ -1,21 +1,32 @@
 use crate::{Error, KnStr, Result, SharedStr, Value};
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::rc::Rc;
 
-type SystemCommand = dyn FnMut(&KnStr) -> Result<SharedStr>;
+cfg_if::cfg_if! {
+	if #[cfg(feature="multithreaded")] {
+		type SystemCommand = dyn FnMut(&KnStr) -> Result<SharedStr> + Send + Sync;
+		type Stdin = dyn Read + Send + Sync;
+		type Stdout = dyn Write + Send + Sync;
+	} else {
+		type SystemCommand = dyn FnMut(&KnStr) -> Result<SharedStr>;
+		type Stdin = dyn Read;
+		type Stdout = dyn Write;
+	}
+}
 
 pub struct Environment {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable>,
-	stdin: BufReader<Box<dyn Read>>,
-	stdout: Box<dyn Write>,
+	stdin: BufReader<Box<Stdin>>,
+	stdout: Box<Stdout>,
 	system: Box<SystemCommand>,
 }
+
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Environment: Send, Sync);
 
 impl Default for Environment {
 	fn default() -> Self {
@@ -43,11 +54,12 @@ impl Environment {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
 	pub fn lookup(&mut self, name: &KnStr) -> Variable {
+		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return var.clone();
 		}
 
-		let variable = Variable(Rc::new((name.to_boxed().into(), RefCell::new(None))));
+		let variable = Variable(((name.to_boxed().into(), None.into())).into());
 		self.variables.insert(variable.clone());
 		variable
 	}
@@ -67,9 +79,6 @@ impl Environment {
 }
 
 impl Read for Environment {
-	/// Read bytes into `data` from `self`'s `stdin`.
-	///
-	/// The `stdin` can be customized at creation via [`Builder::stdin`].
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
 		self.stdin.read(data)
 	}
@@ -99,14 +108,37 @@ impl Write for Environment {
 	}
 }
 
+#[derive(Clone)]
+#[rustfmt::skip]
+pub struct Variable(
+	#[cfg(feature = "multithreaded")]
+	std::sync::Arc<(SharedStr, std::sync::RwLock<Option<Value>>)>,
+	#[cfg(not(feature = "multithreaded"))]
+	std::rc::Rc<(SharedStr, std::cell::RefCell<Option<Value>>)>,
+);
+
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Variable: Send, Sync);
+
+impl Debug for Variable {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		if f.alternate() {
+			f.debug_struct("Variable")
+				.field("name", &self.name())
+				.field("value", &self.fetch())
+				.finish()
+		} else {
+			write!(f, "Variable({})", self.name())
+		}
+	}
+}
+
 impl std::borrow::Borrow<KnStr> for Variable {
+	#[inline]
 	fn borrow(&self) -> &KnStr {
 		self.name()
 	}
 }
-
-#[derive(Clone)]
-pub struct Variable(Rc<(SharedStr, RefCell<Option<Value>>)>);
 
 impl Eq for Variable {}
 impl PartialEq for Variable {
@@ -115,51 +147,57 @@ impl PartialEq for Variable {
 	/// This'll just check to see if their names are equivalent. Techincally, this means that
 	/// two variables with the same name, but derived from different [`Environment`]s will end up
 	/// being the same
+	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
-		(self.0).0 == (rhs.0).0
+		self.name() == rhs.name()
 	}
 }
 
 impl Hash for Variable {
+	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		(self.0).0.hash(state)
+		self.name().hash(state);
 	}
 }
 
 impl Variable {
 	/// Fetches the name of the variable.
 	#[must_use]
-	pub fn name(&self) -> &KnStr {
+	#[inline]
+	pub fn name(&self) -> &SharedStr {
 		&(self.0).0
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
 	pub fn assign(&self, new: Value) -> Option<Value> {
-		(self.0).1.replace(Some(new))
+		#[cfg(feature = "multithreaded")]
+		{
+			(self.0).1.write().expect("rwlock poisoned").replace(new)
+		}
+
+		#[cfg(not(feature = "multithreaded"))]
+		{
+			(self.0).1.replace(Some(new))
+		}
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if we haven't been assigned to yet.
 	#[must_use]
 	pub fn fetch(&self) -> Option<Value> {
-		(self.0).1.borrow().clone()
+		#[cfg(feature = "multithreaded")]
+		{
+			(self.0).1.read().expect("rwlock poisoned").clone()
+		}
+
+		#[cfg(not(feature = "multithreaded"))]
+		{
+			(self.0).1.borrow().clone()
+		}
 	}
 
 	/// Gets the last value assigned to `self`, or returns an [`Error::UndefinedVariable`] if we
 	/// haven't been assigned to yet.
 	pub fn run(&self) -> Result<Value> {
-		self.fetch().ok_or_else(|| Error::UndefinedVariable((self.0).0.clone()))
-	}
-}
-
-impl Debug for Variable {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		if f.alternate() {
-			f.debug_struct("Variable")
-				.field("name", &self.name())
-				.field("value", &(self.0).1.borrow())
-				.finish()
-		} else {
-			write!(f, "Variable({})", self.name())
-		}
+		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
 	}
 }
