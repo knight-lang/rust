@@ -1,27 +1,27 @@
-use super::{validate, Chars, IllegalChar, SharedStr};
+use super::{validate, Chars, IllegalChar, SharedText};
 use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct KnStr(str);
+pub struct Text(str);
 
-impl Default for &KnStr {
+impl Default for &Text {
 	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
-		unsafe { KnStr::new_unchecked("") }
+		unsafe { Text::new_unchecked("") }
 	}
 }
 
-impl Display for KnStr {
+impl Display for Text {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl Deref for KnStr {
+impl Deref for Text {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
@@ -29,21 +29,21 @@ impl Deref for KnStr {
 	}
 }
 
-impl DerefMut for KnStr {
+impl DerefMut for Text {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.0
 	}
 }
 
-impl KnStr {
-	/// Creates a new `KnStr` without validating `inp`.
+impl Text {
+	/// Creates a new `Text` without validating `inp`.
 	///
 	/// # Safety
-	/// - `inp` must be a valid `KnStr`.
+	/// - `inp` must be a valid `Text`.
 	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
 		debug_assert!(validate(inp).is_ok());
 
-		// SAFETY: Since `KnStr` is a `repr(transparent)` wrapper around `str`, we're able to
+		// SAFETY: Since `Text` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		&*(inp as *const str as *const Self)
 	}
@@ -65,11 +65,11 @@ impl KnStr {
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
 		let substring = self.0.get(range)?;
 
-		// SAFETY: We're getting a substring of a valid KnStr, which thus will itself be valid.
+		// SAFETY: We're getting a substring of a valid Text, which thus will itself be valid.
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self) -> SharedStr {
+	pub fn concat(&self, rhs: &Self) -> SharedText {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
@@ -78,7 +78,7 @@ impl KnStr {
 		builder.finish()
 	}
 
-	pub fn repeat(&self, amount: usize) -> SharedStr {
+	pub fn repeat(&self, amount: usize) -> SharedText {
 		(**self)
 			.repeat(amount)
 			.try_into()
@@ -86,37 +86,37 @@ impl KnStr {
 	}
 }
 
-impl<'a> TryFrom<&'a str> for &'a KnStr {
+impl<'a> TryFrom<&'a str> for &'a Text {
 	type Error = IllegalChar;
 
 	#[inline]
 	fn try_from(inp: &'a str) -> Result<Self, Self::Error> {
-		KnStr::new(inp)
+		Text::new(inp)
 	}
 }
 
-impl<'a> From<&'a KnStr> for &'a str {
+impl<'a> From<&'a Text> for &'a str {
 	#[inline]
-	fn from(kstr: &'a KnStr) -> Self {
-		kstr
+	fn from(text: &'a Text) -> Self {
+		text
 	}
 }
 
-impl TryFrom<Box<str>> for Box<KnStr> {
+impl TryFrom<Box<str>> for Box<Text> {
 	type Error = IllegalChar;
 
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
 		validate(&inp)?;
 
 		#[allow(unsafe_code)]
-		// SAFETY: Since `KnStr` is a `repr(transparent)` wrapper around `str`, we're able to
+		// SAFETY: Since `Text` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
 	}
 }
 
-impl ToOwned for KnStr {
-	type Owned = SharedStr;
+impl ToOwned for Text {
+	type Owned = SharedText;
 
 	fn to_owned(&self) -> Self::Owned {
 		self.into()

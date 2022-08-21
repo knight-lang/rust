@@ -1,4 +1,4 @@
-use crate::{KnStr, Mutable, RefCount, SharedStr, Value};
+use crate::{Mutable, RefCount, SharedText, Text, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -32,7 +32,7 @@ impl Array {
 		self.as_slice().contains(value)
 	}
 
-	pub fn to_knstr(&self) -> SharedStr {
+	pub fn to_text(&self) -> SharedText {
 		// let mut s = String::new();
 		todo!()
 		// for c

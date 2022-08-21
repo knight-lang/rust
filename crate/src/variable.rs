@@ -1,11 +1,11 @@
-use crate::{Error, KnStr, Mutable, RefCount, SharedStr, Value};
+use crate::{Error, Mutable, RefCount, SharedText, Text, Value};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
 #[derive(Clone)]
-pub struct Variable(RefCount<(SharedStr, Mutable<Option<Value>>)>);
+pub struct Variable(RefCount<(SharedText, Mutable<Option<Value>>)>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable: Send, Sync);
@@ -36,9 +36,9 @@ impl PartialEq for Variable {
 	}
 }
 
-impl Borrow<KnStr> for Variable {
+impl Borrow<Text> for Variable {
 	#[inline]
-	fn borrow(&self) -> &KnStr {
+	fn borrow(&self) -> &Text {
 		self.name()
 	}
 }
@@ -88,7 +88,7 @@ pub const MAX_NAME_LEN: usize = 65535;
 /// Check to see if `name` is a valid variable name.
 #[cfg(feature = "verify-variable-names")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "verify-variable-names")))]
-pub fn validate_name(name: &KnStr) -> Result<(), IllegalVariableName> {
+pub fn validate_name(name: &Text) -> Result<(), IllegalVariableName> {
 	use crate::parser::{is_lower, is_numeric};
 
 	if MAX_NAME_LEN < name.len() {
@@ -110,7 +110,7 @@ pub fn validate_name(name: &KnStr) -> Result<(), IllegalVariableName> {
 impl Variable {
 	/// Creates a new `Variable`.
 	#[must_use]
-	pub fn new(name: SharedStr) -> Result<Self, IllegalVariableName> {
+	pub fn new(name: SharedText) -> Result<Self, IllegalVariableName> {
 		#[cfg(feature = "verify-variable-names")]
 		validate_name(&name)?;
 
@@ -120,7 +120,7 @@ impl Variable {
 	/// Fetches the name of the variable.
 	#[must_use]
 	#[inline]
-	pub fn name(&self) -> &SharedStr {
+	pub fn name(&self) -> &SharedText {
 		&(self.0).0
 	}
 

@@ -1,5 +1,5 @@
 use crate::variable::IllegalVariableName;
-use crate::{Error, Integer, KnStr, SharedStr, Value, Variable};
+use crate::{Error, Integer, SharedText, Text, Value, Variable};
 use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -11,11 +11,11 @@ use std::collections::HashMap;
 
 cfg_if! {
 	if #[cfg(feature="multithreaded")] {
-		type SystemCommand = dyn FnMut(&KnStr) -> crate::Result<SharedStr> + Send + Sync;
+		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
 		type Stdin = dyn Read + Send + Sync;
 		type Stdout = dyn Write + Send + Sync;
 	} else {
-		type SystemCommand = dyn FnMut(&KnStr) -> crate::Result<SharedStr>;
+		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText>;
 		type Stdin = dyn Read;
 		type Stdout = dyn Write;
 	}
@@ -31,7 +31,7 @@ pub struct Environment {
 	//
 	// FIXME: Maybe we should make functions refcounted or something?
 	#[cfg(feature = "extension-functions")]
-	extensions: HashMap<SharedStr, &'static crate::Function>,
+	extensions: HashMap<SharedText, &'static crate::Function>,
 
 	stdin: BufReader<Box<Stdin>>,
 	stdout: Box<Stdout>,
@@ -48,7 +48,7 @@ impl Default for Environment {
 			variables: HashSet::default(),
 			stdin: BufReader::new(Box::new(std::io::stdin())),
 			stdout: Box::new(std::io::stdout()),
-			system: Box::new(|cmd: &KnStr| {
+			system: Box::new(|cmd: &Text| {
 				use std::process::{Command, Stdio};
 
 				let output = Command::new("/bin/sh")
@@ -58,12 +58,12 @@ impl Default for Environment {
 					.output()
 					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 
-				Ok(SharedStr::try_from(output)?)
+				Ok(SharedText::try_from(output)?)
 			}),
 			rng: Box::new(StdRng::from_entropy()),
 			#[cfg(feature = "extension-functions")]
 			extensions: {
-				let mut map = HashMap::<SharedStr, &'static crate::Function>::default();
+				let mut map = HashMap::<SharedText, &'static crate::Function>::default();
 
 				#[cfg(feature = "srand-function")]
 				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
@@ -77,7 +77,7 @@ impl Default for Environment {
 impl Environment {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &KnStr) -> Result<Variable, IllegalVariableName> {
+	pub fn lookup(&mut self, name: &Text) -> Result<Variable, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -89,7 +89,7 @@ impl Environment {
 	}
 
 	/// Executes `command` as a shell command, returning its result.
-	pub fn run_command(&mut self, command: &KnStr) -> crate::Result<SharedStr> {
+	pub fn run_command(&mut self, command: &Text) -> crate::Result<SharedText> {
 		(self.system)(command)
 	}
 
@@ -112,21 +112,21 @@ impl Environment {
 	}
 
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &KnStr) -> crate::Result<Value> {
+	pub fn play(&mut self, source: &Text) -> crate::Result<Value> {
 		crate::Parser::new(source).parse(self)?.run(self)
 	}
 
 	/// Gets the list of known extension functions.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions(&self) -> &HashMap<SharedStr, &'static crate::Function> {
+	pub fn extensions(&self) -> &HashMap<SharedText, &'static crate::Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedStr, &'static crate::Function> {
+	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedText, &'static crate::Function> {
 		&mut self.extensions
 	}
 }

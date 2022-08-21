@@ -1,7 +1,7 @@
-use crate::knstr::IllegalChar;
 use crate::parser::ParseError;
+use crate::text::IllegalChar;
 use crate::variable::IllegalVariableName;
-use crate::SharedStr;
+use crate::SharedText;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -12,7 +12,7 @@ pub enum Error {
 	NoConversion { from: &'static str, to: &'static str },
 
 	/// An undefined variable was accessed.
-	UndefinedVariable(SharedStr),
+	UndefinedVariable(SharedText),
 
 	/// There was a problem with I/O.
 	IoError(io::Error),
@@ -88,11 +88,11 @@ impl From<IllegalVariableName> for Error {
 impl std::error::Error for Error {
 	fn cause(&self) -> Option<&(dyn std::error::Error)> {
 		match self {
-			#[cfg(feature = "strict-charset")]
-			Self::IllegalChar(err) => Some(err),
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
 			Self::IllegalVariableName(err) => Some(err),
+			#[cfg(feature = "strict-charset")]
+			Self::IllegalChar(err) => Some(err),
 			_ => None,
 		}
 	}

@@ -28,12 +28,12 @@ mod containers;
 pub mod env;
 mod error;
 mod function;
-pub mod knstr;
 pub mod parser;
+pub mod text;
 pub mod value;
 mod variable;
 
-pub use crate::knstr::{KnStr, SharedStr};
+pub use crate::text::{SharedText, Text};
 pub use ast::Ast;
 pub use containers::{Mutable, RefCount};
 pub use env::Environment;

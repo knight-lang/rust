@@ -1,6 +1,6 @@
-// use crate::{Ast, Boolean, Environment, Error, Function, Integer, Result, SharedStr, Variable};
+// use crate::{Ast, Boolean, Environment, Error, Function, Integer, Result, SharedText, Variable};
 use crate::env::Environment;
-use crate::{Ast, Error, Integer, Result, SharedStr, Variable};
+use crate::{Ast, Error, Integer, Result, SharedText, Variable};
 use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
@@ -16,7 +16,7 @@ pub enum Value {
 	Integer(Integer),
 
 	/// Represents a string.
-	SharedStr(SharedStr),
+	SharedText(SharedText),
 
 	/// Represents a variable.
 	Variable(Variable),
@@ -44,7 +44,7 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::SharedStr(text) => write!(f, "Text({text})"),
+			Self::SharedText(text) => write!(f, "Text({text})"),
 			Self::Variable(variable) => write!(f, "Identifier({})", variable.name()),
 			Self::Ast(ast) => write!(f, "{ast:?}"),
 			#[cfg(feature = "arrays")]
@@ -74,10 +74,10 @@ impl From<Integer> for Value {
 	}
 }
 
-impl From<SharedStr> for Value {
+impl From<SharedText> for Value {
 	#[inline]
-	fn from(text: SharedStr) -> Self {
-		Self::SharedStr(text)
+	fn from(text: SharedText) -> Self {
+		Self::SharedText(text)
 	}
 }
 
@@ -113,7 +113,7 @@ impl Context for bool {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(boolean),
 			Value::Integer(number) => Ok(number != 0),
-			Value::SharedStr(ref text) => Ok(!text.is_empty()),
+			Value::SharedText(ref text) => Ok(!text.is_empty()),
 			#[cfg(feature = "arrays")]
 			Value::Array(ref ary) => Ok(!ary.is_empty()),
 			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
@@ -127,7 +127,7 @@ impl Context for Integer {
 			Value::Null => Ok(0),
 			Value::Boolean(boolean) => Ok(boolean as Self),
 			Value::Integer(number) => Ok(number),
-			Value::SharedStr(ref text) => text.to_integer(),
+			Value::SharedText(ref text) => text.to_integer(),
 			#[cfg(feature = "arrays")]
 			Value::Array(ref ary) => Ok(ary.len() as Self),
 			_ => Err(Error::NoConversion { to: "Integer", from: value.typename() }),
@@ -135,15 +135,15 @@ impl Context for Integer {
 	}
 }
 
-impl Context for SharedStr {
+impl Context for SharedText {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
 			Value::Null => Ok("null".try_into().unwrap()),
-			Value::Boolean(boolean) => Ok(SharedStr::new(boolean).unwrap()),
-			Value::Integer(number) => Ok(SharedStr::new(number).unwrap()),
-			Value::SharedStr(ref text) => Ok(text.clone()),
+			Value::Boolean(boolean) => Ok(SharedText::new(boolean).unwrap()),
+			Value::Integer(number) => Ok(SharedText::new(number).unwrap()),
+			Value::SharedText(ref text) => Ok(text.clone()),
 			#[cfg(feature = "arrays")]
-			Value::Array(ref ary) => Ok(ary.to_knstr()),
+			Value::Array(ref ary) => Ok(ary.to_text()),
 			_ => Err(Error::NoConversion { to: "String", from: value.typename() }),
 		}
 	}
@@ -183,9 +183,9 @@ impl Context for crate::Array {
 
 				Ok(ary.into())
 			}
-			Value::SharedStr(ref text) => Ok(text
+			Value::SharedText(ref text) => Ok(text
 				.chars()
-				.map(|c| Value::from(SharedStr::try_from(c.to_string()).unwrap()))
+				.map(|c| Value::from(SharedText::try_from(c.to_string()).unwrap()))
 				.collect()),
 			Value::Array(ref ary) => Ok(ary.clone()),
 			_ => Err(Error::NoConversion { to: "Array", from: value.typename() }),
@@ -201,7 +201,7 @@ impl Value {
 			Self::Null => "Null",
 			Self::Boolean(_) => "Boolean",
 			Self::Integer(_) => "Integer",
-			Self::SharedStr(_) => "SharedStr",
+			Self::SharedText(_) => "SharedText",
 			Self::Variable(_) => "Variable",
 			Self::Ast(_) => "Ast",
 			#[cfg(feature = "arrays")]
@@ -219,8 +219,8 @@ impl Value {
 		Context::convert(self)
 	}
 
-	/// Converts `self` to a [`SharedStr`] according to the Knight spec.
-	pub fn to_knstr(&self) -> Result<SharedStr> {
+	/// Converts `self` to a [`SharedText`] according to the Knight spec.
+	pub fn to_text(&self) -> Result<SharedText> {
 		Context::convert(self)
 	}
 

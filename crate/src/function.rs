@@ -1,4 +1,4 @@
-use crate::{Environment, Error, Integer, Result, SharedStr, Value};
+use crate::{Environment, Error, Integer, Result, SharedText, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -107,7 +107,7 @@ pub const PROMPT: Function = function!('P', env, |/*.*/| {
 		None => {}
 	}
 
-	buf.try_conv::<SharedStr>()?
+	buf.try_conv::<SharedText>()?
 });
 
 /// **4.1.5**: `RANDOM`
@@ -115,7 +115,7 @@ pub const RANDOM: Function = function!('R', env, |/*.*/| env.random());
 
 /// **4.2.2** `EVAL`  
 pub const EVAL: Function = function!('E', env, |val| {
-	let code = val.run(env)?.to_knstr()?;
+	let code = val.run(env)?.to_text()?;
 	env.play(&code)?
 });
 
@@ -149,7 +149,7 @@ pub const CALL: Function = function!('C', env, |arg| {
 
 /// **4.2.5** `` ` ``  
 pub const SYSTEM: Function = function!('`', env, |arg| {
-	let command = arg.run(env)?.to_knstr()?;
+	let command = arg.run(env)?.to_text()?;
 
 	env.run_command(&command)?
 });
@@ -176,7 +176,7 @@ pub const QUIT: Function = function!('Q', env, |arg| {
 pub const NOT: Function = function!('!', env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function = function!('L', env, |arg| arg.run(env)?.to_knstr()?.len() as Integer);
+pub const LENGTH: Function = function!('L', env, |arg| arg.run(env)?.to_text()?.len() as Integer);
 
 /// **4.2.9** `DUMP`  
 pub const DUMP: Function = function!('D', env, |arg| {
@@ -187,7 +187,7 @@ pub const DUMP: Function = function!('D', env, |arg| {
 
 /// **4.2.10** `OUTPUT`  
 pub const OUTPUT: Function = function!('O', env, |arg| {
-	let text = arg.run(env)?.to_knstr()?;
+	let text = arg.run(env)?.to_text()?;
 
 	if let Some(stripped) = text.strip_suffix('\\') {
 		write!(env, "{stripped}")?
@@ -206,11 +206,11 @@ pub const ASCII: Function = function!('A', env, |arg| {
 		Value::Integer(num) => u32::try_from(num)
 			.ok()
 			.and_then(char::from_u32)
-			.and_then(|chr| SharedStr::new(chr).ok())
+			.and_then(|chr| SharedText::new(chr).ok())
 			.ok_or(Error::DomainError("number isn't a valid char"))?
 			.conv::<Value>(),
 
-		Value::SharedStr(text) => text
+		Value::SharedText(text) => text
 			.chars()
 			.next()
 			.ok_or(Error::DomainError("empty string"))?
@@ -261,7 +261,7 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 				lnum.wrapping_add(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(string) => string.concat(&rhs.run(env)?.to_knstr()?).conv::<Value>(),
+		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).conv::<Value>(),
 		#[cfg(feature = "arrays")]
 		Value::Array(lary) => {
 			let rary = rhs.run(env)?.to_array()?;
@@ -325,7 +325,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 				lnum.wrapping_mul(rnum).conv::<Value>()
 			}
 		}
-		Value::SharedStr(lstr) => {
+		Value::SharedText(lstr) => {
 			let amount = rhs
 				.run(env)?
 				.to_integer()?
@@ -352,7 +352,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 
 				crate::Array::from(array).into()
 			}
-			Value::SharedStr(string) => {
+			Value::SharedText(string) => {
 				let mut joined = String::new();
 
 				let mut is_first = true;
@@ -363,10 +363,10 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 						joined.push_str(&string);
 					}
 
-					joined.push_str(&ele.to_knstr()?);
+					joined.push_str(&ele.to_text()?);
 				}
 
-				SharedStr::try_from(joined).unwrap().into()
+				SharedText::try_from(joined).unwrap().into()
 			}
 			Value::Array(rary) => {
 				let mut result = Vec::with_capacity(lary.len() * rary.len());
@@ -419,16 +419,16 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "split-strings")]
-		Value::SharedStr(lstr) => {
-			let rstr = rhs.run(env)?.to_knstr()?;
+		Value::SharedText(lstr) => {
+			let rstr = rhs.run(env)?.to_text()?;
 
 			if rstr.is_empty() {
-				return Ok(Value::SharedStr(lstr).to_array()?.into());
+				return Ok(Value::SharedText(lstr).to_array()?.into());
 			}
 
 			lstr
 				.split(&**rstr)
-				.map(|x| SharedStr::new(x).unwrap().into())
+				.map(|x| SharedText::new(x).unwrap().into())
 				.collect::<crate::Array>()
 				.into()
 		}
@@ -484,7 +484,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "string-formatting")]
-		Value::SharedStr(lstr) => {
+		Value::SharedText(lstr) => {
 			let values = rhs.run(env)?.to_array()?;
 			let mut values_index = 0;
 
@@ -512,7 +512,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 								.as_slice()
 								.get(values_index)
 								.expect("no values left to format")
-								.to_knstr()?,
+								.to_text()?,
 						);
 						values_index += 1;
 					}
@@ -520,7 +520,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 				}
 			}
 
-			SharedStr::new(formatted).unwrap().into()
+			SharedText::new(formatted).unwrap().into()
 		}
 
 		#[cfg(feature = "arrays")]
@@ -576,7 +576,7 @@ fn compare(lhs: Value, rhs: Value) -> Result<std::cmp::Ordering> {
 	match lhs {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
 		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_bool()?)),
-		Value::SharedStr(ltext) => Ok(ltext.cmp(&rhs.to_knstr()?)),
+		Value::SharedText(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
 		#[cfg(feature = "arrays")]
 		Value::Array(lary) => {
 			let rary = rhs.to_array()?;
@@ -686,7 +686,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
 
 		_ => {
-			let name = variable.run(env)?.to_knstr()?;
+			let name = variable.run(env)?.to_text()?;
 			env.lookup(&name)?.assign(value);
 		}
 	}
@@ -747,7 +747,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 		});
 	}
 
-	let string = source.to_knstr()?;
+	let string = source.to_text()?;
 	match string.get(start..start + length) {
 		Some(substring) => substring.to_owned(),
 
@@ -755,7 +755,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
 
 		#[cfg(not(feature = "out-of-bounds-errors"))]
-		None => SharedStr::default(),
+		None => SharedText::default(),
 	}
 });
 
@@ -792,11 +792,11 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 		return Ok(crate::Array::from(ret).into());
 	}
 
-	let string = source.to_knstr()?;
-	let replacement = replacement_source.to_knstr()?;
+	let string = source.to_text()?;
+	let replacement = replacement_source.to_text()?;
 	// TODO: `out-of-bounds-errors` here
 	// lol, todo, optimize me
-	let mut builder = SharedStr::builder();
+	let mut builder = SharedText::builder();
 	builder.push(&string.get(..start).unwrap());
 	builder.push(&replacement);
 	builder.push(&string.get(start + length..).unwrap());
@@ -811,7 +811,7 @@ pub const BOX: Function = function!(',', env, |val| crate::Array::from(vec![val.
 #[cfg(feature = "value-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
 pub const VALUE: Function = function!('V', env, |arg| {
-	let name = arg.run(env)?.to_knstr()?;
+	let name = arg.run(env)?.to_text()?;
 	env.lookup(&name)?
 });
 

@@ -1,4 +1,4 @@
-use crate::knstr::{IllegalChar, KnStr, SharedStr};
+use crate::text::{IllegalChar, SharedText, Text};
 use crate::variable::IllegalVariableName;
 use crate::{Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
@@ -52,7 +52,7 @@ pub enum ParseErrorKind {
 	/// An unknown extension was encountered.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	UnknownExtensionFunction(SharedStr),
+	UnknownExtensionFunction(SharedText),
 }
 
 impl Display for ParseError {
@@ -85,7 +85,7 @@ impl std::error::Error for ParseError {}
 /// Parse source code.
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
-	source: &'a KnStr,
+	source: &'a Text,
 	line: usize,
 }
 
@@ -121,7 +121,7 @@ fn is_upper(chr: char) -> bool {
 
 impl<'a> Parser<'a> {
 	/// Create a new `Parser` from the given source.
-	pub const fn new(source: &'a KnStr) -> Self {
+	pub const fn new(source: &'a Text) -> Self {
 		Self { source, line: 1 }
 	}
 
@@ -141,11 +141,11 @@ impl<'a> Parser<'a> {
 			self.line += 1;
 		}
 
-		self.source = chars.as_knstr();
+		self.source = chars.as_text();
 		Some(head)
 	}
 
-	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnStr {
+	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a Text {
 		let start = self.source;
 
 		while self.peek().map_or(false, &mut func) {
@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
 					return Err(self.error(ParseErrorKind::UnterminatedQuote { quote }));
 				}
 
-				Ok(body.conv::<crate::SharedStr>().into())
+				Ok(body.conv::<crate::SharedText>().into())
 			}
 
 			// booleans

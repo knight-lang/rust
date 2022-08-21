@@ -1,29 +1,29 @@
-use crate::knstr::{Chars, IllegalChar, KnStr};
+use crate::text::{Chars, IllegalChar, Text};
 use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SharedStr(crate::RefCount<KnStr>);
+pub struct SharedText(crate::RefCount<Text>);
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(SharedStr: Send, Sync);
+sa::assert_impl_all!(SharedText: Send, Sync);
 
-impl Default for SharedStr {
+impl Default for SharedText {
 	#[inline]
 	fn default() -> Self {
-		<&KnStr>::default().into()
+		<&Text>::default().into()
 	}
 }
 
-impl Display for SharedStr {
+impl Display for SharedText {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl std::ops::Deref for SharedStr {
-	type Target = KnStr;
+impl std::ops::Deref for SharedText {
+	type Target = Text;
 
 	#[inline]
 	fn deref(&self) -> &Self::Target {
@@ -31,24 +31,24 @@ impl std::ops::Deref for SharedStr {
 	}
 }
 
-impl From<Box<KnStr>> for SharedStr {
+impl From<Box<Text>> for SharedText {
 	#[inline]
-	fn from(kstr: Box<KnStr>) -> Self {
-		Self(kstr.into())
+	fn from(text: Box<Text>) -> Self {
+		Self(text.into())
 	}
 }
 
-impl TryFrom<String> for SharedStr {
+impl TryFrom<String> for SharedText {
 	type Error = IllegalChar;
 
 	fn try_from(inp: String) -> Result<Self, Self::Error> {
-		let boxed = Box::<KnStr>::try_from(inp.into_boxed_str())?;
+		let boxed = Box::<Text>::try_from(inp.into_boxed_str())?;
 
 		Ok(Self(boxed.into()))
 	}
 }
 
-impl SharedStr {
+impl SharedText {
 	pub fn builder() -> super::Builder {
 		Default::default()
 	}
@@ -98,23 +98,23 @@ impl SharedStr {
 	}
 }
 
-impl std::borrow::Borrow<KnStr> for SharedStr {
-	fn borrow(&self) -> &KnStr {
+impl std::borrow::Borrow<Text> for SharedText {
+	fn borrow(&self) -> &Text {
 		self
 	}
 }
 
-impl From<&KnStr> for SharedStr {
-	fn from(knstr: &KnStr) -> Self {
-		Box::<KnStr>::try_from(knstr.to_string().into_boxed_str()).unwrap().into()
+impl From<&Text> for SharedText {
+	fn from(text: &Text) -> Self {
+		Box::<Text>::try_from(text.to_string().into_boxed_str()).unwrap().into()
 	}
 }
 
-impl TryFrom<&str> for SharedStr {
+impl TryFrom<&str> for SharedText {
 	type Error = IllegalChar;
 
 	#[inline]
 	fn try_from(inp: &str) -> Result<Self, Self::Error> {
-		<&KnStr>::try_from(inp).map(From::from)
+		<&Text>::try_from(inp).map(From::from)
 	}
 }

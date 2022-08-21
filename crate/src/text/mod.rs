@@ -1,15 +1,15 @@
 mod builder;
-mod knstr;
-mod sharedstr;
+mod sharedtext;
+mod text;
 
 pub use builder::Builder;
-pub use knstr::*;
-pub use sharedstr::*;
+pub use sharedtext::*;
+pub use text::*;
 
 pub struct Chars<'a>(std::str::Chars<'a>);
 impl<'a> Chars<'a> {
-	pub fn as_knstr(&self) -> &'a KnStr {
-		unsafe { KnStr::new_unchecked(self.0.as_str()) }
+	pub fn as_text(&self) -> &'a Text {
+		unsafe { Text::new_unchecked(self.0.as_str()) }
 	}
 }
 
@@ -53,7 +53,7 @@ pub const fn is_valid(chr: char) -> bool {
 }
 
 pub const fn validate(data: &str) -> Result<(), IllegalChar> {
-	// All valid `str`s are valid KnStr is normal mode.
+	// All valid `str`s are valid Text is normal mode.
 	if cfg!(not(feature = "strict-charset")) {
 		return Ok(());
 	}
