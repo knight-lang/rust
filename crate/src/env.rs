@@ -124,6 +124,8 @@ impl Environment {
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
+	#[cfg(feature = "extension-functions")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
 	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedStr, &'static crate::Function> {
 		&mut self.extensions
 	}
