@@ -2,11 +2,10 @@ use knightrs::*;
 
 fn main() {
 	let mut env = Environment::default();
-	match Parser::new(std::env::args().skip(2).next().unwrap().as_str().try_into().unwrap())
-		.parse(&mut env)
-		.unwrap()
-		.run(&mut env)
-	{
+	let x = std::fs::read_to_string(&std::env::args().nth(2).unwrap().as_str()).unwrap();
+
+	// match Parser::new(std::env::args().skip(2).next().unwrap().as_str().try_into().unwrap())
+	match Parser::new(x.as_str().try_into().unwrap()).parse(&mut env).unwrap().run(&mut env) {
 		Err(Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {
 			eprintln!("error: {err}");

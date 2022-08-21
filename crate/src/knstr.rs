@@ -113,8 +113,8 @@ impl KnStr {
 		}
 	}
 
-	pub fn to_boxed(&self) -> Box<Self> {
-		self.0.to_string().into_boxed_str().try_into().unwrap()
+	pub fn chars(&self) -> Chars<'_> {
+		Chars(self.0.chars())
 	}
 
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
@@ -146,6 +146,15 @@ impl<'a> TryFrom<&'a str> for &'a KnStr {
 	}
 }
 
+impl TryFrom<&str> for SharedStr {
+	type Error = IllegalChar;
+
+	#[inline]
+	fn try_from(inp: &str) -> Result<Self, Self::Error> {
+		<&KnStr>::try_from(inp).map(From::from)
+	}
+}
+
 impl TryFrom<Box<str>> for Box<KnStr> {
 	type Error = IllegalChar;
 
@@ -162,7 +171,7 @@ impl TryFrom<Box<str>> for Box<KnStr> {
 impl<'a> From<&'a KnStr> for &'a str {
 	#[inline]
 	fn from(kstr: &'a KnStr) -> Self {
-		&kstr
+		kstr
 	}
 }
 
@@ -262,5 +271,33 @@ impl SharedStr {
 		}
 
 		Ok(number)
+	}
+}
+
+impl std::borrow::Borrow<KnStr> for SharedStr {
+	fn borrow(&self) -> &KnStr {
+		self
+	}
+}
+
+impl From<&KnStr> for SharedStr {
+	fn from(knstr: &KnStr) -> Self {
+		Box::<KnStr>::try_from(knstr.to_string().into_boxed_str()).unwrap().into()
+	}
+}
+
+pub struct Chars<'a>(std::str::Chars<'a>);
+
+impl<'a> Chars<'a> {
+	pub fn as_knstr(&self) -> &'a KnStr {
+		unsafe { KnStr::new_unchecked(self.0.as_str()) }
+	}
+}
+
+impl Iterator for Chars<'_> {
+	type Item = char;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.0.next()
 	}
 }

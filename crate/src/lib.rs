@@ -1,6 +1,8 @@
 #![allow(unused)]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 extern crate static_assertions as sa;
+
 #[macro_use]
 extern crate cfg_if;
 

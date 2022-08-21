@@ -61,24 +61,20 @@ unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"
 ##        Disabling Extensions       ##
 #######################################
 
-# Disables the use of `EVAL`.
-eval-function = []
+# Enables `XSRAND`
+value-function = []
+assign-to-anything = []
+extension-functions = [] # Required for all `X` functions.
+srand-function = ["extension-functions"]
+
+extensions = ["srand-function", "value-function", "assign-to-anything"]
 
 # Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
 out-of-bounds-errors = []
 
-# Enables the use of arrays
 arrays = []
-
-# Dividing strings by a string will split on that string.
 split-strings = ["arrays"]
-
 string-formatting = ["arrays"]
-
-extensions = ["eval-function", "arrays", "split-strings", "string-formatting"]
-
-# Just disable all extensions.
-no-extensions = ["out-of-bounds-errors"]
 
 
 #######################################
@@ -109,7 +105,6 @@ strict-compliance = [
 	"forbid-trailing-tokens",
 	"strict-charset",
 	"strict-block-return-value",
-	"no-extensions",
 	"verify-variable-names"
 ]
 
@@ -122,7 +117,11 @@ clap = { version = "2.33", optional = true }
 tap = "1.0"
 static_assertions = "1.1"
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "doc_cfg"]
+
 [[bin]]
 name = "knight"
 path = "src/main.rs"
 # required-features = ["clap"]
+

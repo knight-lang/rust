@@ -1,8 +1,12 @@
-use crate::{Error, KnStr, Result, SharedStr, Value};
+use crate::{Error, Integer, KnStr, Result, SharedStr, Value};
+use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
+
+#[cfg(feature = "extension-functions")]
+use std::collections::HashMap;
 
 cfg_if! {
 	if #[cfg(feature="multithreaded")] {
@@ -16,13 +20,20 @@ cfg_if! {
 	}
 }
 
+/// The environment hosts all relevant information for knight programs.
 pub struct Environment {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable>,
+
+	// All the known extension functions.
+	#[cfg(feature = "extension-functions")]
+	extensions: HashMap<SharedStr, &'static crate::Function>,
+
 	stdin: BufReader<Box<Stdin>>,
 	stdout: Box<Stdout>,
 	system: Box<SystemCommand>,
+	rng: Box<StdRng>,
 }
 
 #[cfg(feature = "multithreaded")]
@@ -46,24 +57,37 @@ impl Default for Environment {
 
 				Ok(SharedStr::try_from(output)?)
 			}),
+			rng: Box::new(StdRng::from_entropy()),
+			#[cfg(feature = "extension-functions")]
+			extensions: {
+				let mut map = HashMap::<SharedStr, &'static crate::Function>::default();
+
+				#[cfg(feature = "srand-function")]
+				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
+
+				map
+			},
 		}
 	}
 }
 
 /// Maximum length a name can have; only used when `verify-variable-names` is enabled.
-const MAX_NAME_LEN: usize = 65535;
+pub const MAX_NAME_LEN: usize = 65535;
 
 /// Indicates that a a variable name was illegal.
 ///
 /// This is only ever returned if the `verify-variable-names` is enabled.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum IllegalVariableName {
 	/// The name was empty
 	Empty,
+
 	/// The name was too long.
 	TooLong(usize),
+
 	/// The name had an illegal character at the beginning.
 	IllegalStartingChar(char),
+
 	/// The name had an illegal character in the middle.
 	IllegalBodyChar(char),
 }
@@ -83,17 +107,19 @@ impl std::error::Error for IllegalVariableName {}
 
 #[cfg(feature = "verify-variable-names")]
 fn verify_variable_name(name: &KnStr) -> std::result::Result<(), IllegalVariableName> {
-	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-	if !matches!(first, '_' | 'a'..='z') {
-		return Err(IllegalVariableName::IllegalStartingChar(first));
-	}
+	use crate::parser::{is_lower, is_numeric};
 
 	if MAX_NAME_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
 
-	if let Some(bad) = name.find(|c| !matches!(c, '_' | 'a'..='z' | '0'..='9')) {
-		return Err(IllegalVariableName::IllegalBodyChar(first));
+	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
+	if !is_lower(first) {
+		return Err(IllegalVariableName::IllegalStartingChar(first));
+	}
+
+	if let Some(bad) = name.chars().find(|&c| !is_lower(c) && !is_numeric(c)) {
+		return Err(IllegalVariableName::IllegalBodyChar(bad));
 	}
 
 	Ok(())
@@ -111,7 +137,7 @@ impl Environment {
 			return Ok(var.clone());
 		}
 
-		let variable = Variable(((name.to_boxed().into(), None.into())).into());
+		let variable = Variable((name.into(), None.into()).into());
 		self.variables.insert(variable.clone());
 		Ok(variable)
 	}
@@ -120,17 +146,33 @@ impl Environment {
 		(self.system)(command)
 	}
 
-	// this is here in case we want to add seeding
-	pub fn random(&mut self) -> crate::Integer {
+	// This is here in case we want to add seeding
+	pub fn random(&mut self) -> Integer {
+		let rand = self.rng.gen::<Integer>().abs();
+
 		if cfg!(feature = "strict-compliance") {
-			(rand::random::<u16>() & 0x7fff) as crate::Integer
+			rand & 0x7fff
 		} else {
-			rand::random::<crate::Integer>().abs()
+			rand
 		}
+	}
+
+	#[cfg(feature = "srand-function")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
+	pub fn srand(&mut self, seed: u64) {
+		*self.rng = StdRng::seed_from_u64(seed)
 	}
 
 	pub fn play(&mut self, source: &KnStr) -> Result<Value> {
 		crate::Parser::new(source).parse(self)?.run(self)
+	}
+
+	pub fn extensions(&self) -> &HashMap<SharedStr, &'static crate::Function> {
+		&self.extensions
+	}
+
+	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedStr, &'static crate::Function> {
+		&mut self.extensions
 	}
 }
 

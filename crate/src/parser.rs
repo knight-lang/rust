@@ -1,6 +1,6 @@
 use crate::env::IllegalVariableName;
-use crate::knstr::{IllegalChar, KnStr};
-use crate::{Environment, Value};
+use crate::knstr::{IllegalChar, KnStr, SharedStr};
+use crate::{Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
 use tap::prelude::*;
 
@@ -18,7 +18,7 @@ pub struct ParseError {
 #[derive(Debug)]
 pub enum ParseErrorKind {
 	/// Indicates that the end of stream was reached before a value could be parsed.
-	NothingToParse,
+	EmptySource,
 
 	/// Indicates that an invalid character was encountered.
 	UnknownTokenStart(char),
@@ -41,12 +41,18 @@ pub enum ParseErrorKind {
 	/// A number literal was too large.
 	IntegerLiteralOverflow,
 
-	/// Indicates that there were some tokens trailing. Only used in `forbid-trailing-tokens` mode.
-	#[cfg(feature = "forbid-trailing-tokens")]
-	TrailingTokens,
-
 	/// A variable name wasn't valid for some reason
 	IllegalVariableName(IllegalVariableName),
+
+	/// Indicates that there were some tokens trailing.
+	#[cfg(feature = "forbid-trailing-tokens")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "forbid-trailing-tokens")))]
+	TrailingTokens,
+
+	/// An unknown extension was encountered.
+	#[cfg(feature = "extension-functions")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
+	UnknownExtensionFunction(SharedStr),
 }
 
 impl Display for ParseError {
@@ -56,16 +62,20 @@ impl Display for ParseError {
 		write!(f, "line {}: ", self.line)?;
 
 		match self.kind {
-			NothingToParse => write!(f, "a token was expected"),
+			EmptySource => write!(f, "an empty source string was encountered"),
 			UnknownTokenStart(chr) => write!(f, "unknown token start {chr:?}"),
 			UnterminatedQuote { quote } => write!(f, "unterminated `{quote}` quote encountered"),
 			MissingFunctionArgument { func, idx } => {
 				write!(f, "missing argument {idx} for function {:?}", func.name)
 			}
 			IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
+			IllegalVariableName(ref err) => Display::fmt(&err, f),
+
 			#[cfg(feature = "forbid-trailing-tokens")]
 			TrailingTokens => write!(f, "trailing tokens encountered"),
-			IllegalVariableName(ref err) => Display::fmt(&err, f),
+
+			#[cfg(feature = "extension-functions")]
+			UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
 		}
 	}
 }
@@ -77,6 +87,36 @@ impl std::error::Error for ParseError {}
 pub struct Parser<'a> {
 	source: &'a KnStr,
 	line: usize,
+}
+
+fn is_whitespace(chr: char) -> bool {
+	" \r\n\t()[]{}:".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
+}
+
+pub(crate) fn is_lower(chr: char) -> bool {
+	chr == '_'
+		|| if cfg!(feature = "strict-charset") {
+			chr.is_ascii_lowercase()
+		} else {
+			chr.is_lowercase()
+		}
+}
+
+pub(crate) fn is_numeric(chr: char) -> bool {
+	if cfg!(feature = "strict-charset") {
+		chr.is_ascii_digit()
+	} else {
+		chr.is_numeric()
+	}
+}
+
+fn is_upper(chr: char) -> bool {
+	chr == '_'
+		|| if cfg!(feature = "strict-charset") {
+			chr.is_ascii_uppercase()
+		} else {
+			chr.is_uppercase()
+		}
 }
 
 impl<'a> Parser<'a> {
@@ -96,45 +136,40 @@ impl<'a> Parser<'a> {
 	fn advance(&mut self) -> Option<char> {
 		let mut chars = self.source.chars();
 
-		let ret = chars.next();
-		if ret == Some('\n') {
+		let head = chars.next()?;
+		if head == '\n' {
 			self.line += 1;
 		}
 
-		self.source = KnStr::new(chars.as_str()).unwrap();
-		ret
+		self.source = chars.as_knstr();
+		Some(head)
 	}
 
 	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a KnStr {
 		let start = self.source;
 
-		while let Some(chr) = self.peek() {
-			if func(chr) {
-				self.advance();
-			} else {
-				break;
-			}
+		while self.peek().map_or(false, &mut func) {
+			self.advance();
 		}
 
-		KnStr::new(&start[..start.len() - self.source.len()]).unwrap()
+		start.get(..start.len() - self.source.len()).unwrap()
 	}
 
 	fn strip(&mut self) {
-		fn is_whitespace(chr: char) -> bool {
-			" \r\n\t()[]{}:".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
-		}
+		loop {
+			self.take_while(is_whitespace).is_empty();
 
-		while !self.take_while(is_whitespace).is_empty() {
-			if self.peek() == Some('#') {
-				self.take_while(|chr| chr != '\n');
+			if self.peek() != Some('#') {
+				break;
 			}
+
+			self.take_while(|chr| chr != '\n');
 		}
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
 	pub fn parse(mut self, env: &mut Environment) -> Result<Value, ParseError> {
-		let return_value =
-			self.parse_value(env)?.ok_or_else(|| self.error(ParseErrorKind::NothingToParse))?;
+		let ret = self.parse_value(env)?;
 
 		#[cfg(feature = "forbid-trailing-tokens")]
 		{
@@ -144,66 +179,61 @@ impl<'a> Parser<'a> {
 			}
 		}
 
-		Ok(return_value)
+		Ok(ret)
 	}
 
-	fn parse_value(&mut self, env: &mut Environment) -> Result<Option<Value>, ParseError> {
-		fn is_lower(chr: char) -> bool {
-			chr == '_'
-				|| if cfg!(feature = "strict-charset") {
-					chr.is_ascii_lowercase()
-				} else {
-					chr.is_lowercase()
-				}
+	fn parse_function(
+		&mut self,
+		func: &'static crate::Function,
+		env: &mut Environment,
+	) -> Result<Value, ParseError> {
+		if is_upper(func.name) {
+			self.take_while(is_upper);
+		} else {
+			self.advance();
 		}
 
-		fn is_numeric(chr: char) -> bool {
-			if cfg!(feature = "strict-charset") {
-				chr.is_ascii_digit()
-			} else {
-				chr.is_numeric()
+		let mut args = Vec::with_capacity(func.arity);
+		let start_line = self.line;
+
+		for idx in 0..func.arity {
+			match self.parse_value(env) {
+				Ok(arg) => args.push(arg),
+				Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => {
+					return Err(ParseError {
+						line: start_line,
+						kind: ParseErrorKind::MissingFunctionArgument { func, idx },
+					})
+				}
+				Err(err) => return Err(err),
 			}
 		}
-		fn is_upper(chr: char) -> bool {
-			chr == '_'
-				|| if cfg!(feature = "strict-charset") {
-					chr.is_ascii_uppercase()
-				} else {
-					chr.is_uppercase()
-				}
-		}
 
+		Ok(crate::Ast::new(func, args).into())
+	}
+
+	fn parse_value(&mut self, env: &mut Environment) -> Result<Value, ParseError> {
 		self.strip();
 
-		let start = if let Some(chr) = self.peek() {
-			chr
-		} else {
-			return Ok(None);
-		};
-
-		if is_upper(start) && start != '_' {
-			self.take_while(is_upper);
-		}
-
-		match start {
+		match self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))? {
+			// integer literals
 			'0'..='9' => self
-				.take_while(|chr| chr.is_ascii_digit())
-				.parse::<crate::Integer>()
-				.map(|num| Some(num.into()))
+				.take_while(is_numeric)
+				.parse::<Integer>()
+				.map(Value::from)
 				.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow)),
 
-			_ if is_lower(start) => {
-				let ident = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
+			// identifiers
+			start if is_lower(start) => {
+				let identifier = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
 
-				Ok(Some(
-					env.lookup(ident)
-						.map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))?
-						.into(),
-				))
+				env.lookup(identifier)
+					.map(Value::from)
+					.map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
 			}
 
-			'\'' | '\"' => {
-				let quote = start;
+			// strings
+			quote @ ('\'' | '\"') => {
 				self.advance();
 
 				let body = self.take_while(|chr| chr != quote);
@@ -212,33 +242,43 @@ impl<'a> Parser<'a> {
 					return Err(self.error(ParseErrorKind::UnterminatedQuote { quote }));
 				}
 
-				Ok(Some(body.to_boxed().conv::<crate::SharedStr>().into()))
+				Ok(body.conv::<crate::SharedStr>().into())
 			}
 
-			'T' | 'F' => Ok(Some((start == 'T').into())),
-			'N' => Ok(Some(Value::Null)),
+			// booleans
+			start @ ('T' | 'F') => {
+				self.take_while(is_upper);
+				Ok((start == 'T').into())
+			}
+			// null
+			'N' => {
+				self.take_while(is_upper);
+				Ok(Value::default())
+			}
 			#[cfg(feature = "arrays")]
-			'Z' => Ok(Some(Value::Array(Default::default()))),
+			'Z' => {
+				self.take_while(is_upper);
+				Ok(Value::Array(Default::default()))
+			}
 
-			_ => {
-				if !is_upper(start) {
-					self.advance();
-				}
+			#[cfg(feature = "extension-functions")]
+			'X' => {
+				self.advance();
+				let name = self.take_while(is_upper);
+				let ext = env
+					.extensions()
+					.get(name)
+					.ok_or_else(|| self.error(ParseErrorKind::UnknownExtensionFunction(name.into())))?;
 
-				let func = crate::function::fetch(start)
-					.ok_or_else(|| self.error(ParseErrorKind::UnknownTokenStart(start)))?;
+				self.parse_function(ext, env)
+			}
 
-				let mut args = Vec::with_capacity(func.arity);
+			// functions
+			name => {
+				let func = crate::function::fetch(name)
+					.ok_or_else(|| self.error(ParseErrorKind::UnknownTokenStart(name)))?;
 
-				for idx in 0..func.arity {
-					if let Some(arg) = self.parse_value(env)? {
-						args.push(arg);
-					} else {
-						return Err(self.error(ParseErrorKind::MissingFunctionArgument { func, idx }));
-					}
-				}
-
-				Ok(Some(crate::Ast::new(func, args).into()))
+				self.parse_function(func, env)
 			}
 		}
 	}

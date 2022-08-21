@@ -8,7 +8,9 @@ pub struct Function {
 	/// The code associated with this function
 	pub func: fn(&[Value], &mut Environment) -> Result<Value>,
 
-	/// The single character name of this function
+	/// The short-form name of this function.
+	///
+	/// For extension functions that start with `X`, this should always be `X`.
 	pub name: char,
 
 	/// The arity of the function.
@@ -32,7 +34,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 	match name {
 		_ if name == PROMPT.name => Some(&PROMPT),
 		_ if name == RANDOM.name => Some(&RANDOM),
-		_ if name == VALUE.name => Some(&VALUE),
+		_ if name == EVAL.name => Some(&EVAL),
 		_ if name == BLOCK.name => Some(&BLOCK),
 		_ if name == CALL.name => Some(&CALL),
 		_ if name == SYSTEM.name => Some(&SYSTEM),
@@ -61,11 +63,11 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == GET.name => Some(&GET),
 		_ if name == SUBSTITUTE.name => Some(&SUBSTITUTE),
 
-		#[cfg(feature = "eval-function")]
-		_ if name == EVAL.name => Some(&EVAL),
-
 		#[cfg(feature = "arrays")]
 		_ if name == BOX.name => Some(&BOX),
+
+		#[cfg(feature = "value-function")]
+		_ if name == VALUE.name => Some(&VALUE),
 
 		_ => None,
 	}
@@ -111,10 +113,10 @@ pub const PROMPT: Function = function!('P', env, |/*.*/| {
 /// **4.1.5**: `RANDOM`
 pub const RANDOM: Function = function!('R', env, |/*.*/| env.random());
 
-/// **4.2.2** `VALUE`  
-pub const VALUE: Function = function!('V', env, |arg| {
-	let name = arg.run(env)?.to_knstr()?;
-	env.lookup(&name)?
+/// **4.2.2** `EVAL`  
+pub const EVAL: Function = function!('E', env, |val| {
+	let code = val.run(env)?.to_knstr()?;
+	env.play(&code)?
 });
 
 /// **4.2.3** `BLOCK`  
@@ -187,8 +189,8 @@ pub const DUMP: Function = function!('D', env, |arg| {
 pub const OUTPUT: Function = function!('O', env, |arg| {
 	let text = arg.run(env)?.to_knstr()?;
 
-	if text.ends_with('\\') {
-		write!(env, "{}", &text[..text.len() - 1])?
+	if let Some(stripped) = text.strip_suffix('\\') {
+		write!(env, "{stripped}")?
 	} else {
 		writeln!(env, "{text}")?;
 	}
@@ -747,7 +749,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 
 	let string = source.to_knstr()?;
 	match string.get(start..start + length) {
-		Some(value) => value.to_boxed().conv::<SharedStr>(),
+		Some(value) => SharedStr::from(value),
 
 		#[cfg(feature = "out-of-bounds-errors")]
 		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
@@ -776,7 +778,7 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 	if let Value::Array(ary) = source {
 		if length == 0 {
 			let mut dup = ary.iter().collect::<Vec<Value>>();
-			dup[start] = replacement_source.into();
+			dup[start] = replacement_source;
 			return Ok(crate::Array::from(dup).into());
 		}
 
@@ -801,13 +803,23 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 	s.try_conv::<SharedStr>().unwrap()
 });
 
-/// EXT: Eval
-#[cfg(feature = "eval-function")]
-pub const EVAL: Function = function!('E', env, |val| {
-	let code = val.run(env)?.to_knstr()?;
-	env.play(&code)?
-});
-
 /// EXT: Box
 #[cfg(feature = "arrays")]
 pub const BOX: Function = function!(',', env, |val| crate::Array::from(vec![val.run(env)?]));
+
+// EXT: VALUE
+#[cfg(feature = "value-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
+pub const VALUE: Function = function!('V', env, |arg| {
+	let name = arg.run(env)?.to_knstr()?;
+	env.lookup(&name)?
+});
+
+/// EXT: SRAND
+#[cfg(feature = "srand-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
+pub const SRAND: Function = function!('X', env, |val| {
+	let seed = val.run(env)?.to_integer()?;
+	env.srand(seed as u64);
+	Value::default()
+});
