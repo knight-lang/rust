@@ -1,6 +1,6 @@
-use crate::env::IllegalVariableName;
 use crate::knstr::IllegalChar;
 use crate::parser::ParseError;
+use crate::variable::IllegalVariableName;
 use crate::SharedStr;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -35,16 +35,18 @@ pub enum Error {
 	/// A variable name was illegal.
 	IllegalVariableName(IllegalVariableName),
 
-	/// An illegal character appeared in the source code. Only used when the `strict-charset`
-	/// feature is enabled.
+	/// An illegal character appeared in the source code.
 	#[cfg(feature = "strict-charset")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "strict-charset")))]
 	IllegalChar(IllegalChar),
 
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
 	#[cfg(feature = "checked-overflow")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
 	IntegerOverflow,
 
 	#[cfg(feature = "out-of-bounds-errors")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "out-of-bounds-errors")))]
 	IndexOutOfBounds { len: usize, index: usize },
 }
 

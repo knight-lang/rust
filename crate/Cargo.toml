@@ -72,9 +72,9 @@ extensions = ["srand-function", "value-function", "assign-to-anything"]
 # Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
 out-of-bounds-errors = []
 
-arrays = []
-split-strings = ["arrays"]
-string-formatting = ["arrays"]
+# arrays = []
+# split-strings = ["arrays"]
+# string-formatting = ["arrays"]
 
 
 #######################################

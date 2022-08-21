@@ -820,6 +820,6 @@ pub const VALUE: Function = function!('V', env, |arg| {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
 pub const SRAND: Function = function!('X', env, |val| {
 	let seed = val.run(env)?.to_integer()?;
-	env.srand(seed as u64);
+	env.srand(seed);
 	Value::default()
 });

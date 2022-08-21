@@ -17,16 +17,6 @@ cfg_if! {
 }
 
 cfg_if! {
-	if #[cfg(feature = "multithreaded")] {
-		type RefCount<T> = std::sync::Arc<T>;
-		type Mutable<T> = std::sync::RwLock<T>;
-	} else {
-		type RefCount<T> = std::rc::Rc<T>;
-		type Mutable<T> = std::cell::RefCell<T>;
-	}
-}
-
-cfg_if! {
 	if #[cfg(feature = "arrays")] {
 		mod array;
 		pub use array::Array;
@@ -34,17 +24,21 @@ cfg_if! {
 }
 
 pub mod ast;
+mod containers;
 pub mod env;
 mod error;
 mod function;
 pub mod knstr;
 pub mod parser;
 pub mod value;
+mod variable;
 
 pub use crate::knstr::{KnStr, SharedStr};
 pub use ast::Ast;
+pub use containers::{Mutable, RefCount};
 pub use env::Environment;
 pub use error::{Error, Result};
 pub use function::Function;
 pub use parser::{ParseError, Parser};
 pub use value::Value;
+pub use variable::Variable;

@@ -1,6 +1,6 @@
 // use crate::{Ast, Boolean, Environment, Error, Function, Integer, Result, SharedStr, Variable};
-use crate::env::{Environment, Variable};
-use crate::{Ast, Error, Integer, Result, SharedStr};
+use crate::env::Environment;
+use crate::{Ast, Error, Integer, Result, SharedStr, Variable};
 use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
@@ -232,7 +232,9 @@ impl Value {
 	/// Executes the value.
 	pub fn run(&self, env: &mut Environment) -> Result<Self> {
 		match self {
-			Self::Variable(variable) => variable.run(),
+			Self::Variable(variable) => {
+				variable.fetch().ok_or_else(|| Error::UndefinedVariable(variable.name().clone()))
+			}
 			Self::Ast(ast) => ast.run(env),
 			_ => Ok(self.clone()),
 		}

@@ -1,5 +1,5 @@
-use crate::env::IllegalVariableName;
 use crate::knstr::{IllegalChar, KnStr, SharedStr};
+use crate::variable::IllegalVariableName;
 use crate::{Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
 use tap::prelude::*;
