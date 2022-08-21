@@ -61,7 +61,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == WHILE.name => Some(&WHILE),
 		_ if name == IF.name => Some(&IF),
 		_ if name == GET.name => Some(&GET),
-		_ if name == SUBSTITUTE.name => Some(&SUBSTITUTE),
+		_ if name == SET.name => Some(&SET),
 
 		#[cfg(feature = "arrays")]
 		_ if name == BOX.name => Some(&BOX),
@@ -657,6 +657,8 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		}
 
 		#[cfg(feature = "arrays")]
+		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
+		#[cfg(feature = "arrays")]
 		Value::Array(ary) => {
 			if ary.is_empty() {
 				panic!("todo: error for this case");
@@ -682,13 +684,14 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 			}
 		}
 
-		#[cfg(feature = "arrays")]
-		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
-
+		#[cfg(feature = "assign-to-anything")]
 		_ => {
 			let name = variable.run(env)?.to_text()?;
 			env.lookup(&name)?.assign(value);
 		}
+
+		#[cfg(not(feature = "assign-to-anything"))]
+		other => return Err(Error::TypeError(other.name())),
 	}
 
 	Ok(())
@@ -721,11 +724,7 @@ pub const IF: Function = function!('I', env, |cond, iftrue, iffalse| {
 /// **4.4.2** `GET`  
 pub const GET: Function = function!('G', env, |string, start, length| {
 	let source = string.run(env)?;
-	let start = start
-		.run(env)?
-		.to_integer()?
-		.try_conv::<usize>()
-		.or(Err(Error::DomainError("negative start position")))?;
+	let mut start = start.run(env)?.to_integer()?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -748,25 +747,27 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 	}
 
 	let string = source.to_text()?;
+
+	if start < 0 && cfg!(feature = "negative-indexing") {
+		start += string.len() as Integer;
+	}
+	let start = start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
+
 	match string.get(start..start + length) {
 		Some(substring) => substring.to_owned(),
 
-		#[cfg(feature = "out-of-bounds-errors")]
+		#[cfg(feature = "no-oob-errors")]
 		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
 
-		#[cfg(not(feature = "out-of-bounds-errors"))]
+		#[cfg(not(feature = "no-oob-errors"))]
 		None => SharedText::default(),
 	}
 });
 
-/// **4.5.1** `SUBSTITUTE`  
-pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, replacement| {
+/// **4.5.1** `SET`  
+pub const SET: Function = function!('S', env, |string, start, length, replacement| {
 	let source = string.run(env)?;
-	let start = start
-		.run(env)?
-		.to_integer()?
-		.try_conv::<usize>()
-		.or(Err(Error::DomainError("negative start position")))?;
+	let mut start = start.run(env)?.to_integer()?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -794,7 +795,13 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 
 	let string = source.to_text()?;
 	let replacement = replacement_source.to_text()?;
-	// TODO: `out-of-bounds-errors` here
+
+	if start < 0 && cfg!(feature = "negative-indexing") {
+		start += string.len() as Integer;
+	}
+	let start = start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
+
+	// TODO: `no-oob-errors` here
 	// lol, todo, optimize me
 	let mut builder = SharedText::builder();
 	builder.push(&string.get(..start).unwrap());

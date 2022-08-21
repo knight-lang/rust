@@ -80,15 +80,17 @@ impl Display for IllegalVariableName {
 }
 
 impl std::error::Error for IllegalVariableName {}
-/// Maximum length a name can have.
-#[cfg(feature = "verify-variable-names")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "verify-variable-names")))]
+
+/// Maximum length a name can have when `verify-variable-names` is enabled.
 pub const MAX_NAME_LEN: usize = 65535;
 
-/// Check to see if `name` is a valid variable name.
-#[cfg(feature = "verify-variable-names")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "verify-variable-names")))]
+/// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
+/// will always return `Ok(())`.
 pub fn validate_name(name: &Text) -> Result<(), IllegalVariableName> {
+	if cfg!(not(feature = "verify-variable-names")) {
+		return Ok(());
+	}
+
 	use crate::parser::{is_lower, is_numeric};
 
 	if MAX_NAME_LEN < name.len() {
@@ -111,7 +113,6 @@ impl Variable {
 	/// Creates a new `Variable`.
 	#[must_use]
 	pub fn new(name: SharedText) -> Result<Self, IllegalVariableName> {
-		#[cfg(feature = "verify-variable-names")]
 		validate_name(&name)?;
 
 		Ok(Self((name, None.into()).into()))

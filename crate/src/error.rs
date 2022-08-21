@@ -45,8 +45,8 @@ pub enum Error {
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
 	IntegerOverflow,
 
-	#[cfg(feature = "out-of-bounds-errors")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "out-of-bounds-errors")))]
+	#[cfg(feature = "no-oob-errors")]
+	#[cfg_attr(doc_cfg, doc(cfg(feature = "no-oob-errors")))]
 	IndexOutOfBounds { len: usize, index: usize },
 }
 
@@ -117,7 +117,7 @@ impl Display for Error {
 			#[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 
-			#[cfg(feature = "out-of-bounds-errors")]
+			#[cfg(feature = "no-oob-errors")]
 			Self::IndexOutOfBounds { len, index } => {
 				write!(f, "end index {index} is out of bounds for string of length {len}")
 			}

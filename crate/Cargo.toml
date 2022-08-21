@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions", "verify-variable-names"]
+default = ["all-extensions"]
 
 #######################################
 ##           Optimizations           ##
@@ -32,50 +32,37 @@ optimized = ["abort-on-errors", "cache-strings"]
 multithreaded = []
 
 #######################################
-##      `Unsafe`  Optimizations      ##
-#######################################
-
-
-# Indicates unsafe code is enabled; used to deny unsafe code otherwise.
-unsafe-enabled = []
-
-# Assume knight will be run in one thread.
-#
-# WARNING: this can cause undefined behaviour if multiple threads use knight.
-unsafe-single-threaded = ["unsafe-enabled"]
-
-# Assume that all knight programs are 100% well-defined.
-#
-# WARNING: This **will** cause undefined behaviour if anything goes wrong, such as a system call failing.
-# This should be used with caution.
-#
-# If `abort-on-errors` is enabled, this will be ignored.
-unsafe-reckless = ["unsafe-enabled"]
-
-# Enable all optimizations for knight
-#
-# WARNING: Read the descriptions of each `unsafe` feature to prevent undefined behaviour.
-unsafe-optimized = ["unsafe-single-threaded", "cache-strings", "unsafe-reckless"]
-
-#######################################
 ##        Disabling Extensions       ##
 #######################################
 
-# Enables `XSRAND`
-value-function = []
-assign-to-anything = []
 extension-functions = [] # Required for all `X` functions.
+
+# Enables the `VALUE` function
+value-function = []
+
+# Convert non-variables to strings for the first arg in `=`.
+assign-to-anything = []
+
+# Causes `GET` and `SET` to return empty strings on errors, not errors.
+no-oob-errors = []
+
+# Allows you to use negative indexes in `GET` and `SET` 
+negative-indexing = []
+
+# Enables `XSRAND`
 srand-function = ["extension-functions"]
 
-extensions = ["srand-function", "value-function", "assign-to-anything"]
+# Enable most extensions
+normal-extensions = ["srand-function", "value-function", "assign-to-anything"]
 
-# Causes `GET` and `SUBSTITUTE` to return errors instead of empty strings.
-out-of-bounds-errors = []
+# Enable all extensions
+qol-extensions = ["no-oob-errors", "negative-indexing"]
+
+all-extensions = ["normal-extensions", "qol-extensions"]
 
 # arrays = []
 # split-strings = ["arrays"]
 # string-formatting = ["arrays"]
-
 
 #######################################
 ##          Spec Compliance          ##
@@ -96,7 +83,7 @@ strict-numbers = []
 strict-block-return-value = []
 
 # Ensure that all variable names are valid (eg `VALUE 1` would fail.)
-verify-variable-names = ["strict-charset"]
+verify-variable-names = []
 
 # Exactly follow knight specs.
 strict-compliance = [
