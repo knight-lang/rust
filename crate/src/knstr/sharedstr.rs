@@ -1,24 +1,22 @@
 use crate::knstr::{Chars, IllegalChar, KnStr};
 use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
-use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SharedStr(
-	#[cfg(not(feature = "multithreaded"))] std::rc::Rc<KnStr>,
-	#[cfg(feature = "multithreaded")] std::sync::Arc<KnStr>,
-);
+pub struct SharedStr(crate::RefCount<KnStr>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(SharedStr: Send, Sync);
 
 impl Default for SharedStr {
+	#[inline]
 	fn default() -> Self {
-		SharedStr::new("").unwrap()
+		<&KnStr>::default().into()
 	}
 }
 
 impl Display for SharedStr {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
@@ -27,16 +25,19 @@ impl Display for SharedStr {
 impl std::ops::Deref for SharedStr {
 	type Target = KnStr;
 
+	#[inline]
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
 impl From<Box<KnStr>> for SharedStr {
+	#[inline]
 	fn from(kstr: Box<KnStr>) -> Self {
 		Self(kstr.into())
 	}
 }
+
 impl TryFrom<String> for SharedStr {
 	type Error = IllegalChar;
 
@@ -48,6 +49,10 @@ impl TryFrom<String> for SharedStr {
 }
 
 impl SharedStr {
+	pub fn builder() -> super::Builder {
+		Default::default()
+	}
+
 	pub fn new(inp: impl ToString) -> Result<Self, IllegalChar> {
 		inp.to_string().try_into()
 	}

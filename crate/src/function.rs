@@ -107,7 +107,7 @@ pub const PROMPT: Function = function!('P', env, |/*.*/| {
 		None => {}
 	}
 
-	SharedStr::try_from(buf)?
+	buf.try_conv::<SharedStr>()?
 });
 
 /// **4.1.5**: `RANDOM`
@@ -749,7 +749,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 
 	let string = source.to_knstr()?;
 	match string.get(start..start + length) {
-		Some(value) => SharedStr::from(value),
+		Some(substring) => substring.to_owned(),
 
 		#[cfg(feature = "out-of-bounds-errors")]
 		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
@@ -796,11 +796,11 @@ pub const SUBSTITUTE: Function = function!('S', env, |string, start, length, rep
 	let replacement = replacement_source.to_knstr()?;
 	// TODO: `out-of-bounds-errors` here
 	// lol, todo, optimize me
-	let mut s = String::new();
-	s.push_str(&string[..start]);
-	s.push_str(&replacement);
-	s.push_str(&string[start + length..]);
-	s.try_conv::<SharedStr>().unwrap()
+	let mut builder = SharedStr::builder();
+	builder.push(&string.get(..start).unwrap());
+	builder.push(&replacement);
+	builder.push(&string.get(start + length..).unwrap());
+	builder.finish()
 });
 
 /// EXT: Box

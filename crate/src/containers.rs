@@ -1,12 +1,14 @@
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct RefCount<T>(
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RefCount<T: ?Sized>(
 	#[cfg(feature = "multithreaded")] std::sync::Arc<T>,
 	#[cfg(not(feature = "multithreaded"))] std::rc::Rc<T>,
 );
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(RefCount<()>: Send, Sync);
 
-impl<T> Clone for RefCount<T> {
+impl<T: ?Sized> Clone for RefCount<T> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone())
 	}
@@ -19,7 +21,14 @@ impl<T> From<T> for RefCount<T> {
 	}
 }
 
-impl<T> Deref for RefCount<T> {
+impl<T: ?Sized> From<Box<T>> for RefCount<T> {
+	#[inline]
+	fn from(inp: Box<T>) -> Self {
+		Self(inp.into())
+	}
+}
+
+impl<T: ?Sized> Deref for RefCount<T> {
 	type Target = T;
 
 	#[inline]
@@ -33,6 +42,8 @@ pub struct Mutable<T>(
 	#[cfg(feature = "multithreaded")] std::sync::RwLock<T>,
 	#[cfg(not(feature = "multithreaded"))] std::cell::RefCell<T>,
 );
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Mutable<()>: Send, Sync);
 
 impl<T> From<T> for Mutable<T> {
 	#[inline]

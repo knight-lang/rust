@@ -1,4 +1,4 @@
-use crate::knstr::{Chars, SharedStr};
+use super::{validate, Chars, IllegalChar, SharedStr};
 use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -33,62 +33,6 @@ impl DerefMut for KnStr {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.0
 	}
-}
-
-/// An error that indicates a character within a Knight string wasn't valid.
-#[derive(Debug, PartialEq, Eq)]
-pub struct IllegalChar {
-	/// The char that was invalid.
-	pub chr: char,
-
-	/// The index of the invalid char in the given string.
-	pub index: usize,
-}
-
-impl Display for IllegalChar {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "illegal byte {:?} found at position {}", self.chr, self.index)
-	}
-}
-
-impl std::error::Error for IllegalChar {}
-
-/// Returns whether `chr` is a character that can appear within Knight.
-///
-/// Normally, every character is considered valid. However, when the `disallow-unicode` feature is
-/// enabled, only characters which are explicitly mentioned in the Knight spec are allowed.
-#[inline]
-pub const fn is_valid(chr: char) -> bool {
-	if cfg!(feature = "strict-charset") {
-		matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
-	} else {
-		true
-	}
-}
-
-const fn validate(data: &str) -> Result<(), IllegalChar> {
-	// All valid `str`s are valid KnStr is normal mode.
-	if cfg!(not(feature = "strict-charset")) {
-		return Ok(());
-	}
-
-	// We're in const context, so we must use `while` with bytes.
-	// Since we're not using unicode, everything's just a byte anyways.
-	let bytes = data.as_bytes();
-	let mut index = 0;
-
-	while index < bytes.len() {
-		let chr = bytes[index] as char;
-
-		if !is_valid(chr) {
-			// Since everything's a byte, the byte index is the same as the char index.
-			return Err(IllegalChar { chr, index });
-		}
-
-		index += 1;
-	}
-
-	Ok(())
 }
 
 impl KnStr {
@@ -126,15 +70,19 @@ impl KnStr {
 	}
 
 	pub fn concat(&self, rhs: &Self) -> SharedStr {
-		let mut cat = String::with_capacity(self.len() + rhs.len());
-		cat.push_str(self);
-		cat.push_str(rhs);
+		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
-		SharedStr::try_from(cat).unwrap()
+		builder.push(self);
+		builder.push(rhs);
+
+		builder.finish()
 	}
 
 	pub fn repeat(&self, amount: usize) -> SharedStr {
-		(**self).repeat(amount).try_into().unwrap()
+		(**self)
+			.repeat(amount)
+			.try_into()
+			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
 }
 
@@ -164,5 +112,13 @@ impl TryFrom<Box<str>> for Box<KnStr> {
 		// SAFETY: Since `KnStr` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
+	}
+}
+
+impl ToOwned for KnStr {
+	type Owned = SharedStr;
+
+	fn to_owned(&self) -> Self::Owned {
+		self.into()
 	}
 }

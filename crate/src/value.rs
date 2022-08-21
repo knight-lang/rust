@@ -138,7 +138,7 @@ impl Context for Integer {
 impl Context for SharedStr {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
-			Value::Null => Ok(SharedStr::new("null").unwrap()),
+			Value::Null => Ok("null".try_into().unwrap()),
 			Value::Boolean(boolean) => Ok(SharedStr::new(boolean).unwrap()),
 			Value::Integer(number) => Ok(SharedStr::new(number).unwrap()),
 			Value::SharedStr(ref text) => Ok(text.clone()),
