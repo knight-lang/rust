@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["all-extensions"]
+default = ["all-extensions", "arrays"]
 
 #######################################
 ##           Optimizations           ##
@@ -87,7 +87,7 @@ assign-to-prompt = []
 # Enable all quality-of-life extensions
 qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]
 
-# arrays = []
+arrays = []
 # split-strings = ["arrays"]
 # string-formatting = ["arrays"]
 

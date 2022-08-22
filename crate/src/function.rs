@@ -738,10 +738,10 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 	#[cfg(feature = "arrays")]
 	if let Value::Array(ary) = source {
 		return Ok(if length == 0 {
-			ary.as_slice().get(start).unwrap().clone()
+			ary.as_slice().get(start as usize).unwrap().clone()
 		} else {
 			ary.as_slice()
-				.get(start..start + length)
+				.get((start as usize)..(start as usize) + length)
 				.expect("Todo: error")
 				.iter()
 				.cloned()
@@ -783,16 +783,16 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 	if let Value::Array(ary) = source {
 		if length == 0 {
 			let mut dup = ary.iter().collect::<Vec<Value>>();
-			dup[start] = replacement_source;
+			dup[start as usize] = replacement_source;
 			return Ok(crate::Array::from(dup).into());
 		}
 
 		let replacement = replacement_source.to_array()?;
 
 		let mut ret = Vec::new();
-		ret.extend(ary.iter().take(start));
+		ret.extend(ary.iter().take((start as usize)));
 		ret.extend(replacement.iter());
-		ret.extend(ary.iter().skip(start + length));
+		ret.extend(ary.iter().skip((start as usize) + length));
 
 		return Ok(crate::Array::from(ret).into());
 	}

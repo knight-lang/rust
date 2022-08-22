@@ -256,8 +256,8 @@ impl<'a> Parser<'a> {
 				Ok(Value::default())
 			}
 			#[cfg(feature = "arrays")]
-			'Z' => {
-				self.take_while(is_upper);
+			'@' => {
+				self.advance();
 				Ok(Value::Array(Default::default()))
 			}
 
