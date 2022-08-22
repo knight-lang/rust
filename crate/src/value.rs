@@ -25,7 +25,7 @@ pub enum Value {
 	Ast(Ast),
 
 	#[cfg(feature = "arrays")]
-	Array(crate::Array),
+	List(crate::List),
 }
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value: Send, Sync);
@@ -48,7 +48,7 @@ impl Debug for Value {
 			Self::Variable(variable) => write!(f, "Identifier({})", variable.name()),
 			Self::Ast(ast) => write!(f, "{ast:?}"),
 			#[cfg(feature = "arrays")]
-			Self::Array(ary) => Debug::fmt(&ary, f),
+			Self::List(list) => Debug::fmt(&list, f),
 		}
 	}
 }
@@ -96,10 +96,10 @@ impl From<Ast> for Value {
 }
 
 #[cfg(feature = "arrays")]
-impl From<crate::Array> for Value {
+impl From<crate::List> for Value {
 	#[inline]
-	fn from(array: crate::Array) -> Self {
-		Self::Array(array)
+	fn from(list: crate::List) -> Self {
+		Self::List(list)
 	}
 }
 
@@ -115,7 +115,7 @@ impl Context for bool {
 			Value::Integer(number) => Ok(number != 0),
 			Value::SharedText(ref text) => Ok(!text.is_empty()),
 			#[cfg(feature = "arrays")]
-			Value::Array(ref ary) => Ok(!ary.is_empty()),
+			Value::List(ref list) => Ok(!list.is_empty()),
 			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
 		}
 	}
@@ -129,7 +129,7 @@ impl Context for Integer {
 			Value::Integer(number) => Ok(number),
 			Value::SharedText(ref text) => text.to_integer(),
 			#[cfg(feature = "arrays")]
-			Value::Array(ref ary) => Ok(ary.len() as Self),
+			Value::List(ref list) => Ok(list.len() as Self),
 			_ => Err(Error::NoConversion { to: "Integer", from: value.typename() }),
 		}
 	}
@@ -143,14 +143,14 @@ impl Context for SharedText {
 			Value::Integer(number) => Ok(SharedText::new(number).unwrap()),
 			Value::SharedText(ref text) => Ok(text.clone()),
 			#[cfg(feature = "arrays")]
-			Value::Array(ref ary) => Ok(ary.to_text()),
+			Value::List(ref list) => list.to_text(),
 			_ => Err(Error::NoConversion { to: "String", from: value.typename() }),
 		}
 	}
 }
 
 #[cfg(feature = "arrays")]
-impl Context for crate::Array {
+impl Context for crate::List {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(Self::default()),
@@ -161,7 +161,7 @@ impl Context for crate::Array {
 				}
 
 				// TODO: when log10 is finalized, add it in.
-				let mut ary = Vec::new();
+				let mut list = Vec::new();
 
 				let is_negative = if number < 0 {
 					number = -number; // TODO: checked negation.
@@ -171,24 +171,24 @@ impl Context for crate::Array {
 				};
 
 				while number != 0 {
-					ary.push(Value::from(number % 10));
+					list.push(Value::from(number % 10));
 					number /= 10;
 				}
 
 				if is_negative {
-					ary.push((-1).into());
+					list.push((-1).into());
 				}
 
-				ary.reverse();
+				list.reverse();
 
-				Ok(ary.into())
+				Ok(list.into())
 			}
 			Value::SharedText(ref text) => Ok(text
 				.chars()
 				.map(|c| Value::from(SharedText::try_from(c.to_string()).unwrap()))
 				.collect()),
-			Value::Array(ref ary) => Ok(ary.clone()),
-			_ => Err(Error::NoConversion { to: "Array", from: value.typename() }),
+			Value::List(ref list) => Ok(list.clone()),
+			_ => Err(Error::NoConversion { to: "List", from: value.typename() }),
 		}
 	}
 }
@@ -205,7 +205,7 @@ impl Value {
 			Self::Variable(_) => "Variable",
 			Self::Ast(_) => "Ast",
 			#[cfg(feature = "arrays")]
-			Self::Array(_) => "Array",
+			Self::List(_) => "List",
 		}
 	}
 
@@ -225,7 +225,7 @@ impl Value {
 	}
 
 	#[cfg(feature = "arrays")]
-	pub fn to_array(&self) -> Result<crate::Array> {
+	pub fn to_array(&self) -> Result<crate::List> {
 		Context::convert(self)
 	}
 

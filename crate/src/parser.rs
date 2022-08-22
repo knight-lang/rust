@@ -258,7 +258,7 @@ impl<'a> Parser<'a> {
 			#[cfg(feature = "arrays")]
 			'@' => {
 				self.advance();
-				Ok(Value::Array(Default::default()))
+				Ok(Value::List(Default::default()))
 			}
 
 			#[cfg(feature = "extension-functions")]

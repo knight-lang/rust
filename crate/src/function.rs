@@ -236,10 +236,10 @@ pub const NEG: Function = function!('~', env, |arg| {
 	let ran = arg.run(env)?;
 
 	#[cfg(feature = "arrays")]
-	if let Value::Array(ary) = ran {
-		let mut copy = ary.iter().collect::<Vec<Value>>();
+	if let Value::List(list) = ran {
+		let mut copy = list.iter().cloned().collect::<Vec<Value>>();
 		copy.reverse();
-		return Ok(crate::Array::from(copy).into());
+		return Ok(crate::List::from(copy).into());
 	}
 
 	let num = ran.to_integer()?;
@@ -271,12 +271,12 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).conv::<Value>(),
 
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => {
-			let rary = rhs.run(env)?.to_array()?;
-			let mut cat = Vec::with_capacity(lary.len() + rary.len());
-			cat.extend(lary.iter());
-			cat.extend(rary.iter());
-			crate::Array::from(cat).into()
+		Value::List(llist) => {
+			let rlist = rhs.run(env)?.to_array()?;
+			let mut cat = Vec::with_capacity(llist.len() + rlist.len());
+			cat.extend(llist.iter().cloned());
+			cat.extend(rlist.iter().cloned());
+			crate::List::from(cat).into()
 		}
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -298,17 +298,17 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => {
-			let rary = rhs.run(env)?.to_array()?;
-			let mut array = Vec::with_capacity(lary.len());
+		Value::List(llist) => {
+			let rlist = rhs.run(env)?.to_array()?;
+			let mut list = Vec::with_capacity(llist.len());
 
-			for ele in &*lary.as_slice() {
-				if !rary.contains(ele) && !array.contains(ele) {
-					array.push(ele.clone());
+			for ele in &*llist.as_slice() {
+				if !rlist.contains(ele) && !list.contains(ele) {
+					list.push(ele.clone());
 				}
 			}
 
-			crate::Array::from(array).into()
+			crate::List::from(list).into()
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -344,23 +344,23 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => match rhs.run(env)? {
-			Value::Boolean(true) => lary.into(),
-			Value::Boolean(false) => crate::Array::default().into(),
+		Value::List(llist) => match rhs.run(env)? {
+			Value::Boolean(true) => llist.into(),
+			Value::Boolean(false) => crate::List::default().into(),
 			Value::Integer(amount @ 0..) => {
-				let mut array = Vec::with_capacity(lary.len() * (amount as usize));
+				let mut list = Vec::with_capacity(llist.len() * (amount as usize));
 
 				for _ in 0..amount {
-					array.extend(lary.iter());
+					list.extend(llist.iter().cloned());
 				}
 
-				crate::Array::from(array).into()
+				crate::List::from(list).into()
 			}
 			Value::SharedText(string) => {
 				let mut joined = String::new();
 
 				let mut is_first = true;
-				for ele in &*lary.as_slice() {
+				for ele in &*llist.as_slice() {
 					if is_first {
 						is_first = false;
 					} else {
@@ -372,27 +372,27 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 
 				SharedText::try_from(joined).unwrap().into()
 			}
-			Value::Array(rary) => {
-				let mut result = Vec::with_capacity(lary.len() * rary.len());
+			Value::List(rlist) => {
+				let mut result = Vec::with_capacity(llist.len() * rlist.len());
 
-				for lele in lary.iter() {
-					for rele in rary.iter() {
-						result.push(crate::Array::from(vec![lele.clone(), rele.clone()]).into());
+				for lele in llist.iter() {
+					for rele in rlist.iter() {
+						result.push(crate::List::from(vec![lele.clone(), rele.clone()]).into());
 					}
 				}
 
-				crate::Array::from(result).into()
+				crate::List::from(result).into()
 			}
 			Value::Ast(ast) => {
-				let mut result = Vec::with_capacity(lary.len());
+				let mut result = Vec::with_capacity(llist.len());
 				let arg = env.lookup("_".try_into().unwrap())?;
 
-				for ele in lary.iter() {
+				for ele in llist.iter() {
 					arg.assign(ele.clone());
 					result.push(ast.run(env)?);
 				}
 
-				crate::Array::from(result).into()
+				crate::List::from(result).into()
 			}
 			other => return Err(Error::TypeError(other.typename())),
 		},
@@ -431,23 +431,23 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 			lstr
 				.split(&**rstr)
 				.map(|x| SharedText::new(x).unwrap().into())
-				.collect::<crate::Array>()
+				.collect::<crate::List>()
 				.into()
 		}
 
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => match rhs.run(env)? {
+		Value::List(llist) => match rhs.run(env)? {
 			Value::Ast(ast) => {
 				let acc_var = env.lookup("a".try_into().unwrap())?;
 
-				if let Some(init) = lary.as_slice().get(0) {
+				if let Some(init) = llist.as_slice().get(0) {
 					acc_var.assign(init.clone());
 				}
 
 				let arg_var = env.lookup("_".try_into().unwrap())?;
 
-				for ele in lary.iter().skip(1) {
-					arg_var.assign(ele);
+				for ele in llist.iter().skip(1) {
+					arg_var.assign(ele.clone());
 					acc_var.assign(ast.run(env)?);
 				}
 
@@ -525,19 +525,20 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => match rhs.run(env)? {
+		Value::List(llist) => match rhs.run(env)? {
 			Value::Ast(ast) => {
 				let mut result = Vec::new();
 				let arg_var = env.lookup("_".try_into().unwrap())?;
 
-				for ele in lary.iter() {
+				for ele in llist.iter() {
 					arg_var.assign(ele.clone());
+
 					if ast.run(env)?.to_bool()? {
-						result.push(ele);
+						result.push(ele.clone());
 					}
 				}
 
-				crate::Array::from(result).into()
+				crate::List::from(result).into()
 			}
 			other => return Err(Error::TypeError(other.typename())),
 		},
@@ -563,32 +564,32 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 			(_, exponent) => base.wrapping_pow(exponent as u32).conv::<Value>(),
 		},
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => {
+		Value::List(llist) => {
 			let max = rhs.run(env)?.to_integer()?;
 			assert!(max >= 0, "todo, negative amounts");
-			(0..max).map(Value::from).collect::<crate::Array>().into()
+			(0..max).map(Value::from).collect::<crate::List>().into()
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
 
-fn compare(lhs: Value, rhs: Value) -> Result<std::cmp::Ordering> {
+fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 	match lhs {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
 		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_bool()?)),
 		Value::SharedText(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
 		#[cfg(feature = "arrays")]
-		Value::Array(lary) => {
-			let rary = rhs.to_array()?;
-			for (lele, rele) in lary.iter().zip(rary.iter()) {
+		Value::List(llist) => {
+			let rlist = rhs.to_array()?;
+			for (lele, rele) in llist.iter().zip(rlist.iter()) {
 				match compare(lele, rele)? {
 					std::cmp::Ordering::Equal => {}
 					other => return Ok(other),
 				}
 			}
 
-			Ok(lary.len().cmp(&rary.len()))
+			Ok(llist.len().cmp(&rlist.len()))
 		}
 		other => Err(Error::TypeError(other.typename())),
 	}
@@ -596,12 +597,12 @@ fn compare(lhs: Value, rhs: Value) -> Result<std::cmp::Ordering> {
 
 /// **4.3.7** `<`  
 pub const LESS_THAN: Function = function!('<', env, |lhs, rhs| {
-	compare(lhs.run(env)?, rhs.run(env)?)? == std::cmp::Ordering::Less
+	compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Less
 });
 
 /// **4.3.8** `>`  
 pub const GREATER_THAN: Function = function!('>', env, |lhs, rhs| {
-	compare(lhs.run(env)?, rhs.run(env)?)? == std::cmp::Ordering::Greater
+	compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Greater
 });
 
 /// **4.3.9** `?`  
@@ -663,25 +664,25 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		#[cfg(feature = "arrays")]
 		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
 		#[cfg(feature = "arrays")]
-		Value::Array(ary) => {
-			if ary.is_empty() {
+		Value::List(list) => {
+			if list.is_empty() {
 				panic!("todo: error for this case");
 			}
 			let rhs = value.run(env)?.to_array()?;
 
-			for (name, val) in ary.as_slice().iter().zip(rhs.iter()) {
+			for (name, val) in list.as_slice().iter().zip(rhs.iter().cloned()) {
 				assign(name, val, env)?;
 			}
 
-			match ary.len().cmp(&rhs.len()) {
+			match list.len().cmp(&rhs.len()) {
 				std::cmp::Ordering::Equal => {}
 				std::cmp::Ordering::Less => assign(
-					ary.as_slice().iter().last().unwrap(),
-					rhs.as_slice()[ary.len() - 1..].iter().cloned().collect::<crate::Array>().into(),
+					list.as_slice().iter().last().unwrap(),
+					rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<crate::List>().into(),
 					env,
 				)?,
 				std::cmp::Ordering::Greater => {
-					for extra in &ary.as_slice()[rhs.len()..] {
+					for extra in &list.as_slice()[rhs.len()..] {
 						assign(extra, Value::default(), env)?;
 					}
 				}
@@ -736,16 +737,17 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 		.or(Err(Error::DomainError("negative length")))?;
 
 	#[cfg(feature = "arrays")]
-	if let Value::Array(ary) = source {
+	if let Value::List(list) = source {
 		return Ok(if length == 0 {
-			ary.as_slice().get(start as usize).unwrap().clone()
+			list.as_slice().get(start as usize).unwrap().clone()
 		} else {
-			ary.as_slice()
+			list
+				.as_slice()
 				.get((start as usize)..(start as usize) + length)
 				.expect("Todo: error")
 				.iter()
 				.cloned()
-				.collect::<crate::Array>()
+				.collect::<crate::List>()
 				.into()
 		});
 	}
@@ -780,21 +782,21 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 	let replacement_source = replacement.run(env)?;
 
 	#[cfg(feature = "arrays")]
-	if let Value::Array(ary) = source {
+	if let Value::List(list) = source {
 		if length == 0 {
-			let mut dup = ary.iter().collect::<Vec<Value>>();
+			let mut dup = list.iter().cloned().collect::<Vec<Value>>();
 			dup[start as usize] = replacement_source;
-			return Ok(crate::Array::from(dup).into());
+			return Ok(crate::List::from(dup).into());
 		}
 
 		let replacement = replacement_source.to_array()?;
 
 		let mut ret = Vec::new();
-		ret.extend(ary.iter().take((start as usize)));
-		ret.extend(replacement.iter());
-		ret.extend(ary.iter().skip((start as usize) + length));
+		ret.extend(list.iter().cloned().take((start as usize)));
+		ret.extend(replacement.iter().cloned());
+		ret.extend(list.iter().cloned().skip((start as usize) + length));
 
-		return Ok(crate::Array::from(ret).into());
+		return Ok(crate::List::from(ret).into());
 	}
 
 	let string = source.to_text()?;
@@ -816,7 +818,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 
 /// EXT: Box
 #[cfg(feature = "arrays")]
-pub const BOX: Function = function!(',', env, |val| crate::Array::from(vec![val.run(env)?]));
+pub const BOX: Function = function!(',', env, |val| crate::List::from(vec![val.run(env)?]));
 
 /// **6.1** `VALUE`
 #[cfg(feature = "value-function")]

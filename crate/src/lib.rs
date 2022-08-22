@@ -18,8 +18,8 @@ cfg_if! {
 
 cfg_if! {
 	if #[cfg(feature = "arrays")] {
-		mod array;
-		pub use array::Array;
+		mod list;
+		pub use list::List;
 	}
 }
 

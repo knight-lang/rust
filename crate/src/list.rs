@@ -3,15 +3,15 @@ use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Default, Clone, PartialEq)]
-pub struct Array(RefCount<Vec<Value>>);
+pub struct List(RefCount<Vec<Value>>);
 
-impl Debug for Array {
+impl Debug for List {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_list().entries(&*self.as_slice()).finish()
 	}
 }
 
-impl Deref for Array {
+impl Deref for List {
 	type Target = [Value];
 
 	fn deref(&self) -> &Self::Target {
@@ -19,7 +19,7 @@ impl Deref for Array {
 	}
 }
 
-impl Array {
+impl List {
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
@@ -32,10 +32,6 @@ impl Array {
 		self
 	}
 
-	pub fn iter(&self) -> Iter<'_> {
-		Iter(0, self.as_slice())
-	}
-
 	pub fn contains(&self, value: &Value) -> bool {
 		self.as_slice().contains(value)
 	}
@@ -46,7 +42,7 @@ impl Array {
 		let mut text = SharedText::builder();
 
 		let mut first = true;
-		for ele in self.iter() {
+		for ele in self {
 			if first {
 				first = false;
 			} else {
@@ -60,24 +56,24 @@ impl Array {
 	}
 }
 
-impl From<Vec<Value>> for Array {
+impl From<Vec<Value>> for List {
 	fn from(vec: Vec<Value>) -> Self {
 		Self(vec.into())
 	}
 }
 
-impl FromIterator<Value> for Array {
+impl FromIterator<Value> for List {
 	fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
 		iter.into_iter().collect::<Vec<Value>>().into()
 	}
 }
 
-pub struct AsSlice<'a>(std::cell::Ref<'a, Vec<Value>>);
-impl Deref for AsSlice<'_> {
-	type Target = [Value];
+impl<'a> IntoIterator for &'a List {
+	type Item = &'a Value;
+	type IntoIter = <&'a [Value] as IntoIterator>::IntoIter;
 
-	fn deref(&self) -> &Self::Target {
-		&self.0
+	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+		self.0.iter()
 	}
 }
 
