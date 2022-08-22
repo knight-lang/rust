@@ -31,8 +31,9 @@ optimized = ["abort-on-errors", "cache-strings"]
 #######################################
 multithreaded = []
 
+
 #######################################
-##        Disabling Extensions       ##
+##            Extensions             ##
 #######################################
 
 extension-functions = [] # Required for all `X` functions.
@@ -43,22 +44,48 @@ value-function = []
 # Convert non-variables to strings for the first arg in `=`.
 assign-to-anything = []
 
+# Enables the use of `HANDLE a b`, which is try/catch.
+# The error message will be stored in `_`.
+handle-function = []
+
+# Enables the `USE` function, which is for importing files
+use-function = []
+
+# Enables `XSRAND`
+srand-function = ["extension-functions"]
+
+# Enable most extensions
+normal-extensions = [
+	"value-function",
+	"assign-to-anything",
+	"handle-function",
+	"use-function",
+	"srand-function",
+]
+
+all-extensions = ["normal-extensions", "qol-extensions"]
+
+
+#######################################
+##     Quality-of-life extensions    ##
+#######################################
+# All quality of life extensions may be removed in the future without it
+# being considered a breaking change; these are just for golfing convenience.
+
 # Causes `GET` and `SET` to return empty strings on errors, not errors.
 no-oob-errors = []
 
 # Allows you to use negative indexes in `GET` and `SET` 
 negative-indexing = []
 
-# Enables `XSRAND`
-srand-function = ["extension-functions"]
+# Let's you specify what the next `PROMPT` should return.
+#
+# If this is set along with `assign-to-anything`, this will take precedence;
+# use `+""P` if you want to assign to `PROMPT`'s return value.
+assign-to-prompt = []
 
-# Enable most extensions
-normal-extensions = ["srand-function", "value-function", "assign-to-anything"]
-
-# Enable all extensions
-qol-extensions = ["no-oob-errors", "negative-indexing"]
-
-all-extensions = ["normal-extensions", "qol-extensions"]
+# Enable all quality-of-life extensions
+qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]
 
 # arrays = []
 # split-strings = ["arrays"]

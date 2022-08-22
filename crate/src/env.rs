@@ -14,10 +14,16 @@ cfg_if! {
 		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
 		type Stdin = dyn Read + Send + Sync;
 		type Stdout = dyn Write + Send + Sync;
+
+		#[cfg(feature = "use-function")]
+		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
 	} else {
 		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText>;
 		type Stdin = dyn Read;
 		type Stdout = dyn Write;
+
+		#[cfg(feature = "use-function")]
+		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
 	}
 }
 
@@ -26,6 +32,10 @@ pub struct Environment {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable>,
+	stdin: BufReader<Box<Stdin>>,
+	stdout: Box<Stdout>,
+	system: Box<SystemCommand>,
+	rng: Box<StdRng>,
 
 	// All the known extension functions.
 	//
@@ -33,10 +43,13 @@ pub struct Environment {
 	#[cfg(feature = "extension-functions")]
 	extensions: HashMap<SharedText, &'static crate::Function>,
 
-	stdin: BufReader<Box<Stdin>>,
-	stdout: Box<Stdout>,
-	system: Box<SystemCommand>,
-	rng: Box<StdRng>,
+	// A queue of things that'll be read from PROMPT instead of stdin.
+	#[cfg(feature = "assign-to-prompt")]
+	prompt_lines: std::collections::VecDeque<SharedText>,
+
+	// The function that governs reading a file.
+	#[cfg(feature = "use-function")]
+	readfile: Box<ReadFile>,
 }
 
 #[cfg(feature = "multithreaded")]
@@ -48,7 +61,7 @@ impl Default for Environment {
 			variables: HashSet::default(),
 			stdin: BufReader::new(Box::new(std::io::stdin())),
 			stdout: Box::new(std::io::stdout()),
-			system: Box::new(|cmd: &Text| {
+			system: Box::new(|cmd| {
 				use std::process::{Command, Stdio};
 
 				let output = Command::new("/bin/sh")
@@ -61,6 +74,7 @@ impl Default for Environment {
 				Ok(SharedText::try_from(output)?)
 			}),
 			rng: Box::new(StdRng::from_entropy()),
+
 			#[cfg(feature = "extension-functions")]
 			extensions: {
 				let mut map = HashMap::<SharedText, &'static crate::Function>::default();
@@ -68,13 +82,27 @@ impl Default for Environment {
 				#[cfg(feature = "srand-function")]
 				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
 
+				#[cfg(feature = "try-handle")]
+				map.insert("HANDLE".try_into().unwrap(), &crate::function::HANDLE);
+
 				map
 			},
+
+			#[cfg(feature = "assign-to-prompt")]
+			prompt_lines: Default::default(),
+
+			#[cfg(feature = "use-function")]
+			readfile: Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?)),
 		}
 	}
 }
 
 impl Environment {
+	/// Parses and executes `source` as knight code.
+	pub fn play(&mut self, source: &Text) -> crate::Result<Value> {
+		crate::Parser::new(source).parse(self)?.run(self)
+	}
+
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
 	pub fn lookup(&mut self, name: &Text) -> Result<Variable, IllegalVariableName> {
@@ -111,11 +139,6 @@ impl Environment {
 		*self.rng = StdRng::seed_from_u64(seed as u64)
 	}
 
-	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &Text) -> crate::Result<Value> {
-		crate::Parser::new(source).parse(self)?.run(self)
-	}
-
 	/// Gets the list of known extension functions.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
@@ -128,6 +151,21 @@ impl Environment {
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
 	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedText, &'static crate::Function> {
 		&mut self.extensions
+	}
+
+	#[cfg(feature = "assign-to-prompt")]
+	pub fn add_to_prompt(&mut self, line: SharedText) {
+		self.prompt_lines.push_back(line);
+	}
+
+	#[cfg(feature = "assign-to-prompt")]
+	pub fn get_next_prompt_line(&mut self) -> Option<SharedText> {
+		self.prompt_lines.pop_front()
+	}
+
+	#[cfg(feature = "use-function")]
+	pub fn read_file(&mut self, filename: &Text) -> crate::Result<SharedText> {
+		(self.readfile)(filename)
 	}
 }
 

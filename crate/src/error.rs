@@ -6,6 +6,7 @@ use std::fmt::{self, Display, Formatter};
 use std::io;
 
 /// All possible errors that can occur during knight program execution.
+// TODO: maybe include function name somewhere?
 #[derive(Debug)]
 pub enum Error {
 	/// Indicates that a conversion does not exist

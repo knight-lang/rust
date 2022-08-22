@@ -3,6 +3,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
 
+/// A function in knight indicates
 #[derive(Clone, Copy)]
 pub struct Function {
 	/// The code associated with this function
@@ -69,6 +70,9 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		#[cfg(feature = "value-function")]
 		_ if name == VALUE.name => Some(&VALUE),
 
+		#[cfg(feature = "handle-function")]
+		_ if name == HANDLE.name => Some(&HANDLE),
+
 		_ => None,
 	}
 }
@@ -92,8 +96,12 @@ macro_rules! function {
 
 /// **4.1.4**: `PROMPT`
 pub const PROMPT: Function = function!('P', env, |/*.*/| {
-	let mut buf = String::new();
+	#[cfg(feature="assign-to-prompt")]
+	if let Some(line) = env.get_next_prompt_line() {
+		return Ok(line.into());
+	}
 
+	let mut buf = String::new();
 	env.read_line(&mut buf)?;
 
 	// remove trailing newlines
@@ -141,7 +149,7 @@ pub const CALL: Function = function!('C', env, |arg| {
 
 	#[cfg(feature = "strict-block-return-value")]
 	if !matches!(block, Value::Ast(_)) {
-		return Err(Error::TypeError("only blocks may be executed via `CALL`."));
+		return Err(Error::TypeError(block.typename()));
 	}
 
 	block.run(env)?
@@ -167,7 +175,9 @@ pub const QUIT: Function = function!('Q', env, |arg| {
 	}
 
 	return Err(Error::Quit(status));
-	// The `function!` macro calls `.into()` on the return value, so we need _something_ here.
+
+	// The `function!` macro calls `.into()` on the return value of this block,
+	// , so we need _something_ here so it can typecheck correctly.
 	#[allow(dead_code)]
 	Value::Null
 });
@@ -234,14 +244,12 @@ pub const NEG: Function = function!('~', env, |arg| {
 
 	let num = ran.to_integer()?;
 
-	#[cfg(feature = "checked-overflow")]
-	{
-		num.checked_neg().ok_or(Error::IntegerOverflow)?
-	}
-
-	#[cfg(not(feature = "checked-overflow"))]
-	{
-		num.wrapping_neg()
+	cfg_if! {
+		if #[cfg(feature = "checked-overflow")] {
+			num.checked_neg().ok_or(Error::IntegerOverflow)?
+		} else {
+			num.wrapping_neg()
+		}
 	}
 });
 
@@ -251,17 +259,17 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
 
-			#[cfg(feature = "checked-overflow")]
-			{
-				lnum.checked_add(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				lnum.wrapping_add(rnum).conv::<Value>()
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lnum.checked_add(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
+				} else {
+					lnum.wrapping_add(rnum).conv::<Value>()
+				}
 			}
 		}
+
 		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).conv::<Value>(),
+
 		#[cfg(feature = "arrays")]
 		Value::Array(lary) => {
 			let rary = rhs.run(env)?.to_array()?;
@@ -280,14 +288,12 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
 
-			#[cfg(feature = "checked-overflow")]
-			{
-				lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				lnum.wrapping_sub(rnum).conv::<Value>()
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
+				} else {
+					lnum.wrapping_sub(rnum).conv::<Value>()
+				}
 			}
 		}
 
@@ -315,14 +321,12 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
 
-			#[cfg(feature = "checked-overflow")]
-			{
-				lnum.checked_mul(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				lnum.wrapping_mul(rnum).conv::<Value>()
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lnum.checked_mul(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
+				} else {
+					lnum.wrapping_mul(rnum).conv::<Value>()
+				}
 			}
 		}
 		Value::SharedText(lstr) => {
@@ -407,14 +411,12 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 				return Err(Error::DivisionByZero);
 			}
 
-			#[cfg(feature = "checked-overflow")]
-			{
-				lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				lnum.wrapping_div(rnum).conv::<Value>()
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
+				} else {
+					lnum.wrapping_div(rnum).conv::<Value>()
+				}
 			}
 		}
 
@@ -472,14 +474,13 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 				return Err(Error::DomainError("modulo by a negative base"));
 			}
 
-			#[cfg(feature = "checked-overflow")]
-			{
-				lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				lnum.wrapping_rem(rnum).conv::<Value>()
+			// TODO: check if `rem` actually follows the specs.
+			cfg_if! {
+				if #[cfg(feature = "checked-overflow")] {
+					lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
+				} else {
+					lnum.wrapping_rem(rnum).conv::<Value>()
+				}
 			}
 		}
 
@@ -656,6 +657,9 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 			var.assign(value);
 		}
 
+		#[cfg(feature = "assign-to-prompt")]
+		Value::Ast(ast) if ast.function().name == 'P' => env.add_to_prompt(value.to_text()?),
+
 		#[cfg(feature = "arrays")]
 		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
 		#[cfg(feature = "arrays")]
@@ -814,7 +818,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 #[cfg(feature = "arrays")]
 pub const BOX: Function = function!(',', env, |val| crate::Array::from(vec![val.run(env)?]));
 
-// EXT: VALUE
+/// **6.1** `VALUE`
 #[cfg(feature = "value-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
 pub const VALUE: Function = function!('V', env, |arg| {
@@ -822,11 +826,42 @@ pub const VALUE: Function = function!('V', env, |arg| {
 	env.lookup(&name)?
 });
 
-/// EXT: SRAND
+/// **Compiler extension**: SRAND
 #[cfg(feature = "srand-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
-pub const SRAND: Function = function!('X', env, |val| {
-	let seed = val.run(env)?.to_integer()?;
+pub const SRAND: Function = function!('X', env, |arg| {
+	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
+});
+
+/// **6.4** `HANDLE`
+#[cfg(feature = "handle-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
+pub const HANDLE: Function = function!('H', env, |block, iferr| {
+	const ERR_VAR_NAME: &'static crate::Text = unsafe { crate::Text::new_unchecked("_") };
+
+	match block.run(env) {
+		Ok(value) => value,
+		Err(err) => {
+			// This is fallible, as the error string might have had something bad.
+			let errmsg = err.to_string().try_conv::<SharedText>()?;
+
+			// Assign it to the error variable
+			env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());
+
+			// Finally, execute the RHS.
+			iferr.run(env)?
+		}
+	}
+});
+
+/// **6.3** `USE`
+#[cfg(feature = "use-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
+pub const USE: Function = function!('U', env, |arg| {
+	let filename = arg.run(env)?.to_text()?;
+	let contents = env.read_file(&filename)?;
+
+	env.play(&contents)?
 });
