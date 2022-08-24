@@ -1,4 +1,4 @@
-use crate::{Environment, Error, Integer, Result, SharedText, Value};
+use crate::{Environment, Error, Integer, List, Result, SharedText, Value};
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -45,6 +45,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == DUMP.name => Some(&DUMP),
 		_ if name == OUTPUT.name => Some(&OUTPUT),
 		_ if name == ASCII.name => Some(&ASCII),
+		_ if name == BOX.name => Some(&BOX),
 		_ if name == NEG.name => Some(&NEG),
 		_ if name == ADD.name => Some(&ADD),
 		_ if name == SUBTRACT.name => Some(&SUBTRACT),
@@ -63,9 +64,6 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == IF.name => Some(&IF),
 		_ if name == GET.name => Some(&GET),
 		_ if name == SET.name => Some(&SET),
-
-		#[cfg(feature = "arrays")]
-		_ if name == BOX.name => Some(&BOX),
 
 		#[cfg(feature = "value-function")]
 		_ if name == VALUE.name => Some(&VALUE),
@@ -239,7 +237,7 @@ pub const NEG: Function = function!('~', env, |arg| {
 	if let Value::List(list) = ran {
 		let mut copy = list.iter().cloned().collect::<Vec<Value>>();
 		copy.reverse();
-		return Ok(crate::List::from(copy).into());
+		return Ok(List::from(copy).into());
 	}
 
 	let num = ran.to_integer()?;
@@ -252,6 +250,9 @@ pub const NEG: Function = function!('~', env, |arg| {
 		}
 	}
 });
+
+/// EXT: Box
+pub const BOX: Function = function!(',', env, |val| List::from(vec![val.run(env)?]));
 
 /// **4.3.1** `+`  
 pub const ADD: Function = function!('+', env, |lhs, rhs| {
@@ -276,7 +277,7 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 			let mut cat = Vec::with_capacity(llist.len() + rlist.len());
 			cat.extend(llist.iter().cloned());
 			cat.extend(rlist.iter().cloned());
-			crate::List::from(cat).into()
+			List::from(cat).into()
 		}
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -308,7 +309,7 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 				}
 			}
 
-			crate::List::from(list).into()
+			List::from(list).into()
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -346,7 +347,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 		#[cfg(feature = "arrays")]
 		Value::List(llist) => match rhs.run(env)? {
 			Value::Boolean(true) => llist.into(),
-			Value::Boolean(false) => crate::List::default().into(),
+			Value::Boolean(false) => List::default().into(),
 			Value::Integer(amount @ 0..) => {
 				let mut list = Vec::with_capacity(llist.len() * (amount as usize));
 
@@ -354,7 +355,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 					list.extend(llist.iter().cloned());
 				}
 
-				crate::List::from(list).into()
+				List::from(list).into()
 			}
 			Value::SharedText(string) => {
 				let mut joined = String::new();
@@ -377,11 +378,11 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 
 				for lele in llist.iter() {
 					for rele in rlist.iter() {
-						result.push(crate::List::from(vec![lele.clone(), rele.clone()]).into());
+						result.push(List::from(vec![lele.clone(), rele.clone()]).into());
 					}
 				}
 
-				crate::List::from(result).into()
+				List::from(result).into()
 			}
 			Value::Ast(ast) => {
 				let mut result = Vec::with_capacity(llist.len());
@@ -392,7 +393,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 					result.push(ast.run(env)?);
 				}
 
-				crate::List::from(result).into()
+				List::from(result).into()
 			}
 			other => return Err(Error::TypeError(other.typename())),
 		},
@@ -428,11 +429,7 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 				return Ok(Value::SharedText(lstr).to_array()?.into());
 			}
 
-			lstr
-				.split(&**rstr)
-				.map(|x| SharedText::new(x).unwrap().into())
-				.collect::<crate::List>()
-				.into()
+			lstr.split(&**rstr).map(|x| SharedText::new(x).unwrap().into()).collect::<List>().into()
 		}
 
 		#[cfg(feature = "arrays")]
@@ -538,7 +535,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 					}
 				}
 
-				crate::List::from(result).into()
+				List::from(result).into()
 			}
 			other => return Err(Error::TypeError(other.typename())),
 		},
@@ -567,7 +564,7 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 		Value::List(llist) => {
 			let max = rhs.run(env)?.to_integer()?;
 			assert!(max >= 0, "todo, negative amounts");
-			(0..max).map(Value::from).collect::<crate::List>().into()
+			(0..max).map(Value::from).collect::<List>().into()
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -678,7 +675,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 				std::cmp::Ordering::Equal => {}
 				std::cmp::Ordering::Less => assign(
 					list.as_slice().iter().last().unwrap(),
-					rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<crate::List>().into(),
+					rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<List>().into(),
 					env,
 				)?,
 				std::cmp::Ordering::Greater => {
@@ -747,7 +744,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 				.expect("Todo: error")
 				.iter()
 				.cloned()
-				.collect::<crate::List>()
+				.collect::<List>()
 				.into()
 		});
 	}
@@ -786,7 +783,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 		if length == 0 {
 			let mut dup = list.iter().cloned().collect::<Vec<Value>>();
 			dup[start as usize] = replacement_source;
-			return Ok(crate::List::from(dup).into());
+			return Ok(List::from(dup).into());
 		}
 
 		let replacement = replacement_source.to_array()?;
@@ -796,7 +793,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 		ret.extend(replacement.iter().cloned());
 		ret.extend(list.iter().cloned().skip((start as usize) + length));
 
-		return Ok(crate::List::from(ret).into());
+		return Ok(List::from(ret).into());
 	}
 
 	let string = source.to_text()?;
@@ -815,10 +812,6 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 	builder.push(&string.get(start + length..).unwrap());
 	builder.finish()
 });
-
-/// EXT: Box
-#[cfg(feature = "arrays")]
-pub const BOX: Function = function!(',', env, |val| crate::List::from(vec![val.run(env)?]));
 
 /// **6.1** `VALUE`
 #[cfg(feature = "value-function")]

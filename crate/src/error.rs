@@ -8,6 +8,7 @@ use std::io;
 /// All possible errors that can occur during knight program execution.
 // TODO: maybe include function name somewhere?
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
 	/// Indicates that a conversion does not exist
 	NoConversion { from: &'static str, to: &'static str },

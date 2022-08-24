@@ -16,18 +16,12 @@ cfg_if! {
 	}
 }
 
-cfg_if! {
-	if #[cfg(feature = "arrays")] {
-		mod list;
-		pub use list::List;
-	}
-}
-
 pub mod ast;
 mod containers;
 pub mod env;
 mod error;
 mod function;
+mod list;
 pub mod parser;
 pub mod text;
 pub mod value;
@@ -39,6 +33,7 @@ pub use containers::{Mutable, RefCount};
 pub use env::Environment;
 pub use error::{Error, Result};
 pub use function::Function;
+pub use list::List;
 pub use parser::{ParseError, Parser};
 pub use value::Value;
 pub use variable::Variable;

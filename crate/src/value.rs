@@ -1,6 +1,5 @@
-// use crate::{Ast, Boolean, Environment, Error, Function, Integer, Result, SharedText, Variable};
 use crate::env::Environment;
-use crate::{Ast, Error, Integer, Result, SharedText, Variable};
+use crate::{Ast, Error, Integer, List, Result, SharedText, Variable};
 use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
@@ -24,8 +23,7 @@ pub enum Value {
 	/// Represents a block of code.
 	Ast(Ast),
 
-	#[cfg(feature = "arrays")]
-	List(crate::List),
+	List(List),
 }
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value: Send, Sync);
@@ -44,10 +42,9 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::SharedText(text) => write!(f, "Text({text})"),
-			Self::Variable(variable) => write!(f, "Identifier({})", variable.name()),
-			Self::Ast(ast) => write!(f, "{ast:?}"),
-			#[cfg(feature = "arrays")]
+			Self::SharedText(text) => write!(f, "Text({text})"), // TODO: make text do this itself?
+			Self::Variable(variable) => write!(f, "{variable:?}"),
+			Self::Ast(ast) => Debug::fmt(&ast, f),
 			Self::List(list) => Debug::fmt(&list, f),
 		}
 	}
@@ -95,10 +92,9 @@ impl From<Ast> for Value {
 	}
 }
 
-#[cfg(feature = "arrays")]
-impl From<crate::List> for Value {
+impl From<List> for Value {
 	#[inline]
-	fn from(list: crate::List) -> Self {
+	fn from(list: List) -> Self {
 		Self::List(list)
 	}
 }
@@ -114,7 +110,6 @@ impl Context for bool {
 			Value::Boolean(boolean) => Ok(boolean),
 			Value::Integer(number) => Ok(number != 0),
 			Value::SharedText(ref text) => Ok(!text.is_empty()),
-			#[cfg(feature = "arrays")]
 			Value::List(ref list) => Ok(!list.is_empty()),
 			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
 		}
@@ -128,7 +123,6 @@ impl Context for Integer {
 			Value::Boolean(boolean) => Ok(boolean as Self),
 			Value::Integer(number) => Ok(number),
 			Value::SharedText(ref text) => text.to_integer(),
-			#[cfg(feature = "arrays")]
 			Value::List(ref list) => Ok(list.len() as Self),
 			_ => Err(Error::NoConversion { to: "Integer", from: value.typename() }),
 		}
@@ -142,15 +136,13 @@ impl Context for SharedText {
 			Value::Boolean(boolean) => Ok(SharedText::new(boolean).unwrap()),
 			Value::Integer(number) => Ok(SharedText::new(number).unwrap()),
 			Value::SharedText(ref text) => Ok(text.clone()),
-			#[cfg(feature = "arrays")]
 			Value::List(ref list) => list.to_text(),
 			_ => Err(Error::NoConversion { to: "String", from: value.typename() }),
 		}
 	}
 }
 
-#[cfg(feature = "arrays")]
-impl Context for crate::List {
+impl Context for List {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(Self::default()),
@@ -204,7 +196,6 @@ impl Value {
 			Self::SharedText(_) => "SharedText",
 			Self::Variable(_) => "Variable",
 			Self::Ast(_) => "Ast",
-			#[cfg(feature = "arrays")]
 			Self::List(_) => "List",
 		}
 	}
@@ -224,8 +215,8 @@ impl Value {
 		Context::convert(self)
 	}
 
-	#[cfg(feature = "arrays")]
-	pub fn to_array(&self) -> Result<crate::List> {
+	/// Converts `self` to a [`List`] according to the Knight spec.
+	pub fn to_array(&self) -> Result<List> {
 		Context::convert(self)
 	}
 

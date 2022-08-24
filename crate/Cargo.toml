@@ -88,6 +88,7 @@ assign-to-prompt = []
 qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]
 
 arrays = []
+array-exts = []
 # split-strings = ["arrays"]
 # string-formatting = ["arrays"]
 
