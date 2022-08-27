@@ -35,7 +35,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 	match name {
 		_ if name == PROMPT.name => Some(&PROMPT),
 		_ if name == RANDOM.name => Some(&RANDOM),
-		_ if name == EVAL.name => Some(&EVAL),
+
 		_ if name == BLOCK.name => Some(&BLOCK),
 		_ if name == CALL.name => Some(&CALL),
 		_ if name == SYSTEM.name => Some(&SYSTEM),
@@ -45,8 +45,9 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == DUMP.name => Some(&DUMP),
 		_ if name == OUTPUT.name => Some(&OUTPUT),
 		_ if name == ASCII.name => Some(&ASCII),
-		_ if name == BOX.name => Some(&BOX),
 		_ if name == NEG.name => Some(&NEG),
+		_ if name == BOX.name => Some(&BOX),
+
 		_ if name == ADD.name => Some(&ADD),
 		_ if name == SUBTRACT.name => Some(&SUBTRACT),
 		_ if name == MULTIPLY.name => Some(&MULTIPLY),
@@ -61,12 +62,17 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		_ if name == THEN.name => Some(&THEN),
 		_ if name == ASSIGN.name => Some(&ASSIGN),
 		_ if name == WHILE.name => Some(&WHILE),
+		_ if name == RANGE.name => Some(&RANGE),
+
 		_ if name == IF.name => Some(&IF),
 		_ if name == GET.name => Some(&GET),
 		_ if name == SET.name => Some(&SET),
 
 		#[cfg(feature = "value-function")]
 		_ if name == VALUE.name => Some(&VALUE),
+
+		#[cfg(feature = "eval-function")]
+		_ if name == EVAL.name => Some(&EVAL),
 
 		#[cfg(feature = "handle-function")]
 		_ if name == HANDLE.name => Some(&HANDLE),
@@ -93,8 +99,8 @@ macro_rules! function {
 }
 
 /// **4.1.4**: `PROMPT`
-pub const PROMPT: Function = function!('P', env, |/*.*/| {
-	#[cfg(feature="assign-to-prompt")]
+pub const PROMPT: Function = function!('P', env, |/* comment for rustfmt */| {
+	#[cfg(feature = "assign-to-prompt")]
 	if let Some(line) = env.get_next_prompt_line() {
 		return Ok(line.into());
 	}
@@ -117,22 +123,29 @@ pub const PROMPT: Function = function!('P', env, |/*.*/| {
 });
 
 /// **4.1.5**: `RANDOM`
-pub const RANDOM: Function = function!('R', env, |/*.*/| env.random());
+pub const RANDOM: Function = function!('R', env, |/* comment for rustfmt */| env.random());
 
-/// **4.2.2** `EVAL`  
-pub const EVAL: Function = function!('E', env, |val| {
-	let code = val.run(env)?.to_text()?;
-	env.play(&code)?
+/// **4.2.2** `BOX`
+pub const BOX: Function = function!(',', env, |val| {
+	let value = val.run(env)?;
+
+	List::from(vec![value])
 });
 
 /// **4.2.3** `BLOCK`  
 pub const BLOCK: Function = function!('B', env, |arg| {
+	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
+	// Since this function normally just returns whatever it's argument is, it's impossible to
+	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
+	// the `strict-block-return-value` feature is enabled. We ensure that we _only_ return `Ast`s
+	// from `BLOCK`, so `CALL` can verify them.
 	#[cfg(feature = "strict-block-return-value")]
 	if !matches!(arg, Value::Ast(_)) {
-		const NOOP: Function = function!(':', _, |arg| {
+		// The NOOP function literally just runs its argument.
+		const NOOP: Function = function!(':', env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
 
-			arg.clone()
+			arg.run(env) // We can't `.clone()` in case we're given a variable name.
 		});
 
 		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()]).into());
@@ -145,6 +158,8 @@ pub const BLOCK: Function = function!('B', env, |arg| {
 pub const CALL: Function = function!('C', env, |arg| {
 	let block = arg.run(env)?;
 
+	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
+	// arguments are `Value::Ast`s.
 	#[cfg(feature = "strict-block-return-value")]
 	if !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError(block.typename()));
@@ -153,7 +168,7 @@ pub const CALL: Function = function!('C', env, |arg| {
 	block.run(env)?
 });
 
-/// **4.2.5** `` ` ``  
+/// **4.2.5** `` ` ``
 pub const SYSTEM: Function = function!('`', env, |arg| {
 	let command = arg.run(env)?.to_text()?;
 
@@ -168,14 +183,17 @@ pub const QUIT: Function = function!('Q', env, |arg| {
 		.try_conv::<i32>()
 		.or(Err(Error::DomainError("exit code out of bounds")))?;
 
-	if cfg!(feature = "strict-compliance") && !(0..=127).contains(&status) {
+	// Technically, only values in the range `[0, 127]` are supported by the knight impl. However,
+	// this compliance feature isn't really important enough to warrant its own config feature.
+	#[cfg(feature = "strict-compliance")]
+	if !(0..=127).contains(&status) {
 		return Err(Error::DomainError("exit code out of bounds"));
 	}
 
 	return Err(Error::Quit(status));
 
 	// The `function!` macro calls `.into()` on the return value of this block,
-	// , so we need _something_ here so it can typecheck correctly.
+	// so we need _something_ here so it can typecheck correctly.
 	#[allow(dead_code)]
 	Value::Null
 });
@@ -184,7 +202,11 @@ pub const QUIT: Function = function!('Q', env, |arg| {
 pub const NOT: Function = function!('!', env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function = function!('L', env, |arg| arg.run(env)?.to_text()?.len() as Integer);
+pub const LENGTH: Function = function!('L', env, |arg| {
+	let list = arg.run(env)?.to_list()?;
+
+	list.len() as Integer
+});
 
 /// **4.2.9** `DUMP`  
 pub const DUMP: Function = function!('D', env, |arg| {
@@ -231,16 +253,7 @@ pub const ASCII: Function = function!('A', env, |arg| {
 
 /// **4.2.12** `~`  
 pub const NEG: Function = function!('~', env, |arg| {
-	let ran = arg.run(env)?;
-
-	#[cfg(feature = "arrays")]
-	if let Value::List(list) = ran {
-		let mut copy = list.iter().cloned().collect::<Vec<Value>>();
-		copy.reverse();
-		return Ok(List::from(copy).into());
-	}
-
-	let num = ran.to_integer()?;
+	let num = arg.run(env)?.to_integer()?;
 
 	cfg_if! {
 		if #[cfg(feature = "checked-overflow")] {
@@ -250,9 +263,6 @@ pub const NEG: Function = function!('~', env, |arg| {
 		}
 	}
 });
-
-/// EXT: Box
-pub const BOX: Function = function!(',', env, |val| List::from(vec![val.run(env)?]));
 
 /// **4.3.1** `+`  
 pub const ADD: Function = function!('+', env, |lhs, rhs| {
@@ -269,16 +279,9 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 			}
 		}
 
-		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).conv::<Value>(),
+		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
+		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?).into(),
 
-		#[cfg(feature = "arrays")]
-		Value::List(llist) => {
-			let rlist = rhs.run(env)?.to_array()?;
-			let mut cat = Vec::with_capacity(llist.len() + rlist.len());
-			cat.extend(llist.iter().cloned());
-			cat.extend(rlist.iter().cloned());
-			List::from(cat).into()
-		}
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -298,19 +301,8 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 			}
 		}
 
-		#[cfg(feature = "arrays")]
-		Value::List(llist) => {
-			let rlist = rhs.run(env)?.to_array()?;
-			let mut list = Vec::with_capacity(llist.len());
-
-			for ele in &*llist.as_slice() {
-				if !rlist.contains(ele) && !list.contains(ele) {
-					list.push(ele.clone());
-				}
-			}
-
-			List::from(list).into()
-		}
+		#[cfg(feature = "list-extensions")]
+		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?).into(),
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -344,59 +336,44 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 			lstr.repeat(amount).conv::<Value>()
 		}
 
-		#[cfg(feature = "arrays")]
-		Value::List(llist) => match rhs.run(env)? {
-			Value::Boolean(true) => llist.into(),
-			Value::Boolean(false) => List::default().into(),
-			Value::Integer(amount @ 0..) => {
-				let mut list = Vec::with_capacity(llist.len() * (amount as usize));
+		Value::List(list) => {
+			let amount = rhs
+				.run(env)?
+				.to_integer()?
+				.try_conv::<usize>()
+				.or(Err(Error::DomainError("repetition count is negative")))?;
 
-				for _ in 0..amount {
-					list.extend(llist.iter().cloned());
-				}
-
-				List::from(list).into()
+			if isize::MAX as usize <= amount * list.len() {
+				return Err(Error::DomainError("repetition is too large"));
 			}
-			Value::SharedText(string) => {
-				let mut joined = String::new();
 
-				let mut is_first = true;
-				for ele in &*llist.as_slice() {
-					if is_first {
-						is_first = false;
-					} else {
-						joined.push_str(&string);
-					}
+			list.repeat(amount).conv::<Value>()
 
-					joined.push_str(&ele.to_text()?);
-				}
+			// 	Value::SharedText(string) => {
+			// 	Value::List(rlist) => {
+			// 		let mut result = Vec::with_capacity(llist.len() * rlist.len());
 
-				SharedText::try_from(joined).unwrap().into()
-			}
-			Value::List(rlist) => {
-				let mut result = Vec::with_capacity(llist.len() * rlist.len());
+			// 		for lele in llist.iter() {
+			// 			for rele in rlist.iter() {
+			// 				result.push(List::from(vec![lele.clone(), rele.clone()]).into());
+			// 			}
+			// 		}
 
-				for lele in llist.iter() {
-					for rele in rlist.iter() {
-						result.push(List::from(vec![lele.clone(), rele.clone()]).into());
-					}
-				}
+			// 		List::from(result).into()
+			// 	}
+			// 	Value::Ast(ast) => {
+			// 		let mut result = Vec::with_capacity(llist.len());
+			// 		let arg = env.lookup("_".try_into().unwrap())?;
 
-				List::from(result).into()
-			}
-			Value::Ast(ast) => {
-				let mut result = Vec::with_capacity(llist.len());
-				let arg = env.lookup("_".try_into().unwrap())?;
+			// 		for ele in llist.iter() {
+			// 			arg.assign(ele.clone());
+			// 			result.push(ast.run(env)?);
+			// 		}
 
-				for ele in llist.iter() {
-					arg.assign(ele.clone());
-					result.push(ast.run(env)?);
-				}
-
-				List::from(result).into()
-			}
-			other => return Err(Error::TypeError(other.typename())),
-		},
+			// 		List::from(result).into()
+			// 	}
+			// 	other => return Err(Error::TypeError(other.typename())),
+		}
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -421,18 +398,18 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 			}
 		}
 
-		#[cfg(feature = "split-strings")]
+		#[cfg(feature = "string-extensions")]
 		Value::SharedText(lstr) => {
 			let rstr = rhs.run(env)?.to_text()?;
 
 			if rstr.is_empty() {
-				return Ok(Value::SharedText(lstr).to_array()?.into());
+				return Ok(Value::SharedText(lstr).to_list()?.into());
 			}
 
 			lstr.split(&**rstr).map(|x| SharedText::new(x).unwrap().into()).collect::<List>().into()
 		}
 
-		#[cfg(feature = "arrays")]
+		#[cfg(feature = "list-extensions")]
 		Value::List(llist) => match rhs.run(env)? {
 			Value::Ast(ast) => {
 				let acc_var = env.lookup("a".try_into().unwrap())?;
@@ -481,9 +458,9 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 			}
 		}
 
-		#[cfg(feature = "string-formatting")]
+		#[cfg(feature = "string-extensions")]
 		Value::SharedText(lstr) => {
-			let values = rhs.run(env)?.to_array()?;
+			let values = rhs.run(env)?.to_list()?;
 			let mut values_index = 0;
 
 			let mut formatted = String::new();
@@ -521,7 +498,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 			SharedText::new(formatted).unwrap().into()
 		}
 
-		#[cfg(feature = "arrays")]
+		#[cfg(feature = "list-extensions")]
 		Value::List(llist) => match rhs.run(env)? {
 			Value::Ast(ast) => {
 				let mut result = Vec::new();
@@ -560,12 +537,8 @@ pub const POWER: Function = function!('^', env, |lhs, rhs| {
 			#[cfg(not(feature = "checked-overflow"))]
 			(_, exponent) => base.wrapping_pow(exponent as u32).conv::<Value>(),
 		},
-		#[cfg(feature = "arrays")]
-		Value::List(llist) => {
-			let max = rhs.run(env)?.to_integer()?;
-			assert!(max >= 0, "todo, negative amounts");
-			(0..max).map(Value::from).collect::<List>().into()
-		}
+
+		Value::List(list) => list.join(&rhs.run(env)?.to_text()?)?.into(),
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -576,17 +549,17 @@ fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
 		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_bool()?)),
 		Value::SharedText(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
-		#[cfg(feature = "arrays")]
-		Value::List(llist) => {
-			let rlist = rhs.to_array()?;
-			for (lele, rele) in llist.iter().zip(rlist.iter()) {
-				match compare(lele, rele)? {
+		Value::List(list) => {
+			let rhs = rhs.to_list()?;
+
+			for (left, right) in list.iter().zip(rhs.iter()) {
+				match compare(left, right)? {
 					std::cmp::Ordering::Equal => {}
 					other => return Ok(other),
 				}
 			}
 
-			Ok(llist.len().cmp(&rlist.len()))
+			Ok(list.len().cmp(&rhs.len()))
 		}
 		other => Err(Error::TypeError(other.typename())),
 	}
@@ -648,7 +621,6 @@ pub const THEN: Function = function!(';', env, |lhs, rhs| {
 	rhs.run(env)?
 });
 
-/// **4.3.13** `=`  
 fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 	match variable {
 		Value::Variable(var) => {
@@ -658,14 +630,14 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		#[cfg(feature = "assign-to-prompt")]
 		Value::Ast(ast) if ast.function().name == 'P' => env.add_to_prompt(value.to_text()?),
 
-		#[cfg(feature = "arrays")]
+		#[cfg(feature = "list-extensions")]
 		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
-		#[cfg(feature = "arrays")]
+		#[cfg(feature = "list-extensions")]
 		Value::List(list) => {
 			if list.is_empty() {
 				panic!("todo: error for this case");
 			}
-			let rhs = value.run(env)?.to_array()?;
+			let rhs = value.run(env)?.to_list()?;
 
 			for (name, val) in list.as_slice().iter().zip(rhs.iter().cloned()) {
 				assign(name, val, env)?;
@@ -699,6 +671,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 	Ok(())
 }
 
+/// **4.3.13** `=`  
 pub const ASSIGN: Function = function!('=', env, |var, value| {
 	let ret = value.run(env)?;
 	assign(var, ret.clone(), env)?;
@@ -712,6 +685,32 @@ pub const WHILE: Function = function!('W', env, |cond, body| {
 	}
 
 	Value::Null
+});
+
+/// **4.3.15** `RANGE`  
+pub const RANGE: Function = function!('R', env, |start, stop| {
+	match start.run(env)? {
+		Value::Integer(start) => {
+			let stop = stop.run(env)?.to_integer()?;
+
+			match start <= stop {
+				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
+
+				#[cfg(feature = "negative-ranges")]
+				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
+
+				#[cfg(not(feature = "negative-ranges"))]
+				false => return Err(Error::DomainError("start is greater than stop")),
+			}
+		}
+
+		Value::SharedText(text) => {
+			// let start = text.get(0).a;
+			todo!()
+		}
+
+		other => return Err(Error::TypeError(other.typename())),
+	}
 });
 
 /// **4.4.1** `IF`  
@@ -786,7 +785,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 			return Ok(List::from(dup).into());
 		}
 
-		let replacement = replacement_source.to_array()?;
+		let replacement = replacement_source.to_list()?;
 
 		let mut ret = Vec::new();
 		ret.extend(list.iter().cloned().take((start as usize)));
@@ -821,15 +820,6 @@ pub const VALUE: Function = function!('V', env, |arg| {
 	env.lookup(&name)?
 });
 
-/// **Compiler extension**: SRAND
-#[cfg(feature = "srand-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
-pub const SRAND: Function = function!('X', env, |arg| {
-	let seed = arg.run(env)?.to_integer()?;
-	env.srand(seed);
-	Value::default()
-});
-
 /// **6.4** `HANDLE`
 #[cfg(feature = "handle-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
@@ -859,4 +849,29 @@ pub const USE: Function = function!('U', env, |arg| {
 	let contents = env.read_file(&filename)?;
 
 	env.play(&contents)?
+});
+
+/// **4.2.2** `EVAL`
+#[cfg(feature = "eval-function")]
+pub const EVAL: Function = function!('E', env, |val| {
+	let code = val.run(env)?.to_text()?;
+	env.play(&code)?
+});
+
+/// **Compiler extension**: SRAND
+#[cfg(feature = "srand-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
+pub const SRAND: Function = function!('X', env, |arg| {
+	let seed = arg.run(env)?.to_integer()?;
+	env.srand(seed);
+	Value::default()
+});
+
+/// **Compiler extension**: REV
+#[cfg(feature = "reverse-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "reverse-function")))]
+pub const REVERSE: Function = function!('X', env, |arg| {
+	let seed = arg.run(env)?.to_integer()?;
+	env.srand(seed);
+	Value::default()
 });

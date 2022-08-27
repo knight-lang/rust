@@ -216,7 +216,7 @@ impl Value {
 	}
 
 	/// Converts `self` to a [`List`] according to the Knight spec.
-	pub fn to_array(&self) -> Result<List> {
+	pub fn to_list(&self) -> Result<List> {
 		Context::convert(self)
 	}
 

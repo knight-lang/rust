@@ -82,7 +82,7 @@ impl Display for IllegalVariableName {
 impl std::error::Error for IllegalVariableName {}
 
 /// Maximum length a name can have when `verify-variable-names` is enabled.
-pub const MAX_NAME_LEN: usize = 65535;
+pub const MAX_NAME_LEN: usize = 255;
 
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.

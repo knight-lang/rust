@@ -54,6 +54,49 @@ impl List {
 
 		Ok(text.finish())
 	}
+
+	pub fn concat(&self, rhs: &[Value]) -> Self {
+		self.iter().cloned().chain(rhs.iter().cloned()).collect()
+	}
+
+	pub fn difference(&self, rhs: &[Value]) -> Self {
+		let mut list = Vec::with_capacity(self.len() - rhs.len());
+
+		for ele in self {
+			if !rhs.contains(ele) && !list.contains(ele) {
+				list.push(ele.clone());
+			}
+		}
+
+		list.into()
+	}
+
+	pub fn repeat(&self, amount: usize) -> Self {
+		let mut list = Vec::with_capacity(self.len() * amount);
+
+		for _ in 0..amount {
+			list.extend(self.iter().cloned());
+		}
+
+		list.into()
+	}
+
+	pub fn join(&self, sep: &Text) -> crate::Result<SharedText> {
+		let mut joined = SharedText::builder();
+
+		let mut is_first = true;
+		for ele in self {
+			if is_first {
+				is_first = false;
+			} else {
+				joined.push(&sep);
+			}
+
+			joined.push(&ele.to_text()?);
+		}
+
+		Ok(joined.finish())
+	}
 }
 
 impl From<Vec<Value>> for List {

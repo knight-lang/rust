@@ -82,8 +82,8 @@ impl Default for Environment {
 				#[cfg(feature = "srand-function")]
 				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
 
-				#[cfg(feature = "try-handle")]
-				map.insert("HANDLE".try_into().unwrap(), &crate::function::HANDLE);
+				#[cfg(feature = "reverse-function")]
+				map.insert("REV".try_into().unwrap(), &crate::function::REVERSE);
 
 				map
 			},

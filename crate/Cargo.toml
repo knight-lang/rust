@@ -11,7 +11,7 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["all-extensions", "arrays"]
+default = ["all-extensions", "arrays", "list-extensions", "string-extensions"]
 
 #######################################
 ##           Optimizations           ##
@@ -31,15 +31,24 @@ optimized = ["abort-on-errors", "cache-strings"]
 #######################################
 multithreaded = []
 
-
 #######################################
 ##            Extensions             ##
 #######################################
+
+# Mine:
+list-extensions = []
+string-extensions = []
+negative-ranges = []
+
+# Recommended:
 
 extension-functions = [] # Required for all `X` functions.
 
 # Enables the `VALUE` function
 value-function = []
+
+# Enables the `EVAL` function
+eval-function = []
 
 # Convert non-variables to strings for the first arg in `=`.
 assign-to-anything = []
@@ -54,6 +63,9 @@ use-function = []
 # Enables `XSRAND`
 srand-function = ["extension-functions"]
 
+# Enables `XREV`
+reverse-function = ["extension-functions"]
+
 # Enable most extensions
 normal-extensions = [
 	"value-function",
@@ -64,7 +76,6 @@ normal-extensions = [
 ]
 
 all-extensions = ["normal-extensions", "qol-extensions"]
-
 
 #######################################
 ##     Quality-of-life extensions    ##
