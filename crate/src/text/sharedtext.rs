@@ -1,5 +1,5 @@
-use crate::text::{Chars, IllegalChar, Text};
-use crate::{Error, Integer};
+use crate::text::{IllegalChar, Text};
+use crate::Integer;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

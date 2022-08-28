@@ -1,8 +1,7 @@
-use crate::text::{IllegalChar, SharedText, Text};
+use crate::text::{SharedText, Text};
 use crate::variable::IllegalVariableName;
 use crate::{Ast, Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
-use tap::prelude::*;
 
 /// A type that represents errors that happen during parsing.
 #[derive(Debug)]

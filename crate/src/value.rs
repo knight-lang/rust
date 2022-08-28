@@ -146,7 +146,8 @@ impl Context for List {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(Self::default()),
-			Value::Boolean(boolean) => todo!(),
+			Value::Boolean(false) => Ok(Self::default()),
+			Value::Boolean(true) => Ok(Self::from(vec![true.into()])),
 			Value::Integer(mut number) => {
 				if number == 0 {
 					return Ok(vec![0.into()].into());

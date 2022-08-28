@@ -73,6 +73,9 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 	#[cfg(feature = "handle-function")]
 	const HANDLE_NAME: char = HANDLE.name.as_bytes()[0] as char;
 
+	#[cfg(feature = "use-function")]
+	const USE_NAME: char = USE.name.as_bytes()[0] as char;
+
 	match name {
 		PROMPT_NAME => Some(&PROMPT),
 		RANDOM_NAME => Some(&RANDOM),
@@ -118,6 +121,9 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		#[cfg(feature = "handle-function")]
 		_ if name == HANDLE_NAME => Some(&HANDLE),
 
+		#[cfg(feature = "use-function")]
+		_ if name == USE_NAME => Some(&USE),
+
 		_ => None,
 	}
 }
@@ -140,7 +146,7 @@ macro_rules! function {
 }
 
 /// **4.1.4**: `PROMPT`
-pub const PROMPT: Function = function!("P", env, |/* comment for rustfmt */| {
+pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
 	#[cfg(feature = "assign-to-prompt")]
 	if let Some(line) = env.get_next_prompt_line() {
 		return Ok(line.into());
@@ -164,7 +170,7 @@ pub const PROMPT: Function = function!("P", env, |/* comment for rustfmt */| {
 });
 
 /// **4.1.5**: `RANDOM`
-pub const RANDOM: Function = function!("R", env, |/* comment for rustfmt */| env.random());
+pub const RANDOM: Function = function!("RANDOM", env, |/* comment for rustfmt */| env.random());
 
 /// **4.2.2** `BOX`
 pub const BOX: Function = function!(",", env, |val| {
@@ -174,7 +180,7 @@ pub const BOX: Function = function!(",", env, |val| {
 });
 
 /// **4.2.3** `BLOCK`  
-pub const BLOCK: Function = function!("B", env, |arg| {
+pub const BLOCK: Function = function!("BLOCK", env, |arg| {
 	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
 	// Since this function normally just returns whatever it's argument is, it's impossible to
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
@@ -192,11 +198,13 @@ pub const BLOCK: Function = function!("B", env, |arg| {
 		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()]).into());
 	}
 
+	let _ = env;
+
 	arg.clone()
 });
 
 /// **4.2.4** `CALL`  
-pub const CALL: Function = function!("C", env, |arg| {
+pub const CALL: Function = function!("CALL", env, |arg| {
 	let block = arg.run(env)?;
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
@@ -217,7 +225,7 @@ pub const SYSTEM: Function = function!("`", env, |arg| {
 });
 
 /// **4.2.6** `QUIT`  
-pub const QUIT: Function = function!("Q", env, |arg| {
+pub const QUIT: Function = function!("QUIT", env, |arg| {
 	let status = arg
 		.run(env)?
 		.to_integer()?
@@ -235,7 +243,7 @@ pub const QUIT: Function = function!("Q", env, |arg| {
 
 	// The `function!` macro calls `.into()` on the return value of this block,
 	// so we need _something_ here so it can typecheck correctly.
-	#[allow(dead_code)]
+	#[allow(unreachable_code)]
 	Value::Null
 });
 
@@ -243,21 +251,21 @@ pub const QUIT: Function = function!("Q", env, |arg| {
 pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function = function!("L", env, |arg| {
+pub const LENGTH: Function = function!("LENGTH", env, |arg| {
 	let list = arg.run(env)?.to_list()?;
 
 	list.len() as Integer
 });
 
 /// **4.2.9** `DUMP`  
-pub const DUMP: Function = function!("D", env, |arg| {
+pub const DUMP: Function = function!("DUMP", env, |arg| {
 	let value = arg.run(env)?;
 	writeln!(env, "{value:?}")?;
 	value
 });
 
 /// **4.2.10** `OUTPUT`  
-pub const OUTPUT: Function = function!("O", env, |arg| {
+pub const OUTPUT: Function = function!("OUTPUT", env, |arg| {
 	let text = arg.run(env)?.to_text()?;
 
 	if let Some(stripped) = text.strip_suffix('\\') {
@@ -272,7 +280,7 @@ pub const OUTPUT: Function = function!("O", env, |arg| {
 });
 
 /// **4.2.11** `ASCII`  
-pub const ASCII: Function = function!("A", env, |arg| {
+pub const ASCII: Function = function!("ASCII", env, |arg| {
 	match arg.run(env)? {
 		Value::Integer(num) => u32::try_from(num)
 			.ok()
@@ -672,7 +680,8 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		Value::Ast(ast) if ast.function().name == PROMPT.name => env.add_to_prompt(value.to_text()?),
 
 		#[cfg(feature = "list-extensions")]
-		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
+		Value::Ast(_ast) => return assign(&variable.run(env)?, value, env),
+
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => {
 			if list.is_empty() {
@@ -720,7 +729,7 @@ pub const ASSIGN: Function = function!("=", env, |var, value| {
 });
 
 /// **4.3.14** `WHILE`  
-pub const WHILE: Function = function!("W", env, |cond, body| {
+pub const WHILE: Function = function!("WHILE", env, |cond, body| {
 	while cond.run(env)?.to_bool()? {
 		body.run(env)?;
 	}
@@ -729,7 +738,7 @@ pub const WHILE: Function = function!("W", env, |cond, body| {
 });
 
 /// **4.3.15** `RANGE`  
-pub const RANGE: Function = function!("R", env, |start, stop| {
+pub const RANGE: Function = function!(".", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
 			let stop = stop.run(env)?.to_integer()?;
@@ -745,7 +754,7 @@ pub const RANGE: Function = function!("R", env, |start, stop| {
 			}
 		}
 
-		Value::SharedText(text) => {
+		Value::SharedText(_text) => {
 			// let start = text.get(0).a;
 			todo!()
 		}
@@ -755,7 +764,7 @@ pub const RANGE: Function = function!("R", env, |start, stop| {
 });
 
 /// **4.4.1** `IF`  
-pub const IF: Function = function!("I", env, |cond, iftrue, iffalse| {
+pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
 	if cond.run(env)?.to_bool()? {
 		iftrue.run(env)?
 	} else {
@@ -764,7 +773,7 @@ pub const IF: Function = function!("I", env, |cond, iftrue, iffalse| {
 });
 
 /// **4.4.2** `GET`  
-pub const GET: Function = function!("G", env, |string, start, length| {
+pub const GET: Function = function!("GET", env, |string, start, length| {
 	let source = string.run(env)?;
 	let mut start = start.run(env)?.to_integer()?;
 	let length = length
@@ -808,7 +817,7 @@ pub const GET: Function = function!("G", env, |string, start, length| {
 });
 
 /// **4.5.1** `SET`  
-pub const SET: Function = function!("S", env, |string, start, length, replacement| {
+pub const SET: Function = function!("SET", env, |string, start, length, replacement| {
 	let source = string.run(env)?;
 	let mut start = start.run(env)?.to_integer()?;
 	let length = length
@@ -829,7 +838,7 @@ pub const SET: Function = function!("S", env, |string, start, length, replacemen
 		let replacement = replacement_source.to_list()?;
 
 		let mut ret = Vec::new();
-		ret.extend(list.iter().cloned().take((start as usize)));
+		ret.extend(list.iter().cloned().take(start as usize));
 		ret.extend(replacement.iter().cloned());
 		ret.extend(list.iter().cloned().skip((start as usize) + length));
 
@@ -885,7 +894,7 @@ pub const HANDLE: Function = function!("H", env, |block, iferr| {
 /// **6.3** `USE`
 #[cfg(feature = "use-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
-pub const USE: Function = function!("U", env, |arg| {
+pub const USE: Function = function!("USE", env, |arg| {
 	let filename = arg.run(env)?.to_text()?;
 	let contents = env.read_file(&filename)?;
 

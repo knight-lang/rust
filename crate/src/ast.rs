@@ -1,4 +1,4 @@
-use crate::{Environment, Function, RefCount, Result, Value};
+use crate::{Environment, Function, RefCount, Value};
 
 /// [`Ast`]s represent functions and their arguments.
 #[derive(Debug, Clone, PartialEq)]
@@ -21,7 +21,7 @@ impl Ast {
 	}
 
 	/// Executes the function associated with `self`.
-	pub fn run(&self, env: &mut Environment) -> Result<Value> {
+	pub fn run(&self, env: &mut Environment) -> crate::Result<Value> {
 		(self.function().func)(&(self.0).1, env)
 	}
 }

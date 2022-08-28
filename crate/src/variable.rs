@@ -1,4 +1,4 @@
-use crate::{Error, Mutable, RefCount, SharedText, Text, Value};
+use crate::{Mutable, RefCount, SharedText, Text, Value};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};

@@ -1,6 +1,6 @@
-use crate::{Mutable, RefCount, SharedText, Text, Value};
+use crate::{RefCount, SharedText, Text, Value};
 use std::fmt::{self, Debug, Formatter};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 #[derive(Default, Clone, PartialEq)]
 pub struct List(RefCount<Vec<Value>>);

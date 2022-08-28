@@ -1,9 +1,7 @@
 use crate::variable::IllegalVariableName;
-use crate::{Error, Integer, SharedText, Text, Value, Variable};
-use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
+use crate::{Integer, SharedText, Text, Value, Variable};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
-use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 
 #[cfg(feature = "extension-functions")]

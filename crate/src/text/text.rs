@@ -1,5 +1,4 @@
 use super::{validate, Chars, IllegalChar, SharedText};
-use crate::{Error, Integer};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 

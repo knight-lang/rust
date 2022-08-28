@@ -70,6 +70,7 @@ impl From<IllegalChar> for Error {
 
 		#[cfg(not(feature = "strict-charset"))]
 		{
+			let _ = err;
 			todo!()
 		}
 	}
