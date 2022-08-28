@@ -1,16 +1,18 @@
-use crate::{Environment, Function, Result, Value};
+use crate::{Environment, Function, RefCount, Result, Value};
 
+/// [`Ast`]s represent functions and their arguments.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ast(Box<(&'static Function, Box<[Value]>)>);
+pub struct Ast(RefCount<(&'static Function, Box<[Value]>)>);
 
 impl Ast {
 	/// Creates a new `Ast` from the given arguments.
 	///
-	/// This will panic if `args.len()` isnt equal to `func.arity.`
+	/// # Panics
+	/// Panics if `args.len()` isn't equal to `func.arity`.
 	pub fn new(func: &'static Function, args: Box<[Value]>) -> Self {
 		assert_eq!(args.len(), func.arity);
 
-		Self(Box::new((func, args)))
+		Self((func, args).into())
 	}
 
 	/// Gets the function associated with the ast.
