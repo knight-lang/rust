@@ -29,7 +29,7 @@ impl PartialEq for Variable {
 	///
 	/// This'll just check to see if their names are equivalent. Techincally, this means that
 	/// two variables with the same name, but derived from different [`Environment`]s will end up
-	/// being the same
+	/// being the same.
 	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		self.name() == rhs.name()
@@ -52,7 +52,7 @@ impl Hash for Variable {
 
 /// Indicates that a a variable name was illegal.
 ///
-/// This is only ever returned if the `verify-variable-names` is enabled.
+/// This is only ever returned if the `verify-variable-names` feature is is enabled.
 #[derive(Debug, PartialEq, Eq)]
 pub enum IllegalVariableName {
 	/// The name was empty

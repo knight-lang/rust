@@ -1,6 +1,6 @@
 use crate::text::{IllegalChar, SharedText, Text};
 use crate::variable::IllegalVariableName;
-use crate::{Environment, Integer, Value};
+use crate::{Ast, Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
 use tap::prelude::*;
 
@@ -16,12 +16,13 @@ pub struct ParseError {
 
 /// The error type used to indicate an error whilst parsing Knight source code.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ParseErrorKind {
 	/// Indicates that the end of stream was reached before a value could be parsed.
 	EmptySource,
 
 	/// Indicates that an invalid character was encountered.
-	UnknownTokenStart(char),
+	InvalidCharacter(char),
 
 	/// A starting quote was found without an associated ending quote.
 	UnterminatedQuote {
@@ -30,12 +31,12 @@ pub enum ParseErrorKind {
 	},
 
 	/// A function was parsed, but one of its arguments was not able to be parsed.
-	MissingFunctionArgument {
-		/// The function whose argument is missing.
-		func: &'static crate::function::Function,
+	MissingArgument {
+		/// The name of the function whose argument is missing.
+		name: &'static str,
 
 		/// The argument number.
-		idx: usize,
+		index: usize,
 	},
 
 	/// A number literal was too large.
@@ -55,28 +56,30 @@ pub enum ParseErrorKind {
 	UnknownExtensionFunction(SharedText),
 }
 
-impl Display for ParseError {
+impl Display for ParseErrorKind {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		use ParseErrorKind::*;
-
-		write!(f, "line {}: ", self.line)?;
-
-		match self.kind {
-			EmptySource => write!(f, "an empty source string was encountered"),
-			UnknownTokenStart(chr) => write!(f, "unknown token start {chr:?}"),
-			UnterminatedQuote { quote } => write!(f, "unterminated `{quote}` quote encountered"),
-			MissingFunctionArgument { func, idx } => {
-				write!(f, "missing argument {idx} for function {:?}", func.name)
+		match self {
+			Self::EmptySource => write!(f, "an empty source string was encountered"),
+			Self::InvalidCharacter(chr) => write!(f, "unknown token start {chr:?}"),
+			Self::UnterminatedQuote { quote } => write!(f, "unterminated `{quote}` quote encountered"),
+			Self::MissingArgument { name, index } => {
+				write!(f, "missing argument {index} for function {name:?}")
 			}
-			IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
-			IllegalVariableName(ref err) => Display::fmt(&err, f),
+			Self::IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
+			Self::IllegalVariableName(ref err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "forbid-trailing-tokens")]
-			TrailingTokens => write!(f, "trailing tokens encountered"),
+			Self::TrailingTokens => write!(f, "trailing tokens encountered"),
 
 			#[cfg(feature = "extension-functions")]
-			UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
+			Self::UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
 		}
+	}
+}
+
+impl Display for ParseError {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		write!(f, "line {}: {}", self.line, self.kind)
 	}
 }
 
@@ -90,7 +93,7 @@ pub struct Parser<'a> {
 }
 
 fn is_whitespace(chr: char) -> bool {
-	" \r\n\t()[]{}:".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
+	" \r\n\t():".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
 }
 
 pub(crate) fn is_lower(chr: char) -> bool {
@@ -157,8 +160,10 @@ impl<'a> Parser<'a> {
 
 	fn strip(&mut self) {
 		loop {
-			self.take_while(is_whitespace).is_empty();
+			// strip all leading whitespace, if any.
+			self.take_while(is_whitespace);
 
+			// If we don't have a comment afterwards, nothing left to strip
 			if self.peek() != Some('#') {
 				break;
 			}
@@ -171,91 +176,96 @@ impl<'a> Parser<'a> {
 	pub fn parse(mut self, env: &mut Environment) -> Result<Value, ParseError> {
 		let ret = self.parse_value(env)?;
 
+		// If we forbid any trailing tokens, then see if we could have parsed anything else.
 		#[cfg(feature = "forbid-trailing-tokens")]
-		{
-			self.strip();
-			if !self.source.is_empty() {
-				return Err(self.error(ParseErrorKind::TrailingTokens));
-			}
+		if !matches!(self.parse_value(env), Err(Error::EmptySource)) {
+			return Err(self.error(ParseErrorKind::TrailingTokens));
 		}
 
 		Ok(ret)
+	}
+
+	fn parse_integer(&mut self) -> Result<Integer, ParseError> {
+		// The only way that `.parse` can fail is if we overflow, so we can safely map its error to
+		// `IntegerLiteralOverflow`.
+		self
+			.take_while(is_numeric)
+			.parse()
+			.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow))
+	}
+
+	fn parse_identifier(&mut self, env: &mut Environment) -> Result<crate::Variable, ParseError> {
+		let identifier = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
+
+		env.lookup(identifier).map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
+	}
+
+	fn parse_string(&mut self) -> Result<SharedText, ParseError> {
+		let quote = match self.advance() {
+			Some(quote @ ('\'' | '\"')) => quote,
+			_ => unreachable!(),
+		};
+
+		let start = self.line;
+		let body = self.take_while(|chr| chr != quote);
+
+		if self.advance() == Some(quote) {
+			Ok(body.into())
+		} else {
+			Err(ParseError { line: start, kind: ParseErrorKind::UnterminatedQuote { quote } })
+		}
 	}
 
 	fn parse_function(
 		&mut self,
 		func: &'static crate::Function,
 		env: &mut Environment,
-	) -> Result<Value, ParseError> {
-		if is_upper(func.name) {
+	) -> Result<Ast, ParseError> {
+		// If it's a keyword function, then take all keyword characters.
+		if is_upper(func.name.chars().next().expect("function has empty name?")) {
 			self.take_while(is_upper);
 		} else {
 			self.advance();
 		}
 
-		let mut args = Vec::with_capacity(func.arity);
+		// `MissingArgument` errors have their `line` field set to the beginning of the function
+		// parsing.
 		let start_line = self.line;
 
-		for idx in 0..func.arity {
-			match self.parse_value(env) {
-				Ok(arg) => args.push(arg),
-				Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => {
-					return Err(ParseError {
-						line: start_line,
-						kind: ParseErrorKind::MissingFunctionArgument { func, idx },
-					})
-				}
-				Err(err) => return Err(err),
-			}
-		}
+		// Parse out all the arguments for the function, converting `EmptySource` errors into
+		// `MissingArgument` errors.
+		let args = (0..func.arity)
+			.map(|index| match self.parse_value(env) {
+				Ok(arg) => Ok(arg),
+				Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => Err(ParseError {
+					line: start_line,
+					kind: ParseErrorKind::MissingArgument { name: func.name, index },
+				}),
+				Err(err) => Err(err),
+			})
+			.collect::<Result<_, _>>()?;
 
-		Ok(crate::Ast::new(func, args).into())
+		// Looks like we're good, make a new AST.
+		Ok(Ast::new(func, args))
 	}
 
 	fn parse_value(&mut self, env: &mut Environment) -> Result<Value, ParseError> {
 		self.strip();
 
 		match self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))? {
-			// integer literals
-			'0'..='9' => self
-				.take_while(is_numeric)
-				.parse::<Integer>()
-				.map(Value::from)
-				.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow)),
+			'0'..='9' => self.parse_integer().map(Value::from),
+			start if is_lower(start) => self.parse_identifier(env).map(Value::from),
+			'\'' | '\"' => self.parse_string().map(Value::from),
 
-			// identifiers
-			start if is_lower(start) => {
-				let identifier = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
-
-				env.lookup(identifier)
-					.map(Value::from)
-					.map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
-			}
-
-			// strings
-			quote @ ('\'' | '\"') => {
-				self.advance();
-
-				let body = self.take_while(|chr| chr != quote);
-
-				if self.advance() != Some(quote) {
-					return Err(self.error(ParseErrorKind::UnterminatedQuote { quote }));
-				}
-
-				Ok(body.conv::<crate::SharedText>().into())
-			}
-
-			// booleans
+			// constants
 			start @ ('T' | 'F') => {
 				self.take_while(is_upper);
 				Ok((start == 'T').into())
 			}
-			// null
 			'N' => {
 				self.take_while(is_upper);
 				Ok(Value::default())
 			}
-			#[cfg(feature = "arrays")]
 			'@' => {
 				self.advance();
 				Ok(Value::List(Default::default()))
@@ -270,15 +280,15 @@ impl<'a> Parser<'a> {
 					.get(name)
 					.ok_or_else(|| self.error(ParseErrorKind::UnknownExtensionFunction(name.into())))?;
 
-				self.parse_function(ext, env)
+				self.parse_function(ext, env).map(Value::from)
 			}
 
 			// functions
 			name => {
 				let func = crate::function::fetch(name)
-					.ok_or_else(|| self.error(ParseErrorKind::UnknownTokenStart(name)))?;
+					.ok_or_else(|| self.error(ParseErrorKind::InvalidCharacter(name)))?;
 
-				self.parse_function(func, env)
+				self.parse_function(func, env).map(Value::from)
 			}
 		}
 	}

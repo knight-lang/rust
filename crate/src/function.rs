@@ -9,10 +9,10 @@ pub struct Function {
 	/// The code associated with this function
 	pub func: fn(&[Value], &mut Environment) -> Result<Value>,
 
-	/// The short-form name of this function.
+	/// The long-hand name of this function.
 	///
-	/// For extension functions that start with `X`, this should always be `X`.
-	pub name: char,
+	/// For extension functions that start with `X`, this should also start with it.
+	pub name: &'static str,
 
 	/// The arity of the function.
 	pub arity: usize,
@@ -32,50 +32,91 @@ impl Debug for Function {
 }
 
 pub const fn fetch(name: char) -> Option<&'static Function> {
+	const PROMPT_NAME: char = PROMPT.name.as_bytes()[0] as char;
+	const RANDOM_NAME: char = RANDOM.name.as_bytes()[0] as char;
+	const BLOCK_NAME: char = BLOCK.name.as_bytes()[0] as char;
+	const CALL_NAME: char = CALL.name.as_bytes()[0] as char;
+	const SYSTEM_NAME: char = SYSTEM.name.as_bytes()[0] as char;
+	const QUIT_NAME: char = QUIT.name.as_bytes()[0] as char;
+	const NOT_NAME: char = NOT.name.as_bytes()[0] as char;
+	const LENGTH_NAME: char = LENGTH.name.as_bytes()[0] as char;
+	const DUMP_NAME: char = DUMP.name.as_bytes()[0] as char;
+	const OUTPUT_NAME: char = OUTPUT.name.as_bytes()[0] as char;
+	const ASCII_NAME: char = ASCII.name.as_bytes()[0] as char;
+	const NEG_NAME: char = NEG.name.as_bytes()[0] as char;
+	const BOX_NAME: char = BOX.name.as_bytes()[0] as char;
+	const ADD_NAME: char = ADD.name.as_bytes()[0] as char;
+	const SUBTRACT_NAME: char = SUBTRACT.name.as_bytes()[0] as char;
+	const MULTIPLY_NAME: char = MULTIPLY.name.as_bytes()[0] as char;
+	const DIVIDE_NAME: char = DIVIDE.name.as_bytes()[0] as char;
+	const MODULO_NAME: char = MODULO.name.as_bytes()[0] as char;
+	const POWER_NAME: char = POWER.name.as_bytes()[0] as char;
+	const EQUALS_NAME: char = EQUALS.name.as_bytes()[0] as char;
+	const LESS_THAN_NAME: char = LESS_THAN.name.as_bytes()[0] as char;
+	const GREATER_THAN_NAME: char = GREATER_THAN.name.as_bytes()[0] as char;
+	const AND_NAME: char = AND.name.as_bytes()[0] as char;
+	const OR_NAME: char = OR.name.as_bytes()[0] as char;
+	const THEN_NAME: char = THEN.name.as_bytes()[0] as char;
+	const ASSIGN_NAME: char = ASSIGN.name.as_bytes()[0] as char;
+	const WHILE_NAME: char = WHILE.name.as_bytes()[0] as char;
+	const RANGE_NAME: char = RANGE.name.as_bytes()[0] as char;
+	const IF_NAME: char = IF.name.as_bytes()[0] as char;
+	const GET_NAME: char = GET.name.as_bytes()[0] as char;
+	const SET_NAME: char = SET.name.as_bytes()[0] as char;
+
+	#[cfg(feature = "value-function")]
+	const VALUE_NAME: char = VALUE.name.as_bytes()[0] as char;
+
+	#[cfg(feature = "eval-function")]
+	const EVAL_NAME: char = EVAL.name.as_bytes()[0] as char;
+
+	#[cfg(feature = "handle-function")]
+	const HANDLE_NAME: char = HANDLE.name.as_bytes()[0] as char;
+
 	match name {
-		_ if name == PROMPT.name => Some(&PROMPT),
-		_ if name == RANDOM.name => Some(&RANDOM),
+		PROMPT_NAME => Some(&PROMPT),
+		RANDOM_NAME => Some(&RANDOM),
 
-		_ if name == BLOCK.name => Some(&BLOCK),
-		_ if name == CALL.name => Some(&CALL),
-		_ if name == SYSTEM.name => Some(&SYSTEM),
-		_ if name == QUIT.name => Some(&QUIT),
-		_ if name == NOT.name => Some(&NOT),
-		_ if name == LENGTH.name => Some(&LENGTH),
-		_ if name == DUMP.name => Some(&DUMP),
-		_ if name == OUTPUT.name => Some(&OUTPUT),
-		_ if name == ASCII.name => Some(&ASCII),
-		_ if name == NEG.name => Some(&NEG),
-		_ if name == BOX.name => Some(&BOX),
+		BLOCK_NAME => Some(&BLOCK),
+		CALL_NAME => Some(&CALL),
+		SYSTEM_NAME => Some(&SYSTEM),
+		QUIT_NAME => Some(&QUIT),
+		NOT_NAME => Some(&NOT),
+		LENGTH_NAME => Some(&LENGTH),
+		DUMP_NAME => Some(&DUMP),
+		OUTPUT_NAME => Some(&OUTPUT),
+		ASCII_NAME => Some(&ASCII),
+		NEG_NAME => Some(&NEG),
+		BOX_NAME => Some(&BOX),
 
-		_ if name == ADD.name => Some(&ADD),
-		_ if name == SUBTRACT.name => Some(&SUBTRACT),
-		_ if name == MULTIPLY.name => Some(&MULTIPLY),
-		_ if name == DIVIDE.name => Some(&DIVIDE),
-		_ if name == MODULO.name => Some(&MODULO),
-		_ if name == POWER.name => Some(&POWER),
-		_ if name == EQUALS.name => Some(&EQUALS),
-		_ if name == LESS_THAN.name => Some(&LESS_THAN),
-		_ if name == GREATER_THAN.name => Some(&GREATER_THAN),
-		_ if name == AND.name => Some(&AND),
-		_ if name == OR.name => Some(&OR),
-		_ if name == THEN.name => Some(&THEN),
-		_ if name == ASSIGN.name => Some(&ASSIGN),
-		_ if name == WHILE.name => Some(&WHILE),
-		_ if name == RANGE.name => Some(&RANGE),
+		ADD_NAME => Some(&ADD),
+		SUBTRACT_NAME => Some(&SUBTRACT),
+		MULTIPLY_NAME => Some(&MULTIPLY),
+		DIVIDE_NAME => Some(&DIVIDE),
+		MODULO_NAME => Some(&MODULO),
+		POWER_NAME => Some(&POWER),
+		EQUALS_NAME => Some(&EQUALS),
+		LESS_THAN_NAME => Some(&LESS_THAN),
+		GREATER_THAN_NAME => Some(&GREATER_THAN),
+		AND_NAME => Some(&AND),
+		OR_NAME => Some(&OR),
+		THEN_NAME => Some(&THEN),
+		ASSIGN_NAME => Some(&ASSIGN),
+		WHILE_NAME => Some(&WHILE),
+		RANGE_NAME => Some(&RANGE),
 
-		_ if name == IF.name => Some(&IF),
-		_ if name == GET.name => Some(&GET),
-		_ if name == SET.name => Some(&SET),
+		IF_NAME => Some(&IF),
+		GET_NAME => Some(&GET),
+		SET_NAME => Some(&SET),
 
 		#[cfg(feature = "value-function")]
-		_ if name == VALUE.name => Some(&VALUE),
+		VALUE_NAME => Some(&VALUE),
 
 		#[cfg(feature = "eval-function")]
-		_ if name == EVAL.name => Some(&EVAL),
+		EVAL_NAME => Some(&EVAL),
 
 		#[cfg(feature = "handle-function")]
-		_ if name == HANDLE.name => Some(&HANDLE),
+		_ if name == HANDLE_NAME => Some(&HANDLE),
 
 		_ => None,
 	}
@@ -99,7 +140,7 @@ macro_rules! function {
 }
 
 /// **4.1.4**: `PROMPT`
-pub const PROMPT: Function = function!('P', env, |/* comment for rustfmt */| {
+pub const PROMPT: Function = function!("P", env, |/* comment for rustfmt */| {
 	#[cfg(feature = "assign-to-prompt")]
 	if let Some(line) = env.get_next_prompt_line() {
 		return Ok(line.into());
@@ -123,17 +164,17 @@ pub const PROMPT: Function = function!('P', env, |/* comment for rustfmt */| {
 });
 
 /// **4.1.5**: `RANDOM`
-pub const RANDOM: Function = function!('R', env, |/* comment for rustfmt */| env.random());
+pub const RANDOM: Function = function!("R", env, |/* comment for rustfmt */| env.random());
 
 /// **4.2.2** `BOX`
-pub const BOX: Function = function!(',', env, |val| {
+pub const BOX: Function = function!(",", env, |val| {
 	let value = val.run(env)?;
 
 	List::from(vec![value])
 });
 
 /// **4.2.3** `BLOCK`  
-pub const BLOCK: Function = function!('B', env, |arg| {
+pub const BLOCK: Function = function!("B", env, |arg| {
 	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
 	// Since this function normally just returns whatever it's argument is, it's impossible to
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
@@ -142,7 +183,7 @@ pub const BLOCK: Function = function!('B', env, |arg| {
 	#[cfg(feature = "strict-block-return-value")]
 	if !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
-		const NOOP: Function = function!(':', env, |arg| {
+		const NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
 
 			arg.run(env) // We can't `.clone()` in case we're given a variable name.
@@ -155,7 +196,7 @@ pub const BLOCK: Function = function!('B', env, |arg| {
 });
 
 /// **4.2.4** `CALL`  
-pub const CALL: Function = function!('C', env, |arg| {
+pub const CALL: Function = function!("C", env, |arg| {
 	let block = arg.run(env)?;
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
@@ -169,14 +210,14 @@ pub const CALL: Function = function!('C', env, |arg| {
 });
 
 /// **4.2.5** `` ` ``
-pub const SYSTEM: Function = function!('`', env, |arg| {
+pub const SYSTEM: Function = function!("`", env, |arg| {
 	let command = arg.run(env)?.to_text()?;
 
 	env.run_command(&command)?
 });
 
 /// **4.2.6** `QUIT`  
-pub const QUIT: Function = function!('Q', env, |arg| {
+pub const QUIT: Function = function!("Q", env, |arg| {
 	let status = arg
 		.run(env)?
 		.to_integer()?
@@ -199,24 +240,24 @@ pub const QUIT: Function = function!('Q', env, |arg| {
 });
 
 /// **4.2.7** `!`  
-pub const NOT: Function = function!('!', env, |arg| !arg.run(env)?.to_bool()?);
+pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function = function!('L', env, |arg| {
+pub const LENGTH: Function = function!("L", env, |arg| {
 	let list = arg.run(env)?.to_list()?;
 
 	list.len() as Integer
 });
 
 /// **4.2.9** `DUMP`  
-pub const DUMP: Function = function!('D', env, |arg| {
+pub const DUMP: Function = function!("D", env, |arg| {
 	let value = arg.run(env)?;
 	writeln!(env, "{value:?}")?;
 	value
 });
 
 /// **4.2.10** `OUTPUT`  
-pub const OUTPUT: Function = function!('O', env, |arg| {
+pub const OUTPUT: Function = function!("O", env, |arg| {
 	let text = arg.run(env)?.to_text()?;
 
 	if let Some(stripped) = text.strip_suffix('\\') {
@@ -231,7 +272,7 @@ pub const OUTPUT: Function = function!('O', env, |arg| {
 });
 
 /// **4.2.11** `ASCII`  
-pub const ASCII: Function = function!('A', env, |arg| {
+pub const ASCII: Function = function!("A", env, |arg| {
 	match arg.run(env)? {
 		Value::Integer(num) => u32::try_from(num)
 			.ok()
@@ -252,7 +293,7 @@ pub const ASCII: Function = function!('A', env, |arg| {
 });
 
 /// **4.2.12** `~`  
-pub const NEG: Function = function!('~', env, |arg| {
+pub const NEG: Function = function!("~", env, |arg| {
 	let num = arg.run(env)?.to_integer()?;
 
 	cfg_if! {
@@ -265,7 +306,7 @@ pub const NEG: Function = function!('~', env, |arg| {
 });
 
 /// **4.3.1** `+`  
-pub const ADD: Function = function!('+', env, |lhs, rhs| {
+pub const ADD: Function = function!("+", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
@@ -287,7 +328,7 @@ pub const ADD: Function = function!('+', env, |lhs, rhs| {
 });
 
 /// **4.3.2** `-`  
-pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
+pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
@@ -309,7 +350,7 @@ pub const SUBTRACT: Function = function!('-', env, |lhs, rhs| {
 });
 
 /// **4.3.3** `*`  
-pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
+pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
@@ -380,7 +421,7 @@ pub const MULTIPLY: Function = function!('*', env, |lhs, rhs| {
 });
 
 /// **4.3.4** `/`  
-pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
+pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
@@ -435,7 +476,7 @@ pub const DIVIDE: Function = function!('/', env, |lhs, rhs| {
 });
 
 /// **4.3.5** `%`  
-pub const MODULO: Function = function!('%', env, |lhs, rhs| {
+pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(lnum) => {
 			let rnum = rhs.run(env)?.to_integer()?;
@@ -521,7 +562,7 @@ pub const MODULO: Function = function!('%', env, |lhs, rhs| {
 });
 
 /// **4.3.6** `^`  
-pub const POWER: Function = function!('^', env, |lhs, rhs| {
+pub const POWER: Function = function!("^", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(base) => match (base, rhs.run(env)?.to_integer()?) {
 			(_, Integer::MIN..=-1) => return Err(Error::DomainError("negative exponent")),
@@ -566,17 +607,17 @@ fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 }
 
 /// **4.3.7** `<`  
-pub const LESS_THAN: Function = function!('<', env, |lhs, rhs| {
+pub const LESS_THAN: Function = function!("<", env, |lhs, rhs| {
 	compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Less
 });
 
 /// **4.3.8** `>`  
-pub const GREATER_THAN: Function = function!('>', env, |lhs, rhs| {
+pub const GREATER_THAN: Function = function!(">", env, |lhs, rhs| {
 	compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Greater
 });
 
 /// **4.3.9** `?`  
-pub const EQUALS: Function = function!('?', env, |lhs, rhs| {
+pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 	let r = rhs.run(env)?;
 
@@ -594,7 +635,7 @@ pub const EQUALS: Function = function!('?', env, |lhs, rhs| {
 });
 
 /// **4.3.10** `&`  
-pub const AND: Function = function!('&', env, |lhs, rhs| {
+pub const AND: Function = function!("&", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 
 	if l.to_bool()? {
@@ -605,7 +646,7 @@ pub const AND: Function = function!('&', env, |lhs, rhs| {
 });
 
 /// **4.3.11** `|`  
-pub const OR: Function = function!('|', env, |lhs, rhs| {
+pub const OR: Function = function!("|", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 
 	if l.to_bool()? {
@@ -616,7 +657,7 @@ pub const OR: Function = function!('|', env, |lhs, rhs| {
 });
 
 /// **4.3.12** `;`  
-pub const THEN: Function = function!(';', env, |lhs, rhs| {
+pub const THEN: Function = function!(";", env, |lhs, rhs| {
 	lhs.run(env)?;
 	rhs.run(env)?
 });
@@ -628,7 +669,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		}
 
 		#[cfg(feature = "assign-to-prompt")]
-		Value::Ast(ast) if ast.function().name == 'P' => env.add_to_prompt(value.to_text()?),
+		Value::Ast(ast) if ast.function().name == PROMPT.name => env.add_to_prompt(value.to_text()?),
 
 		#[cfg(feature = "list-extensions")]
 		Value::Ast(ast) => return assign(&variable.run(env)?, value, env),
@@ -672,14 +713,14 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 }
 
 /// **4.3.13** `=`  
-pub const ASSIGN: Function = function!('=', env, |var, value| {
+pub const ASSIGN: Function = function!("=", env, |var, value| {
 	let ret = value.run(env)?;
 	assign(var, ret.clone(), env)?;
 	ret
 });
 
 /// **4.3.14** `WHILE`  
-pub const WHILE: Function = function!('W', env, |cond, body| {
+pub const WHILE: Function = function!("W", env, |cond, body| {
 	while cond.run(env)?.to_bool()? {
 		body.run(env)?;
 	}
@@ -688,7 +729,7 @@ pub const WHILE: Function = function!('W', env, |cond, body| {
 });
 
 /// **4.3.15** `RANGE`  
-pub const RANGE: Function = function!('R', env, |start, stop| {
+pub const RANGE: Function = function!("R", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
 			let stop = stop.run(env)?.to_integer()?;
@@ -714,7 +755,7 @@ pub const RANGE: Function = function!('R', env, |start, stop| {
 });
 
 /// **4.4.1** `IF`  
-pub const IF: Function = function!('I', env, |cond, iftrue, iffalse| {
+pub const IF: Function = function!("I", env, |cond, iftrue, iffalse| {
 	if cond.run(env)?.to_bool()? {
 		iftrue.run(env)?
 	} else {
@@ -723,7 +764,7 @@ pub const IF: Function = function!('I', env, |cond, iftrue, iffalse| {
 });
 
 /// **4.4.2** `GET`  
-pub const GET: Function = function!('G', env, |string, start, length| {
+pub const GET: Function = function!("G", env, |string, start, length| {
 	let source = string.run(env)?;
 	let mut start = start.run(env)?.to_integer()?;
 	let length = length
@@ -767,7 +808,7 @@ pub const GET: Function = function!('G', env, |string, start, length| {
 });
 
 /// **4.5.1** `SET`  
-pub const SET: Function = function!('S', env, |string, start, length, replacement| {
+pub const SET: Function = function!("S", env, |string, start, length, replacement| {
 	let source = string.run(env)?;
 	let mut start = start.run(env)?.to_integer()?;
 	let length = length
@@ -815,7 +856,7 @@ pub const SET: Function = function!('S', env, |string, start, length, replacemen
 /// **6.1** `VALUE`
 #[cfg(feature = "value-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
-pub const VALUE: Function = function!('V', env, |arg| {
+pub const VALUE: Function = function!("V", env, |arg| {
 	let name = arg.run(env)?.to_text()?;
 	env.lookup(&name)?
 });
@@ -823,7 +864,7 @@ pub const VALUE: Function = function!('V', env, |arg| {
 /// **6.4** `HANDLE`
 #[cfg(feature = "handle-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
-pub const HANDLE: Function = function!('H', env, |block, iferr| {
+pub const HANDLE: Function = function!("H", env, |block, iferr| {
 	const ERR_VAR_NAME: &'static crate::Text = unsafe { crate::Text::new_unchecked("_") };
 
 	match block.run(env) {
@@ -844,7 +885,7 @@ pub const HANDLE: Function = function!('H', env, |block, iferr| {
 /// **6.3** `USE`
 #[cfg(feature = "use-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
-pub const USE: Function = function!('U', env, |arg| {
+pub const USE: Function = function!("U", env, |arg| {
 	let filename = arg.run(env)?.to_text()?;
 	let contents = env.read_file(&filename)?;
 
@@ -853,7 +894,7 @@ pub const USE: Function = function!('U', env, |arg| {
 
 /// **4.2.2** `EVAL`
 #[cfg(feature = "eval-function")]
-pub const EVAL: Function = function!('E', env, |val| {
+pub const EVAL: Function = function!("E", env, |val| {
 	let code = val.run(env)?.to_text()?;
 	env.play(&code)?
 });
@@ -861,7 +902,7 @@ pub const EVAL: Function = function!('E', env, |val| {
 /// **Compiler extension**: SRAND
 #[cfg(feature = "srand-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
-pub const SRAND: Function = function!('X', env, |arg| {
+pub const SRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
@@ -870,7 +911,7 @@ pub const SRAND: Function = function!('X', env, |arg| {
 /// **Compiler extension**: REV
 #[cfg(feature = "reverse-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "reverse-function")))]
-pub const REVERSE: Function = function!('X', env, |arg| {
+pub const REVERSE: Function = function!("XREV", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
