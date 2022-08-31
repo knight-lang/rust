@@ -122,7 +122,7 @@ impl Display for Error {
 
 			#[cfg(feature = "no-oob-errors")]
 			Self::IndexOutOfBounds { len, index } => {
-				write!(f, "end index {index} is out of bounds for string of length {len}")
+				write!(f, "end index {index} is out of bounds for length {len}")
 			}
 		}
 	}

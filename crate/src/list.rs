@@ -68,6 +68,16 @@ impl TryFrom<RangeInclusive<char>> for List {
 	type Error = Error;
 
 	fn try_from(range: RangeInclusive<char>) -> Result<Self> {
+		if cfg!(feature = "strict-compliance") {
+			if !(' '..='~').contains(range.start()) {
+				return Err(Error::DomainError("start is not in ' '..='~' range"));
+			}
+
+			if !(' '..='~').contains(range.end()) {
+				return Err(Error::DomainError("end is not in ' '..='~' range"));
+			}
+		}
+
 		match range.start().cmp(&range.end()) {
 			Ordering::Less => Ok(Self::_new(Inner::CharRange(range))),
 			Ordering::Equal => Ok(Self(None)),
@@ -154,6 +164,10 @@ impl List {
 			#[cfg(feature = "negative-ranges")]
 			Some(Inner::CharRangeRev(rng)) => ((*rng.end() as u32) - (*rng.start() as u32) + 1) as usize, // todo: are these two right?
 		}
+	}
+
+	pub fn get<F: SliceFetch>(&self, index: F) -> Option<F::Output> {
+		index.get(self)
 	}
 
 	pub fn to_text(&self) -> Result<SharedText> {
@@ -310,6 +324,50 @@ impl List {
 				block.run(env).and_then(|b| b.to_bool()).and(Ok(Some(ele))).transpose()
 			})
 			.collect()
+	}
+}
+
+pub trait SliceFetch {
+	type Output;
+	fn get(self, list: &List) -> Option<Self::Output>;
+}
+
+impl SliceFetch for usize {
+	type Output = Value;
+	fn get(self, list: &List) -> Option<Self::Output> {
+		match list.inner()? {
+			Inner::Boxed(ele) => (self == 0).then(|| ele.clone()),
+
+			Inner::IntRange(rng) => rng.clone().nth(self).map(Value::from),
+			Inner::CharRange(rng) => rng.clone().nth(self).map(|c| SharedText::new(c).unwrap().into()),
+			Inner::Slice(slice) => slice.get(self).cloned(),
+			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
+			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
+
+			Inner::Repeat(list, amount) if list.len() - amount < self => None,
+			Inner::Repeat(list, amount) => list.get(self % amount),
+
+			#[cfg(feature = "negative-ranges")]
+			Inner::IntRangeRev(_rng) => todo!(),
+			#[cfg(feature = "negative-ranges")]
+			Inner::CharRangeRev(_rng) => todo!(),
+		}
+	}
+}
+
+impl SliceFetch for Range<usize> {
+	type Output = List;
+
+	fn get(self, list: &List) -> Option<Self::Output> {
+		// shouldn't be the same, because it's already checked for.
+		assert_ne!(self.start, self.end);
+
+		if list.len() <= self.end || self.end < self.start {
+			return None;
+		}
+
+		// FIXME: use optimizations
+		Some(list.iter().skip(self.start).take(self.end - self.start).collect())
 	}
 }
 

@@ -729,38 +729,50 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 		.try_conv::<usize>()
 		.or(Err(Error::DomainError("negative length")))?;
 
-	if let Value::List(list) = source {
-		let _ = list;
-		todo!();
-		// return Ok(if length == 0 {
-		// 	list.as_slice().get(start as usize).unwrap().clone()
-		// } else {
-		// 	list
-		// 		.as_slice()
-		// 		.get((start as usize)..(start as usize) + length)
-		// 		.expect("Todo: error")
-		// 		.iter()
-		// 		.cloned()
-		// 		.collect::<List>()
-		// 		.into()
-		// });
-	}
+	match source {
+		Value::List(list) => {
+			if start < 0 && cfg!(feature = "negative-indexing") {
+				start += list.len() as Integer;
+			}
+			let start =
+				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
 
-	let string = source.to_text()?;
+			// special case for `GET` with a length of zero returns just that element
+			let fetched = if length == 0 {
+				list.get(start)
+			} else {
+				list.get(start..start + length).map(Value::from)
+			};
 
-	if start < 0 && cfg!(feature = "negative-indexing") {
-		start += string.len() as Integer;
-	}
-	let start = start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
+			match fetched {
+				Some(fetched) => fetched,
 
-	match string.get(start..start + length) {
-		Some(substring) => substring.to_owned(),
+				#[cfg(feature = "no-oob-errors")]
+				None => return Err(Error::IndexOutOfBounds { len: list.len(), index: start + length }),
 
-		#[cfg(feature = "no-oob-errors")]
-		None => return Err(Error::IndexOutOfBounds { len: string.len(), index: start + length }),
+				#[cfg(not(feature = "no-oob-errors"))]
+				None => List::default().into(),
+			}
+		}
+		Value::SharedText(text) => {
+			if start < 0 && cfg!(feature = "negative-indexing") {
+				start += text.len() as Integer;
+			}
 
-		#[cfg(not(feature = "no-oob-errors"))]
-		None => SharedText::default(),
+			let start =
+				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
+
+			match text.get(start..start + length) {
+				Some(substring) => substring.to_owned().into(),
+
+				#[cfg(feature = "no-oob-errors")]
+				None => return Err(Error::IndexOutOfBounds { len: text.len(), index: start + length }),
+
+				#[cfg(not(feature = "no-oob-errors"))]
+				None => SharedText::default().into(),
+			}
+		}
+		other => return Err(Error::TypeError(other.typename())),
 	}
 });
 
@@ -775,40 +787,45 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 		.or(Err(Error::DomainError("negative length")))?;
 	let replacement_source = replacement.run(env)?;
 
-	if let Value::List(list) = source {
-		let _ = list;
-		todo!();
-		// if length == 0 {
-		// 	let mut dup = list.iter().cloned().collect::<Vec<Value>>();
-		// 	dup[start as usize] = replacement_source;
-		// 	return Ok(List::from(dup).into());
-		// }
+	match source {
+		Value::List(list) => {
+			if start < 0 && cfg!(feature = "negative-indexing") {
+				start += list.len() as Integer;
+			}
 
-		// let replacement = replacement_source.to_list()?;
+			let start =
+				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
 
-		// let mut ret = Vec::new();
-		// ret.extend(list.iter().cloned().take(start as usize));
-		// ret.extend(replacement.iter().cloned());
-		// ret.extend(list.iter().cloned().skip((start as usize) + length));
+			// FIXME: cons?
 
-		// return Ok(List::from(ret).into());
+			let replacement = replacement_source.to_list()?;
+			let mut ret = Vec::new();
+			ret.extend(list.iter().take(start));
+			ret.extend(replacement.iter());
+			ret.extend(list.iter().skip((start) + length));
+
+			List::from(ret).conv::<Value>()
+		}
+		Value::SharedText(text) => {
+			let replacement = replacement_source.to_text()?;
+
+			if start < 0 && cfg!(feature = "negative-indexing") {
+				start += text.len() as Integer;
+			}
+
+			let start =
+				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
+
+			// TODO: `no-oob-errors` here
+			// lol, todo, optimize me
+			let mut builder = SharedText::builder();
+			builder.push(&text.get(..start).unwrap());
+			builder.push(&replacement);
+			builder.push(&text.get(start + length..).unwrap());
+			builder.finish().into()
+		}
+		other => return Err(Error::TypeError(other.typename())),
 	}
-
-	let string = source.to_text()?;
-	let replacement = replacement_source.to_text()?;
-
-	if start < 0 && cfg!(feature = "negative-indexing") {
-		start += string.len() as Integer;
-	}
-	let start = start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
-
-	// TODO: `no-oob-errors` here
-	// lol, todo, optimize me
-	let mut builder = SharedText::builder();
-	builder.push(&string.get(..start).unwrap());
-	builder.push(&replacement);
-	builder.push(&string.get(start + length..).unwrap());
-	builder.finish()
 });
 
 /// **6.1** `VALUE`
