@@ -284,7 +284,8 @@ impl<'a> Parser<'a> {
 
 			// functions
 			name => {
-				let func = crate::function::fetch(name)
+				let func = env
+					.lookup_function(name)
 					.ok_or_else(|| self.error(ParseErrorKind::InvalidCharacter(name)))?;
 
 				self.parse_function(func, env).map(Value::from)

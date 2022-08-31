@@ -1,11 +1,14 @@
 use crate::variable::IllegalVariableName;
-use crate::{Integer, SharedText, Text, Value, Variable};
+use crate::{Function, Integer, SharedText, Text, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
 
 #[cfg(feature = "extension-functions")]
 use std::collections::HashMap;
+
+mod builder;
+pub use builder::Builder;
 
 cfg_if! {
 	if #[cfg(feature="multithreaded")] {
@@ -35,6 +38,8 @@ pub struct Environment {
 	system: Box<SystemCommand>,
 	rng: Box<StdRng>,
 
+	functions: HashMap<char, &'static Function>,
+
 	// All the known extension functions.
 	//
 	// FIXME: Maybe we should make functions refcounted or something?
@@ -61,6 +66,7 @@ impl Default for Environment {
 	fn default() -> Self {
 		Self {
 			variables: HashSet::default(),
+			functions: crate::function::default(),
 			stdin: BufReader::new(Box::new(std::io::stdin())),
 			stdout: Box::new(std::io::stdout()),
 			system: Box::new(|cmd| {
@@ -81,11 +87,11 @@ impl Default for Environment {
 			extensions: {
 				let mut map = HashMap::<SharedText, &'static crate::Function>::default();
 
-				#[cfg(feature = "srand-function")]
-				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
+				#[cfg(feature = "xsrand-function")]
+				map.insert("SRAND".try_into().unwrap(), &crate::function::XSRAND);
 
-				#[cfg(feature = "reverse-function")]
-				map.insert("REV".try_into().unwrap(), &crate::function::REVERSE);
+				#[cfg(feature = "xreverse-function")]
+				map.insert("REV".try_into().unwrap(), &crate::function::XREVERSE);
 
 				map
 			},
@@ -121,6 +127,10 @@ impl Environment {
 		Ok(variable)
 	}
 
+	pub fn lookup_function(&self, name: char) -> Option<&'static Function> {
+		self.functions.get(&name).copied()
+	}
+
 	/// Executes `command` as a shell command, returning its result.
 	pub fn run_command(&mut self, command: &Text) -> crate::Result<SharedText> {
 		(self.system)(command)
@@ -138,8 +148,6 @@ impl Environment {
 	}
 
 	/// Seeds the random number generator.
-	#[cfg(feature = "srand-function")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
 	pub fn srand(&mut self, seed: Integer) {
 		*self.rng = StdRng::seed_from_u64(seed as u64)
 	}

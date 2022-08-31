@@ -61,6 +61,10 @@ impl Text {
 		Chars(self.0.chars())
 	}
 
+	pub const fn as_bytes(&self) -> &[u8] {
+		self.0.as_bytes()
+	}
+
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
 		let substring = self.0.get(range)?;
 

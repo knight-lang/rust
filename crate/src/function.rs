@@ -1,4 +1,5 @@
-use crate::{Environment, Error, Integer, List, Result, SharedText, Value};
+use crate::{Environment, Error, Integer, List, Result, SharedText, Text, Value};
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -12,7 +13,7 @@ pub struct Function {
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'static str,
+	pub name: &'static Text,
 
 	/// The arity of the function.
 	pub arity: usize,
@@ -31,101 +32,25 @@ impl Debug for Function {
 	}
 }
 
-pub const fn fetch(name: char) -> Option<&'static Function> {
-	const PROMPT_NAME: char = PROMPT.name.as_bytes()[0] as char;
-	const RANDOM_NAME: char = RANDOM.name.as_bytes()[0] as char;
-	const BLOCK_NAME: char = BLOCK.name.as_bytes()[0] as char;
-	const CALL_NAME: char = CALL.name.as_bytes()[0] as char;
-	const SYSTEM_NAME: char = SYSTEM.name.as_bytes()[0] as char;
-	const QUIT_NAME: char = QUIT.name.as_bytes()[0] as char;
-	const NOT_NAME: char = NOT.name.as_bytes()[0] as char;
-	const LENGTH_NAME: char = LENGTH.name.as_bytes()[0] as char;
-	const DUMP_NAME: char = DUMP.name.as_bytes()[0] as char;
-	const OUTPUT_NAME: char = OUTPUT.name.as_bytes()[0] as char;
-	const ASCII_NAME: char = ASCII.name.as_bytes()[0] as char;
-	const NEG_NAME: char = NEG.name.as_bytes()[0] as char;
-	const BOX_NAME: char = BOX.name.as_bytes()[0] as char;
-	const ADD_NAME: char = ADD.name.as_bytes()[0] as char;
-	const SUBTRACT_NAME: char = SUBTRACT.name.as_bytes()[0] as char;
-	const MULTIPLY_NAME: char = MULTIPLY.name.as_bytes()[0] as char;
-	const DIVIDE_NAME: char = DIVIDE.name.as_bytes()[0] as char;
-	const MODULO_NAME: char = MODULO.name.as_bytes()[0] as char;
-	const POWER_NAME: char = POWER.name.as_bytes()[0] as char;
-	const EQUALS_NAME: char = EQUALS.name.as_bytes()[0] as char;
-	const LESS_THAN_NAME: char = LESS_THAN.name.as_bytes()[0] as char;
-	const GREATER_THAN_NAME: char = GREATER_THAN.name.as_bytes()[0] as char;
-	const AND_NAME: char = AND.name.as_bytes()[0] as char;
-	const OR_NAME: char = OR.name.as_bytes()[0] as char;
-	const THEN_NAME: char = THEN.name.as_bytes()[0] as char;
-	const ASSIGN_NAME: char = ASSIGN.name.as_bytes()[0] as char;
-	const WHILE_NAME: char = WHILE.name.as_bytes()[0] as char;
-	const RANGE_NAME: char = RANGE.name.as_bytes()[0] as char;
-	const IF_NAME: char = IF.name.as_bytes()[0] as char;
-	const GET_NAME: char = GET.name.as_bytes()[0] as char;
-	const SET_NAME: char = SET.name.as_bytes()[0] as char;
+pub(crate) fn default() -> HashMap<char, &'static Function> {
+	let mut map = std::collections::HashMap::default();
 
-	#[cfg(feature = "value-function")]
-	const VALUE_NAME: char = VALUE.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "eval-function")]
-	const EVAL_NAME: char = EVAL.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "handle-function")]
-	const HANDLE_NAME: char = HANDLE.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "use-function")]
-	const USE_NAME: char = USE.name.as_bytes()[0] as char;
-
-	match name {
-		PROMPT_NAME => Some(&PROMPT),
-		RANDOM_NAME => Some(&RANDOM),
-
-		BLOCK_NAME => Some(&BLOCK),
-		CALL_NAME => Some(&CALL),
-		SYSTEM_NAME => Some(&SYSTEM),
-		QUIT_NAME => Some(&QUIT),
-		NOT_NAME => Some(&NOT),
-		LENGTH_NAME => Some(&LENGTH),
-		DUMP_NAME => Some(&DUMP),
-		OUTPUT_NAME => Some(&OUTPUT),
-		ASCII_NAME => Some(&ASCII),
-		NEG_NAME => Some(&NEG),
-		BOX_NAME => Some(&BOX),
-
-		ADD_NAME => Some(&ADD),
-		SUBTRACT_NAME => Some(&SUBTRACT),
-		MULTIPLY_NAME => Some(&MULTIPLY),
-		DIVIDE_NAME => Some(&DIVIDE),
-		MODULO_NAME => Some(&MODULO),
-		POWER_NAME => Some(&POWER),
-		EQUALS_NAME => Some(&EQUALS),
-		LESS_THAN_NAME => Some(&LESS_THAN),
-		GREATER_THAN_NAME => Some(&GREATER_THAN),
-		AND_NAME => Some(&AND),
-		OR_NAME => Some(&OR),
-		THEN_NAME => Some(&THEN),
-		ASSIGN_NAME => Some(&ASSIGN),
-		WHILE_NAME => Some(&WHILE),
-		RANGE_NAME => Some(&RANGE),
-
-		IF_NAME => Some(&IF),
-		GET_NAME => Some(&GET),
-		SET_NAME => Some(&SET),
-
-		#[cfg(feature = "value-function")]
-		VALUE_NAME => Some(&VALUE),
-
-		#[cfg(feature = "eval-function")]
-		EVAL_NAME => Some(&EVAL),
-
-		#[cfg(feature = "handle-function")]
-		_ if name == HANDLE_NAME => Some(&HANDLE),
-
-		#[cfg(feature = "use-function")]
-		_ if name == USE_NAME => Some(&USE),
-
-		_ => None,
+	macro_rules! insert {
+		($($name:ident)*) => {
+			$(
+				map.insert($name.name.as_bytes()[0] as char, &$name);
+			)*
+		};
 	}
+
+	insert! {
+		PROMPT RANDOM
+		BLOCK CALL SYSTEM QUIT NOT LENGTH DUMP OUTPUT ASCII NEG BOX
+		ADD SUBTRACT MULTIPLY DIVIDE MODULO POWER EQUALS LESS_THAN GREATER_THAN AND OR
+		THEN ASSIGN WHILE RANGE IF GET SET
+	}
+
+	map
 }
 
 macro_rules! arity {
@@ -135,7 +60,7 @@ macro_rules! arity {
 macro_rules! function {
 	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
 		Function {
-			name: $name,
+			name: match Text::new($name) { Ok(v) => v, Err(_) => panic!("invalid name") },
 			arity: arity!($($args)*),
 			func: |args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
@@ -829,18 +754,14 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 });
 
 /// **6.1** `VALUE`
-#[cfg(feature = "value-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
 pub const VALUE: Function = function!("V", env, |arg| {
 	let name = arg.run(env)?.to_text()?;
 	env.lookup(&name)?
 });
 
 /// **6.4** `HANDLE`
-#[cfg(feature = "handle-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
 pub const HANDLE: Function = function!("H", env, |block, iferr| {
-	const ERR_VAR_NAME: &'static crate::Text = unsafe { crate::Text::new_unchecked("_") };
+	const ERR_VAR_NAME: &'static Text = unsafe { Text::new_unchecked("_") };
 
 	match block.run(env) {
 		Ok(value) => value,
@@ -858,8 +779,6 @@ pub const HANDLE: Function = function!("H", env, |block, iferr| {
 });
 
 /// **6.3** `USE`
-#[cfg(feature = "use-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
 pub const USE: Function = function!("USE", env, |arg| {
 	let filename = arg.run(env)?.to_text()?;
 	let contents = env.read_file(&filename)?;
@@ -868,26 +787,80 @@ pub const USE: Function = function!("USE", env, |arg| {
 });
 
 /// **4.2.2** `EVAL`
-#[cfg(feature = "eval-function")]
 pub const EVAL: Function = function!("E", env, |val| {
 	let code = val.run(env)?.to_text()?;
 	env.play(&code)?
 });
 
-/// **Compiler extension**: SRAND
-#[cfg(feature = "srand-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
-pub const SRAND: Function = function!("XSRAND", env, |arg| {
+/// **Compiler extension**: XSRAND
+pub const XSRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
 });
 
 /// **Compiler extension**: REV
-#[cfg(feature = "reverse-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "reverse-function")))]
-pub const REVERSE: Function = function!("XREV", env, |arg| {
-	let seed = arg.run(env)?.to_integer()?;
-	env.srand(seed);
-	Value::default()
+pub const XREVERSE: Function = function!("XREVERSE", env, |arg| {
+	// let seed = arg.run(env)?.to_text()?;
+	// env.srand(seed);
+	// Value::default()
+	let _ = (env, arg);
+	if true {
+		todo!()
+	} // also reverse lists
 });
+
+// pub struct CheckOverflow;
+// pub struct Wrapping;
+
+// impl Checked for CheckOverflow {
+// 	#[inline(always)]
+// 	fn domath(
+// 		checked: impl FnOnce() -> Option<Integer>,
+// 		_: impl FnOnce() -> Integer,
+// 	) -> Result<Integer> {
+// 		checked().ok_or(Error::IntegerOverflow)
+// 	}
+// }
+// impl Checked for Wrapping {
+// 	#[inline(always)]
+// 	fn domath(
+// 		_: impl FnOnce() -> Option<Integer>,
+// 		wrapping: impl FnOnce() -> Integer,
+// 	) -> Result<Integer> {
+// 		Ok(wrapping())
+// 	}
+// }
+
+// pub trait Checked {
+// 	fn domath(
+// 		checked: impl FnOnce() -> Option<Integer>,
+// 		wrapping: impl FnOnce() -> Integer,
+// 	) -> Result<Integer>;
+// }
+
+// pub const fn Negate<T: Checked>() -> Function {
+// 	fn func<T: Checked>(args: &[Value], env: &mut Environment) -> Result<Value> {
+// 		let num = args[0].run(env)?.to_integer()?;
+
+// 		Ok(T::domath(|| num.checked_neg(), || num.wrapping_neg())?.into())
+// 	}
+
+// 	let func2: for<'r, 's> fn(&'r _, &'s mut _) -> _ = func::<Wrapping>;
+
+// 	Function { arity: 1, name: "~", func: func2 }
+// }
+
+// // pub fn doneg<T: Checked>(args: &[Value], env: &mut Environment) -> Result<Value> {}
+
+// // pub const NEG: Function = function!("~", env, |arg| {
+// // 	let num = arg.run(env)?.to_integer()?;
+
+// // 	cfg_if! {
+// // 		if #[cfg(feature = "checked-overflow")] {
+// // 			num.checked_neg().ok_or(Error::IntegerOverflow)?
+// // 		} else {
+// // 			num.wrapping_neg()
+// // 		}
+// // 	}
+// // });

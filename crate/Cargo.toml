@@ -23,8 +23,6 @@ multithreaded = []
 ##            Extensions             ##
 #######################################
 
-
-
 value-function = [] # Enables the `VALUE` function
 eval-function = [] # Enables the `EVAL` function
 assign-to-anything = [] # Convert non-variables to strings for the first arg in `=`.
@@ -50,10 +48,10 @@ extension-functions = [] # Required for all `X` functions.
 
 
 # Enables `XSRAND`
-srand-function = ["extension-functions"]
+xsrand-function = ["extension-functions"]
 
 # Enables `XREV`
-reverse-function = ["extension-functions"]
+xreverse-function = ["extension-functions"]
 
 # Enable most extensions
 normal-extensions = [
@@ -61,7 +59,8 @@ normal-extensions = [
 	"assign-to-anything",
 	"handle-function",
 	"use-function",
-	"srand-function",
+	"xsrand-function",
+	"xreverse-function",
 ]
 
 all-extensions = ["normal-extensions", "qol-extensions"]
