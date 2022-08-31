@@ -41,9 +41,13 @@ pub struct Environment {
 	#[cfg(feature = "extension-functions")]
 	extensions: HashMap<SharedText, &'static crate::Function>,
 
-	// A queue of things that'll be read from PROMPT instead of stdin.
+	// A queue of things that'll be read from for `PROMPT` instead of stdin.
 	#[cfg(feature = "assign-to-prompt")]
 	prompt_lines: std::collections::VecDeque<SharedText>,
+
+	// A queue of things that'll be read from for `` ` `` instead of stdin.
+	#[cfg(feature = "assign-to-prompt")]
+	system_results: std::collections::VecDeque<SharedText>,
 
 	// The function that governs reading a file.
 	#[cfg(feature = "use-function")]
@@ -88,6 +92,9 @@ impl Default for Environment {
 
 			#[cfg(feature = "assign-to-prompt")]
 			prompt_lines: Default::default(),
+
+			#[cfg(feature = "assign-to-system")]
+			system_results: Default::default(),
 
 			#[cfg(feature = "use-function")]
 			readfile: Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?)),
@@ -153,12 +160,26 @@ impl Environment {
 
 	#[cfg(feature = "assign-to-prompt")]
 	pub fn add_to_prompt(&mut self, line: SharedText) {
+		if line.contains('\n') {
+			todo!("split on `\\n` for `line`");
+		}
+
 		self.prompt_lines.push_back(line);
 	}
 
 	#[cfg(feature = "assign-to-prompt")]
 	pub fn get_next_prompt_line(&mut self) -> Option<SharedText> {
 		self.prompt_lines.pop_front()
+	}
+
+	#[cfg(feature = "assign-to-system")]
+	pub fn add_to_system(&mut self, output: SharedText) {
+		self.system_results.push_back(output);
+	}
+
+	#[cfg(feature = "assign-to-system")]
+	pub fn get_next_system_result(&mut self) -> Option<SharedText> {
+		self.system_results.pop_front()
 	}
 
 	#[cfg(feature = "use-function")]

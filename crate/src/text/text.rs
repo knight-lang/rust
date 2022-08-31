@@ -83,6 +83,16 @@ impl Text {
 			.try_into()
 			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
+
+	#[cfg(feature = "list-extensions")]
+	pub fn split(&self, sep: &Self) -> crate::List {
+		if sep.is_empty() {
+			// TODO: optimize me
+			crate::Value::from(self.to_owned()).to_list().unwrap()
+		} else {
+			(**self).split(&**sep).map(|x| SharedText::new(x).unwrap().into()).collect()
+		}
+	}
 }
 
 impl<'a> TryFrom<&'a str> for &'a Text {
@@ -119,5 +129,14 @@ impl ToOwned for Text {
 
 	fn to_owned(&self) -> Self::Owned {
 		self.into()
+	}
+}
+
+impl<'a> IntoIterator for &'a Text {
+	type Item = char;
+	type IntoIter = Chars<'a>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.chars()
 	}
 }

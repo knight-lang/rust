@@ -252,9 +252,15 @@ pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_bool()?);
 
 /// **4.2.8** `LENGTH`  
 pub const LENGTH: Function = function!("LENGTH", env, |arg| {
-	let list = arg.run(env)?.to_list()?;
-
-	list.len() as Integer
+	match arg.run(env)? {
+		Value::SharedText(text) => {
+			debug_assert_eq!(text.len(), Value::SharedText(text.clone()).to_list().unwrap().len());
+			text.len() as Integer
+		}
+		Value::List(list) => list.len() as Integer,
+		// TODO: integer base10 when that comes out.
+		other => other.to_list()?.len() as Integer,
+	}
 });
 
 /// **4.2.9** `DUMP`  
@@ -371,6 +377,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 				}
 			}
 		}
+
 		Value::SharedText(lstr) => {
 			let amount = rhs
 				.run(env)?
@@ -386,42 +393,21 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 		}
 
 		Value::List(list) => {
+			let rhs = rhs.run(env)?;
+
+			#[cfg(feature = "list-extensions")]
+			if matches!(rhs, Value::Ast(_)) {
+				return Ok(list.map(&rhs, env)?.into());
+			}
+
 			let amount = rhs
-				.run(env)?
 				.to_integer()?
 				.try_conv::<usize>()
 				.or(Err(Error::DomainError("repetition count is negative")))?;
 
-			if isize::MAX as usize <= amount * list.len() {
-				return Err(Error::DomainError("repetition is too large"));
-			}
-
+			// No need to check for repetition length because `list.repeat` doesnt actually
+			// make a list.
 			list.repeat(amount).conv::<Value>()
-
-			// 	Value::SharedText(string) => {
-			// 	Value::List(rlist) => {
-			// 		let mut result = Vec::with_capacity(llist.len() * rlist.len());
-
-			// 		for lele in llist.iter() {
-			// 			for rele in rlist.iter() {
-			// 				result.push(List::from(vec![lele.clone(), rele.clone()]).into());
-			// 			}
-			// 		}
-
-			// 		List::from(result).into()
-			// 	}
-			// 	Value::Ast(ast) => {
-			// 		let mut result = Vec::with_capacity(llist.len());
-			// 		let arg = env.lookup("_".try_into().unwrap())?;
-
-			// 		for ele in llist.iter() {
-			// 			arg.assign(ele.clone());
-			// 			result.push(ast.run(env)?);
-			// 		}
-
-			// 		List::from(result).into()
-			// 	}
-			// 	other => return Err(Error::TypeError(other.typename())),
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -448,36 +434,10 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 		}
 
 		#[cfg(feature = "string-extensions")]
-		Value::SharedText(lstr) => {
-			let rstr = rhs.run(env)?.to_text()?;
-
-			if rstr.is_empty() {
-				return Ok(Value::SharedText(lstr).to_list()?.into());
-			}
-
-			lstr.split(&**rstr).map(|x| SharedText::new(x).unwrap().into()).collect::<List>().into()
-		}
+		Value::SharedText(text) => text.split(&rhs.run(env)?.to_text()?).into(),
 
 		#[cfg(feature = "list-extensions")]
-		Value::List(llist) => match rhs.run(env)? {
-			Value::Ast(ast) => {
-				let acc_var = env.lookup("a".try_into().unwrap())?;
-
-				if let Some(init) = llist.as_slice().get(0) {
-					acc_var.assign(init.clone());
-				}
-
-				let arg_var = env.lookup("_".try_into().unwrap())?;
-
-				for ele in llist.iter().skip(1) {
-					arg_var.assign(ele.clone());
-					acc_var.assign(ast.run(env)?);
-				}
-
-				acc_var.fetch().unwrap_or_default()
-			}
-			other => return Err(Error::TypeError(other.typename())),
-		},
+		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -507,64 +467,48 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 			}
 		}
 
-		#[cfg(feature = "string-extensions")]
-		Value::SharedText(lstr) => {
-			let values = rhs.run(env)?.to_list()?;
-			let mut values_index = 0;
+		// #[cfg(feature = "string-extensions")]
+		// Value::SharedText(lstr) => {
+		// 	let values = rhs.run(env)?.to_list()?;
+		// 	let mut values_index = 0;
 
-			let mut formatted = String::new();
-			let mut chars = lstr.chars();
+		// 	let mut formatted = String::new();
+		// 	let mut chars = lstr.chars();
 
-			while let Some(chr) = chars.next() {
-				match chr {
-					'\\' => {
-						formatted.push(match chars.next().expect("<todo error for nothing next>") {
-							'n' => '\n',
-							'r' => '\r',
-							't' => '\t',
-							'{' => '{',
-							'}' => '}',
-							_ => panic!("todo: error for unknown escape code"),
-						});
-					}
-					'{' => {
-						if chars.next() != Some('}') {
-							panic!("todo, missing closing `}}`");
-						}
-						formatted.push_str(
-							&values
-								.as_slice()
-								.get(values_index)
-								.expect("no values left to format")
-								.to_text()?,
-						);
-						values_index += 1;
-					}
-					_ => formatted.push(chr),
-				}
-			}
+		// 	while let Some(chr) = chars.next() {
+		// 		match chr {
+		// 			'\\' => {
+		// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
+		// 					'n' => '\n',
+		// 					'r' => '\r',
+		// 					't' => '\t',
+		// 					'{' => '{',
+		// 					'}' => '}',
+		// 					_ => panic!("todo: error for unknown escape code"),
+		// 				});
+		// 			}
+		// 			'{' => {
+		// 				if chars.next() != Some('}') {
+		// 					panic!("todo, missing closing `}}`");
+		// 				}
+		// 				formatted.push_str(
+		// 					&values
+		// 						.as_slice()
+		// 						.get(values_index)
+		// 						.expect("no values left to format")
+		// 						.to_text()?,
+		// 				);
+		// 				values_index += 1;
+		// 			}
+		// 			_ => formatted.push(chr),
+		// 		}
+		// 	}
 
-			SharedText::new(formatted).unwrap().into()
-		}
-
+		// 	SharedText::new(formatted).unwrap().into()
+		// }
 		#[cfg(feature = "list-extensions")]
-		Value::List(llist) => match rhs.run(env)? {
-			Value::Ast(ast) => {
-				let mut result = Vec::new();
-				let arg_var = env.lookup("_".try_into().unwrap())?;
+		Value::List(list) => list.filter(&rhs.run(env)?, env)?.into(),
 
-				for ele in llist.iter() {
-					arg_var.assign(ele.clone());
-
-					if ast.run(env)?.to_bool()? {
-						result.push(ele.clone());
-					}
-				}
-
-				List::from(result).into()
-			}
-			other => return Err(Error::TypeError(other.typename())),
-		},
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -601,8 +545,9 @@ fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 		Value::List(list) => {
 			let rhs = rhs.to_list()?;
 
-			for (left, right) in list.iter().zip(rhs.iter()) {
-				match compare(left, right)? {
+			// feels bad to be iterating over by-values.
+			for (left, right) in list.iter().zip(&rhs) {
+				match compare(&left, &right)? {
 					std::cmp::Ordering::Equal => {}
 					other => return Ok(other),
 				}
@@ -679,35 +624,37 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		#[cfg(feature = "assign-to-prompt")]
 		Value::Ast(ast) if ast.function().name == PROMPT.name => env.add_to_prompt(value.to_text()?),
 
+		#[cfg(feature = "assign-to-system")]
+		Value::Ast(ast) if ast.function().name == SYSTEM.name => env.add_to_system(value.to_text()?),
+
 		#[cfg(feature = "list-extensions")]
 		Value::Ast(_ast) => return assign(&variable.run(env)?, value, env),
 
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => {
-			if list.is_empty() {
-				panic!("todo: error for this case");
-			}
-			let rhs = value.run(env)?.to_list()?;
+		// #[cfg(feature = "assign-to-lists")]
+		// Value::List(list) => {
+		// 	if list.is_empty() {
+		// 		panic!("todo: error for this case");
+		// 	}
+		// 	let rhs = value.run(env)?.to_list()?;
 
-			for (name, val) in list.as_slice().iter().zip(rhs.iter().cloned()) {
-				assign(name, val, env)?;
-			}
+		// 	for (name, val) in list.iter().zip(&rhs) {
+		// 		assign(&name, val, env)?;
+		// 	}
 
-			match list.len().cmp(&rhs.len()) {
-				std::cmp::Ordering::Equal => {}
-				std::cmp::Ordering::Less => assign(
-					list.as_slice().iter().last().unwrap(),
-					rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<List>().into(),
-					env,
-				)?,
-				std::cmp::Ordering::Greater => {
-					for extra in &list.as_slice()[rhs.len()..] {
-						assign(extra, Value::default(), env)?;
-					}
-				}
-			}
-		}
-
+		// 	match list.len().cmp(&rhs.len()) {
+		// 		std::cmp::Ordering::Equal => {}
+		// 		std::cmp::Ordering::Less => assign(
+		// 			list.as_slice().iter().last().unwrap(),
+		// 			rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<List>().into(),
+		// 			env,
+		// 		)?,
+		// 		std::cmp::Ordering::Greater => {
+		// 			for extra in &list.as_slice()[rhs.len()..] {
+		// 				assign(extra, Value::default(), env)?;
+		// 			}
+		// 		}
+		// 	}
+		// }
 		#[cfg(feature = "assign-to-anything")]
 		_ => {
 			let name = variable.run(env)?.to_text()?;
@@ -782,20 +729,21 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 		.try_conv::<usize>()
 		.or(Err(Error::DomainError("negative length")))?;
 
-	#[cfg(feature = "arrays")]
 	if let Value::List(list) = source {
-		return Ok(if length == 0 {
-			list.as_slice().get(start as usize).unwrap().clone()
-		} else {
-			list
-				.as_slice()
-				.get((start as usize)..(start as usize) + length)
-				.expect("Todo: error")
-				.iter()
-				.cloned()
-				.collect::<List>()
-				.into()
-		});
+		let _ = list;
+		todo!();
+		// return Ok(if length == 0 {
+		// 	list.as_slice().get(start as usize).unwrap().clone()
+		// } else {
+		// 	list
+		// 		.as_slice()
+		// 		.get((start as usize)..(start as usize) + length)
+		// 		.expect("Todo: error")
+		// 		.iter()
+		// 		.cloned()
+		// 		.collect::<List>()
+		// 		.into()
+		// });
 	}
 
 	let string = source.to_text()?;
@@ -827,22 +775,23 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 		.or(Err(Error::DomainError("negative length")))?;
 	let replacement_source = replacement.run(env)?;
 
-	#[cfg(feature = "arrays")]
 	if let Value::List(list) = source {
-		if length == 0 {
-			let mut dup = list.iter().cloned().collect::<Vec<Value>>();
-			dup[start as usize] = replacement_source;
-			return Ok(List::from(dup).into());
-		}
+		let _ = list;
+		todo!();
+		// if length == 0 {
+		// 	let mut dup = list.iter().cloned().collect::<Vec<Value>>();
+		// 	dup[start as usize] = replacement_source;
+		// 	return Ok(List::from(dup).into());
+		// }
 
-		let replacement = replacement_source.to_list()?;
+		// let replacement = replacement_source.to_list()?;
 
-		let mut ret = Vec::new();
-		ret.extend(list.iter().cloned().take(start as usize));
-		ret.extend(replacement.iter().cloned());
-		ret.extend(list.iter().cloned().skip((start as usize) + length));
+		// let mut ret = Vec::new();
+		// ret.extend(list.iter().cloned().take(start as usize));
+		// ret.extend(replacement.iter().cloned());
+		// ret.extend(list.iter().cloned().skip((start as usize) + length));
 
-		return Ok(List::from(ret).into());
+		// return Ok(List::from(ret).into());
 	}
 
 	let string = source.to_text()?;

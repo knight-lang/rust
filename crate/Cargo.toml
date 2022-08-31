@@ -11,20 +11,8 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["all-extensions", "arrays", "list-extensions", "string-extensions"]
-
-#######################################
-##           Optimizations           ##
-#######################################
-
-# Leak strings for fast access later.
-cache-strings = []
-
-# Instead of propagating exceptions, abort when an error occurs.
-abort-on-errors = []
-
-# Enable all optimizations
-optimized = ["abort-on-errors", "cache-strings"]
+default = ["all-extensions", "arrays", "list-extensions", "string-extensions", "negative-ranges",
+"assignment-overloads"]
 
 #######################################
 ##      Disabling Optimizations      ##
@@ -35,30 +23,31 @@ multithreaded = []
 ##            Extensions             ##
 #######################################
 
+
+
+value-function = [] # Enables the `VALUE` function
+eval-function = [] # Enables the `EVAL` function
+assign-to-anything = [] # Convert non-variables to strings for the first arg in `=`.
+handle-function = [] # Enables the use of `HANDLE a b`, which is try/catch; error msg is in `_`
+use-function = [] # Enables the `USE` function, which is for importing files
+
+# Spec-defined:
+spec-extensions = [
+	"value-function",
+	"eval-function",
+	"handle-function",
+	"use-function",
+	"assign-to-anything",
+]
+
 # Mine:
-list-extensions = []
+list-extensions = ["assign-to-lists"]
 string-extensions = []
 negative-ranges = []
-
-# Recommended:
+assign-to-lists = []
 
 extension-functions = [] # Required for all `X` functions.
 
-# Enables the `VALUE` function
-value-function = []
-
-# Enables the `EVAL` function
-eval-function = []
-
-# Convert non-variables to strings for the first arg in `=`.
-assign-to-anything = []
-
-# Enables the use of `HANDLE a b`, which is try/catch.
-# The error message will be stored in `_`.
-handle-function = []
-
-# Enables the `USE` function, which is for importing files
-use-function = []
 
 # Enables `XSRAND`
 srand-function = ["extension-functions"]
@@ -94,6 +83,9 @@ negative-indexing = []
 # If this is set along with `assign-to-anything`, this will take precedence;
 # use `+""P` if you want to assign to `PROMPT`'s return value.
 assign-to-prompt = []
+assign-to-system = []
+
+assignment-overloads = ["assign-to-prompt", "assign-to-system"]
 
 # Enable all quality-of-life extensions
 qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]

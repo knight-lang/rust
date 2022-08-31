@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
 	}
 
 	fn peek(&self) -> Option<char> {
-		self.source.chars().next()
+		self.source.into_iter().next()
 	}
 
 	fn advance(&mut self) -> Option<char> {
