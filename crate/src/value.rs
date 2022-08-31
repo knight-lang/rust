@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
 #[derive(Clone, PartialEq)]
-pub enum Value {
+pub enum Value<'f> {
 	/// Represents the `NULL` value.
 	Null,
 
@@ -18,24 +18,24 @@ pub enum Value {
 	SharedText(SharedText),
 
 	/// Represents a variable.
-	Variable(Variable),
+	Variable(Variable<'f>),
 
 	/// Represents a block of code.
-	Ast(Ast),
+	Ast(Ast<'f>),
 
-	List(List),
+	List(List<'f>),
 }
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Value: Send, Sync);
+sa::assert_impl_all!(Value<'_>: Send, Sync);
 
-impl Default for Value {
+impl Default for Value<'_> {
 	#[inline]
 	fn default() -> Self {
 		Self::Null
 	}
 }
 
-impl Debug for Value {
+impl Debug for Value<'_> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -50,61 +50,61 @@ impl Debug for Value {
 	}
 }
 
-impl From<()> for Value {
+impl From<()> for Value<'_> {
 	#[inline]
 	fn from(_: ()) -> Self {
 		Self::Null
 	}
 }
 
-impl From<bool> for Value {
+impl From<bool> for Value<'_> {
 	#[inline]
 	fn from(boolean: bool) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl From<Integer> for Value {
+impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(number: Integer) -> Self {
 		Self::Integer(number)
 	}
 }
 
-impl From<SharedText> for Value {
+impl From<SharedText> for Value<'_> {
 	#[inline]
 	fn from(text: SharedText) -> Self {
 		Self::SharedText(text)
 	}
 }
 
-impl From<Variable> for Value {
+impl<'f> From<Variable<'f>> for Value<'f> {
 	#[inline]
-	fn from(variable: Variable) -> Self {
+	fn from(variable: Variable<'f>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl From<Ast> for Value {
+impl<'f> From<Ast<'f>> for Value<'f> {
 	#[inline]
-	fn from(inp: Ast) -> Self {
+	fn from(inp: Ast<'f>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl From<List> for Value {
+impl<'f> From<List<'f>> for Value<'f> {
 	#[inline]
-	fn from(list: List) -> Self {
+	fn from(list: List<'f>) -> Self {
 		Self::List(list)
 	}
 }
 
-pub trait Context: Sized {
-	fn convert(value: &Value) -> Result<Self>;
+pub trait Context<'f>: Sized {
+	fn convert(value: &Value<'f>) -> Result<Self>;
 }
 
-impl Context for bool {
-	fn convert(value: &Value) -> Result<Self> {
+impl Context<'_> for bool {
+	fn convert(value: &Value<'_>) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(boolean),
@@ -116,8 +116,8 @@ impl Context for bool {
 	}
 }
 
-impl Context for Integer {
-	fn convert(value: &Value) -> Result<Self> {
+impl Context<'_> for Integer {
+	fn convert(value: &Value<'_>) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(0),
 			Value::Boolean(boolean) => Ok(boolean as Self),
@@ -129,8 +129,8 @@ impl Context for Integer {
 	}
 }
 
-impl Context for SharedText {
-	fn convert(value: &Value) -> Result<Self> {
+impl Context<'_> for SharedText {
+	fn convert(value: &Value<'_>) -> Result<Self> {
 		match *value {
 			Value::Null => Ok("null".try_into().unwrap()),
 			Value::Boolean(boolean) => Ok(SharedText::new(boolean).unwrap()),
@@ -142,8 +142,8 @@ impl Context for SharedText {
 	}
 }
 
-impl Context for List {
-	fn convert(value: &Value) -> Result<Self> {
+impl<'f> Context<'f> for List<'f> {
+	fn convert(value: &Value<'f>) -> Result<Self> {
 		match *value {
 			Value::Null => Ok(Self::default()),
 			Value::Boolean(false) => Ok(Self::default()),
@@ -186,7 +186,7 @@ impl Context for List {
 	}
 }
 
-impl Value {
+impl<'f> Value<'f> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub const fn typename(&self) -> &'static str {
@@ -217,12 +217,12 @@ impl Value {
 	}
 
 	/// Converts `self` to a [`List`] according to the Knight spec.
-	pub fn to_list(&self) -> Result<List> {
+	pub fn to_list(&self) -> Result<List<'f>> {
 		Context::convert(self)
 	}
 
 	/// Executes the value.
-	pub fn run(&self, env: &mut Environment) -> Result<Self> {
+	pub fn run(&self, env: &mut Environment<'f>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => {
 				variable.fetch().ok_or_else(|| Error::UndefinedVariable(variable.name().clone()))

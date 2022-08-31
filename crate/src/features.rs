@@ -15,6 +15,19 @@ pub struct Features {
 }
 
 impl Features {
+	pub const fn new() -> Self {
+		Self {
+			functions: Functions {
+				value: false,
+				eval: false,
+				handle: false,
+				r#use: false,
+				xsrand: false,
+				xreverse: false,
+			},
+			assign_to_strings: false,
+		}
+	}
 	pub fn populate_functions(&self, builder: &mut crate::env::Builder) {
 		use crate::function::*;
 

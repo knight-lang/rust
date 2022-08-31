@@ -5,12 +5,12 @@ use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
 #[derive(Clone)]
-pub struct Variable(RefCount<(SharedText, Mutable<Option<Value>>)>);
+pub struct Variable<'f>(RefCount<(SharedText, Mutable<Option<Value<'f>>>)>);
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Variable: Send, Sync);
+sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
-impl Debug for Variable {
+impl Debug for Variable<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -23,8 +23,8 @@ impl Debug for Variable {
 	}
 }
 
-impl Eq for Variable {}
-impl PartialEq for Variable {
+impl Eq for Variable<'_> {}
+impl PartialEq for Variable<'_> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This'll just check to see if their names are equivalent. Techincally, this means that
@@ -36,14 +36,14 @@ impl PartialEq for Variable {
 	}
 }
 
-impl Borrow<Text> for Variable {
+impl Borrow<Text> for Variable<'_> {
 	#[inline]
 	fn borrow(&self) -> &Text {
 		self.name()
 	}
 }
 
-impl Hash for Variable {
+impl Hash for Variable<'_> {
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
@@ -109,7 +109,7 @@ pub fn validate_name(name: &Text) -> Result<(), IllegalVariableName> {
 	Ok(())
 }
 
-impl Variable {
+impl<'f> Variable<'f> {
 	/// Creates a new `Variable`.
 	#[must_use]
 	pub fn new(name: SharedText) -> Result<Self, IllegalVariableName> {
@@ -126,13 +126,13 @@ impl Variable {
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&self, new: Value) -> Option<Value> {
+	pub fn assign(&self, new: Value<'f>) -> Option<Value<'f>> {
 		(self.0).1.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if we haven't been assigned to yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value> {
+	pub fn fetch(&self) -> Option<Value<'f>> {
 		(self.0).1.read().clone()
 	}
 }

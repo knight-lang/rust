@@ -8,12 +8,12 @@ use tap::prelude::*;
 #[derive(Clone, Copy)]
 pub struct Function {
 	/// The code associated with this function
-	pub func: fn(&[Value], &mut Environment) -> Result<Value>,
+	pub func: for<'f> fn(&[Value<'f>], &mut Environment<'f>) -> Result<Value<'f>>,
 
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'static Text,
+	pub name: &'static Text, // FIXME: make me not `'static`
 
 	/// The arity of the function.
 	pub arity: usize,
@@ -358,12 +358,11 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 			}
 		}
 
-		#[cfg(feature = "string-extensions")]
-		Value::SharedText(text) => text.split(&rhs.run(env)?.to_text()?).into(),
+		// #[cfg(feature = "string-extensions")]
+		// Value::SharedText(text) => text.split(&rhs.run(env)?.to_text()?).into(),
 
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
-
+		// #[cfg(feature = "list-extensions")]
+		// Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -540,7 +539,7 @@ pub const THEN: Function = function!(";", env, |lhs, rhs| {
 	rhs.run(env)?
 });
 
-fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
+fn assign<'f>(variable: &Value<'f>, value: Value<'f>, env: &mut Environment<'f>) -> Result<()> {
 	match variable {
 		Value::Variable(var) => {
 			var.assign(value);
@@ -579,15 +578,13 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		// 			}
 		// 		}
 		// 	}
-		// }
-		#[cfg(feature = "assign-to-anything")]
-		_ => {
+		// }=
+		_ if env.features().assign_to_strings => {
 			let name = variable.run(env)?.to_text()?;
 			env.lookup(&name)?.assign(value);
 		}
 
-		#[cfg(not(feature = "assign-to-anything"))]
-		other => return Err(Error::TypeError(other.name())),
+		other => return Err(Error::TypeError(other.typename())),
 	}
 
 	Ok(())

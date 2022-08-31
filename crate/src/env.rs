@@ -1,8 +1,8 @@
 use crate::variable::IllegalVariableName;
-use crate::{Function, Integer, SharedText, Text, Value, Variable};
+use crate::{Features, Function, Integer, SharedText, Text, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 #[cfg(feature = "extension-functions")]
 use std::collections::HashMap;
@@ -11,112 +11,113 @@ mod builder;
 pub use builder::Builder;
 
 cfg_if! {
-	if #[cfg(feature="multithreaded")] {
-		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
-		type Stdin = dyn Read + Send + Sync;
-		type Stdout = dyn Write + Send + Sync;
-
-		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
+	if #[cfg(feature = "multithreaded")] {
+		pub trait Threadsafe: Send + Sync {}
+		impl<T: Send + Sync> Threadsafe for T{}
 	} else {
-		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText>;
-		type Stdin = dyn Read;
-		type Stdout = dyn Write;
-
-		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
+		pub trait Threadsafe {}
+		impl<T> Threadsafe for T{}
 	}
 }
 
+pub trait Stdin: BufRead + Threadsafe {}
+impl<T: BufRead + Threadsafe> Stdin for T {}
+
+pub trait Stdout: Write + Threadsafe {}
+impl<T: Write + Threadsafe> Stdout for T {}
+
+pub trait System: FnMut(&Text) -> crate::Result<SharedText> + Threadsafe {}
+impl<T: FnMut(&Text) -> crate::Result<SharedText> + Threadsafe> System for T {}
+
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment {
+pub struct Environment<'f> {
+	features: &'f Features,
+
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
-	variables: HashSet<Variable>,
-	stdin: BufReader<Box<Stdin>>,
-	stdout: Box<Stdout>,
-	system: Box<SystemCommand>,
+	variables: HashSet<Variable<'f>>,
+	stdin: Box<dyn Stdin + 'f>,
+	stdout: Box<dyn Stdout + 'f>,
+	system: Box<dyn System + 'f>,
+	readfile: Box<dyn System + 'f>,
 	rng: Box<StdRng>,
 
-	functions: HashMap<char, &'static Function>,
+	functions: HashMap<char, &'f Function>,
 
-	// All the known extension functions.
-	//
-	// FIXME: Maybe we should make functions refcounted or something?
-	#[cfg(feature = "extension-functions")]
-	extensions: HashMap<SharedText, &'static crate::Function>,
-
-	// A queue of things that'll be read from for `PROMPT` instead of stdin.
-	#[cfg(feature = "assign-to-prompt")]
+	extensions: HashMap<&'f Text, &'f crate::Function>,
 	prompt_lines: std::collections::VecDeque<SharedText>,
-
-	// A queue of things that'll be read from for `` ` `` instead of stdin.
-	#[cfg(feature = "assign-to-prompt")]
 	system_results: std::collections::VecDeque<SharedText>,
-
-	// The function that governs reading a file.
-	#[cfg(feature = "use-function")]
-	readfile: Box<ReadFile>,
 }
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl Default for Environment {
+impl Default for Environment<'_> {
 	fn default() -> Self {
-		Self {
-			variables: HashSet::default(),
-			functions: crate::function::default(),
-			stdin: BufReader::new(Box::new(std::io::stdin())),
-			stdout: Box::new(std::io::stdout()),
-			system: Box::new(|cmd| {
-				use std::process::{Command, Stdio};
+		const DEFAULT_FEATURES: Features = Features::new();
+		Self::new(&DEFAULT_FEATURES)
+		// Self {
+		// 	features: &DEFAULT,
+		// 	variables: HashSet::default(),
+		// 	functions: crate::function::default(),
+		// 	stdin: Some(BufReader::new(Box::new(std::io::stdin()))),
+		// 	stdout: Some(Box::new(std::io::stdout())),
+		// 	system: Some(Box::new(|cmd| {
+		// 		use std::process::{Command, Stdio};
 
-				let output = Command::new("/bin/sh")
-					.arg("-c")
-					.arg(&**cmd)
-					.stdin(Stdio::inherit())
-					.output()
-					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
+		// 		let output = Command::new("/bin/sh")
+		// 			.arg("-c")
+		// 			.arg(&**cmd)
+		// 			.stdin(Stdio::inherit())
+		// 			.output()
+		// 			.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 
-				Ok(SharedText::try_from(output)?)
-			}),
-			rng: Box::new(StdRng::from_entropy()),
+		// 		Ok(SharedText::try_from(output)?)
+		// 	})),
+		// 	rng: Box::new(StdRng::from_entropy()),
 
-			#[cfg(feature = "extension-functions")]
-			extensions: {
-				let mut map = HashMap::<SharedText, &'static crate::Function>::default();
+		// 	#[cfg(feature = "extension-functions")]
+		// 	extensions: {
+		// 		let mut map = HashMap::<SharedText, &'static crate::Function>::default();
 
-				#[cfg(feature = "xsrand-function")]
-				map.insert("SRAND".try_into().unwrap(), &crate::function::XSRAND);
+		// 		#[cfg(feature = "xsrand-function")]
+		// 		map.insert("SRAND".try_into().unwrap(), &crate::function::XSRAND);
 
-				#[cfg(feature = "xreverse-function")]
-				map.insert("REV".try_into().unwrap(), &crate::function::XREVERSE);
+		// 		#[cfg(feature = "xreverse-function")]
+		// 		map.insert("REV".try_into().unwrap(), &crate::function::XREVERSE);
 
-				map
-			},
+		// 		map
+		// 	},
 
-			#[cfg(feature = "assign-to-prompt")]
-			prompt_lines: Default::default(),
+		// 	#[cfg(feature = "assign-to-prompt")]
+		// 	prompt_lines: Default::default(),
 
-			#[cfg(feature = "assign-to-system")]
-			system_results: Default::default(),
+		// 	#[cfg(feature = "assign-to-system")]
+		// 	system_results: Default::default(),
 
-			#[cfg(feature = "use-function")]
-			readfile: Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?)),
-		}
+		// 	#[cfg(feature = "use-function")]
+		// 	readfile: Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?)),
+		// }
 	}
 }
 
-impl Environment {
+impl<'f> Environment<'f> {
+	pub fn features(&self) -> &'f Features {
+		self.features
+	}
+
+	pub fn new(features: &'f Features) -> Self {
+		Builder::new(features).build()
+	}
+
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &Text) -> crate::Result<Value> {
-		crate::Parser::new(source).parse(self)?.run(self)
+	pub fn play(&mut self, source: &Text) -> crate::Result<Value<'f>> {
+		crate::Parser::new(source, &self.features).parse(self)?.run(self)
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &Text) -> Result<Variable, IllegalVariableName> {
+	pub fn lookup(&mut self, name: &Text) -> Result<Variable<'f>, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -127,7 +128,7 @@ impl Environment {
 		Ok(variable)
 	}
 
-	pub fn lookup_function(&self, name: char) -> Option<&'static Function> {
+	pub fn lookup_function(&self, name: char) -> Option<&'f Function> {
 		self.functions.get(&name).copied()
 	}
 
@@ -153,16 +154,12 @@ impl Environment {
 	}
 
 	/// Gets the list of known extension functions.
-	#[cfg(feature = "extension-functions")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions(&self) -> &HashMap<SharedText, &'static crate::Function> {
+	pub fn extensions(&self) -> &HashMap<&'f Text, &'f crate::Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
-	#[cfg(feature = "extension-functions")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedText, &'static crate::Function> {
+	pub fn extensions_mut(&mut self) -> &mut HashMap<&'f Text, &'f crate::Function> {
 		&mut self.extensions
 	}
 
@@ -196,14 +193,14 @@ impl Environment {
 	}
 }
 
-impl Read for Environment {
+impl Read for Environment<'_> {
 	#[inline]
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
 		self.stdin.read(data)
 	}
 }
 
-impl BufRead for Environment {
+impl BufRead for Environment<'_> {
 	#[inline]
 	fn fill_buf(&mut self) -> io::Result<&[u8]> {
 		self.stdin.fill_buf()
@@ -220,7 +217,7 @@ impl BufRead for Environment {
 	}
 }
 
-impl Write for Environment {
+impl Write for Environment<'_> {
 	#[inline]
 	fn write(&mut self, data: &[u8]) -> io::Result<usize> {
 		self.stdout.write(data)

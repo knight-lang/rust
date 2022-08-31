@@ -4,15 +4,15 @@ use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeInclusive};
 
 #[derive(Clone, Default)]
-pub struct List(Option<RefCount<Inner>>);
+pub struct List<'f>(Option<RefCount<Inner<'f>>>);
 
-enum Inner {
-	Boxed(Value),
+enum Inner<'f> {
+	Boxed(Value<'f>),
 	IntRange(Range<Integer>),        // strictly increasing, nonempty
 	CharRange(RangeInclusive<char>), // strictly increasing, nonempty
-	Slice(Box<[Value]>),             // nonempty slice
-	Cons(List, List),                // neither list is empty
-	Repeat(List, usize),             // the usize is >= 2
+	Slice(Box<[Value<'f>]>),         // nonempty slice
+	Cons(List<'f>, List<'f>),        // neither list is empty
+	Repeat(List<'f>, usize),         // the usize is >= 2
 
 	#[cfg(feature = "negative-ranges")]
 	IntRangeRev(Range<Integer>), // strictly increasing, nonempty
@@ -20,7 +20,7 @@ enum Inner {
 	CharRangeRev(RangeInclusive<char>), // strictly increasing, nonempty.
 }
 
-impl PartialEq for List {
+impl PartialEq for List<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
 		if std::ptr::eq(self, rhs) {
 			return true;
@@ -30,23 +30,24 @@ impl PartialEq for List {
 			return false;
 		}
 
+		// FIXME: dont clone when doing this
 		self.iter().zip(rhs.iter()).all(|(l, r)| l == r)
 	}
 }
 
-impl Debug for List {
+impl Debug for List<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_list().entries(self.iter()).finish()
 	}
 }
 
-impl From<Value> for List {
-	fn from(value: Value) -> Self {
+impl<'f> From<Value<'f>> for List<'f> {
+	fn from(value: Value<'f>) -> Self {
 		Self::_new(Inner::Boxed(value))
 	}
 }
 
-impl TryFrom<Range<Integer>> for List {
+impl TryFrom<Range<Integer>> for List<'_> {
 	type Error = Error;
 
 	fn try_from(range: Range<Integer>) -> Result<Self> {
@@ -64,7 +65,7 @@ impl TryFrom<Range<Integer>> for List {
 	}
 }
 
-impl TryFrom<RangeInclusive<char>> for List {
+impl TryFrom<RangeInclusive<char>> for List<'_> {
 	type Error = Error;
 
 	fn try_from(range: RangeInclusive<char>) -> Result<Self> {
@@ -108,8 +109,8 @@ impl TryFrom<RangeInclusive<char>> for List {
 // 	}
 // }
 
-impl From<Box<[Value]>> for List {
-	fn from(list: Box<[Value]>) -> Self {
+impl<'f> From<Box<[Value<'f>]>> for List<'f> {
+	fn from(list: Box<[Value<'f>]>) -> Self {
 		match list.len() {
 			0 => Self::default(),
 			// OPTIMIZE: is there a way to not do `.clone()`?
@@ -119,24 +120,24 @@ impl From<Box<[Value]>> for List {
 	}
 }
 
-impl From<Vec<Value>> for List {
-	fn from(list: Vec<Value>) -> Self {
+impl<'f> From<Vec<Value<'f>>> for List<'f> {
+	fn from(list: Vec<Value<'f>>) -> Self {
 		list.into_boxed_slice().into()
 	}
 }
 
-impl FromIterator<Value> for List {
-	fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
-		iter.into_iter().collect::<Vec<Value>>().into()
+impl<'f> FromIterator<Value<'f>> for List<'f> {
+	fn from_iter<T: IntoIterator<Item = Value<'f>>>(iter: T) -> Self {
+		iter.into_iter().collect::<Vec<Value<'f>>>().into()
 	}
 }
 
-impl List {
-	fn _new(inner: Inner) -> Self {
+impl<'f> List<'f> {
+	fn _new(inner: Inner<'f>) -> Self {
 		Self(Some(inner.into()))
 	}
 
-	fn inner(&self) -> Option<&Inner> {
+	fn inner(&self) -> Option<&Inner<'f>> {
 		self.0.as_deref()
 	}
 
@@ -166,7 +167,7 @@ impl List {
 		}
 	}
 
-	pub fn get<F: SliceFetch>(&self, index: F) -> Option<F::Output> {
+	pub fn get<F: SliceFetch<'f>>(&self, index: F) -> Option<F::Output> {
 		index.get(self)
 	}
 
@@ -176,7 +177,7 @@ impl List {
 		self.join(NEWLINE)
 	}
 
-	pub fn concat<'a>(&self, rhs: &List) -> Self {
+	pub fn concat(&self, rhs: &Self) -> Self {
 		if self.len() == 0 {
 			rhs.clone()
 		} else if rhs.len() == 0 {
@@ -211,7 +212,7 @@ impl List {
 		Ok(joined.finish())
 	}
 
-	pub fn iter(&self) -> Iter<'_> {
+	pub fn iter(&self) -> Iter<'f, '_> {
 		match self.inner() {
 			None => Iter::Empty,
 			Some(Inner::Boxed(val)) => Iter::Boxed(val),
@@ -230,7 +231,7 @@ impl List {
 		}
 	}
 
-	pub fn contains(&self, value: &Value) -> bool {
+	pub fn contains(&self, value: &Value<'f>) -> bool {
 		match self.inner() {
 			None => false,
 			Some(Inner::Boxed(val)) => val == value,
@@ -273,7 +274,7 @@ impl List {
 	}
 
 	#[cfg(feature = "list-extensions")]
-	pub fn map(&self, block: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn map(&self, block: &Value<'f>, env: &mut Environment<'f>) -> Result<Self> {
 		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
@@ -288,7 +289,7 @@ impl List {
 	}
 
 	#[cfg(feature = "list-extensions")]
-	pub fn reduce(&self, block: &Value, env: &mut Environment) -> Result<Option<Value>> {
+	pub fn reduce(&self, block: &Value<'f>, env: &mut Environment<'f>) -> Result<Option<Value<'f>>> {
 		const ACCUMULATE: &'static Text = unsafe { Text::new_unchecked("a") };
 		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
 
@@ -311,7 +312,7 @@ impl List {
 	}
 
 	#[cfg(feature = "list-extensions")]
-	pub fn filter(&self, block: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn filter(&self, block: &Value<'f>, env: &mut Environment<'f>) -> Result<Self> {
 		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
@@ -327,14 +328,14 @@ impl List {
 	}
 }
 
-pub trait SliceFetch {
+pub trait SliceFetch<'f> {
 	type Output;
-	fn get(self, list: &List) -> Option<Self::Output>;
+	fn get(self, list: &List<'f>) -> Option<Self::Output>;
 }
 
-impl SliceFetch for usize {
-	type Output = Value;
-	fn get(self, list: &List) -> Option<Self::Output> {
+impl<'f> SliceFetch<'f> for usize {
+	type Output = Value<'f>;
+	fn get(self, list: &List<'f>) -> Option<Self::Output> {
 		match list.inner()? {
 			Inner::Boxed(ele) => (self == 0).then(|| ele.clone()),
 
@@ -355,10 +356,10 @@ impl SliceFetch for usize {
 	}
 }
 
-impl SliceFetch for Range<usize> {
-	type Output = List;
+impl<'f> SliceFetch<'f> for Range<usize> {
+	type Output = List<'f>;
 
-	fn get(self, list: &List) -> Option<Self::Output> {
+	fn get(self, list: &List<'f>) -> Option<Self::Output> {
 		// shouldn't be the same, because it's already checked for.
 		assert_ne!(self.start, self.end);
 
@@ -371,9 +372,9 @@ impl SliceFetch for Range<usize> {
 	}
 }
 
-impl<'a> IntoIterator for &'a List {
-	type Item = Value;
-	type IntoIter = Iter<'a>;
+impl<'f, 'a> IntoIterator for &'a List<'f> {
+	type Item = Value<'f>;
+	type IntoIter = Iter<'f, 'a>;
 
 	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
 		self.iter()
@@ -381,13 +382,13 @@ impl<'a> IntoIterator for &'a List {
 }
 
 #[derive(Clone)]
-pub enum Iter<'a> {
+pub enum Iter<'f, 'a> {
 	Empty,
-	Boxed(&'a Value),
+	Boxed(&'a Value<'f>),
 	IntRange(Range<Integer>),
 	CharRange(RangeInclusive<char>),
-	Cons(List, List),
-	Slice(std::slice::Iter<'a, Value>),
+	Cons(List<'f>, List<'f>),
+	Slice(std::slice::Iter<'a, Value<'f>>),
 	Repeat(std::iter::Cycle<Box<Self>>, usize),
 
 	#[cfg(feature = "negative-ranges")]
@@ -396,8 +397,8 @@ pub enum Iter<'a> {
 	CharRangeRev(RangeInclusive<char>),
 }
 
-impl<'a> Iterator for Iter<'a> {
-	type Item = Value;
+impl<'f, 'a> Iterator for Iter<'f, 'a> {
+	type Item = Value<'f>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		match self {
