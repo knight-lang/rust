@@ -11,3 +11,7 @@ pub use list::{List, ToList};
 pub use null::Null;
 pub use text::*;
 pub use value::Value;
+
+pub trait KnightType: Into<Value> {
+	const TYPENAME: &'static str;
+}

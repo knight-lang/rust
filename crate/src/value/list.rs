@@ -1,5 +1,5 @@
-use crate::value::{Boolean, Integer, ToBoolean, ToInteger, Value};
-use crate::{Environment, RefCount, Result, SharedText, Text};
+use crate::value::{Boolean, Integer, KnightType, Text, ToBoolean, ToInteger, ToText, Value};
+use crate::{Environment, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Range;
 
@@ -60,6 +60,10 @@ impl FromIterator<Value> for List {
 	}
 }
 
+impl KnightType for List {
+	const TYPENAME: &'static str = "List";
+}
+
 impl List {
 	pub const EMPTY: Self = Self(None);
 
@@ -95,12 +99,6 @@ impl List {
 		index.get(self)
 	}
 
-	pub fn to_text(&self) -> Result<SharedText> {
-		const NEWLINE: &Text = unsafe { Text::new_unchecked("\n") };
-
-		self.join(NEWLINE)
-	}
-
 	pub fn concat(&self, rhs: &List) -> Self {
 		if self.is_empty() {
 			return rhs.clone();
@@ -121,8 +119,8 @@ impl List {
 		}
 	}
 
-	pub fn join(&self, sep: &Text) -> Result<SharedText> {
-		let mut joined = SharedText::builder();
+	pub fn join(&self, sep: &TextSlice) -> Result<Text> {
+		let mut joined = Text::builder();
 
 		let mut is_first = true;
 		for ele in self {
@@ -175,7 +173,7 @@ impl List {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn map(&self, block: &Value, env: &mut Environment) -> Result<Self> {
-		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
+		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 
@@ -190,8 +188,8 @@ impl List {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn reduce(&self, block: &Value, env: &mut Environment) -> Result<Option<Value>> {
-		const ACCUMULATE: &'static Text = unsafe { Text::new_unchecked("a") };
-		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
+		const ACCUMULATE: &'static TextSlice = unsafe { TextSlice::new_unchecked("a") };
+		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let mut iter = self.iter();
 
@@ -213,7 +211,7 @@ impl List {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn filter(&self, block: &Value, env: &mut Environment) -> Result<Self> {
-		const UNDERSCORE: &'static Text = unsafe { Text::new_unchecked("_") };
+		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 
@@ -224,7 +222,7 @@ impl List {
 
 				block
 					.run(env)
-					.and_then(|b| b.to_bool())
+					.and_then(|b| b.to_boolean())
 					.and_then(|a| a.then(|| Ok(ele.clone())).transpose())
 					.transpose()
 			})
@@ -247,6 +245,14 @@ impl ToBoolean for List {
 impl ToInteger for List {
 	fn to_integer(&self) -> Result<Integer> {
 		self.len().try_into()
+	}
+}
+
+impl ToText for List {
+	fn to_text(&self) -> Result<Text> {
+		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
+
+		self.join(NEWLINE)
 	}
 }
 

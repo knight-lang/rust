@@ -1,4 +1,4 @@
-use super::{SharedText, Text};
+use super::{Text, TextSlice};
 
 #[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
@@ -13,11 +13,11 @@ impl Builder {
 		Self(String::with_capacity(cap))
 	}
 
-	pub fn push(&mut self, text: &Text) {
+	pub fn push(&mut self, text: &TextSlice) {
 		self.0.push_str(text);
 	}
 
-	pub fn finish(self) -> SharedText {
+	pub fn finish(self) -> Text {
 		self.0.try_into().unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
 }

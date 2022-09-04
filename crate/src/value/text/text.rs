@@ -1,26 +1,27 @@
-use super::{validate, Chars, IllegalChar, SharedText};
+use super::{validate, Chars, IllegalChar, Text};
+use crate::value::ToList;
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Text(str);
+pub struct TextSlice(str);
 
-impl Default for &Text {
+impl Default for &TextSlice {
 	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
-		unsafe { Text::new_unchecked("") }
+		unsafe { TextSlice::new_unchecked("") }
 	}
 }
 
-impl Display for Text {
+impl Display for TextSlice {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl Deref for Text {
+impl Deref for TextSlice {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
@@ -28,21 +29,21 @@ impl Deref for Text {
 	}
 }
 
-impl DerefMut for Text {
+impl DerefMut for TextSlice {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.0
 	}
 }
 
-impl Text {
-	/// Creates a new `Text` without validating `inp`.
+impl TextSlice {
+	/// Creates a new `TextSlice` without validating `inp`.
 	///
 	/// # Safety
-	/// - `inp` must be a valid `Text`.
+	/// - `inp` must be a valid `TextSlice`.
 	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
 		debug_assert!(validate(inp).is_ok());
 
-		// SAFETY: Since `Text` is a `repr(transparent)` wrapper around `str`, we're able to
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		&*(inp as *const str as *const Self)
 	}
@@ -64,11 +65,11 @@ impl Text {
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
 		let substring = self.0.get(range)?;
 
-		// SAFETY: We're getting a substring of a valid Text, which thus will itself be valid.
+		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self) -> SharedText {
+	pub fn concat(&self, rhs: &Self) -> Text {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
@@ -77,7 +78,7 @@ impl Text {
 		builder.finish()
 	}
 
-	pub fn repeat(&self, amount: usize) -> SharedText {
+	pub fn repeat(&self, amount: usize) -> Text {
 		(**self)
 			.repeat(amount)
 			.try_into()
@@ -90,49 +91,49 @@ impl Text {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list().unwrap()
 		} else {
-			(**self).split(&**sep).map(|x| SharedText::new(x).unwrap().into()).collect()
+			(**self).split(&**sep).map(|x| Text::new(x).unwrap().into()).collect()
 		}
 	}
 }
 
-impl<'a> TryFrom<&'a str> for &'a Text {
+impl<'a> TryFrom<&'a str> for &'a TextSlice {
 	type Error = IllegalChar;
 
 	#[inline]
 	fn try_from(inp: &'a str) -> Result<Self, Self::Error> {
-		Text::new(inp)
+		TextSlice::new(inp)
 	}
 }
 
-impl<'a> From<&'a Text> for &'a str {
+impl<'a> From<&'a TextSlice> for &'a str {
 	#[inline]
-	fn from(text: &'a Text) -> Self {
+	fn from(text: &'a TextSlice) -> Self {
 		text
 	}
 }
 
-impl TryFrom<Box<str>> for Box<Text> {
+impl TryFrom<Box<str>> for Box<TextSlice> {
 	type Error = IllegalChar;
 
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
 		validate(&inp)?;
 
 		#[allow(unsafe_code)]
-		// SAFETY: Since `Text` is a `repr(transparent)` wrapper around `str`, we're able to
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
 	}
 }
 
-impl ToOwned for Text {
-	type Owned = SharedText;
+impl ToOwned for TextSlice {
+	type Owned = Text;
 
 	fn to_owned(&self) -> Self::Owned {
 		self.into()
 	}
 }
 
-impl<'a> IntoIterator for &'a Text {
+impl<'a> IntoIterator for &'a TextSlice {
 	type Item = char;
 	type IntoIter = Chars<'a>;
 

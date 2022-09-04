@@ -1,4 +1,6 @@
-use crate::{Environment, Error, Integer, List, Result, SharedText, Value};
+use crate::value::{Integer, List, Text, ToBoolean, ToInteger, ToList, ToText};
+use crate::{Environment, Error, Result, Value};
+
 use std::fmt::{self, Debug, Formatter};
 use std::io::{BufRead, Write};
 use tap::prelude::*;
@@ -167,7 +169,7 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 		None => {}
 	}
 
-	buf.try_conv::<SharedText>()?
+	buf.try_conv::<Text>()?
 });
 
 /// **4.1.5**: `RANDOM`
@@ -261,13 +263,13 @@ pub const QUIT: Function = function!("QUIT", env, |arg| {
 });
 
 /// **4.2.7** `!`  
-pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_bool()?);
+pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_boolean()?);
 
 /// **4.2.8** `LENGTH`  
 pub const LENGTH: Function = function!("LENGTH", env, |arg| {
 	match arg.run(env)? {
-		Value::SharedText(text) => {
-			debug_assert_eq!(text.len(), Value::SharedText(text.clone()).to_list().unwrap().len());
+		Value::Text(text) => {
+			debug_assert_eq!(text.len(), Value::Text(text.clone()).to_list().unwrap().len());
 			text.len().try_conv::<Integer>()?
 		}
 		Value::List(list) => list.len().try_conv::<Integer>()?,
@@ -304,11 +306,11 @@ pub const ASCII: Function = function!("ASCII", env, |arg| {
 		Value::Integer(num) => u32::try_from(num)
 			.ok()
 			.and_then(char::from_u32)
-			.and_then(|chr| SharedText::new(chr).ok())
+			.and_then(|chr| Text::new(chr).ok())
 			.ok_or(Error::DomainError("number isn't a valid char"))?
 			.conv::<Value>(),
 
-		Value::SharedText(text) => text
+		Value::Text(text) => text
 			.chars()
 			.next()
 			.ok_or(Error::DomainError("empty string"))?
@@ -329,7 +331,7 @@ pub const NEG: Function = function!("~", env, |arg| {
 pub const ADD: Function = function!("+", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.add(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
-		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
+		Value::Text(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
 		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?).into(),
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -353,7 +355,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.multiply(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
-		Value::SharedText(lstr) => {
+		Value::Text(lstr) => {
 			let amount = rhs
 				.run(env)?
 				.to_integer()?
@@ -395,7 +397,7 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		#[cfg(feature = "string-extensions")]
-		Value::SharedText(text) => text.split(&rhs.run(env)?.to_text()?).into(),
+		Value::Text(text) => text.split(&rhs.run(env)?.to_text()?).into(),
 
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
@@ -410,7 +412,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 		Value::Integer(integer) => integer.modulo(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		// #[cfg(feature = "string-extensions")]
-		// Value::SharedText(lstr) => {
+		// Value::Text(lstr) => {
 		// 	let values = rhs.run(env)?.to_list()?;
 		// 	let mut values_index = 0;
 
@@ -446,7 +448,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 		// 		}
 		// 	}
 
-		// 	SharedText::new(formatted).unwrap().into()
+		// 	Text::new(formatted).unwrap().into()
 		// }
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.filter(&rhs.run(env)?, env)?.into(),
@@ -469,8 +471,8 @@ pub const POWER: Function = function!("^", env, |lhs, rhs| {
 fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 	match lhs {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
-		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_bool()?)),
-		Value::SharedText(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
+		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_boolean()?)),
+		Value::Text(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
 		Value::List(list) => {
 			let rhs = rhs.to_list()?;
 
@@ -520,7 +522,7 @@ pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 pub const AND: Function = function!("&", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 
-	if l.to_bool()? {
+	if l.to_boolean()? {
 		rhs.run(env)?
 	} else {
 		l
@@ -531,7 +533,7 @@ pub const AND: Function = function!("&", env, |lhs, rhs| {
 pub const OR: Function = function!("|", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 
-	if l.to_bool()? {
+	if l.to_boolean()? {
 		l
 	} else {
 		rhs.run(env)?
@@ -606,7 +608,7 @@ pub const ASSIGN: Function = function!("=", env, |var, value| {
 
 /// **4.3.14** `WHILE`  
 pub const WHILE: Function = function!("WHILE", env, |cond, body| {
-	while cond.run(env)?.to_bool()? {
+	while cond.run(env)?.to_boolean()? {
 		body.run(env)?;
 	}
 
@@ -630,7 +632,7 @@ pub const WHILE: Function = function!("WHILE", env, |cond, body| {
 // 			}
 // 		}
 
-// 		Value::SharedText(_text) => {
+// 		Value::Text(_text) => {
 // 			// let start = text.get(0).a;
 // 			todo!()
 // 		}
@@ -641,7 +643,7 @@ pub const WHILE: Function = function!("WHILE", env, |cond, body| {
 
 /// **4.4.1** `IF`  
 pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
-	if cond.run(env)?.to_bool()? {
+	if cond.run(env)?.to_boolean()? {
 		iftrue.run(env)?
 	} else {
 		iffalse.run(env)?
@@ -683,7 +685,7 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 				None => List::default().into(),
 			}
 		}
-		Value::SharedText(text) => {
+		Value::Text(text) => {
 			if start.is_negative() && cfg!(feature = "negative-indexing") {
 				start = start.add(text.len().try_into()?)?;
 			}
@@ -698,7 +700,7 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 				None => return Err(Error::IndexOutOfBounds { len: text.len(), index: start + length }),
 
 				#[cfg(not(feature = "no-oob-errors"))]
-				None => SharedText::default().into(),
+				None => Text::default().into(),
 			}
 		}
 		other => return Err(Error::TypeError(other.typename())),
@@ -735,7 +737,7 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 			List::from(ret).conv::<Value>()
 		}
-		Value::SharedText(text) => {
+		Value::Text(text) => {
 			let replacement = replacement_source.to_text()?;
 
 			if start.is_negative() && cfg!(feature = "negative-indexing") {
@@ -747,7 +749,7 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 			// TODO: `no-oob-errors` here
 			// lol, todo, optimize me
-			let mut builder = SharedText::builder();
+			let mut builder = Text::builder();
 			builder.push(&text.get(..start).unwrap());
 			builder.push(&replacement);
 			builder.push(&text.get(start + length..).unwrap());
@@ -769,13 +771,13 @@ pub const VALUE: Function = function!("V", env, |arg| {
 #[cfg(feature = "handle-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
 pub const HANDLE: Function = function!("H", env, |block, iferr| {
-	const ERR_VAR_NAME: &'static crate::Text = unsafe { crate::Text::new_unchecked("_") };
+	const ERR_VAR_NAME: &'static crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
 	match block.run(env) {
 		Ok(value) => value,
 		Err(err) => {
 			// This is fallible, as the error string might have had something bad.
-			let errmsg = err.to_string().try_conv::<SharedText>()?;
+			let errmsg = err.to_string().try_conv::<Text>()?;
 
 			// Assign it to the error variable
 			env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());

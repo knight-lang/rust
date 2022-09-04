@@ -1,7 +1,7 @@
 use crate::parser::ParseError;
 use crate::value::text::IllegalChar;
 use crate::variable::IllegalVariableName;
-use crate::SharedText;
+use crate::Text;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -14,7 +14,7 @@ pub enum Error {
 	NoConversion { from: &'static str, to: &'static str },
 
 	/// An undefined variable was accessed.
-	UndefinedVariable(SharedText),
+	UndefinedVariable(Text),
 
 	/// There was a problem with I/O.
 	IoError(io::Error),

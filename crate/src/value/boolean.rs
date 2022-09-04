@@ -1,10 +1,14 @@
-use crate::value::{Integer, List, ToInteger, ToList};
+use crate::value::{Integer, KnightType, List, Text, ToInteger, ToList, ToText};
 use crate::Result;
 
 pub type Boolean = bool;
 
 pub trait ToBoolean {
 	fn to_boolean(&self) -> Result<Boolean>;
+}
+
+impl KnightType for Boolean {
+	const TYPENAME: &'static str = "Boolean";
 }
 
 impl ToBoolean for Boolean {
@@ -29,6 +33,21 @@ impl ToList for Boolean {
 			Ok(List::boxed((*self).into()))
 		} else {
 			Ok(List::EMPTY)
+		}
+	}
+}
+
+impl ToText for Boolean {
+	fn to_text(&self) -> Result<Text> {
+		use crate::text::TextSlice;
+
+		const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
+		const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
+
+		if *self {
+			Ok(TRUE_TEXT.into())
+		} else {
+			Ok(FALSE_TEXT.into())
 		}
 	}
 }

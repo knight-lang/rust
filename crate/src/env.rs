@@ -1,5 +1,5 @@
 use crate::variable::IllegalVariableName;
-use crate::{Integer, SharedText, Text, Value, Variable};
+use crate::{Integer, Text, TextSlice, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -9,19 +9,19 @@ use std::collections::HashMap;
 
 cfg_if! {
 	if #[cfg(feature="multithreaded")] {
-		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
+		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
 		type Stdin = dyn Read + Send + Sync;
 		type Stdout = dyn Write + Send + Sync;
 
 		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
+		type ReadFile = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
 	} else {
-		type SystemCommand = dyn FnMut(&Text) -> crate::Result<SharedText>;
+		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text>;
 		type Stdin = dyn Read;
 		type Stdout = dyn Write;
 
 		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&Text) -> crate::Result<SharedText> + Send + Sync;
+		type ReadFile = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
 	}
 }
 
@@ -39,15 +39,15 @@ pub struct Environment {
 	//
 	// FIXME: Maybe we should make functions refcounted or something?
 	#[cfg(feature = "extension-functions")]
-	extensions: HashMap<SharedText, &'static crate::Function>,
+	extensions: HashMap<Text, &'static crate::Function>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
 	#[cfg(feature = "assign-to-prompt")]
-	prompt_lines: std::collections::VecDeque<SharedText>,
+	prompt_lines: std::collections::VecDeque<Text>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "assign-to-prompt")]
-	system_results: std::collections::VecDeque<SharedText>,
+	system_results: std::collections::VecDeque<Text>,
 
 	// The function that governs reading a file.
 	#[cfg(feature = "use-function")]
@@ -73,13 +73,13 @@ impl Default for Environment {
 					.output()
 					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 
-				Ok(SharedText::try_from(output)?)
+				Ok(Text::try_from(output)?)
 			}),
 			rng: Box::new(StdRng::from_entropy()),
 
 			#[cfg(feature = "extension-functions")]
 			extensions: {
-				let mut map = HashMap::<SharedText, &'static crate::Function>::default();
+				let mut map = HashMap::<Text, &'static crate::Function>::default();
 
 				#[cfg(feature = "srand-function")]
 				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
@@ -104,13 +104,13 @@ impl Default for Environment {
 
 impl Environment {
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &Text) -> crate::Result<Value> {
+	pub fn play(&mut self, source: &TextSlice) -> crate::Result<Value> {
 		crate::Parser::new(source).parse(self)?.run(self)
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &Text) -> Result<Variable, IllegalVariableName> {
+	pub fn lookup(&mut self, name: &TextSlice) -> Result<Variable, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -122,7 +122,7 @@ impl Environment {
 	}
 
 	/// Executes `command` as a shell command, returning its result.
-	pub fn run_command(&mut self, command: &Text) -> crate::Result<SharedText> {
+	pub fn run_command(&mut self, command: &TextSlice) -> crate::Result<Text> {
 		(self.system)(command)
 	}
 
@@ -143,41 +143,41 @@ impl Environment {
 	/// Gets the list of known extension functions.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions(&self) -> &HashMap<SharedText, &'static crate::Function> {
+	pub fn extensions(&self) -> &HashMap<Text, &'static crate::Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions_mut(&mut self) -> &mut HashMap<SharedText, &'static crate::Function> {
+	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'static crate::Function> {
 		&mut self.extensions
 	}
 
 	#[cfg(feature = "assign-to-prompt")]
-	pub fn add_to_prompt(&mut self, line: SharedText) {
+	pub fn add_to_prompt(&mut self, line: Text) {
 		for line in (&**line).split('\n') {
 			self.prompt_lines.push_back(line.try_into().unwrap());
 		}
 	}
 
 	#[cfg(feature = "assign-to-prompt")]
-	pub fn get_next_prompt_line(&mut self) -> Option<SharedText> {
+	pub fn get_next_prompt_line(&mut self) -> Option<Text> {
 		self.prompt_lines.pop_front()
 	}
 
 	#[cfg(feature = "assign-to-system")]
-	pub fn add_to_system(&mut self, output: SharedText) {
+	pub fn add_to_system(&mut self, output: Text) {
 		self.system_results.push_back(output);
 	}
 
 	#[cfg(feature = "assign-to-system")]
-	pub fn get_next_system_result(&mut self) -> Option<SharedText> {
+	pub fn get_next_system_result(&mut self) -> Option<Text> {
 		self.system_results.pop_front()
 	}
 
 	#[cfg(feature = "use-function")]
-	pub fn read_file(&mut self, filename: &Text) -> crate::Result<SharedText> {
+	pub fn read_file(&mut self, filename: &TextSlice) -> crate::Result<Text> {
 		(self.readfile)(filename)
 	}
 }

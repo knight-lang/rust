@@ -1,11 +1,11 @@
-use crate::{Mutable, RefCount, SharedText, Text, Value};
+use crate::{Mutable, RefCount, Text, TextSlice, Value};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
 #[derive(Clone)]
-pub struct Variable(RefCount<(SharedText, Mutable<Option<Value>>)>);
+pub struct Variable(RefCount<(Text, Mutable<Option<Value>>)>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable: Send, Sync);
@@ -36,9 +36,9 @@ impl PartialEq for Variable {
 	}
 }
 
-impl Borrow<Text> for Variable {
+impl Borrow<TextSlice> for Variable {
 	#[inline]
-	fn borrow(&self) -> &Text {
+	fn borrow(&self) -> &TextSlice {
 		self.name()
 	}
 }
@@ -86,7 +86,7 @@ pub const MAX_NAME_LEN: usize = 255;
 
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
-pub fn validate_name(name: &Text) -> Result<(), IllegalVariableName> {
+pub fn validate_name(name: &TextSlice) -> Result<(), IllegalVariableName> {
 	if cfg!(not(feature = "verify-variable-names")) {
 		return Ok(());
 	}
@@ -112,7 +112,7 @@ pub fn validate_name(name: &Text) -> Result<(), IllegalVariableName> {
 impl Variable {
 	/// Creates a new `Variable`.
 	#[must_use]
-	pub fn new(name: SharedText) -> Result<Self, IllegalVariableName> {
+	pub fn new(name: Text) -> Result<Self, IllegalVariableName> {
 		validate_name(&name)?;
 
 		Ok(Self((name, None.into()).into()))
@@ -121,7 +121,7 @@ impl Variable {
 	/// Fetches the name of the variable.
 	#[must_use]
 	#[inline]
-	pub fn name(&self) -> &SharedText {
+	pub fn name(&self) -> &Text {
 		&(self.0).0
 	}
 

@@ -1,5 +1,8 @@
 use crate::env::Environment;
-use crate::{Ast, Error, Integer, List, Result, SharedText, Variable};
+use crate::value::{
+	Boolean, Integer, KnightType, List, Null, Text, ToBoolean, ToInteger, ToList, ToText,
+};
+use crate::{Ast, Error, Result, Variable};
 use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
@@ -9,13 +12,13 @@ pub enum Value {
 	Null,
 
 	/// Represents the `TRUE` and `FALSE` values.
-	Boolean(bool),
+	Boolean(Boolean),
 
 	/// Represents integers.
 	Integer(Integer),
 
 	/// Represents a string.
-	SharedText(SharedText),
+	Text(Text),
 
 	/// Represents a list of [`Value`]s.
 	List(List),
@@ -44,7 +47,7 @@ impl Debug for Value {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::SharedText(text) => write!(f, "Text({text})"), // TODO: make text do this itself?
+			Self::Text(text) => write!(f, "TextSlice({text})"), // TODO: make text do this itself?
 			Self::Variable(variable) => write!(f, "{variable:?}"),
 			Self::Ast(ast) => Debug::fmt(&ast, f),
 			Self::List(list) => Debug::fmt(&list, f),
@@ -52,16 +55,16 @@ impl Debug for Value {
 	}
 }
 
-impl From<()> for Value {
+impl From<Null> for Value {
 	#[inline]
-	fn from(_: ()) -> Self {
+	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl From<bool> for Value {
+impl From<Boolean> for Value {
 	#[inline]
-	fn from(boolean: bool) -> Self {
+	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
@@ -73,10 +76,10 @@ impl From<Integer> for Value {
 	}
 }
 
-impl From<SharedText> for Value {
+impl From<Text> for Value {
 	#[inline]
-	fn from(text: SharedText) -> Self {
-		Self::SharedText(text)
+	fn from(text: Text) -> Self {
+		Self::Text(text)
 	}
 }
 
@@ -101,90 +104,54 @@ impl From<List> for Value {
 	}
 }
 
-pub trait Context: Sized {
-	fn convert(value: &Value) -> Result<Self>;
-}
-
-impl Context for bool {
-	fn convert(value: &Value) -> Result<Self> {
-		match *value {
-			Value::Null => Ok(false),
-			Value::Boolean(boolean) => Ok(boolean),
-			Value::Integer(number) => Ok(!number.is_zero()),
-			Value::SharedText(ref text) => Ok(!text.is_empty()),
-			Value::List(ref list) => Ok(!list.is_empty()),
-			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
+impl ToBoolean for Value {
+	fn to_boolean(&self) -> Result<Boolean> {
+		match *self {
+			Self::Null => Null.to_boolean(),
+			Self::Boolean(boolean) => boolean.to_boolean(),
+			Self::Integer(integer) => integer.to_boolean(),
+			Self::Text(ref text) => text.to_boolean(),
+			Self::List(ref list) => list.to_boolean(),
+			_ => Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
-impl Context for Integer {
-	fn convert(value: &Value) -> Result<Self> {
-		match *value {
-			Value::Null => Ok(Self::default()),
-			Value::Boolean(boolean) => Ok(boolean.into()),
-			Value::Integer(integer) => Ok(integer),
-			Value::SharedText(ref text) => text.to_integer(),
-			Value::List(ref list) => list.len().try_into(),
-			_ => Err(Error::NoConversion { to: "Integer", from: value.typename() }),
+impl ToInteger for Value {
+	fn to_integer(&self) -> Result<Integer> {
+		match *self {
+			Self::Null => Null.to_integer(),
+			Self::Boolean(boolean) => boolean.to_integer(),
+			Self::Integer(integer) => integer.to_integer(),
+			Self::Text(ref text) => text.to_integer(),
+			Self::List(ref list) => list.to_integer(),
+			_ => Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
-impl Context for SharedText {
-	fn convert(value: &Value) -> Result<Self> {
-		match *value {
-			Value::Null => Ok("".try_into().unwrap()),
-			Value::Boolean(boolean) => Ok(SharedText::new(boolean).unwrap()),
-			Value::Integer(number) => Ok(SharedText::new(number).unwrap()),
-			Value::SharedText(ref text) => Ok(text.clone()),
-			Value::List(ref list) => list.to_text(),
-			_ => Err(Error::NoConversion { to: "String", from: value.typename() }),
+impl ToText for Value {
+	fn to_text(&self) -> Result<Text> {
+		match *self {
+			Self::Null => Null.to_text(),
+			Self::Boolean(boolean) => boolean.to_text(),
+			Self::Integer(integer) => integer.to_text(),
+			Self::Text(ref text) => text.to_text(),
+			Self::List(ref list) => list.to_text(),
+			_ => Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
-impl Context for List {
-	fn convert(value: &Value) -> Result<Self> {
-		match *value {
-			Value::Null => Ok(Self::default()),
-			Value::Boolean(false) => Ok(Self::default()),
-			Value::Boolean(true) => Ok(Self::from(vec![true.into()])),
-			Value::Integer(number) => {
-				let mut number = number.inner();
-				if number == 0 {
-					return Ok(vec![Integer::default().into()].into());
-				}
-
-				// TODO: when log10 is finalized, add it in.
-				let mut list = Vec::new();
-
-				let is_negative = if number < 0 {
-					number = -number; // TODO: checked negation.
-					true
-				} else {
-					false
-				};
-
-				while number != 0 {
-					list.push(Value::from(Integer::from((number % 10) as i32)));
-					number /= 10;
-				}
-
-				if is_negative {
-					list.push(Integer::from(-1).into());
-				}
-
-				list.reverse();
-
-				Ok(list.into())
-			}
-			Value::SharedText(ref text) => Ok(text
-				.chars()
-				.map(|c| Value::from(SharedText::try_from(c.to_string()).unwrap()))
-				.collect()),
-			Value::List(ref list) => Ok(list.clone()),
-			_ => Err(Error::NoConversion { to: "List", from: value.typename() }),
+impl ToList for Value {
+	fn to_list(&self) -> Result<List> {
+		match *self {
+			Self::Null => Null.to_list(),
+			Self::Boolean(boolean) => boolean.to_list(),
+			Self::Integer(integer) => integer.to_list(),
+			Self::Text(ref text) => text.to_list(),
+			Self::List(ref list) => list.to_list(),
+			_ => Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -194,34 +161,14 @@ impl Value {
 	#[must_use = "getting the type name by itself does nothing."]
 	pub const fn typename(&self) -> &'static str {
 		match self {
-			Self::Null => "Null",
-			Self::Boolean(_) => "Boolean",
-			Self::Integer(_) => "Integer",
-			Self::SharedText(_) => "SharedText",
-			Self::Variable(_) => "Variable",
+			Self::Null => Null::TYPENAME,
+			Self::Boolean(_) => Boolean::TYPENAME,
+			Self::Integer(_) => Integer::TYPENAME,
+			Self::Text(_) => Text::TYPENAME,
+			Self::List(_) => List::TYPENAME,
 			Self::Ast(_) => "Ast",
-			Self::List(_) => "List",
+			Self::Variable(_) => "Variable",
 		}
-	}
-
-	/// Converts `self` to a [`bool`] according to the Knight spec.
-	pub fn to_bool(&self) -> Result<bool> {
-		Context::convert(self)
-	}
-
-	/// Converts `self` to an [`Integer`] according to the Knight spec.
-	pub fn to_integer(&self) -> Result<Integer> {
-		Context::convert(self)
-	}
-
-	/// Converts `self` to a [`SharedText`] according to the Knight spec.
-	pub fn to_text(&self) -> Result<SharedText> {
-		Context::convert(self)
-	}
-
-	/// Converts `self` to a [`List`] according to the Knight spec.
-	pub fn to_list(&self) -> Result<List> {
-		Context::convert(self)
 	}
 
 	/// Executes the value.

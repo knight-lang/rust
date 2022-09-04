@@ -1,4 +1,4 @@
-use crate::value::{Boolean, List, ToBoolean, ToList};
+use crate::value::{Boolean, KnightType, List, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Display, Formatter};
 
@@ -22,6 +22,10 @@ impl Display for Integer {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
+}
+
+impl KnightType for Integer {
+	const TYPENAME: &'static str = "Integer";
 }
 
 impl Integer {
@@ -132,6 +136,12 @@ impl ToInteger for Integer {
 impl ToBoolean for Integer {
 	fn to_boolean(&self) -> Result<Boolean> {
 		Ok(!self.is_zero())
+	}
+}
+
+impl ToText for Integer {
+	fn to_text(&self) -> Result<Text> {
+		Ok(Text::new(*self).unwrap())
 	}
 }
 

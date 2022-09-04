@@ -1,4 +1,4 @@
-use crate::text::{SharedText, Text};
+use crate::text::{Text, TextSlice};
 use crate::variable::IllegalVariableName;
 use crate::{Ast, Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
@@ -52,7 +52,7 @@ pub enum ParseErrorKind {
 	/// An unknown extension was encountered.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	UnknownExtensionFunction(SharedText),
+	UnknownExtensionFunction(Text),
 }
 
 impl Display for ParseErrorKind {
@@ -87,7 +87,7 @@ impl std::error::Error for ParseError {}
 /// Parse source code.
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
-	source: &'a Text,
+	source: &'a TextSlice,
 	line: usize,
 }
 
@@ -123,7 +123,7 @@ fn is_upper(chr: char) -> bool {
 
 impl<'a> Parser<'a> {
 	/// Create a new `Parser` from the given source.
-	pub const fn new(source: &'a Text) -> Self {
+	pub const fn new(source: &'a TextSlice) -> Self {
 		Self { source, line: 1 }
 	}
 
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
 		Some(head)
 	}
 
-	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a Text {
+	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a TextSlice {
 		let start = self.source;
 
 		while self.peek().map_or(false, &mut func) {
@@ -199,7 +199,7 @@ impl<'a> Parser<'a> {
 		env.lookup(identifier).map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
 	}
 
-	fn parse_string(&mut self) -> Result<SharedText, ParseError> {
+	fn parse_string(&mut self) -> Result<Text, ParseError> {
 		let quote = match self.advance() {
 			Some(quote @ ('\'' | '\"')) => quote,
 			_ => unreachable!(),

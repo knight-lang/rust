@@ -2,7 +2,7 @@ use knightrs::*;
 
 fn main() {
 	let mut env = Environment::default();
-	let arg = SharedText::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
+	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
 
 	let arg = if std::env::args().nth(1).unwrap() == "-e" {
 		arg
