@@ -1,6 +1,11 @@
-use crate::{Environment, RefCount, Result, SharedText, Text, Value};
+use crate::value::{Boolean, Integer, ToBoolean, ToInteger, Value};
+use crate::{Environment, RefCount, Result, SharedText, Text};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Range;
+
+pub trait ToList {
+	fn to_list(&self) -> Result<List>;
+}
 
 #[derive(Clone, Default)]
 pub struct List(Option<RefCount<Inner>>);
@@ -56,6 +61,8 @@ impl FromIterator<Value> for List {
 }
 
 impl List {
+	pub const EMPTY: Self = Self(None);
+
 	fn _new(inner: Inner) -> Self {
 		Self(Some(inner.into()))
 	}
@@ -222,6 +229,24 @@ impl List {
 					.transpose()
 			})
 			.collect()
+	}
+}
+
+impl ToList for List {
+	fn to_list(&self) -> Result<Self> {
+		Ok(self.clone())
+	}
+}
+
+impl ToBoolean for List {
+	fn to_boolean(&self) -> Result<Boolean> {
+		Ok(!self.is_empty())
+	}
+}
+
+impl ToInteger for List {
+	fn to_integer(&self) -> Result<Integer> {
+		self.len().try_into()
 	}
 }
 

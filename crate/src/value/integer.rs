@@ -1,5 +1,10 @@
+use crate::value::{Boolean, List, ToBoolean, ToList};
 use crate::{Error, Result};
 use std::fmt::{self, Display, Formatter};
+
+pub trait ToInteger {
+	fn to_integer(&self) -> Result<Integer>;
+}
 
 /// The number type within Knight.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -118,6 +123,45 @@ impl Integer {
 	}
 }
 
+impl ToInteger for Integer {
+	fn to_integer(&self) -> Result<Self> {
+		Ok(*self)
+	}
+}
+
+impl ToBoolean for Integer {
+	fn to_boolean(&self) -> Result<Boolean> {
+		Ok(!self.is_zero())
+	}
+}
+
+impl ToList for Integer {
+	fn to_list(&self) -> Result<List> {
+		if self.is_zero() {
+			return Ok(List::boxed((*self).into()));
+		}
+
+		let mut integer = self.0;
+
+		if integer.is_negative() {
+			panic!("todo?");
+			// integer = integer.negate()?; <-- wont work because it's actually valid.
+		}
+
+		// FIXME: update the capacity _and_ algorithm when `ilog` is dropped.
+		let mut digits = Vec::new();
+
+		while integer != 0 {
+			digits.push(Self(integer % 10).into());
+			integer /= 10;
+		}
+
+		digits.reverse();
+
+		Ok(digits.into())
+	}
+}
+
 impl std::str::FromStr for Integer {
 	type Err = Error;
 
@@ -195,12 +239,3 @@ impl TryFrom<Integer> for char {
 		char::from_u32(u32::try_from(int)?).ok_or(Error::DomainError("integer isnt a char"))
 	}
 }
-
-/*
-impl TryFrom<Integer> for $smaller {
-	type Error = Error;
-
-	fn try_from(int: Integer) -> Result<Self> {
-		int.0.try_into().or(Err(Error::IntegerOverflow))
-	}
-}*/

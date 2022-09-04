@@ -1,5 +1,5 @@
 use crate::parser::ParseError;
-use crate::text::IllegalChar;
+use crate::value::text::IllegalChar;
 use crate::variable::IllegalVariableName;
 use crate::SharedText;
 use std::fmt::{self, Display, Formatter};
