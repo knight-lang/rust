@@ -160,11 +160,9 @@ impl Environment {
 
 	#[cfg(feature = "assign-to-prompt")]
 	pub fn add_to_prompt(&mut self, line: SharedText) {
-		if line.contains('\n') {
-			todo!("split on `\\n` for `line`");
+		for line in (&**line).split('\n') {
+			self.prompt_lines.push_back(line.try_into().unwrap());
 		}
-
-		self.prompt_lines.push_back(line);
 	}
 
 	#[cfg(feature = "assign-to-prompt")]

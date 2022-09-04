@@ -218,7 +218,7 @@ impl List {
 			Some(Inner::IntRange(rng)) => Iter::IntRange(rng.clone()),
 			Some(Inner::CharRange(rng)) => Iter::CharRange(rng.clone()),
 			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
-			Some(Inner::Cons(_, _)) => todo!(),
+			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
 				Iter::Repeat(Box::new(list.iter()).cycle(), list.len() * *amount)
 			}
@@ -344,7 +344,7 @@ impl SliceFetch for usize {
 			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
 			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
 
-			Inner::Repeat(list, amount) if list.len() - amount < self => None,
+			Inner::Repeat(list, amount) if (list.len() * amount) < self => None,
 			Inner::Repeat(list, amount) => list.get(self % amount),
 
 			#[cfg(feature = "negative-ranges")]
@@ -360,9 +360,9 @@ impl SliceFetch for Range<usize> {
 
 	fn get(self, list: &List) -> Option<Self::Output> {
 		// shouldn't be the same, because it's already checked for.
-		assert_ne!(self.start, self.end);
+		// assert_ne!(self.start, self.end);
 
-		if list.len() <= self.end || self.end < self.start {
+		if list.len() < self.end || self.end < self.start {
 			return None;
 		}
 
@@ -386,7 +386,7 @@ pub enum Iter<'a> {
 	Boxed(&'a Value),
 	IntRange(Range<Integer>),
 	CharRange(RangeInclusive<char>),
-	Cons(List, List),
+	Cons(Box<Self>, &'a List),
 	Slice(std::slice::Iter<'a, Value>),
 	Repeat(std::iter::Cycle<Box<Self>>, usize),
 
@@ -410,7 +410,15 @@ impl<'a> Iterator for Iter<'a> {
 			Self::IntRange(rng) => rng.next().map(Value::from),
 			Self::CharRange(rng) => rng.next().map(|c| SharedText::new(c).unwrap().into()),
 			Self::Slice(iter) => iter.next().cloned(),
-			Self::Cons(_, _) => todo!(),
+			Self::Cons(iter, rhs) => {
+				if let Some(num) = iter.next() {
+					Some(num)
+				} else {
+					let iter = rhs.iter();
+					*self = iter;
+					self.next()
+				}
+			}
 
 			Self::Repeat(_, 0) => None,
 			Self::Repeat(iter, n) => {

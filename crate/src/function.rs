@@ -91,6 +91,8 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		ASCII_NAME => Some(&ASCII),
 		NEG_NAME => Some(&NEG),
 		BOX_NAME => Some(&BOX),
+		'[' => Some(&UNBOX),
+		']' => Some(&TAIL),
 
 		ADD_NAME => Some(&ADD),
 		SUBTRACT_NAME => Some(&SUBTRACT),
@@ -177,6 +179,18 @@ pub const BOX: Function = function!(",", env, |val| {
 	let value = val.run(env)?;
 
 	List::from(vec![value])
+});
+
+pub const UNBOX: Function = function!("]", env, |val| {
+	let value = val.run(env)?.to_list()?;
+
+	value.get(0).unwrap()
+});
+
+pub const TAIL: Function = function!("]", env, |val| {
+	let value = val.run(env)?.to_list()?;
+
+	value.get(1..value.len()).unwrap()
 });
 
 /// **4.2.3** `BLOCK`  
@@ -738,11 +752,11 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
 
 			// special case for `GET` with a length of zero returns just that element
-			let fetched = if length == 0 {
+			let fetched = /*if length == 0 {
 				list.get(start)
-			} else {
+			} else {*/
 				list.get(start..start + length).map(Value::from)
-			};
+			/*}*/;
 
 			match fetched {
 				Some(fetched) => fetched,

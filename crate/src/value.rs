@@ -17,13 +17,14 @@ pub enum Value {
 	/// Represents a string.
 	SharedText(SharedText),
 
+	/// Represents a list of [`Value`]s.
+	List(List),
+
 	/// Represents a variable.
 	Variable(Variable),
 
 	/// Represents a block of code.
 	Ast(Ast),
-
-	List(List),
 }
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value: Send, Sync);
@@ -132,7 +133,7 @@ impl Context for Integer {
 impl Context for SharedText {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
-			Value::Null => Ok("null".try_into().unwrap()),
+			Value::Null => Ok("".try_into().unwrap()),
 			Value::Boolean(boolean) => Ok(SharedText::new(boolean).unwrap()),
 			Value::Integer(number) => Ok(SharedText::new(number).unwrap()),
 			Value::SharedText(ref text) => Ok(text.clone()),
