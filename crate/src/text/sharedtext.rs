@@ -58,43 +58,7 @@ impl SharedText {
 	}
 
 	pub fn to_integer(&self) -> crate::Result<Integer> {
-		let mut bytes = self.trim_start().bytes();
-
-		let (is_negative, mut number) = match bytes.next() {
-			Some(b'+') => (false, 0),
-			Some(b'-') => (true, 0),
-			Some(num @ b'0'..=b'9') => (false, (num - b'0') as Integer),
-			_ => return Ok(0),
-		};
-
-		while let Some(digit @ b'0'..=b'9') = bytes.next() {
-			#[cfg(feature = "checked-overflow")]
-			{
-				number = number
-					.checked_mul(10)
-					.and_then(|num| num.checked_add((digit as u8 - b'0') as _))
-					.ok_or(Error::IntegerOverflow)?;
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				number = (number * 10) + (digit - b'0') as Integer;
-			}
-		}
-
-		if is_negative {
-			#[cfg(feature = "checked-overflow")]
-			{
-				number = number.checked_neg().ok_or(Error::IntegerOverflow)?;
-			}
-
-			#[cfg(not(feature = "checked-overflow"))]
-			{
-				number = -number;
-			}
-		}
-
-		Ok(number)
+		self.parse()
 	}
 }
 

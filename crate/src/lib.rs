@@ -5,16 +5,6 @@ extern crate static_assertions as sa;
 #[macro_use]
 extern crate cfg_if;
 
-cfg_if! {
-	if #[cfg(feature = "strict-numbers")] {
-		/// The number type within Knight.
-		pub type Integer = i32;
-	} else {
-		/// The number type within Knight.
-		pub type Integer = i64;
-	}
-}
-
 pub mod ast;
 mod containers;
 pub mod env;
@@ -34,5 +24,5 @@ pub use error::{Error, Result};
 pub use function::Function;
 pub use list::List;
 pub use parser::{ParseError, Parser};
-pub use value::Value;
+pub use value::*;
 pub use variable::Variable;

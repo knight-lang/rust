@@ -59,7 +59,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 	const THEN_NAME: char = THEN.name.as_bytes()[0] as char;
 	const ASSIGN_NAME: char = ASSIGN.name.as_bytes()[0] as char;
 	const WHILE_NAME: char = WHILE.name.as_bytes()[0] as char;
-	const RANGE_NAME: char = RANGE.name.as_bytes()[0] as char;
+	// const RANGE_NAME: char = RANGE.name.as_bytes()[0] as char;
 	const IF_NAME: char = IF.name.as_bytes()[0] as char;
 	const GET_NAME: char = GET.name.as_bytes()[0] as char;
 	const SET_NAME: char = SET.name.as_bytes()[0] as char;
@@ -108,8 +108,7 @@ pub const fn fetch(name: char) -> Option<&'static Function> {
 		THEN_NAME => Some(&THEN),
 		ASSIGN_NAME => Some(&ASSIGN),
 		WHILE_NAME => Some(&WHILE),
-		RANGE_NAME => Some(&RANGE),
-
+		// RANGE_NAME => Some(&RANGE),
 		IF_NAME => Some(&IF),
 		GET_NAME => Some(&GET),
 		SET_NAME => Some(&SET),
@@ -184,7 +183,7 @@ pub const BOX: Function = function!(",", env, |val| {
 pub const UNBOX: Function = function!("]", env, |val| {
 	let value = val.run(env)?.to_list()?;
 
-	value.get(0).unwrap()
+	value.get(0).unwrap().clone()
 });
 
 pub const TAIL: Function = function!("]", env, |val| {
@@ -269,11 +268,11 @@ pub const LENGTH: Function = function!("LENGTH", env, |arg| {
 	match arg.run(env)? {
 		Value::SharedText(text) => {
 			debug_assert_eq!(text.len(), Value::SharedText(text.clone()).to_list().unwrap().len());
-			text.len() as Integer
+			text.len().try_conv::<Integer>()?
 		}
-		Value::List(list) => list.len() as Integer,
+		Value::List(list) => list.len().try_conv::<Integer>()?,
 		// TODO: integer base10 when that comes out.
-		other => other.to_list()?.len() as Integer,
+		other => other.to_list()?.len().try_conv::<Integer>()?,
 	}
 });
 
@@ -313,7 +312,7 @@ pub const ASCII: Function = function!("ASCII", env, |arg| {
 			.chars()
 			.next()
 			.ok_or(Error::DomainError("empty string"))?
-			.pipe(|x| x as Integer)
+			.try_conv::<Integer>()?
 			.conv::<Value>(),
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -322,32 +321,14 @@ pub const ASCII: Function = function!("ASCII", env, |arg| {
 
 /// **4.2.12** `~`  
 pub const NEG: Function = function!("~", env, |arg| {
-	let num = arg.run(env)?.to_integer()?;
-
-	cfg_if! {
-		if #[cfg(feature = "checked-overflow")] {
-			num.checked_neg().ok_or(Error::IntegerOverflow)?
-		} else {
-			num.wrapping_neg()
-		}
-	}
+	// comment so it wont make it one line
+	arg.run(env)?.to_integer()?.negate()?
 });
 
 /// **4.3.1** `+`  
 pub const ADD: Function = function!("+", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-
-			cfg_if! {
-				if #[cfg(feature = "checked-overflow")] {
-					lnum.checked_add(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-				} else {
-					lnum.wrapping_add(rnum).conv::<Value>()
-				}
-			}
-		}
-
+		Value::Integer(integer) => integer.add(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 		Value::SharedText(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
 		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?).into(),
 
@@ -358,17 +339,7 @@ pub const ADD: Function = function!("+", env, |lhs, rhs| {
 /// **4.3.2** `-`  
 pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-
-			cfg_if! {
-				if #[cfg(feature = "checked-overflow")] {
-					lnum.checked_sub(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-				} else {
-					lnum.wrapping_sub(rnum).conv::<Value>()
-				}
-			}
-		}
+		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?).into(),
@@ -380,17 +351,7 @@ pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 /// **4.3.3** `*`  
 pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-
-			cfg_if! {
-				if #[cfg(feature = "checked-overflow")] {
-					lnum.checked_mul(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-				} else {
-					lnum.wrapping_mul(rnum).conv::<Value>()
-				}
-			}
-		}
+		Value::Integer(integer) => integer.multiply(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		Value::SharedText(lstr) => {
 			let amount = rhs
@@ -431,21 +392,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 /// **4.3.4** `/`  
 pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-
-			if rnum == 0 {
-				return Err(Error::DivisionByZero);
-			}
-
-			cfg_if! {
-				if #[cfg(feature = "checked-overflow")] {
-					lnum.checked_div(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-				} else {
-					lnum.wrapping_div(rnum).conv::<Value>()
-				}
-			}
-		}
+		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		#[cfg(feature = "string-extensions")]
 		Value::SharedText(text) => text.split(&rhs.run(env)?.to_text()?).into(),
@@ -460,26 +407,7 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 /// **4.3.5** `%`  
 pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(lnum) => {
-			let rnum = rhs.run(env)?.to_integer()?;
-
-			if rnum == 0 {
-				return Err(Error::DivisionByZero);
-			}
-
-			if cfg!(feature = "strict-compliance") && rnum < 0 {
-				return Err(Error::DomainError("modulo by a negative base"));
-			}
-
-			// TODO: check if `rem` actually follows the specs.
-			cfg_if! {
-				if #[cfg(feature = "checked-overflow")] {
-					lnum.checked_rem(rnum).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-				} else {
-					lnum.wrapping_rem(rnum).conv::<Value>()
-				}
-			}
-		}
+		Value::Integer(integer) => integer.modulo(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		// #[cfg(feature = "string-extensions")]
 		// Value::SharedText(lstr) => {
@@ -530,20 +458,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 /// **4.3.6** `^`  
 pub const POWER: Function = function!("^", env, |lhs, rhs| {
 	match lhs.run(env)? {
-		Value::Integer(base) => match (base, rhs.run(env)?.to_integer()?) {
-			(_, Integer::MIN..=-1) => return Err(Error::DomainError("negative exponent")),
-			(_, 0) => 1.into(),
-			(0 | 1, _) => base.into(),
-
-			#[cfg(feature = "checked-overflow")]
-			(_, exponent) => {
-				let exp =
-					exponent.try_conv::<u32>().or(Err(Error::DomainError("negative exponent")))?;
-				base.checked_pow(exp).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-			#[cfg(not(feature = "checked-overflow"))]
-			(_, exponent) => base.wrapping_pow(exponent as u32).conv::<Value>(),
-		},
+		Value::Integer(integer) => integer.power(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		Value::List(list) => list.join(&rhs.run(env)?.to_text()?)?.into(),
 
@@ -699,30 +614,30 @@ pub const WHILE: Function = function!("WHILE", env, |cond, body| {
 });
 
 /// **4.3.15** `RANGE`  
-pub const RANGE: Function = function!(".", env, |start, stop| {
-	match start.run(env)? {
-		Value::Integer(start) => {
-			let stop = stop.run(env)?.to_integer()?;
+// pub const RANGE: Function = function!(".", env, |start, stop| {
+// 	match start.run(env)? {
+// 		Value::Integer(start) => {
+// 			let stop = stop.run(env)?.to_integer()?;
 
-			match start <= stop {
-				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
+// 			match start <= stop {
+// 				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
 
-				#[cfg(feature = "negative-ranges")]
-				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
+// 				#[cfg(feature = "negative-ranges")]
+// 				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
 
-				#[cfg(not(feature = "negative-ranges"))]
-				false => return Err(Error::DomainError("start is greater than stop")),
-			}
-		}
+// 				#[cfg(not(feature = "negative-ranges"))]
+// 				false => return Err(Error::DomainError("start is greater than stop")),
+// 			}
+// 		}
 
-		Value::SharedText(_text) => {
-			// let start = text.get(0).a;
-			todo!()
-		}
+// 		Value::SharedText(_text) => {
+// 			// let start = text.get(0).a;
+// 			todo!()
+// 		}
 
-		other => return Err(Error::TypeError(other.typename())),
-	}
-});
+// 		other => return Err(Error::TypeError(other.typename())),
+// 	}
+// });
 
 /// **4.4.1** `IF`  
 pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
@@ -745,8 +660,8 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 
 	match source {
 		Value::List(list) => {
-			if start < 0 && cfg!(feature = "negative-indexing") {
-				start += list.len() as Integer;
+			if start.is_negative() && cfg!(feature = "negative-indexing") {
+				start = start.add(list.len().try_into()?)?;
 			}
 			let start =
 				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
@@ -769,8 +684,8 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 			}
 		}
 		Value::SharedText(text) => {
-			if start < 0 && cfg!(feature = "negative-indexing") {
-				start += text.len() as Integer;
+			if start.is_negative() && cfg!(feature = "negative-indexing") {
+				start = start.add(text.len().try_into()?)?;
 			}
 
 			let start =
@@ -803,8 +718,8 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 	match source {
 		Value::List(list) => {
-			if start < 0 && cfg!(feature = "negative-indexing") {
-				start += list.len() as Integer;
+			if start.is_negative() && cfg!(feature = "negative-indexing") {
+				start = start.add(list.len().try_into()?)?;
 			}
 
 			let start =
@@ -814,17 +729,17 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 			let replacement = replacement_source.to_list()?;
 			let mut ret = Vec::new();
-			ret.extend(list.iter().take(start));
-			ret.extend(replacement.iter());
-			ret.extend(list.iter().skip((start) + length));
+			ret.extend(list.iter().cloned().take(start));
+			ret.extend(replacement.iter().cloned());
+			ret.extend(list.iter().cloned().skip((start) + length));
 
 			List::from(ret).conv::<Value>()
 		}
 		Value::SharedText(text) => {
 			let replacement = replacement_source.to_text()?;
 
-			if start < 0 && cfg!(feature = "negative-indexing") {
-				start += text.len() as Integer;
+			if start.is_negative() && cfg!(feature = "negative-indexing") {
+				start = start.add(text.len().try_into()?)?;
 			}
 
 			let start =

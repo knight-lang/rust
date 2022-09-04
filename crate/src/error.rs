@@ -43,8 +43,8 @@ pub enum Error {
 	IllegalChar(IllegalChar),
 
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
-	#[cfg(feature = "checked-overflow")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
+	// #[cfg(feature = "checked-overflow")]
+	// #[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
 	IntegerOverflow,
 
 	#[cfg(feature = "no-oob-errors")]
@@ -117,7 +117,7 @@ impl Display for Error {
 			#[cfg(feature = "strict-charset")]
 			Self::IllegalChar(err) => Display::fmt(&err, f),
 
-			#[cfg(feature = "checked-overflow")]
+			// #[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 
 			#[cfg(feature = "no-oob-errors")]

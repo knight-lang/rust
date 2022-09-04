@@ -1,23 +1,15 @@
-use crate::{Environment, Error, Integer, RefCount, Result, SharedText, Text, Value};
-use std::cmp::Ordering;
+use crate::{Environment, RefCount, Result, SharedText, Text, Value};
 use std::fmt::{self, Debug, Formatter};
-use std::ops::{Range, RangeInclusive};
+use std::ops::Range;
 
 #[derive(Clone, Default)]
 pub struct List(Option<RefCount<Inner>>);
 
 enum Inner {
 	Boxed(Value),
-	IntRange(Range<Integer>),        // strictly increasing, nonempty
-	CharRange(RangeInclusive<char>), // strictly increasing, nonempty
-	Slice(Box<[Value]>),             // nonempty slice
-	Cons(List, List),                // neither list is empty
-	Repeat(List, usize),             // the usize is >= 2
-
-	#[cfg(feature = "negative-ranges")]
-	IntRangeRev(Range<Integer>), // strictly increasing, nonempty
-	#[cfg(feature = "negative-ranges")]
-	CharRangeRev(RangeInclusive<char>), // strictly increasing, nonempty.
+	Slice(Box<[Value]>), // nonempty slice
+	Cons(List, List),    // neither list is empty
+	Repeat(List, usize), // the usize is >= 2
 }
 
 impl PartialEq for List {
@@ -40,80 +32,12 @@ impl Debug for List {
 	}
 }
 
-impl From<Value> for List {
-	fn from(value: Value) -> Self {
-		Self::_new(Inner::Boxed(value))
-	}
-}
-
-impl TryFrom<Range<Integer>> for List {
-	type Error = Error;
-
-	fn try_from(range: Range<Integer>) -> Result<Self> {
-		match range.start.cmp(&range.end) {
-			Ordering::Less => Ok(Self::_new(Inner::IntRange(range))),
-			Ordering::Equal => Ok(Self(None)),
-
-			#[cfg(feature = "negative-ranges")]
-			Ordering::Greater => {
-				Ok(Self::_new(Inner::IntRangeRev(Range { start: range.end, end: range.start })))
-			}
-			#[cfg(not(feature = "negative-ranges"))]
-			_ => Err(Error::DomainError("start < end for list")),
-		}
-	}
-}
-
-impl TryFrom<RangeInclusive<char>> for List {
-	type Error = Error;
-
-	fn try_from(range: RangeInclusive<char>) -> Result<Self> {
-		if cfg!(feature = "strict-compliance") {
-			if !(' '..='~').contains(range.start()) {
-				return Err(Error::DomainError("start is not in ' '..='~' range"));
-			}
-
-			if !(' '..='~').contains(range.end()) {
-				return Err(Error::DomainError("end is not in ' '..='~' range"));
-			}
-		}
-
-		match range.start().cmp(&range.end()) {
-			Ordering::Less => Ok(Self::_new(Inner::CharRange(range))),
-			Ordering::Equal => Ok(Self(None)),
-
-			#[cfg(feature = "negative-ranges")]
-			Ordering::Greater => {
-				Ok(Self::_new(Inner::CharRangeRev(RangeInclusive::new(*range.end(), *range.start()))))
-			}
-			#[cfg(not(feature = "negative-ranges"))]
-			_ => Err(Error::DomainError("start < end for list")),
-		}
-	}
-}
-
-// impl From<(List, List)> for List {
-// 	fn from(cons: (List, List)) -> Self {
-// 		if cons.0.len() == 0 {
-// 			cons.1
-// 		} else if rhs.len() == 0 {
-// 			cons.0.clone()
-// 		} else {
-// 			Self::_new(Inner::Cons(cons.0.clone(), rhs.clone()))
-// 		}
-
-// 		// cons.0.concat(&cons.1)
-// 		let _ = cons;
-// 		todo!();
-// 	}
-// }
-
 impl From<Box<[Value]>> for List {
 	fn from(list: Box<[Value]>) -> Self {
 		match list.len() {
 			0 => Self::default(),
 			// OPTIMIZE: is there a way to not do `.clone()`?
-			1 => list[0].clone().into(),
+			1 => Self::boxed(list[0].clone()),
 			_ => Self::_new(Inner::Slice(list)),
 		}
 	}
@@ -140,33 +64,27 @@ impl List {
 		self.0.as_deref()
 	}
 
-	pub fn is_empty(&self) -> bool {
-		if self.0.is_none() {
-			return true;
-		}
+	pub fn boxed(value: Value) -> Self {
+		Self::_new(Inner::Boxed(value))
+	}
 
-		debug_assert_ne!(self.len(), 0);
-		false
+	pub fn is_empty(&self) -> bool {
+		debug_assert_eq!(self.0.is_none(), self.len() == 0);
+
+		self.0.is_none()
 	}
 
 	pub fn len(&self) -> usize {
 		match self.inner() {
 			None => 0,
 			Some(Inner::Boxed(_)) => 1,
-			Some(Inner::IntRange(rng)) => (rng.end - rng.start) as usize,
-			Some(Inner::CharRange(rng)) => ((*rng.end() as u32) - (*rng.start() as u32) + 1) as usize, // todo: are these two right?
 			Some(Inner::Slice(slice)) => slice.len(),
 			Some(Inner::Cons(lhs, rhs)) => lhs.len() + rhs.len(),
 			Some(Inner::Repeat(list, amount)) => list.len() * amount,
-
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::IntRangeRev(rng)) => (rng.end - rng.start) as usize,
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::CharRangeRev(rng)) => ((*rng.end() as u32) - (*rng.start() as u32) + 1) as usize, // todo: are these two right?
 		}
 	}
 
-	pub fn get<F: SliceFetch>(&self, index: F) -> Option<F::Output> {
+	pub fn get<'a, F: SliceFetch<'a>>(&'a self, index: F) -> Option<F::Output> {
 		index.get(self)
 	}
 
@@ -176,14 +94,16 @@ impl List {
 		self.join(NEWLINE)
 	}
 
-	pub fn concat<'a>(&self, rhs: &List) -> Self {
-		if self.len() == 0 {
-			rhs.clone()
-		} else if rhs.len() == 0 {
-			self.clone()
-		} else {
-			Self::_new(Inner::Cons(self.clone(), rhs.clone()))
+	pub fn concat(&self, rhs: &List) -> Self {
+		if self.is_empty() {
+			return rhs.clone();
 		}
+
+		if rhs.is_empty() {
+			return self.clone();
+		}
+
+		Self::_new(Inner::Cons(self.clone(), rhs.clone()))
 	}
 
 	pub fn repeat(&self, amount: usize) -> Self {
@@ -215,18 +135,11 @@ impl List {
 		match self.inner() {
 			None => Iter::Empty,
 			Some(Inner::Boxed(val)) => Iter::Boxed(val),
-			Some(Inner::IntRange(rng)) => Iter::IntRange(rng.clone()),
-			Some(Inner::CharRange(rng)) => Iter::CharRange(rng.clone()),
 			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
 			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
 				Iter::Repeat(Box::new(list.iter()).cycle(), list.len() * *amount)
 			}
-
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::IntRangeRev(rng)) => Iter::IntRangeRev(rng.clone()),
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::CharRangeRev(rng)) => Iter::CharRangeRev(rng.clone()),
 		}
 	}
 
@@ -234,28 +147,9 @@ impl List {
 		match self.inner() {
 			None => false,
 			Some(Inner::Boxed(val)) => val == value,
-			Some(Inner::IntRange(rng)) => {
-				if let Value::Integer(integer) = value {
-					rng.contains(integer)
-				} else {
-					false
-				}
-			}
-			Some(Inner::CharRange(rng)) => {
-				if let Value::SharedText(text) = value {
-					text.into_iter().next().map_or(false, |c| rng.contains(&c))
-				} else {
-					false
-				}
-			}
-			Some(Inner::Cons(lhs, rhs)) => lhs.contains(value) || rhs.contains(value),
 			Some(Inner::Slice(slice)) => slice.contains(value),
+			Some(Inner::Cons(lhs, rhs)) => lhs.contains(value) || rhs.contains(value),
 			Some(Inner::Repeat(list, _)) => list.contains(value),
-
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::IntRangeRev(_rng)) => todo!(),
-			#[cfg(feature = "negative-ranges")]
-			Some(Inner::CharRangeRev(_rng)) => todo!(),
 		}
 	}
 
@@ -264,8 +158,8 @@ impl List {
 		let mut list = Vec::with_capacity(self.len() - rhs.len());
 
 		for ele in self {
-			if !rhs.contains(&ele) && !list.contains(&ele) {
-				list.push(ele);
+			if !rhs.contains(ele) && !list.contains(ele) {
+				list.push(ele.clone());
 			}
 		}
 
@@ -281,7 +175,7 @@ impl List {
 		self
 			.iter()
 			.map(|ele| {
-				arg.assign(ele);
+				arg.assign(ele.clone());
 				block.run(env)
 			})
 			.collect()
@@ -296,14 +190,14 @@ impl List {
 
 		let acc = env.lookup(ACCUMULATE).unwrap();
 		if let Some(init) = iter.next() {
-			acc.assign(init);
+			acc.assign(init.clone());
 		} else {
 			return Ok(None);
 		}
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 		for ele in iter {
-			arg.assign(ele);
+			arg.assign(ele.clone());
 			acc.assign(block.run(env)?);
 		}
 
@@ -321,41 +215,38 @@ impl List {
 			.filter_map(|ele| {
 				arg.assign(ele.clone());
 
-				block.run(env).and_then(|b| b.to_bool()).and(Ok(Some(ele))).transpose()
+				block
+					.run(env)
+					.and_then(|b| b.to_bool())
+					.and_then(|a| a.then(|| Ok(ele.clone())).transpose())
+					.transpose()
 			})
 			.collect()
 	}
 }
 
-pub trait SliceFetch {
+pub trait SliceFetch<'a> {
 	type Output;
-	fn get(self, list: &List) -> Option<Self::Output>;
+	fn get(self, list: &'a List) -> Option<Self::Output>;
 }
 
-impl SliceFetch for usize {
-	type Output = Value;
-	fn get(self, list: &List) -> Option<Self::Output> {
+impl<'a> SliceFetch<'a> for usize {
+	type Output = &'a Value;
+	fn get(self, list: &'a List) -> Option<Self::Output> {
 		match list.inner()? {
-			Inner::Boxed(ele) => (self == 0).then(|| ele.clone()),
+			Inner::Boxed(ele) => (self == 0).then_some(ele),
 
-			Inner::IntRange(rng) => rng.clone().nth(self).map(Value::from),
-			Inner::CharRange(rng) => rng.clone().nth(self).map(|c| SharedText::new(c).unwrap().into()),
-			Inner::Slice(slice) => slice.get(self).cloned(),
+			Inner::Slice(slice) => slice.get(self),
 			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
 			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
 
 			Inner::Repeat(list, amount) if (list.len() * amount) < self => None,
 			Inner::Repeat(list, amount) => list.get(self % amount),
-
-			#[cfg(feature = "negative-ranges")]
-			Inner::IntRangeRev(_rng) => todo!(),
-			#[cfg(feature = "negative-ranges")]
-			Inner::CharRangeRev(_rng) => todo!(),
 		}
 	}
 }
 
-impl SliceFetch for Range<usize> {
+impl SliceFetch<'_> for Range<usize> {
 	type Output = List;
 
 	fn get(self, list: &List) -> Option<Self::Output> {
@@ -367,12 +258,12 @@ impl SliceFetch for Range<usize> {
 		}
 
 		// FIXME: use optimizations
-		Some(list.iter().skip(self.start).take(self.end - self.start).collect())
+		Some(list.iter().skip(self.start).take(self.end - self.start).cloned().collect())
 	}
 }
 
 impl<'a> IntoIterator for &'a List {
-	type Item = Value;
+	type Item = &'a Value;
 	type IntoIter = Iter<'a>;
 
 	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
@@ -384,40 +275,30 @@ impl<'a> IntoIterator for &'a List {
 pub enum Iter<'a> {
 	Empty,
 	Boxed(&'a Value),
-	IntRange(Range<Integer>),
-	CharRange(RangeInclusive<char>),
 	Cons(Box<Self>, &'a List),
 	Slice(std::slice::Iter<'a, Value>),
 	Repeat(std::iter::Cycle<Box<Self>>, usize),
-
-	#[cfg(feature = "negative-ranges")]
-	IntRangeRev(Range<Integer>),
-	#[cfg(feature = "negative-ranges")]
-	CharRangeRev(RangeInclusive<char>),
 }
 
 impl<'a> Iterator for Iter<'a> {
-	type Item = Value;
+	type Item = &'a Value;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		match self {
 			Self::Empty => None,
 			Self::Boxed(value) => {
-				let ret = Some(value.clone());
+				let ret = Some(*value);
 				*self = Self::Empty;
 				ret
 			}
-			Self::IntRange(rng) => rng.next().map(Value::from),
-			Self::CharRange(rng) => rng.next().map(|c| SharedText::new(c).unwrap().into()),
-			Self::Slice(iter) => iter.next().cloned(),
+			Self::Slice(iter) => iter.next(),
 			Self::Cons(iter, rhs) => {
-				if let Some(num) = iter.next() {
-					Some(num)
-				} else {
-					let iter = rhs.iter();
-					*self = iter;
-					self.next()
+				if let Some(value) = iter.next() {
+					return Some(value);
 				}
+
+				*self = rhs.iter();
+				self.next()
 			}
 
 			Self::Repeat(_, 0) => None,
@@ -427,12 +308,6 @@ impl<'a> Iterator for Iter<'a> {
 				debug_assert!(value.is_some());
 				value
 			}
-
-			// TODO: fixme, this arent correct
-			#[cfg(feature = "negative-ranges")]
-			Self::IntRangeRev(rng) => rng.next().map(Value::from),
-			#[cfg(feature = "negative-ranges")]
-			Self::CharRangeRev(rng) => rng.next().map(|c| SharedText::new(c).unwrap().into()),
 		}
 	}
 }

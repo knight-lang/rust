@@ -128,20 +128,16 @@ impl Environment {
 
 	/// Gets a random `Integer`.
 	pub fn random(&mut self) -> Integer {
-		let rand = self.rng.gen::<Integer>().abs();
+		let rand = self.rng.gen::<i32>().abs();
 
-		if cfg!(feature = "strict-compliance") {
-			rand & 0x7fff
-		} else {
-			rand
-		}
+		Integer::from(if cfg!(feature = "strict-compliance") { rand & 0x7fff } else { rand })
 	}
 
 	/// Seeds the random number generator.
 	#[cfg(feature = "srand-function")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
 	pub fn srand(&mut self, seed: Integer) {
-		*self.rng = StdRng::seed_from_u64(seed as u64)
+		*self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
 	/// Gets the list of known extension functions.

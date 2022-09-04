@@ -26,6 +26,7 @@ pub enum Value {
 	/// Represents a block of code.
 	Ast(Ast),
 }
+
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value: Send, Sync);
 
@@ -109,7 +110,7 @@ impl Context for bool {
 		match *value {
 			Value::Null => Ok(false),
 			Value::Boolean(boolean) => Ok(boolean),
-			Value::Integer(number) => Ok(number != 0),
+			Value::Integer(number) => Ok(!number.is_zero()),
 			Value::SharedText(ref text) => Ok(!text.is_empty()),
 			Value::List(ref list) => Ok(!list.is_empty()),
 			_ => Err(Error::NoConversion { to: "Boolean", from: value.typename() }),
@@ -120,11 +121,11 @@ impl Context for bool {
 impl Context for Integer {
 	fn convert(value: &Value) -> Result<Self> {
 		match *value {
-			Value::Null => Ok(0),
-			Value::Boolean(boolean) => Ok(boolean as Self),
-			Value::Integer(number) => Ok(number),
+			Value::Null => Ok(Self::default()),
+			Value::Boolean(boolean) => Ok(boolean.into()),
+			Value::Integer(integer) => Ok(integer),
 			Value::SharedText(ref text) => text.to_integer(),
-			Value::List(ref list) => Ok(list.len() as Self),
+			Value::List(ref list) => list.len().try_into(),
 			_ => Err(Error::NoConversion { to: "Integer", from: value.typename() }),
 		}
 	}
@@ -149,9 +150,10 @@ impl Context for List {
 			Value::Null => Ok(Self::default()),
 			Value::Boolean(false) => Ok(Self::default()),
 			Value::Boolean(true) => Ok(Self::from(vec![true.into()])),
-			Value::Integer(mut number) => {
+			Value::Integer(number) => {
+				let mut number = number.inner();
 				if number == 0 {
-					return Ok(vec![0.into()].into());
+					return Ok(vec![Integer::default().into()].into());
 				}
 
 				// TODO: when log10 is finalized, add it in.
@@ -165,12 +167,12 @@ impl Context for List {
 				};
 
 				while number != 0 {
-					list.push(Value::from(number % 10));
+					list.push(Value::from(Integer::from((number % 10) as i32)));
 					number /= 10;
 				}
 
 				if is_negative {
-					list.push((-1).into());
+					list.push(Integer::from(-1).into());
 				}
 
 				list.reverse();
