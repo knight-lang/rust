@@ -87,11 +87,11 @@ pub const MAX_NAME_LEN: usize = 255;
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
 pub fn validate_name(name: &TextSlice) -> Result<(), IllegalVariableName> {
+	use crate::parser::{is_lower, is_numeric};
+
 	if cfg!(not(feature = "verify-variable-names")) {
 		return Ok(());
 	}
-
-	use crate::parser::{is_lower, is_numeric};
 
 	if MAX_NAME_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
@@ -111,7 +111,6 @@ pub fn validate_name(name: &TextSlice) -> Result<(), IllegalVariableName> {
 
 impl<'e> Variable<'e> {
 	/// Creates a new `Variable`.
-	#[must_use]
 	pub fn new(name: Text) -> Result<Self, IllegalVariableName> {
 		validate_name(&name)?;
 

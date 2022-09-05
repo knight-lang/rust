@@ -1,3 +1,4 @@
+#![allow(clippy::module_inception)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 extern crate static_assertions as sa;

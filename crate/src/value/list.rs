@@ -127,7 +127,7 @@ impl<'e> List<'e> {
 			if is_first {
 				is_first = false;
 			} else {
-				joined.push(&sep);
+				joined.push(sep);
 			}
 
 			joined.push(&ele.to_text()?);
@@ -173,7 +173,7 @@ impl<'e> List<'e> {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn map(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
-		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 
@@ -188,8 +188,8 @@ impl<'e> List<'e> {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn reduce(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Option<Value<'e>>> {
-		const ACCUMULATE: &'static TextSlice = unsafe { TextSlice::new_unchecked("a") };
-		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		const ACCUMULATE: &TextSlice = unsafe { TextSlice::new_unchecked("a") };
+		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let mut iter = self.iter();
 
@@ -211,7 +211,7 @@ impl<'e> List<'e> {
 
 	#[cfg(feature = "list-extensions")]
 	pub fn filter(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
-		const UNDERSCORE: &'static TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 

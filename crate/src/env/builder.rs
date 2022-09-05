@@ -7,16 +7,16 @@ use std::io;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Builder<'e> {
-	stdin: Option<Box<dyn BufRead + 'e>>,
-	stdout: Option<Box<dyn Write + 'e>>,
+	stdin: Option<Box<Stdin<'e>>>,
+	stdout: Option<Box<Stdout<'e>>>,
 	functions: HashMap<char, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
 
 	#[cfg(feature = "system-function")]
-	system: Option<Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>>,
+	system: Option<Box<System<'e>>>,
 
 	#[cfg(feature = "use-function")]
-	read_file: Option<Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>>,
+	read_file: Option<Box<ReadFile<'e>>>,
 }
 
 impl Default for Builder<'_> {

@@ -52,29 +52,30 @@ impl Integer {
 		}
 	}
 
-	fn binary_op(
+	fn binary_op<T>(
 		self,
-		rhs: Self,
-		checked: impl FnOnce(Inner, Inner) -> Option<Inner>,
-		wrapping: impl FnOnce(Inner, Inner) -> Inner,
+		rhs: T,
+		checked: impl FnOnce(Inner, T) -> Option<Inner>,
+		wrapping: impl FnOnce(Inner, T) -> Inner,
 	) -> Result<Self> {
 		if cfg!(feature = "strict-numbers") {
-			(checked)(self.0, rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			(checked)(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
 		} else {
-			Ok(Self((wrapping)(self.0, rhs.0)))
+			Ok(Self((wrapping)(self.0, rhs)))
 		}
 	}
 
+	#[allow(clippy::should_implement_trait)]
 	pub fn add(self, rhs: Self) -> Result<Self> {
-		self.binary_op(rhs, Inner::checked_add, Inner::wrapping_add)
+		self.binary_op(rhs.0, Inner::checked_add, Inner::wrapping_add)
 	}
 
 	pub fn subtract(self, rhs: Self) -> Result<Self> {
-		self.binary_op(rhs, Inner::checked_sub, Inner::wrapping_sub)
+		self.binary_op(rhs.0, Inner::checked_sub, Inner::wrapping_sub)
 	}
 
 	pub fn multiply(self, rhs: Self) -> Result<Self> {
-		self.binary_op(rhs, Inner::checked_mul, Inner::wrapping_mul)
+		self.binary_op(rhs.0, Inner::checked_mul, Inner::wrapping_mul)
 	}
 
 	pub fn divide(self, rhs: Self) -> Result<Self> {
@@ -82,7 +83,7 @@ impl Integer {
 			return Err(Error::DivisionByZero);
 		}
 
-		self.binary_op(rhs, Inner::checked_div, Inner::wrapping_div)
+		self.binary_op(rhs.0, Inner::checked_div, Inner::wrapping_div)
 	}
 
 	pub fn modulo(self, rhs: Self) -> Result<Self> {
@@ -94,36 +95,30 @@ impl Integer {
 			return Err(Error::DomainError("modulo by a negative base"));
 		}
 
-		self.binary_op(rhs, Inner::checked_rem, Inner::wrapping_rem)
+		self.binary_op(rhs.0, Inner::checked_rem, Inner::wrapping_rem)
 	}
 
-	pub fn power(self, rhs: Self) -> Result<Self> {
-		/*
-		match (base, rhs.run(env)?.to_integer()?) {
-			(_, Integer::MIN..=-1) => return Err(Error::DomainError("negative exponent")),
-			(_, 0) => 1.into(),
-			(0 | 1, _) => base.into(),
+	pub fn power(self, exponent: Self) -> Result<Self> {
+		if exponent.is_negative() {
+			return Err(Error::DomainError("negative exponent"));
+		}
 
-			#[cfg(feature = "checked-overflow")]
-			(_, exponent) => {
-				let exp =
-					exponent.try_conv::<u32>().or(Err(Error::DomainError("negative exponent")))?;
-				base.checked_pow(exp).ok_or(Error::IntegerOverflow)?.conv::<Value>()
-			}
-			#[cfg(not(feature = "checked-overflow"))]
-			(_, exponent) => base.wrapping_pow(exponent as u32).conv::<Value>(),
-		},*/
-		let _ = rhs;
-		todo!()
-		// if rhs.is_zero() {
-		// 	return Err(Error::DivisionByZero);
-		// }
+		if exponent.is_zero() {
+			return Ok(Self::ONE);
+		}
 
-		// if cfg!(feature = "strict-compliance") && rhs.is_negative() {
-		// 	return Err(Error::DomainError("modulo by a negative base"));
-		// }
+		if self.is_zero() || self == Self::ONE {
+			return Ok(self);
+		}
 
-		// self.binary_op(rhs, Inner::checked_div, Inner::wrapping_div)
+		// FIXME: you could probably optimize this.
+		let exponent = if cfg!(feature = "checked-overflow") {
+			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
+		} else {
+			exponent.0 as u32
+		};
+
+		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
 	}
 }
 

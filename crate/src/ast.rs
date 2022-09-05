@@ -9,6 +9,7 @@ impl<'e> Ast<'e> {
 	///
 	/// # Panics
 	/// Panics if `args.len()` isn't equal to `func.arity`.
+	#[must_use]
 	pub fn new(func: &'e Function, args: Box<[Value<'e>]>) -> Self {
 		assert_eq!(args.len(), func.arity);
 
@@ -16,12 +17,19 @@ impl<'e> Ast<'e> {
 	}
 
 	/// Gets the function associated with the ast.
+	#[must_use]
 	pub fn function(&self) -> &'e Function {
 		(self.0).0
 	}
 
+	/// Gets the args associated with the ast.
+	#[must_use]
+	pub fn args(&self) -> &[Value<'e>] {
+		&(self.0).1
+	}
+
 	/// Executes the function associated with `self`.
 	pub fn run(&self, env: &mut Environment<'e>) -> crate::Result<Value<'e>> {
-		(self.function().func)(&(self.0).1, env)
+		(self.function().func)(self.args(), env)
 	}
 }

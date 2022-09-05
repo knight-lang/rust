@@ -7,13 +7,22 @@ use std::io::{BufRead, Write};
 mod builder;
 pub use builder::Builder;
 
+type Stdin<'e> = dyn BufRead + 'e;
+type Stdout<'e> = dyn Write + 'e;
+
+#[cfg(feature = "system-function")]
+type System<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e;
+
+#[cfg(feature = "use-function")]
+type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e;
+
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable<'e>>,
-	stdin: Box<dyn BufRead + 'e>,
-	stdout: Box<dyn Write + 'e>,
+	stdin: Box<Stdin<'e>>,
+	stdout: Box<Stdout<'e>>,
 	rng: Box<StdRng>,
 
 	functions: HashMap<char, &'e Function>,
@@ -28,10 +37,10 @@ pub struct Environment<'e> {
 	system_results: std::collections::VecDeque<Text>,
 
 	#[cfg(feature = "system-function")]
-	system: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>,
+	system: Box<System<'e>>,
 
 	#[cfg(feature = "use-function")]
-	read_file: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>,
+	read_file: Box<ReadFile<'e>>,
 }
 
 #[cfg(feature = "multithreaded")]

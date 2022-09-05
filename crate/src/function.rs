@@ -109,7 +109,7 @@ pub const RANDOM: Function = function!("RANDOM", env, |/* comment for rustfmt */
 pub const BOX: Function = function!(",", env, |val| {
 	let value = val.run(env)?;
 
-	List::from(vec![value])
+	List::boxed(value)
 });
 
 pub const HEAD: Function = function!("[", env, |val| {
@@ -404,7 +404,7 @@ fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 
 			// feels bad to be iterating over by-values.
 			for (left, right) in list.iter().zip(&rhs) {
-				match compare(&left, &right)? {
+				match compare(left, right)? {
 					std::cmp::Ordering::Equal => {}
 					other => return Ok(other),
 				}
@@ -624,9 +624,9 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 			let replacement = replacement_source.to_list()?;
 			let mut ret = Vec::new();
-			ret.extend(list.iter().cloned().take(start));
+			ret.extend(list.iter().take(start).cloned());
 			ret.extend(replacement.iter().cloned());
-			ret.extend(list.iter().cloned().skip((start) + length));
+			ret.extend(list.iter().skip((start) + length).cloned());
 
 			List::from(ret).conv::<Value>()
 		}
@@ -643,9 +643,9 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 			// TODO: `no-oob-errors` here
 			// lol, todo, optimize me
 			let mut builder = Text::builder();
-			builder.push(&text.get(..start).unwrap());
+			builder.push(text.get(..start).unwrap());
 			builder.push(&replacement);
-			builder.push(&text.get(start + length..).unwrap());
+			builder.push(text.get(start + length..).unwrap());
 			builder.finish().into()
 		}
 		other => return Err(Error::TypeError(other.typename())),
@@ -664,7 +664,7 @@ pub const VALUE: Function = function!("V", env, |arg| {
 #[cfg(feature = "handle-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
 pub const HANDLE: Function = function!("H", env, |block, iferr| {
-	const ERR_VAR_NAME: &'static crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
+	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
 	match block.run(env) {
 		Ok(value) => value,
