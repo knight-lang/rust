@@ -24,7 +24,7 @@ impl Display for Integer {
 	}
 }
 
-impl KnightType for Integer {
+impl KnightType<'_> for Integer {
 	const TYPENAME: &'static str = "Integer";
 }
 
@@ -145,8 +145,8 @@ impl ToText for Integer {
 	}
 }
 
-impl ToList for Integer {
-	fn to_list(&self) -> Result<List> {
+impl<'e> ToList<'e> for Integer {
+	fn to_list(&self) -> Result<List<'e>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
 		}

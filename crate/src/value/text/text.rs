@@ -86,7 +86,7 @@ impl TextSlice {
 	}
 
 	#[cfg(feature = "list-extensions")]
-	pub fn split(&self, sep: &Self) -> crate::List {
+	pub fn split<'e>(&self, sep: &Self) -> crate::List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list().unwrap()

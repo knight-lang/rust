@@ -93,12 +93,12 @@ impl ToText for Text {
 	}
 }
 
-impl super::KnightType for Text {
+impl super::KnightType<'_> for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl super::ToList for Text {
-	fn to_list(&self) -> crate::Result<super::List> {
+impl<'e> super::ToList<'e> for Text {
+	fn to_list(&self) -> crate::Result<super::List<'e>> {
 		Ok(self.chars().map(|c| super::Value::from(Self::try_from(c.to_string()).unwrap())).collect())
 	}
 }

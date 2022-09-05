@@ -6,7 +6,7 @@ use crate::Result;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Null;
 
-impl KnightType for Null {
+impl KnightType<'_> for Null {
 	const TYPENAME: &'static str = "Null";
 }
 
@@ -22,8 +22,8 @@ impl ToInteger for Null {
 	}
 }
 
-impl ToList for Null {
-	fn to_list(&self) -> Result<List> {
+impl<'e> ToList<'e> for Null {
+	fn to_list(&self) -> Result<List<'e>> {
 		Ok(List::EMPTY)
 	}
 }

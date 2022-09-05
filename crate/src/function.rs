@@ -9,7 +9,7 @@ use tap::prelude::*;
 #[derive(Clone, Copy)]
 pub struct Function {
 	/// The code associated with this function
-	pub func: fn(&[Value], &mut Environment) -> Result<Value>,
+	pub func: for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>,
 
 	/// The long-hand name of this function.
 	///
@@ -472,7 +472,7 @@ pub const THEN: Function = function!(";", env, |lhs, rhs| {
 	rhs.run(env)?
 });
 
-fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
+fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
 	match variable {
 		Value::Variable(var) => {
 			var.assign(value);

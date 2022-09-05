@@ -12,6 +12,6 @@ pub use null::Null;
 pub use text::*;
 pub use value::Value;
 
-pub trait KnightType: Into<Value> {
+pub trait KnightType<'e>: Into<Value<'e>> {
 	const TYPENAME: &'static str;
 }

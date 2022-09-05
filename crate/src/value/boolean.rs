@@ -10,7 +10,7 @@ pub trait ToBoolean {
 	fn to_boolean(&self) -> Result<Boolean>;
 }
 
-impl KnightType for Boolean {
+impl KnightType<'_> for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 
@@ -28,8 +28,8 @@ impl ToInteger for Boolean {
 	}
 }
 
-impl ToList for Boolean {
-	fn to_list(&self) -> Result<List> {
+impl<'e> ToList<'e> for Boolean {
+	fn to_list(&self) -> Result<List<'e>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {

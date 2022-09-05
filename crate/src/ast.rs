@@ -2,26 +2,26 @@ use crate::{Environment, Function, RefCount, Value};
 
 /// [`Ast`]s represent functions and their arguments.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ast(RefCount<(&'static Function, Box<[Value]>)>);
+pub struct Ast<'e>(RefCount<(&'e Function, Box<[Value<'e>]>)>);
 
-impl Ast {
+impl<'e> Ast<'e> {
 	/// Creates a new `Ast` from the given arguments.
 	///
 	/// # Panics
 	/// Panics if `args.len()` isn't equal to `func.arity`.
-	pub fn new(func: &'static Function, args: Box<[Value]>) -> Self {
+	pub fn new(func: &'e Function, args: Box<[Value<'e>]>) -> Self {
 		assert_eq!(args.len(), func.arity);
 
 		Self((func, args).into())
 	}
 
 	/// Gets the function associated with the ast.
-	pub fn function(&self) -> &'static Function {
+	pub fn function(&self) -> &'e Function {
 		(self.0).0
 	}
 
 	/// Executes the function associated with `self`.
-	pub fn run(&self, env: &mut Environment) -> crate::Result<Value> {
+	pub fn run(&self, env: &mut Environment<'e>) -> crate::Result<Value<'e>> {
 		(self.function().func)(&(self.0).1, env)
 	}
 }

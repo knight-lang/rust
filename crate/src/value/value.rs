@@ -7,7 +7,7 @@ use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
 #[derive(Clone, PartialEq)]
-pub enum Value {
+pub enum Value<'e> {
 	/// Represents the `NULL` value.
 	Null,
 
@@ -21,26 +21,26 @@ pub enum Value {
 	Text(Text),
 
 	/// Represents a list of [`Value`]s.
-	List(List),
+	List(List<'e>),
 
 	/// Represents a variable.
-	Variable(Variable),
+	Variable(Variable<'e>),
 
 	/// Represents a block of code.
-	Ast(Ast),
+	Ast(Ast<'e>),
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Value: Send, Sync);
+sa::assert_impl_all!(Value<'_>: Send, Sync);
 
-impl Default for Value {
+impl Default for Value<'_> {
 	#[inline]
 	fn default() -> Self {
 		Self::Null
 	}
 }
 
-impl Debug for Value {
+impl Debug for Value<'_> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -55,56 +55,56 @@ impl Debug for Value {
 	}
 }
 
-impl From<Null> for Value {
+impl From<Null> for Value<'_> {
 	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl From<Boolean> for Value {
+impl From<Boolean> for Value<'_> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl From<Integer> for Value {
+impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(number: Integer) -> Self {
 		Self::Integer(number)
 	}
 }
 
-impl From<Text> for Value {
+impl From<Text> for Value<'_> {
 	#[inline]
 	fn from(text: Text) -> Self {
 		Self::Text(text)
 	}
 }
 
-impl From<Variable> for Value {
+impl<'e> From<Variable<'e>> for Value<'e> {
 	#[inline]
-	fn from(variable: Variable) -> Self {
+	fn from(variable: Variable<'e>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl From<Ast> for Value {
+impl<'e> From<Ast<'e>> for Value<'e> {
 	#[inline]
-	fn from(inp: Ast) -> Self {
+	fn from(inp: Ast<'e>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl From<List> for Value {
+impl<'e> From<List<'e>> for Value<'e> {
 	#[inline]
-	fn from(list: List) -> Self {
+	fn from(list: List<'e>) -> Self {
 		Self::List(list)
 	}
 }
 
-impl ToBoolean for Value {
+impl ToBoolean for Value<'_> {
 	fn to_boolean(&self) -> Result<Boolean> {
 		match *self {
 			Self::Null => Null.to_boolean(),
@@ -117,7 +117,7 @@ impl ToBoolean for Value {
 	}
 }
 
-impl ToInteger for Value {
+impl ToInteger for Value<'_> {
 	fn to_integer(&self) -> Result<Integer> {
 		match *self {
 			Self::Null => Null.to_integer(),
@@ -130,7 +130,7 @@ impl ToInteger for Value {
 	}
 }
 
-impl ToText for Value {
+impl ToText for Value<'_> {
 	fn to_text(&self) -> Result<Text> {
 		match *self {
 			Self::Null => Null.to_text(),
@@ -143,8 +143,8 @@ impl ToText for Value {
 	}
 }
 
-impl ToList for Value {
-	fn to_list(&self) -> Result<List> {
+impl<'e> ToList<'e> for Value<'e> {
+	fn to_list(&self) -> Result<List<'e>> {
 		match *self {
 			Self::Null => Null.to_list(),
 			Self::Boolean(boolean) => boolean.to_list(),
@@ -156,7 +156,7 @@ impl ToList for Value {
 	}
 }
 
-impl Value {
+impl<'e> Value<'e> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub const fn typename(&self) -> &'static str {
@@ -172,7 +172,7 @@ impl Value {
 	}
 
 	/// Executes the value.
-	pub fn run(&self, env: &mut Environment) -> Result<Self> {
+	pub fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => {
 				variable.fetch().ok_or_else(|| Error::UndefinedVariable(variable.name().clone()))

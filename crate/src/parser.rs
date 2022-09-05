@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
-	pub fn parse(mut self, env: &mut Environment) -> Result<Value, ParseError> {
+	pub fn parse<'e>(mut self, env: &mut Environment<'e>) -> Result<Value<'e>, ParseError> {
 		let ret = self.parse_value(env)?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -193,7 +193,10 @@ impl<'a> Parser<'a> {
 			.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow))
 	}
 
-	fn parse_identifier(&mut self, env: &mut Environment) -> Result<crate::Variable, ParseError> {
+	fn parse_identifier<'e>(
+		&mut self,
+		env: &mut Environment<'e>,
+	) -> Result<crate::Variable<'e>, ParseError> {
 		let identifier = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
 
 		env.lookup(identifier).map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
@@ -215,11 +218,11 @@ impl<'a> Parser<'a> {
 		}
 	}
 
-	fn parse_function(
+	fn parse_function<'e>(
 		&mut self,
-		func: &'static crate::Function,
-		env: &mut Environment,
-	) -> Result<Ast, ParseError> {
+		func: &'e crate::Function,
+		env: &mut Environment<'e>,
+	) -> Result<Ast<'e>, ParseError> {
 		// If it's a keyword function, then take all keyword characters.
 		if is_upper(func.name.chars().next().expect("function has empty name?")) {
 			self.take_while(is_upper);
@@ -248,7 +251,7 @@ impl<'a> Parser<'a> {
 		Ok(Ast::new(func, args))
 	}
 
-	fn parse_value(&mut self, env: &mut Environment) -> Result<Value, ParseError> {
+	fn parse_value<'e>(&mut self, env: &mut Environment<'e>) -> Result<Value<'e>, ParseError> {
 		self.strip();
 
 		match self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))? {

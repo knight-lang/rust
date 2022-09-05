@@ -2,7 +2,7 @@ use crate::variable::IllegalVariableName;
 use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 #[cfg(feature = "extension-functions")]
 use std::collections::HashMap;
@@ -10,48 +10,22 @@ use std::collections::HashMap;
 mod builder;
 pub use builder::Builder;
 
-cfg_if! {
-	if #[cfg(feature="multithreaded")] {
-		type Stdin = dyn Read + Send + Sync;
-		type Stdout = dyn Write + Send + Sync;
-
-		#[cfg(feature = "system-function")]
-		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
-
-		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
-	} else {
-		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text>;
-		type Stdin = dyn Read;
-		type Stdout = dyn Write;
-
-		#[cfg(feature = "use-function")]
-		type ReadFile = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
-	}
-}
-
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment<'a> {
+pub struct Environment<'e> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
-	variables: HashSet<Variable>,
-	stdin: Box<dyn BufRead + 'a>,
-	stdout: Box<dyn Write + 'a>,
+	variables: HashSet<Variable<'e>>,
+	stdin: Box<dyn BufRead + 'e>,
+	stdout: Box<dyn Write + 'e>,
 	rng: Box<StdRng>,
 
-	#[cfg(feature = "system-function")]
-	system: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'a>,
-
-	#[cfg(feature = "use-function")]
-	read_file: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'a>,
-
-	functions: HashMap<char, &'static Function>,
+	functions: HashMap<char, &'e Function>,
 
 	// All the known extension functions.
 	//
 	// FIXME: Maybe we should make functions refcounted or something?
 	#[cfg(feature = "extension-functions")]
-	extensions: HashMap<Text, &'static crate::Function>,
+	extensions: HashMap<Text, &'e Function>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
 	#[cfg(feature = "assign-to-prompt")]
@@ -61,9 +35,11 @@ pub struct Environment<'a> {
 	#[cfg(feature = "assign-to-prompt")]
 	system_results: std::collections::VecDeque<Text>,
 
-	// The function that governs reading a file.
+	#[cfg(feature = "system-function")]
+	system: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>,
+
 	#[cfg(feature = "use-function")]
-	readfile: Box<ReadFile>,
+	read_file: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>,
 }
 
 #[cfg(feature = "multithreaded")]
@@ -71,67 +47,26 @@ sa::assert_impl_all!(Environment: Send, Sync);
 
 impl Default for Environment<'_> {
 	fn default() -> Self {
-		Self {
-			variables: HashSet::default(),
-			stdin: BufReader::new(Box::new(std::io::stdin())),
-			stdout: Box::new(std::io::stdout()),
-			system: Box::new(|cmd| {
-				use std::process::{Command, Stdio};
-
-				let output = Command::new("/bin/sh")
-					.arg("-c")
-					.arg(&**cmd)
-					.stdin(Stdio::inherit())
-					.output()
-					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
-
-				Ok(Text::try_from(output)?)
-			}),
-			rng: Box::new(StdRng::from_entropy()),
-			functions: crate::function::default(),
-
-			#[cfg(feature = "extension-functions")]
-			extensions: {
-				#[allow(unused_mut)]
-				let mut map = HashMap::<Text, &'static crate::Function>::default();
-
-				#[cfg(feature = "xsrand-function")]
-				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
-
-				#[cfg(feature = "xreverse-function")]
-				map.insert("REV".try_into().unwrap(), &crate::function::REVERSE);
-
-				#[cfg(feature = "xrange-function")]
-				map.insert("RANGE".try_into().unwrap(), &crate::function::RANGE);
-
-				map
-			},
-
-			#[cfg(feature = "assign-to-prompt")]
-			prompt_lines: Default::default(),
-
-			#[cfg(feature = "assign-to-system")]
-			system_results: Default::default(),
-
-			#[cfg(feature = "use-function")]
-			readfile: Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?)),
-		}
+		Builder::default().build()
 	}
 }
 
-impl<'a> Environment<'a> {
+impl<'e> Environment<'e> {
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice) -> crate::Result<Value> {
+	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
 		crate::Parser::new(source).parse(self)?.run(self)
 	}
 
-	pub fn lookup_function(&self, name: char) -> Option<&'static Function> {
+	pub fn lookup_function(&self, name: char) -> Option<&'e Function> {
 		self.functions.get(&name).copied()
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
-	pub fn lookup(&mut self, name: &TextSlice) -> Result<Variable, IllegalVariableName> {
+	pub fn lookup(
+		&mut self,
+		name: &TextSlice,
+	) -> std::result::Result<Variable<'e>, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -140,11 +75,6 @@ impl<'a> Environment<'a> {
 		let variable = Variable::new(name.into())?;
 		self.variables.insert(variable.clone());
 		Ok(variable)
-	}
-
-	/// Executes `command` as a shell command, returning its result.
-	pub fn run_command(&mut self, command: &TextSlice) -> crate::Result<Text> {
-		(self.system)(command)
 	}
 
 	/// Gets a random `Integer`.
@@ -159,17 +89,23 @@ impl<'a> Environment<'a> {
 		*self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
+	/// Executes `command` as a shell command, returning its result.
+	#[cfg(feature = "system-function")]
+	pub fn run_command(&mut self, command: &TextSlice) -> Result<Text> {
+		(self.system)(command)
+	}
+
 	/// Gets the list of known extension functions.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions(&self) -> &HashMap<Text, &'static crate::Function> {
+	pub fn extensions(&self) -> &HashMap<Text, &'e Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
 	#[cfg(feature = "extension-functions")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
-	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'static crate::Function> {
+	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'e Function> {
 		&mut self.extensions
 	}
 
@@ -197,18 +133,18 @@ impl<'a> Environment<'a> {
 
 	#[cfg(feature = "use-function")]
 	pub fn read_file(&mut self, filename: &TextSlice) -> crate::Result<Text> {
-		(self.readfile)(filename)
+		(self.read_file)(filename)
 	}
 }
 
-impl Read for Environment {
+impl Read for Environment<'_> {
 	#[inline]
 	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
 		self.stdin.read(data)
 	}
 }
 
-impl BufRead for Environment {
+impl BufRead for Environment<'_> {
 	#[inline]
 	fn fill_buf(&mut self) -> io::Result<&[u8]> {
 		self.stdin.fill_buf()
@@ -225,7 +161,7 @@ impl BufRead for Environment {
 	}
 }
 
-impl Write for Environment {
+impl Write for Environment<'_> {
 	#[inline]
 	fn write(&mut self, data: &[u8]) -> io::Result<usize> {
 		self.stdout.write(data)
