@@ -1,5 +1,5 @@
 use crate::variable::IllegalVariableName;
-use crate::{Function, Integer, Text, TextSlice, Value, Variable};
+use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -7,11 +7,16 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 #[cfg(feature = "extension-functions")]
 use std::collections::HashMap;
 
+mod builder;
+pub use builder::Builder;
+
 cfg_if! {
 	if #[cfg(feature="multithreaded")] {
-		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
 		type Stdin = dyn Read + Send + Sync;
 		type Stdout = dyn Write + Send + Sync;
+
+		#[cfg(feature = "system-function")]
+		type SystemCommand = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
 
 		#[cfg(feature = "use-function")]
 		type ReadFile = dyn FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync;
@@ -26,14 +31,19 @@ cfg_if! {
 }
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment {
+pub struct Environment<'a> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable>,
-	stdin: BufReader<Box<Stdin>>,
-	stdout: Box<Stdout>,
-	system: Box<SystemCommand>,
+	stdin: Box<dyn BufRead + 'a>,
+	stdout: Box<dyn Write + 'a>,
 	rng: Box<StdRng>,
+
+	#[cfg(feature = "system-function")]
+	system: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'a>,
+
+	#[cfg(feature = "use-function")]
+	read_file: Box<dyn FnMut(&TextSlice) -> Result<Text> + 'a>,
 
 	functions: HashMap<char, &'static Function>,
 
@@ -59,7 +69,7 @@ pub struct Environment {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl Default for Environment {
+impl Default for Environment<'_> {
 	fn default() -> Self {
 		Self {
 			variables: HashSet::default(),
@@ -109,7 +119,7 @@ impl Default for Environment {
 	}
 }
 
-impl Environment {
+impl<'a> Environment<'a> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> crate::Result<Value> {
 		crate::Parser::new(source).parse(self)?.run(self)
