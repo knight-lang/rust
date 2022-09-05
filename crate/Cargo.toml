@@ -96,6 +96,7 @@ qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]
 ##          Spec Compliance          ##
 #######################################
 
+container-length-limit = []
 forbid-trailing-tokens = []
 
 # Restrict source files and strings to the bytes defined in the Knight spec.
@@ -104,8 +105,8 @@ strict-charset = [] # TODO: make this work
 # Catch undefined integer arithmetic
 checked-overflow = []
 
-# Use `i32` for numbers, which is the minimum required range.
-strict-numbers = []
+# Use `i32` for integers, which is the minimum required range. Also enables some niche things.
+strict-integers = []
 
 # Ensure BLOCK return values are handled correctly.
 strict-block-return-value = []
@@ -115,12 +116,13 @@ verify-variable-names = []
 
 # Exactly follow knight specs.
 strict-compliance = [
-	"strict-numbers",
+	"strict-integers",
 	"checked-overflow",
 	"forbid-trailing-tokens",
 	"strict-charset",
 	"strict-block-return-value",
-	"verify-variable-names"
+	"verify-variable-names",
+	"container-length-limit",
 ]
 
 [dependencies]

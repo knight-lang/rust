@@ -99,6 +99,10 @@ impl super::KnightType<'_> for Text {
 
 impl<'e> super::ToList<'e> for Text {
 	fn to_list(&self) -> crate::Result<super::List<'e>> {
-		Ok(self.chars().map(|c| super::Value::from(Self::try_from(c.to_string()).unwrap())).collect())
+		self
+			.chars()
+			.map(|c| super::Value::from(Self::try_from(c.to_string()).unwrap()))
+			.collect::<Vec<_>>()
+			.try_into()
 	}
 }

@@ -258,7 +258,7 @@ pub const ADD: Function = function!("+", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.add(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 		Value::Text(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
-		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?).into(),
+		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?)?.into(),
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -270,7 +270,7 @@ pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
 		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?).into(),
+		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?)?.into(),
 
 		other => return Err(Error::TypeError(other.typename())),
 	}
@@ -310,7 +310,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 
 			// No need to check for repetition length because `list.repeat` doesnt actually
 			// make a list.
-			list.repeat(amount).conv::<Value>()
+			list.repeat(amount)?.conv::<Value>()
 		}
 
 		other => return Err(Error::TypeError(other.typename())),
@@ -432,6 +432,10 @@ pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 	let r = rhs.run(env)?;
 
 	if cfg!(feature = "strict-compliance") {
+		if false {
+			todo!("also recursively check lists");
+		}
+
 		if matches!(l, Value::Ast(_) | Value::Variable(_)) {
 			return Err(Error::TypeError(l.typename()));
 		}
@@ -628,7 +632,7 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 			ret.extend(replacement.iter().cloned());
 			ret.extend(list.iter().skip((start) + length).cloned());
 
-			List::from(ret).conv::<Value>()
+			List::try_from(ret)?.conv::<Value>()
 		}
 		Value::Text(text) => {
 			let replacement = replacement_source.to_text()?;

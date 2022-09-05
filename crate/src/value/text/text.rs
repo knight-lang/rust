@@ -91,7 +91,12 @@ impl TextSlice {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list().unwrap()
 		} else {
-			(**self).split(&**sep).map(|x| Text::new(x).unwrap().into()).collect()
+			(**self)
+				.split(&**sep)
+				.map(|x| Text::new(x).unwrap().into())
+				.collect::<Vec<_>>()
+				.try_into()
+				.unwrap()
 		}
 	}
 }

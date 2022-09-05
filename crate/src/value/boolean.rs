@@ -15,6 +15,7 @@ impl KnightType<'_> for Boolean {
 }
 
 impl ToBoolean for Boolean {
+	/// Simply returns `self`.
 	#[inline]
 	fn to_boolean(&self) -> Result<Self> {
 		Ok(*self)
@@ -22,6 +23,7 @@ impl ToBoolean for Boolean {
 }
 
 impl ToInteger for Boolean {
+	/// Returns `1` for true and `0` for false.
 	#[inline]
 	fn to_integer(&self) -> Result<Integer> {
 		Ok((*self).into())
@@ -29,6 +31,7 @@ impl ToInteger for Boolean {
 }
 
 impl<'e> ToList<'e> for Boolean {
+	/// Returns an empty list for `false`, and a list with just `self` if true.
 	fn to_list(&self) -> Result<List<'e>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
@@ -39,6 +42,7 @@ impl<'e> ToList<'e> for Boolean {
 }
 
 impl ToText for Boolean {
+	/// Returns `"true"` for true and `"false"` for false.
 	fn to_text(&self) -> Result<Text> {
 		use crate::text::TextSlice;
 
