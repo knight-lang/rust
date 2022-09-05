@@ -1,5 +1,5 @@
 use crate::variable::IllegalVariableName;
-use crate::{Integer, Text, TextSlice, Value, Variable};
+use crate::{Function, Integer, Text, TextSlice, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -34,6 +34,8 @@ pub struct Environment {
 	stdout: Box<Stdout>,
 	system: Box<SystemCommand>,
 	rng: Box<StdRng>,
+
+	functions: HashMap<char, &'static Function>,
 
 	// All the known extension functions.
 	//
@@ -76,16 +78,21 @@ impl Default for Environment {
 				Ok(Text::try_from(output)?)
 			}),
 			rng: Box::new(StdRng::from_entropy()),
+			functions: crate::function::default(),
 
 			#[cfg(feature = "extension-functions")]
 			extensions: {
+				#[allow(unused_mut)]
 				let mut map = HashMap::<Text, &'static crate::Function>::default();
 
-				#[cfg(feature = "srand-function")]
+				#[cfg(feature = "xsrand-function")]
 				map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
 
-				#[cfg(feature = "reverse-function")]
+				#[cfg(feature = "xreverse-function")]
 				map.insert("REV".try_into().unwrap(), &crate::function::REVERSE);
+
+				#[cfg(feature = "xrange-function")]
+				map.insert("RANGE".try_into().unwrap(), &crate::function::RANGE);
 
 				map
 			},
@@ -106,6 +113,10 @@ impl Environment {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> crate::Result<Value> {
 		crate::Parser::new(source).parse(self)?.run(self)
+	}
+
+	pub fn lookup_function(&self, name: char) -> Option<&'static Function> {
+		self.functions.get(&name).copied()
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
@@ -134,8 +145,6 @@ impl Environment {
 	}
 
 	/// Seeds the random number generator.
-	#[cfg(feature = "srand-function")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
 	pub fn srand(&mut self, seed: Integer) {
 		*self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}

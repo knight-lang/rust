@@ -50,10 +50,9 @@ extension-functions = [] # Required for all `X` functions.
 
 
 # Enables `XSRAND`
-srand-function = ["extension-functions"]
-
-# Enables `XREV`
-reverse-function = ["extension-functions"]
+xsrand-function = ["extension-functions"]
+xrange-function = ["extension-functions"]
+xreverse-function = ["extension-functions"]
 
 # Enable most extensions
 normal-extensions = [
@@ -61,7 +60,7 @@ normal-extensions = [
 	"assign-to-anything",
 	"handle-function",
 	"use-function",
-	"srand-function",
+	"xsrand-function",
 ]
 
 all-extensions = ["normal-extensions", "qol-extensions"]

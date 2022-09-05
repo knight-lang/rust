@@ -1,9 +1,12 @@
 use crate::value::{Integer, KnightType, List, Text, ToInteger, ToList, ToText};
 use crate::Result;
 
+/// The boolean type within Knight.
 pub type Boolean = bool;
 
+/// Represents the ability to be converted to a [`Boolean`].
 pub trait ToBoolean {
+	/// Converts `self` to a [`Boolean`].
 	fn to_boolean(&self) -> Result<Boolean>;
 }
 
@@ -12,18 +15,16 @@ impl KnightType for Boolean {
 }
 
 impl ToBoolean for Boolean {
+	#[inline]
 	fn to_boolean(&self) -> Result<Self> {
 		Ok(*self)
 	}
 }
 
 impl ToInteger for Boolean {
+	#[inline]
 	fn to_integer(&self) -> Result<Integer> {
-		if *self {
-			Ok(Integer::ONE)
-		} else {
-			Ok(Integer::ZERO)
-		}
+		Ok((*self).into())
 	}
 }
 

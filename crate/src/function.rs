@@ -33,102 +33,33 @@ impl Debug for Function {
 	}
 }
 
-pub const fn fetch(name: char) -> Option<&'static Function> {
-	const PROMPT_NAME: char = PROMPT.name.as_bytes()[0] as char;
-	const RANDOM_NAME: char = RANDOM.name.as_bytes()[0] as char;
-	const BLOCK_NAME: char = BLOCK.name.as_bytes()[0] as char;
-	const CALL_NAME: char = CALL.name.as_bytes()[0] as char;
-	const SYSTEM_NAME: char = SYSTEM.name.as_bytes()[0] as char;
-	const QUIT_NAME: char = QUIT.name.as_bytes()[0] as char;
-	const NOT_NAME: char = NOT.name.as_bytes()[0] as char;
-	const LENGTH_NAME: char = LENGTH.name.as_bytes()[0] as char;
-	const DUMP_NAME: char = DUMP.name.as_bytes()[0] as char;
-	const OUTPUT_NAME: char = OUTPUT.name.as_bytes()[0] as char;
-	const ASCII_NAME: char = ASCII.name.as_bytes()[0] as char;
-	const NEG_NAME: char = NEG.name.as_bytes()[0] as char;
-	const BOX_NAME: char = BOX.name.as_bytes()[0] as char;
-	const ADD_NAME: char = ADD.name.as_bytes()[0] as char;
-	const SUBTRACT_NAME: char = SUBTRACT.name.as_bytes()[0] as char;
-	const MULTIPLY_NAME: char = MULTIPLY.name.as_bytes()[0] as char;
-	const DIVIDE_NAME: char = DIVIDE.name.as_bytes()[0] as char;
-	const MODULO_NAME: char = MODULO.name.as_bytes()[0] as char;
-	const POWER_NAME: char = POWER.name.as_bytes()[0] as char;
-	const EQUALS_NAME: char = EQUALS.name.as_bytes()[0] as char;
-	const LESS_THAN_NAME: char = LESS_THAN.name.as_bytes()[0] as char;
-	const GREATER_THAN_NAME: char = GREATER_THAN.name.as_bytes()[0] as char;
-	const AND_NAME: char = AND.name.as_bytes()[0] as char;
-	const OR_NAME: char = OR.name.as_bytes()[0] as char;
-	const THEN_NAME: char = THEN.name.as_bytes()[0] as char;
-	const ASSIGN_NAME: char = ASSIGN.name.as_bytes()[0] as char;
-	const WHILE_NAME: char = WHILE.name.as_bytes()[0] as char;
-	// const RANGE_NAME: char = RANGE.name.as_bytes()[0] as char;
-	const IF_NAME: char = IF.name.as_bytes()[0] as char;
-	const GET_NAME: char = GET.name.as_bytes()[0] as char;
-	const SET_NAME: char = SET.name.as_bytes()[0] as char;
+pub fn default() -> std::collections::HashMap<char, &'static Function> {
+	let mut map = std::collections::HashMap::new();
 
-	#[cfg(feature = "value-function")]
-	const VALUE_NAME: char = VALUE.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "eval-function")]
-	const EVAL_NAME: char = EVAL.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "handle-function")]
-	const HANDLE_NAME: char = HANDLE.name.as_bytes()[0] as char;
-
-	#[cfg(feature = "use-function")]
-	const USE_NAME: char = USE.name.as_bytes()[0] as char;
-
-	match name {
-		PROMPT_NAME => Some(&PROMPT),
-		RANDOM_NAME => Some(&RANDOM),
-
-		BLOCK_NAME => Some(&BLOCK),
-		CALL_NAME => Some(&CALL),
-		SYSTEM_NAME => Some(&SYSTEM),
-		QUIT_NAME => Some(&QUIT),
-		NOT_NAME => Some(&NOT),
-		LENGTH_NAME => Some(&LENGTH),
-		DUMP_NAME => Some(&DUMP),
-		OUTPUT_NAME => Some(&OUTPUT),
-		ASCII_NAME => Some(&ASCII),
-		NEG_NAME => Some(&NEG),
-		BOX_NAME => Some(&BOX),
-		'[' => Some(&UNBOX),
-		']' => Some(&TAIL),
-
-		ADD_NAME => Some(&ADD),
-		SUBTRACT_NAME => Some(&SUBTRACT),
-		MULTIPLY_NAME => Some(&MULTIPLY),
-		DIVIDE_NAME => Some(&DIVIDE),
-		MODULO_NAME => Some(&MODULO),
-		POWER_NAME => Some(&POWER),
-		EQUALS_NAME => Some(&EQUALS),
-		LESS_THAN_NAME => Some(&LESS_THAN),
-		GREATER_THAN_NAME => Some(&GREATER_THAN),
-		AND_NAME => Some(&AND),
-		OR_NAME => Some(&OR),
-		THEN_NAME => Some(&THEN),
-		ASSIGN_NAME => Some(&ASSIGN),
-		WHILE_NAME => Some(&WHILE),
-		// RANGE_NAME => Some(&RANGE),
-		IF_NAME => Some(&IF),
-		GET_NAME => Some(&GET),
-		SET_NAME => Some(&SET),
-
-		#[cfg(feature = "value-function")]
-		VALUE_NAME => Some(&VALUE),
-
-		#[cfg(feature = "eval-function")]
-		EVAL_NAME => Some(&EVAL),
-
-		#[cfg(feature = "handle-function")]
-		_ if name == HANDLE_NAME => Some(&HANDLE),
-
-		#[cfg(feature = "use-function")]
-		_ if name == USE_NAME => Some(&USE),
-
-		_ => None,
+	macro_rules! insert {
+		($($(#[$meta:meta])* $name:ident)*) => {
+			$(
+				$(#[$meta])*
+				map.insert($name.name.as_bytes()[0] as char, &$name);
+			)*
+		}
 	}
+
+	insert! {
+		PROMPT RANDOM
+		BLOCK CALL QUIT NOT NEG LENGTH DUMP OUTPUT ASCII BOX HEAD TAIL
+		ADD SUBTRACT MULTIPLY DIVIDE MODULO POWER EQUALS LESS_THAN GREATER_THAN AND OR
+			THEN ASSIGN WHILE
+		IF GET SET
+
+		#[cfg(feature = "value-function")] VALUE
+		#[cfg(feature = "eval-function")] EVAL
+		#[cfg(feature = "handle-function")] HANDLE
+		#[cfg(feature = "use-function")] USE
+		#[cfg(feature = "system-function")] SYSTEM
+	}
+
+	map
 }
 
 macro_rules! arity {
@@ -182,7 +113,7 @@ pub const BOX: Function = function!(",", env, |val| {
 	List::from(vec![value])
 });
 
-pub const UNBOX: Function = function!("]", env, |val| {
+pub const HEAD: Function = function!("[", env, |val| {
 	let value = val.run(env)?.to_list()?;
 
 	value.get(0).unwrap().clone()
@@ -233,11 +164,6 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 });
 
 /// **4.2.5** `` ` ``
-pub const SYSTEM: Function = function!("`", env, |arg| {
-	let command = arg.run(env)?.to_text()?;
-
-	env.run_command(&command)?
-});
 
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!("QUIT", env, |arg| {
@@ -555,7 +481,7 @@ fn assign(variable: &Value, value: Value, env: &mut Environment) -> Result<()> {
 		#[cfg(feature = "assign-to-prompt")]
 		Value::Ast(ast) if ast.function().name == PROMPT.name => env.add_to_prompt(value.to_text()?),
 
-		#[cfg(feature = "assign-to-system")]
+		#[cfg(all(feature = "assign-to-system", feature = "system-function"))]
 		Value::Ast(ast) if ast.function().name == SYSTEM.name => env.add_to_system(value.to_text()?),
 
 		#[cfg(feature = "list-extensions")]
@@ -615,32 +541,6 @@ pub const WHILE: Function = function!("WHILE", env, |cond, body| {
 	Value::Null
 });
 
-/// **4.3.15** `RANGE`  
-// pub const RANGE: Function = function!(".", env, |start, stop| {
-// 	match start.run(env)? {
-// 		Value::Integer(start) => {
-// 			let stop = stop.run(env)?.to_integer()?;
-
-// 			match start <= stop {
-// 				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
-
-// 				#[cfg(feature = "negative-ranges")]
-// 				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
-
-// 				#[cfg(not(feature = "negative-ranges"))]
-// 				false => return Err(Error::DomainError("start is greater than stop")),
-// 			}
-// 		}
-
-// 		Value::Text(_text) => {
-// 			// let start = text.get(0).a;
-// 			todo!()
-// 		}
-
-// 		other => return Err(Error::TypeError(other.typename())),
-// 	}
-// });
-
 /// **4.4.1** `IF`  
 pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
 	if cond.run(env)?.to_boolean()? {
@@ -668,15 +568,8 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 			let start =
 				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
 
-			// special case for `GET` with a length of zero returns just that element
-			let fetched = /*if length == 0 {
-				list.get(start)
-			} else {*/
-				list.get(start..start + length).map(Value::from)
-			/*}*/;
-
-			match fetched {
-				Some(fetched) => fetched,
+			match list.get(start..start + length) {
+				Some(fetched) => Value::from(fetched),
 
 				#[cfg(feature = "no-oob-errors")]
 				None => return Err(Error::IndexOutOfBounds { len: list.len(), index: start + length }),
@@ -805,9 +698,16 @@ pub const EVAL: Function = function!("E", env, |val| {
 	env.play(&code)?
 });
 
+#[cfg(feature = "system-function")]
+pub const SYSTEM: Function = function!("`", env, |arg| {
+	let command = arg.run(env)?.to_text()?;
+
+	env.run_command(&command)?
+});
+
 /// **Compiler extension**: SRAND
-#[cfg(feature = "srand-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "srand-function")))]
+#[cfg(feature = "xsrand-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "xsrand-function")))]
 pub const SRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
@@ -815,10 +715,37 @@ pub const SRAND: Function = function!("XSRAND", env, |arg| {
 });
 
 /// **Compiler extension**: REV
-#[cfg(feature = "reverse-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "reverse-function")))]
+#[cfg(feature = "xreverse-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
 pub const REVERSE: Function = function!("XREV", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
+});
+
+#[cfg(feature = "xrange-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "xrange-function")))]
+pub const RANGE: Function = function!("RANGE", env, |start, stop| {
+	match start.run(env)? {
+		Value::Integer(start) => {
+			let stop = stop.run(env)?.to_integer()?;
+
+			match start <= stop {
+				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
+
+				#[cfg(feature = "negative-ranges")]
+				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
+
+				#[cfg(not(feature = "negative-ranges"))]
+				false => return Err(Error::DomainError("start is greater than stop")),
+			}
+		}
+
+		Value::Text(_text) => {
+			// let start = text.get(0).a;
+			todo!()
+		}
+
+		other => return Err(Error::TypeError(other.typename())),
+	}
 });

@@ -6,7 +6,7 @@ pub trait ToInteger {
 	fn to_integer(&self) -> Result<Integer>;
 }
 
-/// The number type within Knight.
+/// The integer type within Knight.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
