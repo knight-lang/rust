@@ -1,11 +1,8 @@
 use crate::variable::IllegalVariableName;
 use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::collections::HashSet;
-use std::io::{self, BufRead, Read, Write};
-
-#[cfg(feature = "extension-functions")]
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::io::{BufRead, Write};
 
 mod builder;
 pub use builder::Builder;
@@ -20,11 +17,6 @@ pub struct Environment<'e> {
 	rng: Box<StdRng>,
 
 	functions: HashMap<char, &'e Function>,
-
-	// All the known extension functions.
-	//
-	// FIXME: Maybe we should make functions refcounted or something?
-	#[cfg(feature = "extension-functions")]
 	extensions: HashMap<Text, &'e Function>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
@@ -32,7 +24,7 @@ pub struct Environment<'e> {
 	prompt_lines: std::collections::VecDeque<Text>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
-	#[cfg(feature = "assign-to-prompt")]
+	#[cfg(feature = "assign-to-system")]
 	system_results: std::collections::VecDeque<Text>,
 
 	#[cfg(feature = "system-function")]
@@ -59,6 +51,14 @@ impl<'e> Environment<'e> {
 
 	pub fn lookup_function(&self, name: char) -> Option<&'e Function> {
 		self.functions.get(&name).copied()
+	}
+
+	pub fn stdin(&mut self) -> &mut dyn BufRead {
+		&mut self.stdin
+	}
+
+	pub fn stdout(&mut self) -> &mut dyn Write {
+		&mut self.stdout
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
@@ -96,15 +96,11 @@ impl<'e> Environment<'e> {
 	}
 
 	/// Gets the list of known extension functions.
-	#[cfg(feature = "extension-functions")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
 	pub fn extensions(&self) -> &HashMap<Text, &'e Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
-	#[cfg(feature = "extension-functions")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "extension-functions")))]
 	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'e Function> {
 		&mut self.extensions
 	}
@@ -134,41 +130,5 @@ impl<'e> Environment<'e> {
 	#[cfg(feature = "use-function")]
 	pub fn read_file(&mut self, filename: &TextSlice) -> crate::Result<Text> {
 		(self.read_file)(filename)
-	}
-}
-
-impl Read for Environment<'_> {
-	#[inline]
-	fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-		self.stdin.read(data)
-	}
-}
-
-impl BufRead for Environment<'_> {
-	#[inline]
-	fn fill_buf(&mut self) -> io::Result<&[u8]> {
-		self.stdin.fill_buf()
-	}
-
-	#[inline]
-	fn consume(&mut self, amnt: usize) {
-		self.stdin.consume(amnt);
-	}
-
-	#[inline]
-	fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
-		self.stdin.read_line(buf)
-	}
-}
-
-impl Write for Environment<'_> {
-	#[inline]
-	fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-		self.stdout.write(data)
-	}
-
-	#[inline]
-	fn flush(&mut self) -> io::Result<()> {
-		self.stdout.flush()
 	}
 }

@@ -2,7 +2,6 @@ use crate::value::{Integer, List, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
 
 use std::fmt::{self, Debug, Formatter};
-use std::io::{BufRead, Write};
 use tap::prelude::*;
 
 /// A function in knight indicates
@@ -87,7 +86,7 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 	}
 
 	let mut buf = String::new();
-	env.read_line(&mut buf)?;
+	env.stdin().read_line(&mut buf)?;
 
 	// remove trailing newlines
 	match buf.pop() {
@@ -207,21 +206,22 @@ pub const LENGTH: Function = function!("LENGTH", env, |arg| {
 /// **4.2.9** `DUMP`  
 pub const DUMP: Function = function!("DUMP", env, |arg| {
 	let value = arg.run(env)?;
-	writeln!(env, "{value:?}")?;
+	writeln!(env.stdout(), "{value:?}")?;
 	value
 });
 
 /// **4.2.10** `OUTPUT`  
 pub const OUTPUT: Function = function!("OUTPUT", env, |arg| {
 	let text = arg.run(env)?.to_text()?;
+	let stdout = env.stdout();
 
 	if let Some(stripped) = text.strip_suffix('\\') {
-		write!(env, "{stripped}")?
+		write!(stdout, "{stripped}")?
 	} else {
-		writeln!(env, "{text}")?;
+		writeln!(stdout, "{text}")?;
 	}
 
-	env.flush()?;
+	stdout.flush()?;
 
 	Value::Null
 });

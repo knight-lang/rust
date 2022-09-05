@@ -60,7 +60,7 @@ normal-extensions = [
 	"assign-to-anything",
 	"handle-function",
 	"use-function",
-	"xsrand-function",
+	# "xsrand-function",
 ]
 
 all-extensions = ["normal-extensions", "qol-extensions"]
