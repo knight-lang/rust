@@ -1,7 +1,7 @@
 use crate::value::{Boolean, Integer, KnightType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, Error, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
-use std::ops::Range;
+use std::ops::{Range, RangeFrom};
 
 /// The list type within Knight.
 ///
@@ -143,7 +143,7 @@ impl<'e> List<'e> {
 	/// Gets the value(s) at `index`.
 	///
 	/// This is syntactic sugar for `index.get(self)`.
-	pub fn get<'a, F: SliceFetch<'a, 'e>>(&'a self, index: F) -> Option<F::Output> {
+	pub fn get<'a, F: ListFetch<'a, 'e>>(&'a self, index: F) -> Option<F::Output> {
 		index.get(self)
 	}
 
@@ -300,24 +300,31 @@ impl<'e> List<'e> {
 }
 
 impl<'e> ToList<'e> for List<'e> {
+	/// Simply returns `self`.
+	#[inline]
 	fn to_list(&self) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
 
 impl ToBoolean for List<'_> {
+	/// Returns whether `self` is nonempty.
+	#[inline]
 	fn to_boolean(&self) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
 impl ToInteger for List<'_> {
+	/// Returns `self`'s length.
+	#[inline]
 	fn to_integer(&self) -> Result<Integer> {
 		self.len().try_into()
 	}
 }
 
 impl ToText for List<'_> {
+	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self) -> Result<Text> {
 		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
 
@@ -325,39 +332,49 @@ impl ToText for List<'_> {
 	}
 }
 
-pub trait SliceFetch<'a, 'e> {
+/// A helper trait for [`List::get`], indicating a type can index into a `List`.
+pub trait ListFetch<'a, 'e> {
+	/// The resulting type.
 	type Output;
+
+	/// Gets an `Output` from `list`.
 	fn get(self, list: &'a List<'e>) -> Option<Self::Output>;
 }
 
-impl<'a, 'e: 'a> SliceFetch<'a, 'e> for usize {
+impl<'a, 'e: 'a> ListFetch<'a, 'e> for usize {
 	type Output = &'a Value<'e>;
+
 	fn get(self, list: &'a List<'e>) -> Option<Self::Output> {
 		match list.inner()? {
 			Inner::Boxed(ele) => (self == 0).then_some(ele),
-
 			Inner::Slice(slice) => slice.get(self),
-			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
-			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
-
-			Inner::Repeat(list, amount) if (list.len() * amount) < self => None,
-			Inner::Repeat(list, amount) => list.get(self % amount),
+			Inner::Cons(lhs, rhs) => {
+				if self < lhs.len() {
+					lhs.get(self)
+				} else {
+					rhs.get(self - lhs.len())
+				}
+			}
+			Inner::Repeat(list, amount) => {
+				if list.len() * amount < self {
+					None
+				} else {
+					list.get(self % amount)
+				}
+			}
 		}
 	}
 }
 
-impl<'e> SliceFetch<'_, 'e> for Range<usize> {
+impl<'e> ListFetch<'_, 'e> for Range<usize> {
 	type Output = List<'e>;
 
 	fn get(self, list: &List<'e>) -> Option<Self::Output> {
-		// shouldn't be the same, because it's already checked for.
-		// assert_ne!(self.start, self.end);
-
 		if list.len() < self.end || self.end < self.start {
 			return None;
 		}
 
-		// FIXME: use optimizations
+		// FIXME: use optimizations, including maybe a "sublist" variant?
 		Some(
 			list
 				.iter()
@@ -368,6 +385,15 @@ impl<'e> SliceFetch<'_, 'e> for Range<usize> {
 				.try_into()
 				.unwrap(),
 		)
+	}
+}
+
+impl<'e> ListFetch<'_, 'e> for RangeFrom<usize> {
+	type Output = List<'e>;
+
+	fn get(self, list: &List<'e>) -> Option<Self::Output> {
+		// FIXME: use optimizations
+		Some(list.iter().skip(self.start).cloned().collect::<Vec<_>>().try_into().unwrap())
 	}
 }
 

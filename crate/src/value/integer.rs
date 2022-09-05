@@ -3,6 +3,22 @@ use crate::{Error, Result};
 use std::fmt::{self, Display, Formatter};
 
 /// The integer type within Knight.
+///
+/// # Bit Size
+/// According to the knight spec, integers must be within the range `-2147483648..2147483647i32`
+/// (inclusive on both sides), i.e. a `i32`'s bounds. However, implementations are free to go above
+/// that number. So, this implementation defaults to an [`i64`] as its internal integer size, and
+/// will switch to [`i32`] if the `strict-integers` feature is enabled.
+///
+/// # Conversions
+/// Since the internal representation can either be a 32 or 64 bit integer, all conversions are
+/// implemented as though the internal type is a 32 bit integer.
+///
+/// # Overflow operations
+/// Within Knight, any integer operations which under/overflow the bounds of a 32 bit integer are
+/// undefined. Within this implementation, all operations normally use wrapping logic. However, if
+/// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
+/// an operation would overflow.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
@@ -49,10 +65,6 @@ impl Integer {
 		self.0 == 0
 	}
 
-	pub const fn inner(self) -> Inner {
-		self.0
-	}
-
 	/// Returns whether `self` is negative.
 	pub const fn is_negative(self) -> bool {
 		self.0.is_negative()
@@ -63,6 +75,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn negate(self) -> Result<Self> {
 		if cfg!(feature = "checked-overflow") {
 			self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
@@ -90,6 +103,7 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn add(self, augend: Self) -> Result<Self> {
 		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
 	}
@@ -99,6 +113,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
 		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
 	}
@@ -108,6 +123,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn multiply(self, multiplier: Self) -> Result<Self> {
 		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
 	}
@@ -119,6 +135,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn divide(self, divisor: Self) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -136,6 +153,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn modulo(self, base: Self) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -159,6 +177,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
+	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn power(self, mut exponent: Self) -> Result<Self> {
 		if exponent.is_negative() {
 			if cfg!(feature = "strict-integers") {
@@ -217,6 +236,8 @@ impl ToText for Integer {
 
 impl<'e> ToList<'e> for Integer {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
+	///
+	/// If `self` is negative, all the returned digits are negative.
 	fn to_list(&self) -> Result<List<'e>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
@@ -224,12 +245,7 @@ impl<'e> ToList<'e> for Integer {
 
 		let mut integer = self.0;
 
-		if integer.is_negative() {
-			panic!("todo?");
-			// integer = integer.negate()?; <-- wont work because it's actually valid.
-		}
-
-		// FIXME: update the capacity _and_ algorithm when `ilog` is dropped.
+		// FIXME: update the capacity and algorithm when `ilog` is dropped.
 		let mut digits = Vec::new();
 
 		while integer != 0 {
@@ -252,7 +268,7 @@ impl std::str::FromStr for Integer {
 		let (is_negative, mut number) = match bytes.next() {
 			Some(b'+') => (false, Integer::ZERO),
 			Some(b'-') => (true, Integer::ZERO),
-			Some(num @ b'0'..=b'9') => (false, Integer::from(num - b'0')),
+			Some(digit @ b'0'..=b'9') => (false, Integer::from(digit - b'0')),
 			_ => return Ok(Integer::ZERO),
 		};
 
@@ -261,16 +277,17 @@ impl std::str::FromStr for Integer {
 		}
 
 		if is_negative {
-			number.negate()
-		} else {
-			Ok(number)
+			number = number.negate()?;
 		}
+
+		Ok(number)
 	}
 }
 
 macro_rules! impl_integer_from {
 	($($smaller:ident)* ; $($larger:ident)*) => {
 		$(impl From<$smaller> for Integer {
+			#[inline]
 			fn from(num: $smaller) -> Self {
 				Self(num as Inner)
 			}
@@ -278,6 +295,7 @@ macro_rules! impl_integer_from {
 		$(impl TryFrom<$larger> for Integer {
 			type Error = Error;
 
+			#[inline]
 			fn try_from(num: $larger) -> Result<Self> {
 				num.try_into().map(Self).or(Err(Error::IntegerOverflow))
 			}
@@ -288,6 +306,7 @@ macro_rules! impl_integer_from {
 macro_rules! impl_from_integer {
 	($($smaller:ident)* ; $($larger:ident)*) => {
 		$(impl From<Integer> for $larger {
+			#[inline]
 			fn from(int: Integer) -> Self {
 				int.0.into()
 			}
@@ -295,6 +314,7 @@ macro_rules! impl_from_integer {
 		$(impl TryFrom<Integer> for $smaller {
 			type Error = Error;
 
+			#[inline]
 			fn try_from(int: Integer) -> Result<Self> {
 				int.0.try_into().or(Err(Error::IntegerOverflow))
 			}

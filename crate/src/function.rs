@@ -121,7 +121,7 @@ pub const HEAD: Function = function!("[", env, |val| {
 pub const TAIL: Function = function!("]", env, |val| {
 	let value = val.run(env)?.to_list()?;
 
-	value.get(1..value.len()).unwrap()
+	value.get(1..).unwrap()
 });
 
 /// **4.2.3** `BLOCK`  
