@@ -86,7 +86,11 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 	}
 
 	let mut buf = String::new();
-	env.stdin().read_line(&mut buf)?;
+
+	// If we read an empty line, return null.
+	if env.stdin().read_line(&mut buf)? == 0 {
+		return Ok(Value::Null);
+	}
 
 	// remove trailing newlines
 	match buf.pop() {
