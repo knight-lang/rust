@@ -491,31 +491,6 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		#[cfg(feature = "list-extensions")]
 		Value::Ast(_ast) => return assign(&variable.run(env)?, value, env),
 
-		// #[cfg(feature = "assign-to-lists")]
-		// Value::List(list) => {
-		// 	if list.is_empty() {
-		// 		panic!("todo: error for this case");
-		// 	}
-		// 	let rhs = value.run(env)?.to_list()?;
-
-		// 	for (name, val) in list.iter().zip(&rhs) {
-		// 		assign(&name, val, env)?;
-		// 	}
-
-		// 	match list.len().cmp(&rhs.len()) {
-		// 		std::cmp::Ordering::Equal => {}
-		// 		std::cmp::Ordering::Less => assign(
-		// 			list.as_slice().iter().last().unwrap(),
-		// 			rhs.as_slice()[list.len() - 1..].iter().cloned().collect::<List>().into(),
-		// 			env,
-		// 		)?,
-		// 		std::cmp::Ordering::Greater => {
-		// 			for extra in &list.as_slice()[rhs.len()..] {
-		// 				assign(extra, Value::default(), env)?;
-		// 			}
-		// 		}
-		// 	}
-		// }
 		#[cfg(feature = "assign-to-anything")]
 		_ => {
 			let name = variable.run(env)?.to_text()?;

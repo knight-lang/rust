@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 mod boolean;
 mod integer;
 mod list;
@@ -12,6 +13,8 @@ pub use null::Null;
 pub use text::*;
 pub use value::Value;
 
-pub trait KnightType<'e>: Into<Value<'e>> {
+/// NamedType is a trait that indicates a type is
+pub trait NamedType {
+	/// The name of a type.
 	const TYPENAME: &'static str;
 }

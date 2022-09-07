@@ -1,4 +1,5 @@
-use crate::value::{Boolean, KnightType, List, Text, ToBoolean, ToList, ToText};
+#![forbid(missing_docs)]
+use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Display, Formatter};
 
@@ -43,7 +44,7 @@ impl Display for Integer {
 	}
 }
 
-impl KnightType<'_> for Integer {
+impl NamedType for Integer {
 	const TYPENAME: &'static str = "Integer";
 }
 

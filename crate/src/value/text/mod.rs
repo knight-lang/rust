@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 mod builder;
 mod sharedtext;
 mod text;
@@ -93,7 +94,7 @@ impl ToText for Text {
 	}
 }
 
-impl super::KnightType<'_> for Text {
+impl super::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 

@@ -1,12 +1,14 @@
-use crate::value::{
-	Boolean, Integer, KnightType, List, Text, ToBoolean, ToInteger, ToList, ToText,
-};
+use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::Result;
 
+/// Represents the `NULL` value within Knight.
+///
+/// Note that this explicitly doesn't implement [`PartialOrd`]/[`Ord`], as you cant compare `NULL`
+/// in knight.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Null;
 
-impl KnightType<'_> for Null {
+impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
 }
 

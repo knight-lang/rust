@@ -38,6 +38,10 @@ pub enum ParseErrorKind {
 		index: usize,
 	},
 
+	UnmatchedLeftParen,
+	UnmatchedRightParen,
+	DoesntEncloseAnExpression,
+
 	/// A number literal was too large.
 	IntegerLiteralOverflow,
 
@@ -55,6 +59,12 @@ pub enum ParseErrorKind {
 	UnknownExtensionFunction(Text),
 }
 
+impl ParseErrorKind {
+	pub fn error(self, line: usize) -> ParseError {
+		ParseError { line, kind: self }
+	}
+}
+
 impl Display for ParseErrorKind {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -66,6 +76,10 @@ impl Display for ParseErrorKind {
 			}
 			Self::IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
 			Self::IllegalVariableName(ref err) => Display::fmt(&err, f),
+
+			Self::UnmatchedLeftParen => write!(f, "an unmatched `(` was encountered"),
+			Self::UnmatchedRightParen => write!(f, "an unmatched `)` was encountered"),
+			Self::DoesntEncloseAnExpression => write!(f, "parens dont enclose an expression"),
 
 			#[cfg(feature = "forbid-trailing-tokens")]
 			Self::TrailingTokens => write!(f, "trailing tokens encountered"),
@@ -92,7 +106,12 @@ pub struct Parser<'a> {
 }
 
 fn is_whitespace(chr: char) -> bool {
-	" \r\n\t():".contains(chr) || !cfg!(feature = "strict-charset") && chr.is_whitespace()
+	chr == ':'
+		|| if cfg!(feature = "strict-charset") {
+			"\r\n\t ".contains(chr)
+		} else {
+			chr.is_whitespace()
+		}
 }
 
 pub(crate) fn is_lower(chr: char) -> bool {
@@ -128,7 +147,7 @@ impl<'a> Parser<'a> {
 	}
 
 	fn error(&self, kind: ParseErrorKind) -> ParseError {
-		ParseError { line: self.line, kind }
+		kind.error(self.line)
 	}
 
 	fn peek(&self) -> Option<char> {
@@ -211,11 +230,11 @@ impl<'a> Parser<'a> {
 		let start = self.line;
 		let body = self.take_while(|chr| chr != quote);
 
-		if self.advance() == Some(quote) {
-			Ok(body.into())
-		} else {
-			Err(ParseError { line: start, kind: ParseErrorKind::UnterminatedQuote { quote } })
+		if self.advance() != Some(quote) {
+			return Err(ParseErrorKind::UnterminatedQuote { quote }.error(start));
 		}
+
+		Ok(body.into())
 	}
 
 	fn parse_function<'e>(
@@ -239,10 +258,9 @@ impl<'a> Parser<'a> {
 		let args = (0..func.arity)
 			.map(|index| match self.parse_value(env) {
 				Ok(arg) => Ok(arg),
-				Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => Err(ParseError {
-					line: start_line,
-					kind: ParseErrorKind::MissingArgument { name: func.name, index },
-				}),
+				Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => {
+					Err(ParseErrorKind::MissingArgument { name: func.name, index }.error(start_line))
+				}
 				Err(err) => Err(err),
 			})
 			.collect::<Result<_, _>>()?;
@@ -283,6 +301,31 @@ impl<'a> Parser<'a> {
 					.ok_or_else(|| self.error(ParseErrorKind::UnknownExtensionFunction(name.into())))?;
 
 				self.parse_function(ext, env).map(Value::from)
+			}
+
+			')' => return Err(self.error(ParseErrorKind::UnmatchedRightParen)),
+			'(' => {
+				self.advance();
+				let line = self.line;
+
+				let value = match self.parse_value(env) {
+					Ok(value) => value,
+					Err(ParseError { kind: ParseErrorKind::EmptySource, .. }) => {
+						return Err(ParseErrorKind::UnmatchedLeftParen.error(line))
+					}
+					Err(ParseError { kind: ParseErrorKind::UnmatchedRightParen, .. }) => {
+						return Err(ParseErrorKind::DoesntEncloseAnExpression.error(line))
+					}
+					Err(other) => return Err(other),
+				};
+
+				self.strip();
+
+				if self.advance() != Some(')') {
+					Err(ParseErrorKind::UnmatchedLeftParen.error(line))
+				} else {
+					Ok(value)
+				}
 			}
 
 			// functions

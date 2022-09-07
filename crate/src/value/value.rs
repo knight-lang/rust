@@ -1,6 +1,6 @@
 use crate::env::Environment;
 use crate::value::{
-	Boolean, Integer, KnightType, List, Null, Text, ToBoolean, ToInteger, ToList, ToText,
+	Boolean, Integer, List, NamedType, Null, Text, ToBoolean, ToInteger, ToList, ToText,
 };
 use crate::{Ast, Error, Result, Variable};
 use std::fmt::{self, Debug, Formatter};
@@ -47,7 +47,7 @@ impl Debug for Value<'_> {
 			Self::Null => write!(f, "Null()"),
 			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
 			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::Text(text) => write!(f, "TextSlice({text})"), // TODO: make text do this itself?
+			Self::Text(text) => write!(f, "Text({text})"), // TODO: make text do this itself?
 			Self::Variable(variable) => write!(f, "{variable:?}"),
 			Self::Ast(ast) => Debug::fmt(&ast, f),
 			Self::List(list) => Debug::fmt(&list, f),

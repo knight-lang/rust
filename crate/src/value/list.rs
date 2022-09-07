@@ -1,4 +1,4 @@
-use crate::value::{Boolean, Integer, KnightType, Text, ToBoolean, ToInteger, ToText, Value};
+use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, Error, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeFrom};
@@ -76,7 +76,7 @@ impl<'e> FromIterator<Value<'e>> for Result<List<'e>> {
 	}
 }
 
-impl<'e> KnightType<'e> for List<'e> {
+impl NamedType for List<'_> {
 	const TYPENAME: &'static str = "List";
 }
 
@@ -150,9 +150,9 @@ impl<'e> List<'e> {
 	/// Returns a new list with both `self` and `rhs` concatenated.
 	///
 	/// # Errors
-	/// If `container-length-limit` is enabled, and `self.len() + rhs.len()` is larger than
-	/// [`List::MAX_LEN`], then an [`Error::DomainError`] is returned. If `container-length-limit` is
-	/// not enabled, this function will always succeed.
+	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
+	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
+	/// returned.
 	pub fn concat(&self, rhs: &Self) -> Result<Self> {
 		if self.is_empty() {
 			return Ok(rhs.clone());
@@ -172,6 +172,11 @@ impl<'e> List<'e> {
 	/// Returns a new list where `self` is repeated `amount` times.
 	///
 	/// This will return `None` if `self.len() * amount` is greater than [`Integer::MAX`].
+	///
+	/// # Errors
+	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
+	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
+	/// returned.
 	pub fn repeat(&self, amount: usize) -> Result<Self> {
 		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
@@ -184,6 +189,10 @@ impl<'e> List<'e> {
 		}
 	}
 
+	/// Converts each element of `self` to a string,and inserts `sep` between them.
+	///
+	/// # Errors
+	/// Any errors that occur when converting elements to a string are returned.
 	pub fn join(&self, sep: &TextSlice) -> Result<Text> {
 		let mut joined = Text::builder();
 
@@ -201,6 +210,7 @@ impl<'e> List<'e> {
 		Ok(joined.finish())
 	}
 
+	/// Returns an [`Iter`] instance, which iterates over borrowed references.
 	pub fn iter(&self) -> Iter<'_, 'e> {
 		match self.inner() {
 			None => Iter::Empty,
@@ -213,6 +223,7 @@ impl<'e> List<'e> {
 		}
 	}
 
+	/// Returns true if `self` contains `value`.
 	pub fn contains(&self, value: &Value<'e>) -> bool {
 		match self.inner() {
 			None => false,
@@ -223,7 +234,7 @@ impl<'e> List<'e> {
 		}
 	}
 
-	#[cfg(feature = "list-extensions")]
+	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
 	pub fn difference(&self, rhs: &Self) -> Result<Self> {
 		let mut list = Vec::with_capacity(self.len() - rhs.len());
 
@@ -236,24 +247,59 @@ impl<'e> List<'e> {
 		Ok(list.try_into().unwrap())
 	}
 
-	#[cfg(feature = "list-extensions")]
+	/// Returns a new list with element mapped to the return value of `block`.
+	///
+	/// More specifically, the variable `_` is assigned to each element, and then `block` is called.
+	///
+	/// # Errors
+	/// Returns any errors that [`block.run`](Value::run) returns.
 	pub fn map(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 
-		Ok(self
-			.iter()
-			.map(|ele| {
-				arg.assign(ele.clone());
-				block.run(env)
-			})
-			.collect::<Result<Vec<Value>>>()?
-			.try_into()
-			.unwrap())
+		let mut mapping = Vec::with_capacity(self.len());
+
+		for ele in self {
+			arg.assign(ele.clone());
+			mapping.push(block.run(env)?);
+		}
+
+		Ok(mapping.try_into().unwrap())
 	}
 
-	#[cfg(feature = "list-extensions")]
+	/// Returns a new list where only elements for which `block` returns true are kept.
+	///
+	/// More specifically, the variable `_` is assigned to each element, `block` is called, and then
+	/// its return value is used to check to see if the element should be kept.
+	///
+	/// # Errors
+	/// Returns any errors that [`block.run`](Value::run) returns.
+	pub fn filter(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
+		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
+
+		let arg = env.lookup(UNDERSCORE).unwrap();
+		let mut filtering = Vec::with_capacity(self.len() / 2); // some arbitrary cap constant.
+
+		for ele in self {
+			arg.assign(ele.clone());
+
+			if block.run(env)?.to_boolean()? {
+				filtering.push(ele.clone());
+			}
+		}
+
+		Ok(filtering.try_into().unwrap())
+	}
+
+	/// Returns a reduction of `self` to a single element, or [`Value::Null`] if `self` is empty.
+	///
+	/// More specifically, the variable `a` is assigned to the first element. Then, for each other
+	/// element, it is assigned to the variable `_`, and `block` is called. The return value is then
+	/// assigned to `a`. After exhausting `self`, `a`'s value is returned.
+	///
+	/// # Errors
+	/// Returns any errors that [`block.run`](Value::run) returns.
 	pub fn reduce(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Option<Value<'e>>> {
 		const ACCUMULATE: &TextSlice = unsafe { TextSlice::new_unchecked("a") };
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
@@ -274,28 +320,6 @@ impl<'e> List<'e> {
 		}
 
 		Ok(Some(acc.fetch().unwrap()))
-	}
-
-	#[cfg(feature = "list-extensions")]
-	pub fn filter(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
-		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
-
-		let arg = env.lookup(UNDERSCORE).unwrap();
-
-		Ok(self
-			.iter()
-			.filter_map(|ele| {
-				arg.assign(ele.clone());
-
-				block
-					.run(env)
-					.and_then(|b| b.to_boolean())
-					.and_then(|a| a.then(|| Ok(ele.clone())).transpose())
-					.transpose()
-			})
-			.collect::<Result<Vec<_>>>()?
-			.try_into()
-			.unwrap())
 	}
 }
 
@@ -406,12 +430,22 @@ impl<'a, 'e> IntoIterator for &'a List<'e> {
 	}
 }
 
+/// Represents an iterator over [`List`]s.
 #[derive(Clone)]
 pub enum Iter<'a, 'e> {
+	/// There's nothing left.
 	Empty,
+
+	/// There's only a single element to iterate over.
 	Boxed(&'a Value<'e>),
+
+	/// Iterate over the LHS elements first, then the RHS.
 	Cons(Box<Self>, &'a List<'e>),
+
+	/// Iterate over a slice of elements.
 	Slice(std::slice::Iter<'a, Value<'e>>),
+
+	/// Repeats the iterator.
 	Repeat(std::iter::Cycle<Box<Self>>, usize),
 }
 

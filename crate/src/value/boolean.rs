@@ -1,4 +1,4 @@
-use crate::value::{Integer, KnightType, List, Text, ToInteger, ToList, ToText};
+use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
 use crate::Result;
 
 /// The boolean type within Knight.
@@ -10,7 +10,7 @@ pub trait ToBoolean {
 	fn to_boolean(&self) -> Result<Boolean>;
 }
 
-impl KnightType<'_> for Boolean {
+impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 

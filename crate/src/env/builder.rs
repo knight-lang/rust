@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use super::*;
 use crate::Result;
 use std::collections::HashMap;
@@ -82,7 +80,6 @@ impl<'e> Builder<'e> {
 	}
 
 	pub fn build(self) -> Environment<'e> {
-		/// The environment hosts all relevant information for knight programs.
 		Environment {
 			variables: HashSet::default(),
 			stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
