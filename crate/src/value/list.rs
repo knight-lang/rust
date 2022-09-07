@@ -1,4 +1,6 @@
-use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
+use crate::value::{
+	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
+};
 use crate::{Environment, Error, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeFrom};

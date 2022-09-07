@@ -1,4 +1,5 @@
-use crate::{Mutable, RefCount, Text, TextSlice, Value};
+use crate::value::{Runnable, Text, TextSlice, Value};
+use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -86,7 +87,7 @@ pub const MAX_NAME_LEN: usize = 255;
 
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
-pub fn validate_name(name: &TextSlice) -> Result<(), IllegalVariableName> {
+pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
 	use crate::parser::{is_lower, is_numeric};
 
 	if cfg!(not(feature = "verify-variable-names")) {
@@ -111,7 +112,7 @@ pub fn validate_name(name: &TextSlice) -> Result<(), IllegalVariableName> {
 
 impl<'e> Variable<'e> {
 	/// Creates a new `Variable`.
-	pub fn new(name: Text) -> Result<Self, IllegalVariableName> {
+	pub fn new(name: Text) -> std::result::Result<Self, IllegalVariableName> {
 		validate_name(&name)?;
 
 		Ok(Self((name, None.into()).into()))
@@ -133,5 +134,11 @@ impl<'e> Variable<'e> {
 	#[must_use]
 	pub fn fetch(&self) -> Option<Value<'e>> {
 		(self.0).1.read().clone()
+	}
+}
+
+impl<'e> Runnable<'e> for Variable<'e> {
+	fn run(&self, _env: &mut Environment) -> Result<Value<'e>> {
+		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
 	}
 }

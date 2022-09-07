@@ -1,4 +1,4 @@
-use crate::value::{Integer, List, Text, ToBoolean, ToInteger, ToList, ToText};
+use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
 
 use std::fmt::{self, Debug, Formatter};

@@ -1,6 +1,6 @@
 use crate::env::Environment;
 use crate::value::{
-	Boolean, Integer, List, NamedType, Null, Text, ToBoolean, ToInteger, ToList, ToText,
+	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
 use crate::{Ast, Error, Result, Variable};
 use std::fmt::{self, Debug, Formatter};
@@ -170,13 +170,13 @@ impl<'e> Value<'e> {
 			Self::Variable(_) => "Variable",
 		}
 	}
+}
 
+impl<'e> Runnable<'e> for Value<'e> {
 	/// Executes the value.
-	pub fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
+	fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Variable(variable) => {
-				variable.fetch().ok_or_else(|| Error::UndefinedVariable(variable.name().clone()))
-			}
+			Self::Variable(variable) => variable.run(env),
 			Self::Ast(ast) => ast.run(env),
 			_ => Ok(self.clone()),
 		}

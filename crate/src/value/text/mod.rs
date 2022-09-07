@@ -1,4 +1,3 @@
-#![allow(missing_docs)]
 mod builder;
 mod sharedtext;
 mod text;
