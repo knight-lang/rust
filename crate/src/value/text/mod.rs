@@ -1,14 +1,14 @@
 mod builder;
-mod sharedtext;
 mod text;
+mod textslice;
 
 pub trait ToText {
 	fn to_text(&self) -> crate::Result<Text>;
 }
 
 pub use builder::Builder;
-pub use sharedtext::*;
 pub use text::*;
+pub use textslice::*;
 
 pub struct Chars<'a>(std::str::Chars<'a>);
 impl<'a> Chars<'a> {
@@ -79,30 +79,4 @@ pub const fn validate(data: &str) -> Result<(), IllegalChar> {
 	}
 
 	Ok(())
-}
-
-impl super::ToBoolean for Text {
-	fn to_boolean(&self) -> crate::Result<super::Boolean> {
-		Ok(!self.is_empty())
-	}
-}
-
-impl ToText for Text {
-	fn to_text(&self) -> crate::Result<Self> {
-		Ok(self.clone())
-	}
-}
-
-impl super::NamedType for Text {
-	const TYPENAME: &'static str = "Text";
-}
-
-impl<'e> super::ToList<'e> for Text {
-	fn to_list(&self) -> crate::Result<super::List<'e>> {
-		self
-			.chars()
-			.map(|c| super::Value::from(Self::try_from(c.to_string()).unwrap()))
-			.collect::<Vec<_>>()
-			.try_into()
-	}
 }

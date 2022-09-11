@@ -521,8 +521,10 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		}
 
 		#[cfg(not(feature = "assign-to-anything"))]
-		other => return Err(Error::TypeError(other.name())),
+		other => return Err(Error::TypeError(other.typename())),
 	}
+
+	let _ = env;
 
 	Ok(())
 }

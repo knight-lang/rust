@@ -1,5 +1,4 @@
 use super::*;
-use crate::Result;
 use std::collections::HashMap;
 use std::io;
 
@@ -70,13 +69,14 @@ impl<'e> Builder<'e> {
 	}
 
 	#[cfg(feature = "system-function")]
-	pub fn system<F: FnMut(&TextSlice) -> Result<Text> + 'e>(&mut self, func: F) {
-		self.system = Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>);
+	pub fn system<F: FnMut(&TextSlice) -> crate::Result<Text> + 'e>(&mut self, func: F) {
+		self.system = Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> crate::Result<Text> + 'e>);
 	}
 
 	#[cfg(feature = "use-function")]
-	pub fn read_file<F: FnMut(&TextSlice) -> Result<Text> + 'e>(&mut self, func: F) {
-		self.read_file = Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> Result<Text> + 'e>);
+	pub fn read_file<F: FnMut(&TextSlice) -> crate::Result<Text> + 'e>(&mut self, func: F) {
+		self.read_file =
+			Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> crate::Result<Text> + 'e>);
 	}
 
 	pub fn build(self) -> Environment<'e> {

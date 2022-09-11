@@ -1,148 +1,79 @@
-use super::{validate, Chars, IllegalChar, Text};
-use crate::value::ToList;
+use crate::text::{IllegalChar, TextSlice};
 use std::fmt::{self, Display, Formatter};
-use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct TextSlice(str);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Text(crate::RefCount<TextSlice>);
 
-impl Default for &TextSlice {
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Text: Send, Sync);
+
+impl Default for Text {
 	#[inline]
 	fn default() -> Self {
-		// SAFETY: we know that `""` is a valid string, as it contains nothing.
-		unsafe { TextSlice::new_unchecked("") }
+		<&TextSlice>::default().into()
 	}
 }
 
-impl Display for TextSlice {
+impl Display for Text {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl Deref for TextSlice {
-	type Target = str;
+impl std::ops::Deref for Text {
+	type Target = TextSlice;
 
+	#[inline]
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
-impl DerefMut for TextSlice {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0
+impl From<Box<TextSlice>> for Text {
+	#[inline]
+	fn from(text: Box<TextSlice>) -> Self {
+		Self(text.into())
 	}
 }
 
-impl TextSlice {
-	/// Creates a new `TextSlice` without validating `inp`.
-	///
-	/// # Safety
-	/// - `inp` must be a valid `TextSlice`.
-	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
-		debug_assert!(validate(inp).is_ok());
+impl TryFrom<String> for Text {
+	type Error = IllegalChar;
 
-		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
-		// safely transmute.
-		&*(inp as *const str as *const Self)
-	}
+	fn try_from(inp: String) -> Result<Self, Self::Error> {
+		let boxed = Box::<TextSlice>::try_from(inp.into_boxed_str())?;
 
-	pub const fn new(inp: &str) -> Result<&Self, IllegalChar> {
-		match validate(inp) {
-			// SAFETY: we justverified it was valid
-			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
-
-			// Can't use `?` or `Result::map` in const functions
-			Err(err) => Err(err),
-		}
-	}
-
-	pub fn chars(&self) -> Chars<'_> {
-		Chars(self.0.chars())
-	}
-
-	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-		let substring = self.0.get(range)?;
-
-		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
-		Some(unsafe { Self::new_unchecked(substring) })
-	}
-
-	pub fn concat(&self, rhs: &Self) -> Text {
-		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
-
-		builder.push(self);
-		builder.push(rhs);
-
-		builder.finish()
-	}
-
-	pub fn repeat(&self, amount: usize) -> Text {
-		(**self)
-			.repeat(amount)
-			.try_into()
-			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
-	}
-
-	#[cfg(feature = "list-extensions")]
-	pub fn split<'e>(&self, sep: &Self) -> crate::List<'e> {
-		if sep.is_empty() {
-			// TODO: optimize me
-			crate::Value::from(self.to_owned()).to_list().unwrap()
-		} else {
-			(**self)
-				.split(&**sep)
-				.map(|x| Text::new(x).unwrap().into())
-				.collect::<Vec<_>>()
-				.try_into()
-				.unwrap()
-		}
+		Ok(Self(boxed.into()))
 	}
 }
 
-impl<'a> TryFrom<&'a str> for &'a TextSlice {
+impl Text {
+	pub fn builder() -> super::Builder {
+		Default::default()
+	}
+
+	pub fn new(inp: impl ToString) -> Result<Self, IllegalChar> {
+		inp.to_string().try_into()
+	}
+}
+
+impl std::borrow::Borrow<TextSlice> for Text {
+	fn borrow(&self) -> &TextSlice {
+		self
+	}
+}
+
+impl From<&TextSlice> for Text {
+	fn from(text: &TextSlice) -> Self {
+		Box::<TextSlice>::try_from(text.to_string().into_boxed_str()).unwrap().into()
+	}
+}
+
+impl TryFrom<&str> for Text {
 	type Error = IllegalChar;
 
 	#[inline]
-	fn try_from(inp: &'a str) -> Result<Self, Self::Error> {
-		TextSlice::new(inp)
-	}
-}
-
-impl<'a> From<&'a TextSlice> for &'a str {
-	#[inline]
-	fn from(text: &'a TextSlice) -> Self {
-		text
-	}
-}
-
-impl TryFrom<Box<str>> for Box<TextSlice> {
-	type Error = IllegalChar;
-
-	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
-		validate(&inp)?;
-
-		#[allow(unsafe_code)]
-		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
-		// safely transmute.
-		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
-	}
-}
-
-impl ToOwned for TextSlice {
-	type Owned = Text;
-
-	fn to_owned(&self) -> Self::Owned {
-		self.into()
-	}
-}
-
-impl<'a> IntoIterator for &'a TextSlice {
-	type Item = char;
-	type IntoIter = Chars<'a>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		self.chars()
+	fn try_from(inp: &str) -> Result<Self, Self::Error> {
+		<&TextSlice>::try_from(inp).map(From::from)
 	}
 }
