@@ -69,7 +69,7 @@ impl Display for IllegalString {
 impl std::error::Error for IllegalString {}
 
 const fn validate(data: &str) -> Result<(), IllegalString> {
-	if cfg!(feature = "container-length-limit") && data.len() < Text::MAX_LEN {
+	if cfg!(feature = "container-length-limit") && Text::MAX_LEN < data.len() {
 		return Err(IllegalString::TooLong(data.len()));
 	}
 

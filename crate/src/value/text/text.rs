@@ -1,4 +1,4 @@
-use crate::text::{IllegalChar, TextSlice};
+use crate::text::{NewTextError, TextSlice};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -38,7 +38,7 @@ impl From<Box<TextSlice>> for Text {
 }
 
 impl TryFrom<String> for Text {
-	type Error = IllegalChar;
+	type Error = NewTextError;
 
 	fn try_from(inp: String) -> Result<Self, Self::Error> {
 		let boxed = Box::<TextSlice>::try_from(inp.into_boxed_str())?;
@@ -52,7 +52,7 @@ impl Text {
 		Default::default()
 	}
 
-	pub fn new(inp: impl ToString) -> Result<Self, IllegalChar> {
+	pub fn new(inp: impl ToString) -> Result<Self, NewTextError> {
 		inp.to_string().try_into()
 	}
 }
@@ -70,7 +70,7 @@ impl From<&TextSlice> for Text {
 }
 
 impl TryFrom<&str> for Text {
-	type Error = IllegalChar;
+	type Error = NewTextError;
 
 	#[inline]
 	fn try_from(inp: &str) -> Result<Self, Self::Error> {

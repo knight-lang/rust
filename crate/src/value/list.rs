@@ -180,6 +180,13 @@ impl<'e> List<'e> {
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
 	pub fn repeat(&self, amount: usize) -> Result<Self> {
+		println!(
+			"enabled={:?}, len={} : {}",
+			cfg!(feature = "container-length-limit"),
+			Self::MAX_LEN,
+			self.len() * amount,
+		);
+
 		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}

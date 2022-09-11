@@ -1,5 +1,5 @@
 use crate::parser::ParseError;
-use crate::value::text::IllegalChar;
+use crate::value::text::NewTextError;
 use crate::variable::IllegalVariableName;
 use crate::Text;
 use std::fmt::{self, Display, Formatter};
@@ -38,9 +38,7 @@ pub enum Error {
 	IllegalVariableName(IllegalVariableName),
 
 	/// An illegal character appeared in the source code.
-	#[cfg(feature = "strict-charset")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "strict-charset")))]
-	IllegalChar(IllegalChar),
+	NewTextError(NewTextError),
 
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
 	// #[cfg(feature = "checked-overflow")]
@@ -61,18 +59,9 @@ impl From<io::Error> for Error {
 	}
 }
 
-impl From<IllegalChar> for Error {
-	fn from(err: IllegalChar) -> Self {
-		#[cfg(feature = "strict-charset")]
-		{
-			Self::IllegalChar(err)
-		}
-
-		#[cfg(not(feature = "strict-charset"))]
-		{
-			let _ = err;
-			todo!()
-		}
+impl From<NewTextError> for Error {
+	fn from(err: NewTextError) -> Self {
+		Self::NewTextError(err)
 	}
 }
 
@@ -94,8 +83,7 @@ impl std::error::Error for Error {
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
 			Self::IllegalVariableName(err) => Some(err),
-			#[cfg(feature = "strict-charset")]
-			Self::IllegalChar(err) => Some(err),
+			Self::NewTextError(err) => Some(err),
 			_ => None,
 		}
 	}
@@ -113,9 +101,7 @@ impl Display for Error {
 			Self::ParseError(err) => Display::fmt(&err, f),
 			Self::Quit(status) => write!(f, "quitting with status code {status}"),
 			Self::IllegalVariableName(err) => Display::fmt(&err, f),
-
-			#[cfg(feature = "strict-charset")]
-			Self::IllegalChar(err) => Display::fmt(&err, f),
+			Self::NewTextError(err) => Display::fmt(&err, f),
 
 			// #[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),

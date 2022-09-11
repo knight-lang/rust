@@ -25,23 +25,35 @@ impl Iterator for Chars<'_> {
 	}
 }
 
-/// An error that indicates a character within a Knight string wasn't valid.
 #[derive(Debug, PartialEq, Eq)]
-pub struct IllegalChar {
-	/// The char that was invalid.
-	pub chr: char,
+pub enum NewTextError {
+	/// Indicates a Knight string was too long.
+	LengthTooLong(usize),
 
-	/// The index of the invalid char in the given string.
-	pub index: usize,
+	/// Indicates a character within a Knight string wasn't valid.
+	IllegalChar {
+		/// The char that was invalid.
+		chr: char,
+
+		/// The index of the invalid char in the given string.
+		index: usize,
+	},
 }
 
-impl std::fmt::Display for IllegalChar {
+impl std::fmt::Display for NewTextError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "illegal byte {:?} found at position {}", self.chr, self.index)
+		match self {
+			Self::LengthTooLong(len) => {
+				write!(f, "length {len } longer than max {}", TextSlice::MAX_LEN)
+			}
+			Self::IllegalChar { chr, index } => {
+				write!(f, "illegal char {chr:?} found at index {index}")
+			}
+		}
 	}
 }
 
-impl std::error::Error for IllegalChar {}
+impl std::error::Error for NewTextError {}
 
 /// Returns whether `chr` is a character that can appear within Knight.
 ///
@@ -56,8 +68,12 @@ pub const fn is_valid(chr: char) -> bool {
 	}
 }
 
-pub const fn validate(data: &str) -> Result<(), IllegalChar> {
-	// All valid `str`s are valid TextSlice is normal mode.
+pub const fn validate(data: &str) -> Result<(), NewTextError> {
+	if cfg!(feature = "container-length-limit") && TextSlice::MAX_LEN < data.len() {
+		return Err(NewTextError::LengthTooLong(data.len()));
+	}
+
+	// All valid `str`s are valid TextSlice when no length limit and no char requirements are set.
 	if cfg!(not(feature = "strict-charset")) {
 		return Ok(());
 	}
@@ -72,7 +88,7 @@ pub const fn validate(data: &str) -> Result<(), IllegalChar> {
 
 		if !is_valid(chr) {
 			// Since everything's a byte, the byte index is the same as the char index.
-			return Err(IllegalChar { chr, index });
+			return Err(NewTextError::IllegalChar { chr, index });
 		}
 
 		index += 1;

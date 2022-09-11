@@ -1,4 +1,4 @@
-use super::{validate, Chars, IllegalChar, Text};
+use super::{validate, Chars, NewTextError, Text};
 use crate::value::{ToBoolean, ToInteger, ToList, ToText};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -36,6 +36,8 @@ impl DerefMut for TextSlice {
 }
 
 impl TextSlice {
+	pub const MAX_LEN: usize = i32::MAX as usize;
+
 	/// Creates a new `TextSlice` without validating `inp`.
 	///
 	/// # Safety
@@ -48,7 +50,7 @@ impl TextSlice {
 		&*(inp as *const str as *const Self)
 	}
 
-	pub const fn new(inp: &str) -> Result<&Self, IllegalChar> {
+	pub const fn new(inp: &str) -> Result<&Self, NewTextError> {
 		match validate(inp) {
 			// SAFETY: we justverified it was valid
 			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
@@ -102,7 +104,7 @@ impl TextSlice {
 }
 
 impl<'a> TryFrom<&'a str> for &'a TextSlice {
-	type Error = IllegalChar;
+	type Error = NewTextError;
 
 	#[inline]
 	fn try_from(inp: &'a str) -> Result<Self, Self::Error> {
@@ -118,7 +120,7 @@ impl<'a> From<&'a TextSlice> for &'a str {
 }
 
 impl TryFrom<Box<str>> for Box<TextSlice> {
-	type Error = IllegalChar;
+	type Error = NewTextError;
 
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
 		validate(&inp)?;
