@@ -69,8 +69,11 @@ impl<'e> Builder<'e> {
 	}
 
 	#[cfg(feature = "system-function")]
-	pub fn system<F: FnMut(&TextSlice) -> crate::Result<Text> + 'e>(&mut self, func: F) {
-		self.system = Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> crate::Result<Text> + 'e>);
+	pub fn system<F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + 'e>(
+		&mut self,
+		func: F,
+	) {
+		self.system = Some(Box::new(func) as Box<_>);
 	}
 
 	#[cfg(feature = "use-function")]
@@ -87,16 +90,20 @@ impl<'e> Builder<'e> {
 
 			#[cfg(feature = "system-function")]
 			system: self.system.unwrap_or_else(|| {
-				use std::process::{Command, Stdio};
+				Box::new(|cmd, stdin| {
+					use std::process::{Command, Stdio};
 
-				let output = Command::new("/bin/sh")
-					.arg("-c")
-					.arg(&**cmd)
-					.stdin(Stdio::inherit())
-					.output()
-					.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
+					assert!(stdin.is_none(), "todo, system function with non-default stdin");
 
-				Ok(Text::try_from(output)?)
+					let output = Command::new("/bin/sh")
+						.arg("-c")
+						.arg(&**cmd)
+						.stdin(Stdio::inherit())
+						.output()
+						.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
+
+					Ok(Text::try_from(output)?)
+				})
 			}),
 
 			#[cfg(feature = "use-function")]

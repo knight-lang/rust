@@ -12,7 +12,7 @@ type Stdin<'e> = dyn BufRead + 'e;
 type Stdout<'e> = dyn Write + 'e;
 
 #[cfg(feature = "system-function")]
-type System<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e;
+type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e;
 
 #[cfg(feature = "use-function")]
 type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e;
@@ -101,8 +101,8 @@ impl<'e> Environment<'e> {
 
 	/// Executes `command` as a shell command, returning its result.
 	#[cfg(feature = "system-function")]
-	pub fn run_command(&mut self, command: &TextSlice) -> Result<Text> {
-		(self.system)(command)
+	pub fn run_command(&mut self, command: &TextSlice, stdin: Option<&TextSlice>) -> Result<Text> {
+		(self.system)(command, stdin)
 	}
 
 	/// Gets the list of known extension functions.

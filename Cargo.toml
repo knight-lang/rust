@@ -30,9 +30,11 @@ eval-function = [] # Enables the `EVAL` function
 assign-to-anything = [] # Convert non-variables to strings for the first arg in `=`.
 handle-function = [] # Enables the use of `HANDLE a b`, which is try/catch; error msg is in `_`
 use-function = [] # Enables the `USE` function, which is for importing files
+system-function = [] # Enables the `$` function
 
 # Spec-defined:
 spec-extensions = [
+	"system-function",
 	"value-function",
 	"eval-function",
 	"handle-function",

@@ -185,8 +185,6 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 	block.run(env)?
 });
 
-/// **4.2.5** `` ` ``
-
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!("QUIT", env, |arg| {
 	let status = arg
@@ -703,10 +701,16 @@ pub const EVAL: Function = function!("E", env, |val| {
 });
 
 #[cfg(feature = "system-function")]
-pub const SYSTEM: Function = function!("`", env, |arg| {
-	let command = arg.run(env)?.to_text()?;
+/// **4.2.5** `` ` ``
+pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
+	let command = cmd.run(env)?.to_text()?;
+	let stdin = match stdin.run(env)? {
+		Value::Text(text) => Some(text),
+		Value::Null => None,
+		other => return Err(Error::TypeError(other.typename())),
+	};
 
-	env.run_command(&command)?
+	env.run_command(&command, stdin.as_deref())?
 });
 
 /// **Compiler extension**: SRAND
