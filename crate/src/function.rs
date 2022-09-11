@@ -160,10 +160,10 @@ pub const BLOCK: Function = function!("BLOCK", env, |arg| {
 		const NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
 
-			arg.run(env) // We can't `.clone()` in case we're given a variable name.
+			arg.run(env)? // We can't `.clone()` the arg in case we're given a variable name.
 		});
 
-		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()]).into());
+		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()].into()).into());
 	}
 
 	let _ = env;

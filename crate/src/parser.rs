@@ -196,7 +196,7 @@ impl<'a> Parser<'a> {
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
 		#[cfg(feature = "forbid-trailing-tokens")]
-		if !matches!(self.parse_value(env), Err(Error::EmptySource)) {
+		if !matches!(self.parse_value(env).map_err(|e| e.kind), Err(ParseErrorKind::EmptySource)) {
 			return Err(self.error(ParseErrorKind::TrailingTokens));
 		}
 
