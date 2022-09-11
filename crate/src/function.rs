@@ -117,15 +117,34 @@ pub const BOX: Function = function!(",", env, |val| {
 });
 
 pub const HEAD: Function = function!("[", env, |val| {
-	let value = val.run(env)?.to_list()?;
-
-	value.get(0).unwrap().clone()
+	match val.run(env)? {
+		Value::List(list) => list.get(0).ok_or(Error::DomainError("empty list"))?.clone(),
+		Value::Text(text) => text
+			.chars()
+			.next()
+			.ok_or(Error::DomainError("empty list"))?
+			.to_string()
+			.try_conv::<Text>()
+			.unwrap()
+			.into(),
+		other => return Err(Error::TypeError(other.typename())),
+	}
 });
 
 pub const TAIL: Function = function!("]", env, |val| {
-	let value = val.run(env)?.to_list()?;
+	match val.run(env)? {
+		Value::List(list) => list.get(1..).ok_or(Error::DomainError("empty list"))?.conv::<Value>(),
+		Value::Text(text) => {
+			let mut chrs = text.chars();
 
-	value.get(1..).unwrap()
+			if chrs.next().is_none() {
+				return Err(Error::DomainError("empty list"));
+			}
+
+			chrs.as_text().to_owned().conv::<Value>()
+		}
+		other => return Err(Error::TypeError(other.typename())),
+	}
 });
 
 /// **4.2.3** `BLOCK`  
