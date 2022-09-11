@@ -11,7 +11,10 @@ use std::io;
 #[non_exhaustive]
 pub enum Error {
 	/// Indicates that a conversion does not exist
-	NoConversion { from: &'static str, to: &'static str },
+	NoConversion {
+		from: &'static str,
+		to: &'static str,
+	},
 
 	/// An undefined variable was accessed.
 	UndefinedVariable(Text),
@@ -45,9 +48,14 @@ pub enum Error {
 	// #[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
 	IntegerOverflow,
 
+	Custom(Box<dyn std::error::Error>),
+
 	#[cfg(feature = "no-oob-errors")]
 	#[cfg_attr(doc_cfg, doc(cfg(feature = "no-oob-errors")))]
-	IndexOutOfBounds { len: usize, index: usize },
+	IndexOutOfBounds {
+		len: usize,
+		index: usize,
+	},
 }
 
 /// A type alias for `Result<T, Error>`.
@@ -84,6 +92,7 @@ impl std::error::Error for Error {
 			Self::IoError(err) => Some(err),
 			Self::IllegalVariableName(err) => Some(err),
 			Self::NewTextError(err) => Some(err),
+			Self::Custom(err) => Some(&**err),
 			_ => None,
 		}
 	}
@@ -105,6 +114,7 @@ impl Display for Error {
 
 			// #[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
+			Self::Custom(err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "no-oob-errors")]
 			Self::IndexOutOfBounds { len, index } => {

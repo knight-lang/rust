@@ -1,6 +1,6 @@
 [package]
 name = "knightrs"
-version = "0.8.12"
+version = "0.9.9"
 authors = ["Sam Westerman <mail@sampersand.me>"]
 edition = "2021"
 description = "The Knight programming language, in Rust"
@@ -12,7 +12,7 @@ license = "MIT"
 
 [features]
 default = ["all-extensions", "list-extensions", "string-extensions", "negative-ranges",
-"assignment-overloads"]
+"assignment-overloads", "spec-extensions"]
 
 #######################################
 ##      Disabling Optimizations      ##
@@ -23,23 +23,21 @@ multithreaded = []
 ##            Extensions             ##
 #######################################
 
-
-
 value-function = [] # Enables the `VALUE` function
 eval-function = [] # Enables the `EVAL` function
 assign-to-anything = [] # Convert non-variables to strings for the first arg in `=`.
 handle-function = [] # Enables the use of `HANDLE a b`, which is try/catch; error msg is in `_`
+yeet-function = [] # Enables the use of `YEET`, which is "throw"
 use-function = [] # Enables the `USE` function, which is for importing files
 system-function = [] # Enables the `$` function
-
-# Spec-defined:
-spec-extensions = [
-	"system-function",
+spec-defined-extensions = [
 	"value-function",
 	"eval-function",
-	"handle-function",
-	"use-function",
 	"assign-to-anything",
+	"handle-function",
+	"yeet-function",
+	"use-function",
+	"system-function",
 ]
 
 # Mine:
@@ -84,7 +82,7 @@ negative-indexing = []
 # If this is set along with `assign-to-anything`, this will take precedence;
 # use `+""P` if you want to assign to `PROMPT`'s return value.
 assign-to-prompt = []
-assign-to-system = []
+assign-to-system = ["system-function"]
 
 assignment-overloads = ["assign-to-prompt", "assign-to-system"]
 

@@ -8,14 +8,14 @@ use std::io::{BufRead, Write};
 mod builder;
 pub use builder::Builder;
 
-type Stdin<'e> = dyn BufRead + 'e;
-type Stdout<'e> = dyn Write + 'e;
+type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
+type Stdout<'e> = dyn Write + 'e + Send + Sync;
 
 #[cfg(feature = "system-function")]
-type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e;
+type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e + Send + Sync;
 
 #[cfg(feature = "use-function")]
-type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e;
+type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {

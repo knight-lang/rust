@@ -54,6 +54,7 @@ pub fn default() -> std::collections::HashMap<char, &'static Function> {
 		#[cfg(feature = "value-function")] VALUE
 		#[cfg(feature = "eval-function")] EVAL
 		#[cfg(feature = "handle-function")] HANDLE
+		#[cfg(feature = "yeet-function")] YEET
 		#[cfg(feature = "use-function")] USE
 		#[cfg(feature = "system-function")] SYSTEM
 	}
@@ -657,15 +658,14 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 /// **6.1** `VALUE`
 #[cfg(feature = "value-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
-pub const VALUE: Function = function!("V", env, |arg| {
+pub const VALUE: Function = function!("VALUE", env, |arg| {
 	let name = arg.run(env)?.to_text()?;
 	env.lookup(&name)?
 });
 
-/// **6.4** `HANDLE`
 #[cfg(feature = "handle-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
-pub const HANDLE: Function = function!("H", env, |block, iferr| {
+pub const HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
 	match block.run(env) {
@@ -683,6 +683,14 @@ pub const HANDLE: Function = function!("H", env, |block, iferr| {
 	}
 });
 
+#[cfg(feature = "yeet-function")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "yeet-function")))]
+pub const YEET: Function = function!("YEET", env, |errmsg| {
+	return Err(Error::Custom(errmsg.run(env)?.to_text()?.to_string().into()));
+	#[allow(unreachable_code)]
+	Value::Null
+});
+
 /// **6.3** `USE`
 #[cfg(feature = "use-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
@@ -695,7 +703,7 @@ pub const USE: Function = function!("USE", env, |arg| {
 
 /// **4.2.2** `EVAL`
 #[cfg(feature = "eval-function")]
-pub const EVAL: Function = function!("E", env, |val| {
+pub const EVAL: Function = function!("EVAL", env, |val| {
 	let code = val.run(env)?.to_text()?;
 	env.play(&code)?
 });
@@ -733,7 +741,7 @@ pub const REVERSE: Function = function!("XREV", env, |arg| {
 
 #[cfg(feature = "xrange-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xrange-function")))]
-pub const RANGE: Function = function!("RANGE", env, |start, stop| {
+pub const RANGE: Function = function!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
 			let stop = stop.run(env)?.to_integer()?;

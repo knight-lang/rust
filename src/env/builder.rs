@@ -52,12 +52,12 @@ impl Default for Builder<'_> {
 */
 
 impl<'e> Builder<'e> {
-	pub fn stdin<S: BufRead + 'e>(&mut self, stdin: S) {
-		self.stdin = Some(Box::new(stdin) as Box<dyn BufRead + 'e>);
+	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
+		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}
 
-	pub fn stdout<S: Write + 'e>(&mut self, stdout: S) {
-		self.stdout = Some(Box::new(stdout) as Box<dyn Write + 'e>);
+	pub fn stdout<S: Write + Send + Sync + 'e>(&mut self, stdout: S) {
+		self.stdout = Some(Box::new(stdout) as Box<_>);
 	}
 
 	pub fn functions(&mut self) -> &mut HashMap<char, &'e Function> {
@@ -69,17 +69,19 @@ impl<'e> Builder<'e> {
 	}
 
 	#[cfg(feature = "system-function")]
-	pub fn system<F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + 'e>(
-		&mut self,
-		func: F,
-	) {
+	pub fn system<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
+	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
 
 	#[cfg(feature = "use-function")]
-	pub fn read_file<F: FnMut(&TextSlice) -> crate::Result<Text> + 'e>(&mut self, func: F) {
-		self.read_file =
-			Some(Box::new(func) as Box<dyn FnMut(&TextSlice) -> crate::Result<Text> + 'e>);
+	pub fn read_file<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
+	{
+		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 
 	pub fn build(self) -> Environment<'e> {
