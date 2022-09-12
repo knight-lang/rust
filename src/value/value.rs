@@ -156,6 +156,17 @@ impl<'e> ToList<'e> for Value<'e> {
 	}
 }
 
+impl<'e> Runnable<'e> for Value<'e> {
+	/// Executes the value.
+	fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
+		match self {
+			Self::Variable(variable) => variable.run(env),
+			Self::Ast(ast) => ast.run(env),
+			_ => Ok(self.clone()),
+		}
+	}
+}
+
 impl<'e> Value<'e> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
@@ -168,17 +179,6 @@ impl<'e> Value<'e> {
 			Self::List(_) => List::TYPENAME,
 			Self::Ast(_) => "Ast",
 			Self::Variable(_) => "Variable",
-		}
-	}
-}
-
-impl<'e> Runnable<'e> for Value<'e> {
-	/// Executes the value.
-	fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
-		match self {
-			Self::Variable(variable) => variable.run(env),
-			Self::Ast(ast) => ast.run(env),
-			_ => Ok(self.clone()),
 		}
 	}
 }

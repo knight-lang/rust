@@ -99,6 +99,18 @@ macro_rules! function {
 		}
 	};
 }
+macro_rules! function2 {
+	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
+		Function {
+			name: $name,
+			arity: arity!($($args)*),
+			func: |args, $env| {
+				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
+				Ok($body)
+			}
+		}
+	};
+}
 
 /// **4.1.4**: `PROMPT`
 pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
@@ -138,9 +150,13 @@ pub const BOX: Function = function!(",", env, |val| {
 	List::boxed(value)
 });
 
-pub const HEAD: Function = function!("[", env, |val| {
+pub const HEAD: Function = function2!("[", env, |val| {
 	match val.run(env)? {
-		Value::List(list) => list.get(0).ok_or(Error::DomainError("empty list"))?.clone(),
+		Value::List(list) => match list.get(0) {
+			Some(element) => element.clone(),
+			None if cfg!(feature = "no-oob-errors") => Value::Null,
+			None => return Err(Error::DomainError("empty list")),
+		},
 		Value::Text(text) => text
 			.chars()
 			.next()
