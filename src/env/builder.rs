@@ -22,7 +22,7 @@ impl Default for Builder<'_> {
 			stdin: None,
 			stdout: None,
 			functions: crate::function::default(),
-			extensions: Default::default(),
+			extensions: crate::function::extensions(),
 
 			#[cfg(feature = "system-function")]
 			system: None,
@@ -32,24 +32,6 @@ impl Default for Builder<'_> {
 		}
 	}
 }
-/*
-	#[cfg(feature = "extension-functions")]
-	extensions: {
-		#[allow(unused_mut)]
-		let mut map = HashMap::<Text, &'static crate::Function>::default();
-
-		#[cfg(feature = "xsrand-function")]
-		map.insert("SRAND".try_into().unwrap(), &crate::function::SRAND);
-
-		#[cfg(feature = "xreverse-function")]
-		map.insert("REV".try_into().unwrap(), &crate::function::REVERSE);
-
-		#[cfg(feature = "xrange-function")]
-		map.insert("RANGE".try_into().unwrap(), &crate::function::RANGE);
-
-		map
-	},
-*/
 
 impl<'e> Builder<'e> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
