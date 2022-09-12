@@ -1,4 +1,5 @@
 mod builder;
+mod character;
 mod text;
 mod textslice;
 
@@ -7,6 +8,7 @@ pub trait ToText {
 }
 
 pub use builder::Builder;
+pub use character::Character;
 pub use text::*;
 pub use textslice::*;
 
@@ -18,10 +20,10 @@ impl<'a> Chars<'a> {
 }
 
 impl Iterator for Chars<'_> {
-	type Item = char;
+	type Item = Character;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.0.next()
+		self.0.next().map(|chr| unsafe { Character::new_unchecked(chr) })
 	}
 }
 
@@ -86,7 +88,7 @@ pub const fn validate(data: &str) -> Result<(), NewTextError> {
 	while index < bytes.len() {
 		let chr = bytes[index] as char;
 
-		if !is_valid(chr) {
+		if Character::new(chr).is_none() {
 			// Since everything's a byte, the byte index is the same as the char index.
 			return Err(NewTextError::IllegalChar { chr, index });
 		}

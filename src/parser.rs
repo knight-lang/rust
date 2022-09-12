@@ -1,4 +1,4 @@
-use crate::text::{Text, TextSlice};
+use crate::text::{Character, Text, TextSlice};
 use crate::variable::IllegalVariableName;
 use crate::{Ast, Environment, Integer, Value};
 use std::fmt::{self, Display, Formatter};
@@ -20,13 +20,13 @@ pub enum ParseErrorKind {
 	/// Indicates that the end of stream was reached before a value could be parsed.
 	EmptySource,
 
-	/// Indicates that an invalid character was encountered.
-	InvalidCharacter(char),
+	/// Indicates that an unrecognized character was encountered.
+	UnknownTokenStart(Character),
 
 	/// A starting quote was found without an associated ending quote.
 	UnterminatedQuote {
 		/// The starting character of the quote (ie either `'` or `"`)
-		quote: char,
+		quote: Character,
 	},
 
 	/// A function was parsed, but one of its arguments was not able to be parsed.
@@ -69,7 +69,7 @@ impl Display for ParseErrorKind {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::EmptySource => write!(f, "an empty source string was encountered"),
-			Self::InvalidCharacter(chr) => write!(f, "unknown token start {chr:?}"),
+			Self::UnknownTokenStart(chr) => write!(f, "unknown token start {chr:?}"),
 			Self::UnterminatedQuote { quote } => write!(f, "unterminated `{quote}` quote encountered"),
 			Self::MissingArgument { name, index } => {
 				write!(f, "missing argument {index} for function {name:?}")
@@ -105,41 +105,6 @@ pub struct Parser<'a> {
 	line: usize,
 }
 
-fn is_whitespace(chr: char) -> bool {
-	chr == ':'
-		|| if cfg!(feature = "strict-charset") {
-			"\r\n\t ".contains(chr)
-		} else {
-			chr.is_whitespace()
-		}
-}
-
-pub(crate) fn is_lower(chr: char) -> bool {
-	chr == '_'
-		|| if cfg!(feature = "strict-charset") {
-			chr.is_ascii_lowercase()
-		} else {
-			chr.is_lowercase()
-		}
-}
-
-pub(crate) fn is_numeric(chr: char) -> bool {
-	if cfg!(feature = "strict-charset") {
-		chr.is_ascii_digit()
-	} else {
-		chr.is_numeric()
-	}
-}
-
-fn is_upper(chr: char) -> bool {
-	chr == '_'
-		|| if cfg!(feature = "strict-charset") {
-			chr.is_ascii_uppercase()
-		} else {
-			chr.is_uppercase()
-		}
-}
-
 impl<'a> Parser<'a> {
 	/// Create a new `Parser` from the given source.
 	pub const fn new(source: &'a TextSlice) -> Self {
@@ -150,11 +115,11 @@ impl<'a> Parser<'a> {
 		kind.error(self.line)
 	}
 
-	fn peek(&self) -> Option<char> {
+	fn peek(&self) -> Option<Character> {
 		self.source.into_iter().next()
 	}
 
-	fn advance(&mut self) -> Option<char> {
+	fn advance(&mut self) -> Option<Character> {
 		let mut chars = self.source.chars();
 
 		let head = chars.next()?;
@@ -166,7 +131,7 @@ impl<'a> Parser<'a> {
 		Some(head)
 	}
 
-	fn take_while(&mut self, mut func: impl FnMut(char) -> bool) -> &'a TextSlice {
+	fn take_while(&mut self, mut func: impl FnMut(Character) -> bool) -> &'a TextSlice {
 		let start = self.source;
 
 		while self.peek().map_or(false, &mut func) {
@@ -179,10 +144,10 @@ impl<'a> Parser<'a> {
 	fn strip(&mut self) {
 		loop {
 			// strip all leading whitespace, if any.
-			self.take_while(is_whitespace);
+			self.take_while(Character::is_whitespace);
 
 			// If we don't have a comment afterwards, nothing left to strip
-			if self.peek() != Some('#') {
+			if self.peek().map_or(false, |c| c == '#') {
 				break;
 			}
 
@@ -207,7 +172,7 @@ impl<'a> Parser<'a> {
 		// The only way that `.parse` can fail is if we overflow, so we can safely map its error to
 		// `IntegerLiteralOverflow`.
 		self
-			.take_while(is_numeric)
+			.take_while(Character::is_numeric)
 			.parse()
 			.map_err(|_| self.error(ParseErrorKind::IntegerLiteralOverflow))
 	}
@@ -216,14 +181,14 @@ impl<'a> Parser<'a> {
 		&mut self,
 		env: &mut Environment<'e>,
 	) -> Result<crate::Variable<'e>, ParseError> {
-		let identifier = self.take_while(|chr| is_lower(chr) || is_numeric(chr));
+		let identifier = self.take_while(|chr| chr.is_lower() || chr.is_numeric());
 
 		env.lookup(identifier).map_err(|err| self.error(ParseErrorKind::IllegalVariableName(err)))
 	}
 
 	fn parse_string(&mut self) -> Result<Text, ParseError> {
 		let quote = match self.advance() {
-			Some(quote @ ('\'' | '\"')) => quote,
+			Some(quote) if quote == '\'' || quote == '\"' => quote,
 			_ => unreachable!(),
 		};
 
@@ -243,8 +208,8 @@ impl<'a> Parser<'a> {
 		env: &mut Environment<'e>,
 	) -> Result<Ast<'e>, ParseError> {
 		// If it's a keyword function, then take all keyword characters.
-		if is_upper(func.name.chars().next().expect("function has empty name?")) {
-			self.take_while(is_upper);
+		if func.name.chars().next().expect("function has empty name?").is_upper() {
+			self.take_while(Character::is_upper);
 		} else {
 			self.advance();
 		}
@@ -273,28 +238,28 @@ impl<'a> Parser<'a> {
 		self.strip();
 
 		match self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))? {
-			'0'..='9' => self.parse_integer().map(Value::from),
-			start if is_lower(start) => self.parse_identifier(env).map(Value::from),
-			'\'' | '\"' => self.parse_string().map(Value::from),
+			chr if chr.is_numeric() => self.parse_integer().map(Value::from),
+			chr if chr.is_lower() => self.parse_identifier(env).map(Value::from),
+			chr if chr == '\'' || chr == '\"' => self.parse_string().map(Value::from),
 
 			// constants
-			start @ ('T' | 'F') => {
-				self.take_while(is_upper);
-				Ok((start == 'T').into())
+			chr if chr == 'T' || chr == 'F' => {
+				self.take_while(Character::is_upper);
+				Ok((chr == 'T').into())
 			}
-			'N' => {
-				self.take_while(is_upper);
-				Ok(Value::default())
+			chr if chr == 'N' => {
+				self.take_while(Character::is_upper);
+				Ok(Value::Null)
 			}
-			'@' => {
+			chr if chr == '@' => {
 				self.advance();
 				Ok(Value::List(Default::default()))
 			}
 
 			#[cfg(feature = "extension-functions")]
-			'X' => {
+			chr if chr == 'X' => {
 				self.advance();
-				let name = self.take_while(is_upper);
+				let name = self.take_while(Character::is_upper);
 				let ext = env
 					.extensions()
 					.get(name)
@@ -303,8 +268,8 @@ impl<'a> Parser<'a> {
 				self.parse_function(ext, env).map(Value::from)
 			}
 
-			')' => return Err(self.error(ParseErrorKind::UnmatchedRightParen)),
-			'(' => {
+			chr if chr == ')' => return Err(self.error(ParseErrorKind::UnmatchedRightParen)),
+			chr if chr == '(' => {
 				self.advance();
 				let line = self.line;
 
@@ -321,7 +286,7 @@ impl<'a> Parser<'a> {
 
 				self.strip();
 
-				if self.advance() != Some(')') {
+				if self.advance().map_or(true, |chr| chr != ')') {
 					Err(ParseErrorKind::UnmatchedLeftParen.error(line))
 				} else {
 					Ok(value)
@@ -332,7 +297,7 @@ impl<'a> Parser<'a> {
 			name => {
 				let func = env
 					.lookup_function(name)
-					.ok_or_else(|| self.error(ParseErrorKind::InvalidCharacter(name)))?;
+					.ok_or_else(|| self.error(ParseErrorKind::UnknownTokenStart(name)))?;
 
 				self.parse_function(func, env).map(Value::from)
 			}

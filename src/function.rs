@@ -1,5 +1,7 @@
+use crate::value::text::{Character, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
+use std::collections::HashMap;
 
 use std::fmt::{self, Debug, Formatter};
 use tap::prelude::*;
@@ -13,10 +15,19 @@ pub struct Function {
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'static str,
+	pub name: &'static TextSlice,
 
 	/// The arity of the function.
 	pub arity: usize,
+}
+
+impl Function {
+	pub fn short_form(&self) -> Option<Character> {
+		match self.name.chars().next() {
+			Some(c) if c == 'X' => None,
+			other => other,
+		}
+	}
 }
 
 impl Eq for Function {}
@@ -32,14 +43,14 @@ impl Debug for Function {
 	}
 }
 
-pub fn default() -> std::collections::HashMap<char, &'static Function> {
-	let mut map = std::collections::HashMap::new();
+pub fn default() -> HashMap<Character, &'static Function> {
+	let mut map = HashMap::new();
 
 	macro_rules! insert {
 		($($(#[$meta:meta])* $name:ident)*) => {
 			$(
 				$(#[$meta])*
-				map.insert($name.name.as_bytes()[0] as char, &$name);
+				map.insert($name.short_form().unwrap(), &$name);
 			)*
 		}
 	}
@@ -62,8 +73,8 @@ pub fn default() -> std::collections::HashMap<char, &'static Function> {
 	map
 }
 
-pub fn extensions() -> std::collections::HashMap<Text, &'static Function> {
-	let mut map = std::collections::HashMap::new();
+pub fn extensions() -> HashMap<Text, &'static Function> {
+	let mut map = HashMap::new();
 
 	macro_rules! insert {
 		($($feature:literal $name:ident)*) => {
@@ -90,7 +101,7 @@ macro_rules! arity {
 macro_rules! function {
 	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
 		Function {
-			name: $name,
+			name: unsafe { TextSlice::new_unchecked($name) },
 			arity: arity!($($args)*),
 			func: |args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
@@ -102,7 +113,7 @@ macro_rules! function {
 macro_rules! function2 {
 	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
 		Function {
-			name: $name,
+			name: unsafe { TextSlice::new_unchecked($name) },
 			arity: arity!($($args)*),
 			func: |args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
@@ -141,46 +152,29 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 });
 
 /// **4.1.5**: `RANDOM`
-pub const RANDOM: Function = function!("RANDOM", env, |/* comment for rustfmt */| env.random());
+pub const RANDOM: Function = function!("RANDOM", env, |/* comment for rustfmt */| {
+	// note that `env.random()` is seedable with `XSRAND`
+	env.random()
+});
 
 /// **4.2.2** `BOX`
 pub const BOX: Function = function!(",", env, |val| {
-	let value = val.run(env)?;
-
-	List::boxed(value)
+	// `boxed` is optimized over `vec![val.run(env)]`
+	List::boxed(val.run(env)?)
 });
 
 pub const HEAD: Function = function2!("[", env, |val| {
 	match val.run(env)? {
-		Value::List(list) => match list.get(0) {
-			Some(element) => element.clone(),
-			None if cfg!(feature = "no-oob-errors") => Value::Null,
-			None => return Err(Error::DomainError("empty list")),
-		},
-		Value::Text(text) => text
-			.chars()
-			.next()
-			.ok_or(Error::DomainError("empty list"))?
-			.to_string()
-			.try_conv::<Text>()
-			.unwrap()
-			.into(),
+		Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?,
+		Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
 
 pub const TAIL: Function = function!("]", env, |val| {
 	match val.run(env)? {
-		Value::List(list) => list.get(1..).ok_or(Error::DomainError("empty list"))?.conv::<Value>(),
-		Value::Text(text) => {
-			let mut chrs = text.chars();
-
-			if chrs.next().is_none() {
-				return Err(Error::DomainError("empty list"));
-			}
-
-			chrs.as_text().to_owned().conv::<Value>()
-		}
+		Value::List(list) => list.tail().ok_or(Error::DomainError("empty list"))?.conv::<Value>(),
+		Value::Text(text) => text.tail().ok_or(Error::DomainError("empty text"))?.into(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -225,20 +219,12 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!("QUIT", env, |arg| {
-	let status = arg
-		.run(env)?
-		.to_integer()?
-		.try_conv::<i32>()
-		.or(Err(Error::DomainError("exit code out of bounds")))?;
-
-	// Technically, only values in the range `[0, 127]` are supported by the knight impl. However,
-	// this compliance feature isn't really important enough to warrant its own config feature.
-	#[cfg(feature = "strict-compliance")]
-	if !(0..=127).contains(&status) {
-		return Err(Error::DomainError("exit code out of bounds"));
+	match arg.run(env)?.to_integer()?.try_conv::<i32>() {
+		Ok(status) if !cfg!(feature = "strict-compliance") || (0..=127).contains(&status) => {
+			return Err(Error::Quit(status))
+		}
+		_ => return Err(Error::DomainError("exit code out of bounds")),
 	}
-
-	return Err(Error::Quit(status));
 
 	// The `function!` macro calls `.into()` on the return value of this block,
 	// so we need _something_ here so it can typecheck correctly.
@@ -247,7 +233,10 @@ pub const QUIT: Function = function!("QUIT", env, |arg| {
 });
 
 /// **4.2.7** `!`  
-pub const NOT: Function = function!("!", env, |arg| !arg.run(env)?.to_boolean()?);
+pub const NOT: Function = function!("!", env, |arg| {
+	// <blank line so rustfmt doesnt wrap onto the prev line>
+	!arg.run(env)?.to_boolean()?
+});
 
 /// **4.2.8** `LENGTH`  
 pub const LENGTH: Function = function!("LENGTH", env, |arg| {
@@ -288,20 +277,8 @@ pub const OUTPUT: Function = function!("OUTPUT", env, |arg| {
 /// **4.2.11** `ASCII`  
 pub const ASCII: Function = function!("ASCII", env, |arg| {
 	match arg.run(env)? {
-		Value::Integer(num) => u32::try_from(num)
-			.ok()
-			.and_then(char::from_u32)
-			.and_then(|chr| Text::new(chr).ok())
-			.ok_or(Error::DomainError("number isn't a valid char"))?
-			.conv::<Value>(),
-
-		Value::Text(text) => text
-			.chars()
-			.next()
-			.ok_or(Error::DomainError("empty string"))?
-			.try_conv::<Integer>()?
-			.conv::<Value>(),
-
+		Value::Integer(integer) => integer.chr()?.conv::<Value>(),
+		Value::Text(text) => text.ord()?.conv::<Value>(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -446,9 +423,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 pub const POWER: Function = function!("^", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.power(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
-
 		Value::List(list) => list.join(&rhs.run(env)?.to_text()?)?.into(),
-
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -487,21 +462,25 @@ pub const GREATER_THAN: Function = function!(">", env, |lhs, rhs| {
 
 /// **4.3.9** `?`  
 pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
+	fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
+		match value {
+			Value::List(list) => {
+				for ele in list {
+					check_for_strict_compliance(&ele)?;
+				}
+				Ok(())
+			}
+			Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename())),
+			_ => Ok(()),
+		}
+	}
+
 	let l = lhs.run(env)?;
 	let r = rhs.run(env)?;
 
 	if cfg!(feature = "strict-compliance") {
-		if false {
-			todo!("also recursively check lists");
-		}
-
-		if matches!(l, Value::Ast(_) | Value::Variable(_)) {
-			return Err(Error::TypeError(l.typename()));
-		}
-
-		if matches!(r, Value::Ast(_) | Value::Variable(_)) {
-			return Err(Error::TypeError(r.typename()));
-		}
+		check_for_strict_compliance(&l)?;
+		check_for_strict_compliance(&r)?;
 	}
 
 	l == r
@@ -547,17 +526,20 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		#[cfg(all(feature = "assign-to-system", feature = "system-function"))]
 		Value::Ast(ast) if ast.function().name == SYSTEM.name => env.add_to_system(value.to_text()?),
 
-		#[cfg(feature = "list-extensions")]
-		Value::Ast(_ast) => return assign(&variable.run(env)?, value, env),
-
-		#[cfg(feature = "assign-to-anything")]
-		_ => {
-			let name = variable.run(env)?.to_text()?;
-			env.lookup(&name)?.assign(value);
-		}
-
-		#[cfg(not(feature = "assign-to-anything"))]
+		#[cfg(not(any(feature = "assign-to-strings", feature = "assign-to-lists")))]
 		other => return Err(Error::TypeError(other.typename())),
+
+		other => match other.run(env)? {
+			#[cfg(feature = "assign-to-lists")]
+			Value::List(_list) => todo!(),
+
+			#[cfg(feature = "assign-to-strings")]
+			Value::Text(name) => {
+				env.lookup(&name)?.assign(value);
+			}
+
+			other => return Err(Error::TypeError(other.typename())),
+		},
 	}
 
 	let _ = env;
@@ -590,10 +572,24 @@ pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
 	}
 });
 
+fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
+	if start.is_negative() && cfg!(feature = "negative-indexing") {
+		let len = match container {
+			Value::Text(text) => text.len(),
+			Value::List(list) => list.len(),
+			other => return Err(Error::TypeError(other.typename())),
+		};
+
+		start = start.add(len.try_into()?)?;
+	}
+
+	start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))
+}
+
 /// **4.4.2** `GET`  
 pub const GET: Function = function!("GET", env, |string, start, length| {
 	let source = string.run(env)?;
-	let mut start = start.run(env)?.to_integer()?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -601,41 +597,15 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 		.or(Err(Error::DomainError("negative length")))?;
 
 	match source {
-		Value::List(list) => {
-			if start.is_negative() && cfg!(feature = "negative-indexing") {
-				start = start.add(list.len().try_into()?)?;
-			}
-			let start =
-				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
-
-			match list.get(start..start + length) {
-				Some(fetched) => Value::from(fetched),
-
-				#[cfg(feature = "no-oob-errors")]
-				None => return Err(Error::IndexOutOfBounds { len: list.len(), index: start + length }),
-
-				#[cfg(not(feature = "no-oob-errors"))]
-				None => List::default().into(),
-			}
-		}
-		Value::Text(text) => {
-			if start.is_negative() && cfg!(feature = "negative-indexing") {
-				start = start.add(text.len().try_into()?)?;
-			}
-
-			let start =
-				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
-
-			match text.get(start..start + length) {
-				Some(substring) => substring.to_owned().into(),
-
-				#[cfg(feature = "no-oob-errors")]
-				None => return Err(Error::IndexOutOfBounds { len: text.len(), index: start + length }),
-
-				#[cfg(not(feature = "no-oob-errors"))]
-				None => Text::default().into(),
-			}
-		}
+		Value::List(list) => list
+			.get(start..start + length)
+			.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + length })?
+			.conv::<Value>(),
+		Value::Text(text) => text
+			.get(start..start + length)
+			.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + length })?
+			.to_owned()
+			.into(),
 		other => return Err(Error::TypeError(other.typename())),
 	}
 });
@@ -643,7 +613,7 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 /// **4.5.1** `SET`  
 pub const SET: Function = function!("SET", env, |string, start, length, replacement| {
 	let source = string.run(env)?;
-	let mut start = start.run(env)?.to_integer()?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -653,13 +623,6 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 
 	match source {
 		Value::List(list) => {
-			if start.is_negative() && cfg!(feature = "negative-indexing") {
-				start = start.add(list.len().try_into()?)?;
-			}
-
-			let start =
-				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
-
 			// FIXME: cons?
 
 			let replacement = replacement_source.to_list()?;
@@ -673,14 +636,6 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 		Value::Text(text) => {
 			let replacement = replacement_source.to_text()?;
 
-			if start.is_negative() && cfg!(feature = "negative-indexing") {
-				start = start.add(text.len().try_into()?)?;
-			}
-
-			let start =
-				start.try_conv::<usize>().or(Err(Error::DomainError("negative start position")))?;
-
-			// TODO: `no-oob-errors` here
 			// lol, todo, optimize me
 			let mut builder = Text::builder();
 			builder.push(text.get(..start).unwrap());

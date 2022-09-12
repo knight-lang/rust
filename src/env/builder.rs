@@ -6,7 +6,7 @@ use std::io;
 pub struct Builder<'e> {
 	stdin: Option<Box<Stdin<'e>>>,
 	stdout: Option<Box<Stdout<'e>>>,
-	functions: HashMap<char, &'e Function>,
+	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
 
 	#[cfg(feature = "system-function")]
@@ -42,7 +42,7 @@ impl<'e> Builder<'e> {
 		self.stdout = Some(Box::new(stdout) as Box<_>);
 	}
 
-	pub fn functions(&mut self) -> &mut HashMap<char, &'e Function> {
+	pub fn functions(&mut self) -> &mut HashMap<Character, &'e Function> {
 		&mut self.functions
 	}
 

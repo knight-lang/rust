@@ -1,4 +1,4 @@
-#![forbid(missing_docs)]
+use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Display, Formatter};
@@ -69,6 +69,10 @@ impl Integer {
 	/// Returns whether `self` is negative.
 	pub const fn is_negative(self) -> bool {
 		self.0.is_negative()
+	}
+
+	pub fn chr(self) -> Result<Character> {
+		self.try_into()
 	}
 
 	/// Negates `self`.

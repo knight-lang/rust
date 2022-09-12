@@ -1,5 +1,5 @@
-use super::{validate, Chars, NewTextError, Text};
-use crate::value::{ToBoolean, ToInteger, ToList, ToText};
+use super::{validate, Character, Chars, NewTextError, Text};
+use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -101,6 +101,26 @@ impl TextSlice {
 				.unwrap()
 		}
 	}
+
+	pub fn ord(&self) -> crate::Result<Integer> {
+		Integer::try_from(
+			self.chars().next().ok_or(crate::Error::DomainError("empty string"))?.inner(),
+		)
+	}
+
+	pub fn head(&self) -> Option<Character> {
+		self.chars().next()
+	}
+
+	pub fn tail(&self) -> Option<Text> {
+		let mut chrs = self.chars();
+
+		if chrs.next().is_none() {
+			None
+		} else {
+			Some(chrs.as_text().to_owned())
+		}
+	}
 }
 
 impl<'a> TryFrom<&'a str> for &'a TextSlice {
@@ -141,7 +161,7 @@ impl ToOwned for TextSlice {
 }
 
 impl<'a> IntoIterator for &'a TextSlice {
-	type Item = char;
+	type Item = Character;
 	type IntoIter = Chars<'a>;
 
 	fn into_iter(self) -> Self::IntoIter {
@@ -166,7 +186,7 @@ impl crate::value::NamedType for Text {
 }
 
 impl ToInteger for Text {
-	fn to_integer(&self) -> crate::Result<crate::value::Integer> {
+	fn to_integer(&self) -> crate::Result<Integer> {
 		self.parse()
 	}
 }

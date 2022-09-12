@@ -50,8 +50,6 @@ pub enum Error {
 
 	Custom(Box<dyn std::error::Error>),
 
-	#[cfg(feature = "no-oob-errors")]
-	#[cfg_attr(doc_cfg, doc(cfg(feature = "no-oob-errors")))]
 	IndexOutOfBounds {
 		len: usize,
 		index: usize,
@@ -116,7 +114,6 @@ impl Display for Error {
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 			Self::Custom(err) => Display::fmt(&err, f),
 
-			#[cfg(feature = "no-oob-errors")]
 			Self::IndexOutOfBounds { len, index } => {
 				write!(f, "end index {index} is out of bounds for length {len}")
 			}
