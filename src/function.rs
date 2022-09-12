@@ -153,9 +153,9 @@ pub const BLOCK: Function = function!("BLOCK", env, |arg| {
 	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
 	// Since this function normally just returns whatever it's argument is, it's impossible to
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
-	// the `strict-block-return-value` feature is enabled. We ensure that we _only_ return `Ast`s
+	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
 	// from `BLOCK`, so `CALL` can verify them.
-	#[cfg(feature = "strict-block-return-value")]
+	#[cfg(feature = "strict-call-argument")]
 	if !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
 		const NOOP: Function = function!(":", env, |arg| {
@@ -178,7 +178,7 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
 	// arguments are `Value::Ast`s.
-	#[cfg(feature = "strict-block-return-value")]
+	#[cfg(feature = "strict-call-argument")]
 	if !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError(block.typename()));
 	}

@@ -109,7 +109,7 @@ checked-overflow = []
 strict-integers = []
 
 # Ensure BLOCK return values are handled correctly.
-strict-block-return-value = []
+strict-call-argument = []
 
 # Ensure that all variable names are valid (eg `VALUE 1` would fail.)
 verify-variable-names = []
@@ -120,7 +120,7 @@ strict-compliance = [
 	"checked-overflow",
 	"forbid-trailing-tokens",
 	"strict-charset",
-	"strict-block-return-value",
+	"strict-call-argument",
 	"verify-variable-names",
 	"container-length-limit",
 ]

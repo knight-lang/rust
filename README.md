@@ -1,9 +1,5 @@
 # Knight v2.0 in Rust
-This 
-This is the Rust version of Knight. It's intended to be usable within embedded applications.
-
-More details to come later, once I finish documentation.
-
+This is the Rust version of Knight. It's intended to be usable as both a standalone binary and within embedded applications.
 
 # Knight v2.0: Rust Edition 
 This is a fully functioning [Knight 2.0](https://github.com/knight-lang/knight-lang) implementation in Rust. More details about Knight, its license, and specifications can be found in the [knight-lang](https://github.com/knight-lang/knight-lang) repo.
@@ -23,6 +19,8 @@ The following is the list of flags, and their descriptions. To enable flags, pas
 - `multithreaded`: Enable this to turn on multithreading support. Since Knight is normally single threaded, the Rusut implementation by default uses single-threaded data structures such as `Rc` and `RefCell`. 
 
 ## Spec-defined Extensions
+Extensions that the spec suggests.
+
 - **`spec-defined-extensions`**: Enables everything in this section.
 - `value-function`: Enables the `VALUE` function
 - `eval-function`: Enables the `EVAL` function
@@ -33,136 +31,35 @@ The following is the list of flags, and their descriptions. To enable flags, pas
 - `system-function`: Enables the `$` function, which is for doing system calls.
 
 ## Compiler Extensions
-- **list-extensions**: Provides useful extensions for lists, such as `* list BLOCK ...` will map all the elements of the list to the return value of the block.
-- **string-extensions**: Provides useful extensions for strings, such as `/ string sep` will split a string by the `sep`.
-negative-ranges = []
-assign-to-lists = []
+Custom extensions by the Rust implementation that add additional functionality.
 
-extension-functions = [] # Required for all `X` functions.
-
-
-# Enables `XSRAND`
-xsrand-function = ["extension-functions"]
-xrange-function = ["extension-functions"]
-xreverse-function = ["extension-functions"]
-
-# Enable most extensions
-normal-extensions = [
-	"value-function",
-	"assign-to-anything",
-	"handle-function",
-	"use-function",
-	# "xsrand-function",
-]
-
-all-extensions = ["normal-extensions", "qol-extensions"]
-
-#######################################
-##     Quality-of-life extensions    ##
-#######################################
-# All quality of life extensions may be removed in the future without it
-# being considered a breaking change; these are just for golfing convenience.
-
-# Causes `GET` and `SET` to return empty strings on errors, not errors.
-no-oob-errors = []
-
-# Allows you to use negative indexes in `GET` and `SET` 
-negative-indexing = []
-- `negative-ranges`:
-
-# Let's you specify what the next `PROMPT` should return.
-#
-# If this is set along with `assign-to-anything`, this will take precedence;
-# use `+""P` if you want to assign to `PROMPT`'s return value.
-assign-to-prompt = []
-assign-to-system = ["system-function"]
-
-assignment-overloads = ["assign-to-prompt", "assign-to-system"]
-
-# Enable all quality-of-life extensions
-qol-extensions = ["no-oob-errors", "negative-indexing", "assign-to-prompt"]
-
-# split-strings = ["arrays"]
-# string-formatting = ["arrays"]
-
-#######################################
-##          Spec Compliance          ##
-#######################################
-
-container-length-limit = []
-forbid-trailing-tokens = []
-
-# Restrict source files and strings to the bytes defined in the Knight spec.
-strict-charset = [] # TODO: make this work
-
-# Catch undefined integer arithmetic
-checked-overflow = []
-
-# Use `i32` for integers, which is the minimum required range. Also enables some niche things.
-strict-integers = []
-
-# Ensure BLOCK return values are handled correctly.
-strict-block-return-value = []
-
-# Ensure that all variable names are valid (eg `VALUE 1` would fail.)
-verify-variable-names = []
-
-# Exactly follow knight specs.
-strict-compliance = [
-	"strict-integers",
-	"checked-overflow",
-	"forbid-trailing-tokens",
-	"strict-charset",
-	"strict-block-return-value",
-	"verify-variable-names",
-	"container-length-limit",
-]
-
-[dependencies]
-rand = "0.8"
-once_cell = "1.7"
-lazy_static = "1.4"
-cfg-if = "1.0"
-clap = { version = "2.33", optional = true }
-tap = "1.0"
-static_assertions = "1.1"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "doc_cfg"]
-
-[[bin]]
-name = "knight"
-path = "src/main.rs"
-# required-features = ["clap"]
+- **`compiler-extensions`**: Enables everything in this section.
+- `list-extensions`: Provides useful extensions for lists, such as `* list BLOCK ...` will map all the elements of the list to the return value of the block.
+- `string-extensions`: Provides useful extensions for strings, such as `/ string sep` will split a string by the `sep`.
+- `xsrand-function`: Enables the use of `XSRAND`, used for seeding `RANDOM`.
+- `xrange-function`: Enables the use of `XRANGE`, which is used to construct lists
+- `xreverse-function`: Enables the use of `XREVERSE`, which can be used to reverse lists.
 
 
-<!-- 
-# Compiler-specific addons
-A couple of custom extensions were added in addition to those mentioned by the spec:
-- `assign-to-prompt`: If you assign to the `PROMPT` function (i.e. `= PROMPT ...`), then the next time `PROMPT` is called, that value will be returned.
-- `assign-to-system`: The same as `assign-to-prompt`, except it's for the `$` function
-- 
+## Quality-Of-Life Extensions
+Extensions that change how Knight itself works, possibly making valid programs invalid.
+
+- **`qol-extensions`**: Enables everything in this section.
+- `assign-to-prompt`: If you assign to the `PROMPT` function (i.e. `= PROMPT ...`), then the next time `PROMPT` is called, that value will be returned. Multiple assignments start a queue. If a block is assigned, each time `PROMPT` is called, that block is executed, and its return value is the line.
+- `assign-to-system`: The same as `assign-to-prompt`, except for the `$` function. If a block is passed, stdin will be assigned to the `_` variable.
+- `assign-to-lists`: Allows you to assign to lists of strings, which can be used for argument destructoring.
+- `assignment-overloads`: Enables the previous three extensions.
+- `negative-index-length`: Allows the use of negative start positions when indexing into strings/lists; this acts like it does in other languages, such as python.
 
 
+## Spec Compliance
+These extensions can be enabled to make sure knight programs are fully spec compliant.
 
-#######################################
-##     Quality-of-life extensions    ##
-#######################################
-# All quality of life extensions may be removed in the future without it
-# being considered a breaking change; these are just for golfing convenience.
-
-# Causes `GET` and `SET` to return empty strings on errors, not errors.
-no-oob-errors = []
-
-# Allows you to use negative indexes in `GET` and `SET` 
-negative-indexing = []
-
-# Let's you specify what the next `PROMPT` should return.
-#
-# If this is set along with `assign-to-anything`, this will take precedence;
-# use `+""P` if you want to assign to `PROMPT`'s return value.
-assign-to-prompt = []
-assign-to-system = ["system-function"]
-
-assignment-overloads = ["assign-to-prompt", "assign-to-system"]
- -->
+- **`strict-compliance`**: Enables everything in this section; With this enabled, and all other features disabled, only 100% valid Knight programs will execute properly.
+- `forbid-trailing-tokens`: Raises an error if more than one expression is present in the source code.
+- `container-length-limit`: Ensures that containers do not grow larger than `i32::MAX`.
+- `strict-charset`: Disables Unicode support, only supporting the strict subset of ASCII Knight requires.
+- `checked-overflow`: Checks for under/overflow in integer arithmetic operations.
+- `strict-integers`: Use `i32` (instead of the default `i64`) for integers; Also enables some niche integer spec requirements.
+- `strict-call-argument`: Ensures that `CALL` is only ever executed with `BLOCK`'s return value.
+- `verify-variable-names`: Ensures that all variable names are at most 127 characters long.
