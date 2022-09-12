@@ -62,6 +62,27 @@ pub fn default() -> std::collections::HashMap<char, &'static Function> {
 	map
 }
 
+pub fn extensions() -> std::collections::HashMap<Text, &'static Function> {
+	let mut map = std::collections::HashMap::new();
+
+	macro_rules! insert {
+		($($feature:literal $name:ident)*) => {
+			$(
+				#[cfg(feature=$feature)]
+				map.insert($name.name.try_into().unwrap(), &$name);
+			)*
+		}
+	}
+
+	insert! {
+		"xsrand-function" XSRAND
+		"xreverse-function" XREVERSE
+		"xrange-function" XRANGE
+	}
+
+	map
+}
+
 macro_rules! arity {
 	() => (0);
 	($_pat:ident $($rest:ident)*) => (1+arity!($($rest)*))
@@ -74,6 +95,18 @@ macro_rules! function {
 			func: |args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body.into())
+			}
+		}
+	};
+}
+macro_rules! function2 {
+	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
+		Function {
+			name: $name,
+			arity: arity!($($args)*),
+			func: |args, $env| {
+				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
+				Ok($body)
 			}
 		}
 	};
@@ -117,9 +150,13 @@ pub const BOX: Function = function!(",", env, |val| {
 	List::boxed(value)
 });
 
-pub const HEAD: Function = function!("[", env, |val| {
+pub const HEAD: Function = function2!("[", env, |val| {
 	match val.run(env)? {
-		Value::List(list) => list.get(0).ok_or(Error::DomainError("empty list"))?.clone(),
+		Value::List(list) => match list.get(0) {
+			Some(element) => element.clone(),
+			None if cfg!(feature = "no-oob-errors") => Value::Null,
+			None => return Err(Error::DomainError("empty list")),
+		},
 		Value::Text(text) => text
 			.chars()
 			.next()
@@ -724,7 +761,7 @@ pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
 /// **Compiler extension**: SRAND
 #[cfg(feature = "xsrand-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xsrand-function")))]
-pub const SRAND: Function = function!("XSRAND", env, |arg| {
+pub const XSRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
@@ -733,7 +770,7 @@ pub const SRAND: Function = function!("XSRAND", env, |arg| {
 /// **Compiler extension**: REV
 #[cfg(feature = "xreverse-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
-pub const REVERSE: Function = function!("XREV", env, |arg| {
+pub const XREVERSE: Function = function!("XREVERSE", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
@@ -741,13 +778,18 @@ pub const REVERSE: Function = function!("XREV", env, |arg| {
 
 #[cfg(feature = "xrange-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xrange-function")))]
-pub const RANGE: Function = function!("XRANGE", env, |start, stop| {
+pub const XRANGE: Function = function!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
 			let stop = stop.run(env)?.to_integer()?;
 
 			match start <= stop {
-				true => (start..stop).map(Value::from).collect::<List>().conv::<Value>(),
+				true => (i64::from(start)..i64::from(stop))
+					.map(|x| Value::from(Integer::try_from(x).unwrap()))
+					.collect::<Vec<Value<'_>>>()
+					.try_conv::<List<'_>>()
+					.expect("todo: out of bounds error")
+					.conv::<Value>(),
 
 				#[cfg(feature = "negative-ranges")]
 				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
