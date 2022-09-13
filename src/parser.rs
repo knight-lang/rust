@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
 			self.take_while(Character::is_whitespace);
 
 			// If we don't have a comment afterwards, nothing left to strip
-			if self.peek().map_or(false, |c| c == '#') {
+			if self.peek().map_or(true, |c| c != '#') {
 				break;
 			}
 
