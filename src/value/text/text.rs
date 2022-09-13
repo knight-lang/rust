@@ -1,4 +1,4 @@
-use crate::text::{NewTextError, TextSlice};
+use crate::text::{Character, NewTextError, TextSlice};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,6 +44,12 @@ impl TryFrom<String> for Text {
 		let boxed = Box::<TextSlice>::try_from(inp.into_boxed_str())?;
 
 		Ok(Self(boxed.into()))
+	}
+}
+
+impl From<Character> for Text {
+	fn from(inp: Character) -> Self {
+		Self::new(inp).unwrap()
 	}
 }
 

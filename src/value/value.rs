@@ -83,6 +83,13 @@ impl From<Text> for Value<'_> {
 	}
 }
 
+impl From<crate::value::text::Character> for Value<'_> {
+	#[inline]
+	fn from(character: crate::value::text::Character) -> Self {
+		Self::Text(Text::from(character))
+	}
+}
+
 impl<'e> From<Variable<'e>> for Value<'e> {
 	#[inline]
 	fn from(variable: Variable<'e>) -> Self {

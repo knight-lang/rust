@@ -142,6 +142,16 @@ impl<'e> List<'e> {
 		}
 	}
 
+	/// Returns the first element in `self`.
+	pub fn head(&self) -> Option<Value<'e>> {
+		self.get(0).cloned()
+	}
+
+	/// Returns everything but the first element in `self`.
+	pub fn tail(&self) -> Option<Self> {
+		self.get(1..)
+	}
+
 	/// Gets the value(s) at `index`.
 	///
 	/// This is syntactic sugar for `index.get(self)`.

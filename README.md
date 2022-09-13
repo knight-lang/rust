@@ -64,5 +64,4 @@ These extensions can be enabled to make sure knight programs are fully spec comp
 Miscellaneous extensions that don't fit into other categories
 
 - `multithreaded`: Enable this to turn on multithreading support. Since Knight is normally single threaded, the Rusut implementation by default uses single-threaded data structures such as `Rc` and `RefCell`. 
-- `no-oob-errors`: Causes `]`, `GET`, and `SET` to return empty strings/lists on out of bounds, and `[` to return `NULL`.
 - `extensions`: Enables `spec-extensions` and `compiler-extensions`, and `qol-extensions`.

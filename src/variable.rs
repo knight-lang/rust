@@ -1,3 +1,4 @@
+use crate::value::text::Character;
 use crate::value::{Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
@@ -63,10 +64,10 @@ pub enum IllegalVariableName {
 	TooLong(usize),
 
 	/// The name had an illegal character at the beginning.
-	IllegalStartingChar(char),
+	IllegalStartingChar(Character),
 
 	/// The name had an illegal character in the middle.
-	IllegalBodyChar(char),
+	IllegalBodyChar(Character),
 }
 
 impl Display for IllegalVariableName {
@@ -88,8 +89,6 @@ pub const MAX_NAME_LEN: usize = 127;
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
 pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
-	use crate::parser::{is_lower, is_numeric};
-
 	if cfg!(not(feature = "verify-variable-names")) {
 		return Ok(());
 	}
@@ -99,11 +98,11 @@ pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariabl
 	}
 
 	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-	if !is_lower(first) {
+	if !first.is_lower() {
 		return Err(IllegalVariableName::IllegalStartingChar(first));
 	}
 
-	if let Some(bad) = name.chars().find(|&c| !is_lower(c) && !is_numeric(c)) {
+	if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
 		return Err(IllegalVariableName::IllegalBodyChar(bad));
 	}
 

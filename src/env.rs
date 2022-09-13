@@ -1,3 +1,4 @@
+use crate::value::text::Character;
 use crate::value::Runnable;
 use crate::variable::IllegalVariableName;
 use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
@@ -26,7 +27,7 @@ pub struct Environment<'e> {
 	stdout: Box<Stdout<'e>>,
 	rng: Box<StdRng>,
 
-	functions: HashMap<char, &'e Function>,
+	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
@@ -59,7 +60,7 @@ impl<'e> Environment<'e> {
 		crate::Parser::new(source).parse(self)?.run(self)
 	}
 
-	pub fn lookup_function(&self, name: char) -> Option<&'e Function> {
+	pub fn lookup_function(&self, name: Character) -> Option<&'e Function> {
 		self.functions.get(&name).copied()
 	}
 

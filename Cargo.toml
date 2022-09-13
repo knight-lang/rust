@@ -17,7 +17,6 @@ default = ["extensions"]
 #            Miscellaneous           ##
 #######################################
 multithreaded = [] # Enables multithreading support
-no-oob-errors = [] # OOB on `]`, `GET`, and `SET` return empty container; `[` returns `NULL`.
 extensions = ["spec-extensions", "compiler-extensions", "qol-extensions"]
 
 #######################################
