@@ -167,7 +167,7 @@ pub const HEAD: Function = function2!("[", env, |val| {
 	match val.run(env)? {
 		Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?,
 		Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "[")),
 	}
 });
 
@@ -175,7 +175,7 @@ pub const TAIL: Function = function!("]", env, |val| {
 	match val.run(env)? {
 		Value::List(list) => list.tail().ok_or(Error::DomainError("empty list"))?.conv::<Value>(),
 		Value::Text(text) => text.tail().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "]")),
 	}
 });
 
@@ -211,7 +211,7 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 	// arguments are `Value::Ast`s.
 	#[cfg(feature = "strict-call-argument")]
 	if !matches!(block, Value::Ast(_)) {
-		return Err(Error::TypeError(block.typename()));
+		return Err(Error::TypeError(block.typename(), "CALL"));
 	}
 
 	block.run(env)?
@@ -279,7 +279,7 @@ pub const ASCII: Function = function!("ASCII", env, |arg| {
 	match arg.run(env)? {
 		Value::Integer(integer) => integer.chr()?.conv::<Value>(),
 		Value::Text(text) => text.ord()?.conv::<Value>(),
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "ASCII")),
 	}
 });
 
@@ -296,7 +296,7 @@ pub const ADD: Function = function!("+", env, |lhs, rhs| {
 		Value::Text(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
 		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?)?.into(),
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "+")),
 	}
 });
 
@@ -308,7 +308,7 @@ pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?)?.into(),
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "-")),
 	}
 });
 
@@ -349,7 +349,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 			list.repeat(amount)?.conv::<Value>()
 		}
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "*")),
 	}
 });
 
@@ -364,7 +364,7 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "/")),
 	}
 });
 
@@ -415,7 +415,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 		#[cfg(feature = "list-extensions")]
 		Value::List(list) => list.filter(&rhs.run(env)?, env)?.into(),
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "%")),
 	}
 });
 
@@ -424,7 +424,7 @@ pub const POWER: Function = function!("^", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.power(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 		Value::List(list) => list.join(&rhs.run(env)?.to_text()?)?.into(),
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "^")),
 	}
 });
 
@@ -446,7 +446,7 @@ fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
 
 			Ok(list.len().cmp(&rhs.len()))
 		}
-		other => Err(Error::TypeError(other.typename())),
+		other => Err(Error::TypeError(other.typename(), "<cmp>")),
 	}
 }
 
@@ -470,7 +470,7 @@ pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 				}
 				Ok(())
 			}
-			Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename())),
+			Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename(), "?")),
 			_ => Ok(()),
 		}
 	}
@@ -527,7 +527,7 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		Value::Ast(ast) if ast.function().name == SYSTEM.name => env.add_to_system(value.to_text()?),
 
 		#[cfg(not(any(feature = "assign-to-strings", feature = "assign-to-lists")))]
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "=")),
 
 		other => match other.run(env)? {
 			#[cfg(feature = "assign-to-lists")]
@@ -538,7 +538,7 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 				env.lookup(&name)?.assign(value);
 			}
 
-			other => return Err(Error::TypeError(other.typename())),
+			other => return Err(Error::TypeError(other.typename(), "=")),
 		},
 	}
 
@@ -577,7 +577,7 @@ fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
 		let len = match container {
 			Value::Text(text) => text.len(),
 			Value::List(list) => list.len(),
-			other => return Err(Error::TypeError(other.typename())),
+			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};
 
 		start = start.add(len.try_into()?)?;
@@ -606,7 +606,7 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 			.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + length })?
 			.to_owned()
 			.into(),
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "GET")),
 	}
 });
 
@@ -643,7 +643,7 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 			builder.push(text.get(start + length..).unwrap());
 			builder.finish().into()
 		}
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "SET")),
 	}
 });
 
@@ -707,7 +707,7 @@ pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
 	let stdin = match stdin.run(env)? {
 		Value::Text(text) => Some(text),
 		Value::Null => None,
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "$")),
 	};
 
 	env.run_command(&command, stdin.as_deref())?
@@ -759,6 +759,6 @@ pub const XRANGE: Function = function!("XRANGE", env, |start, stop| {
 			todo!()
 		}
 
-		other => return Err(Error::TypeError(other.typename())),
+		other => return Err(Error::TypeError(other.typename(), "XRANGE")),
 	}
 });

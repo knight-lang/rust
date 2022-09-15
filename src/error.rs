@@ -23,7 +23,7 @@ pub enum Error {
 	IoError(io::Error),
 
 	/// A type was given to a function that doesn't support it.
-	TypeError(&'static str),
+	TypeError(&'static str, &'static str),
 
 	/// The correct type was supplied, but some requirements for it weren't met.
 	DomainError(&'static str),
@@ -103,7 +103,7 @@ impl Display for Error {
 			Self::UndefinedVariable(name) => write!(f, "undefined variable {name} was accessed"),
 			Self::IoError(err) => write!(f, "an io error occurred: {err}"),
 			Self::DomainError(err) => write!(f, "an domain error occurred: {err}"),
-			Self::TypeError(kind) => write!(f, "invalid type {kind} given"),
+			Self::TypeError(kind, func) => write!(f, "invalid type {kind} given to {func}"),
 			Self::DivisionByZero => write!(f, "division/modulo by zero"),
 			Self::ParseError(err) => Display::fmt(&err, f),
 			Self::Quit(status) => write!(f, "quitting with status code {status}"),
