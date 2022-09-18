@@ -44,8 +44,6 @@ pub enum Error {
 	NewTextError(NewTextError),
 
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
-	// #[cfg(feature = "checked-overflow")]
-	// #[cfg_attr(doc_cfg, doc(cfg(feature = "checked-overflow")))]
 	IntegerOverflow,
 
 	Custom(Box<dyn std::error::Error>),
@@ -110,7 +108,6 @@ impl Display for Error {
 			Self::IllegalVariableName(err) => Display::fmt(&err, f),
 			Self::NewTextError(err) => Display::fmt(&err, f),
 
-			// #[cfg(feature = "checked-overflow")]
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 			Self::Custom(err) => Display::fmt(&err, f),
 

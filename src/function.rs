@@ -1,3 +1,4 @@
+use crate::env::Options;
 use crate::value::text::{Character, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
@@ -125,9 +126,10 @@ macro_rules! function2 {
 
 /// **4.1.4**: `PROMPT`
 pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	#[cfg(feature = "assign-to-prompt")]
-	if let Some(line) = env.get_next_prompt_line() {
-		return Ok(line.into());
+	if env.options().assign_to_prompt {
+		if let Some(line) = env.get_next_prompt_line() {
+			return Ok(line.into());
+		}
 	}
 
 	let mut buf = String::new();
@@ -186,8 +188,7 @@ pub const BLOCK: Function = function!("BLOCK", env, |arg| {
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
 	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
 	// from `BLOCK`, so `CALL` can verify them.
-	#[cfg(feature = "strict-call-argument")]
-	if !matches!(arg, Value::Ast(_)) {
+	if env.options().strict_call_argument && !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
 		const NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
@@ -209,8 +210,7 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
 	// arguments are `Value::Ast`s.
-	#[cfg(feature = "strict-call-argument")]
-	if !matches!(block, Value::Ast(_)) {
+	if env.options().strict_call_argument && !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError(block.typename(), "CALL"));
 	}
 
@@ -220,7 +220,7 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!("QUIT", env, |arg| {
 	match arg.run(env)?.to_integer()?.try_conv::<i32>() {
-		Ok(status) if !cfg!(feature = "strict-compliance") || (0..=127).contains(&status) => {
+		Ok(status) if !env.options().check_quit_argument || (0..=127).contains(&status) => {
 			return Err(Error::Quit(status))
 		}
 		_ => return Err(Error::DomainError("exit code out of bounds")),
@@ -305,8 +305,9 @@ pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?)?.into(),
+		Value::List(list) if env.options().list_extensions => {
+			list.difference(&rhs.run(env)?.to_list()?)?.into()
+		}
 
 		other => return Err(Error::TypeError(other.typename(), "-")),
 	}
@@ -334,8 +335,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 		Value::List(list) => {
 			let rhs = rhs.run(env)?;
 
-			#[cfg(feature = "list-extensions")]
-			if matches!(rhs, Value::Ast(_)) {
+			if env.options().list_extensions && matches!(rhs, Value::Ast(_)) {
 				return Ok(list.map(&rhs, env)?.into());
 			}
 
@@ -358,11 +358,12 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
-		#[cfg(feature = "string-extensions")]
-		Value::Text(text) => text.split(&rhs.run(env)?.to_text()?).into(),
-
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
+		Value::Text(text) if env.options().string_extensions => {
+			text.split(&rhs.run(env)?.to_text()?).into()
+		}
+		Value::List(list) if env.options().list_extensions => {
+			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
+		}
 
 		other => return Err(Error::TypeError(other.typename(), "/")),
 	}
@@ -412,8 +413,9 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 
 		// 	Text::new(formatted).unwrap().into()
 		// }
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.filter(&rhs.run(env)?, env)?.into(),
+		Value::List(list) if env.options().list_extensions => {
+			list.filter(&rhs.run(env)?, env)?.into()
+		}
 
 		other => return Err(Error::TypeError(other.typename(), "%")),
 	}
@@ -478,7 +480,7 @@ pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 	let r = rhs.run(env)?;
 
-	if cfg!(feature = "strict-compliance") {
+	if env.options().strict_equality {
 		check_for_strict_compliance(&l)?;
 		check_for_strict_compliance(&r)?;
 	}
@@ -520,21 +522,22 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 			var.assign(value);
 		}
 
-		#[cfg(feature = "assign-to-prompt")]
-		Value::Ast(ast) if ast.function().name == PROMPT.name => env.add_to_prompt(value.to_text()?),
+		Value::Ast(ast) if env.options().assign_to_prompt && ast.function().name == PROMPT.name => {
+			env.add_to_prompt(value.to_text()?)
+		}
 
-		#[cfg(all(feature = "assign-to-system", feature = "system-function"))]
-		Value::Ast(ast) if ast.function().name == SYSTEM.name => env.add_to_system(value.to_text()?),
+		Value::Ast(ast) if env.options().assign_to_system && ast.function().name == SYSTEM.name => {
+			env.add_to_system(value.to_text()?)
+		}
 
-		#[cfg(not(any(feature = "assign-to-strings", feature = "assign-to-lists")))]
-		other => return Err(Error::TypeError(other.typename(), "=")),
+		other if !env.options().assign_to_string && !env.options().assign_to_list => {
+			return Err(Error::TypeError(other.typename(), "="))
+		}
 
 		other => match other.run(env)? {
-			#[cfg(feature = "assign-to-lists")]
-			Value::List(_list) => todo!(),
+			Value::List(_list) if env.options().assign_to_list => todo!(),
 
-			#[cfg(feature = "assign-to-strings")]
-			Value::Text(name) => {
+			Value::Text(name) if env.options().assign_to_string => {
 				env.lookup(&name)?.assign(value);
 			}
 
@@ -572,8 +575,8 @@ pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
 	}
 });
 
-fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
-	if start.is_negative() && cfg!(feature = "negative-indexing") {
+fn fix_len(container: &Value<'_>, mut start: Integer, options: &Options) -> Result<usize> {
+	if start.is_negative() && options.negative_indexing {
 		let len = match container {
 			Value::Text(text) => text.len(),
 			Value::List(list) => list.len(),
@@ -589,7 +592,7 @@ fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
 /// **4.4.2** `GET`  
 pub const GET: Function = function!("GET", env, |string, start, length| {
 	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?, env.options())?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -613,7 +616,7 @@ pub const GET: Function = function!("GET", env, |string, start, length| {
 /// **4.5.1** `SET`  
 pub const SET: Function = function!("SET", env, |string, start, length, replacement| {
 	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?, env.options())?;
 	let length = length
 		.run(env)?
 		.to_integer()?
@@ -648,15 +651,11 @@ pub const SET: Function = function!("SET", env, |string, start, length, replacem
 });
 
 /// **6.1** `VALUE`
-#[cfg(feature = "value-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
 pub const VALUE: Function = function!("VALUE", env, |arg| {
 	let name = arg.run(env)?.to_text()?;
 	env.lookup(&name)?
 });
 
-#[cfg(feature = "handle-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
 pub const HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
@@ -675,8 +674,6 @@ pub const HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 	}
 });
 
-#[cfg(feature = "yeet-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "yeet-function")))]
 pub const YEET: Function = function!("YEET", env, |errmsg| {
 	return Err(Error::Custom(errmsg.run(env)?.to_text()?.to_string().into()));
 	#[allow(unreachable_code)]
@@ -684,8 +681,6 @@ pub const YEET: Function = function!("YEET", env, |errmsg| {
 });
 
 /// **6.3** `USE`
-#[cfg(feature = "use-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
 pub const USE: Function = function!("USE", env, |arg| {
 	let filename = arg.run(env)?.to_text()?;
 	let contents = env.read_file(&filename)?;
@@ -694,13 +689,11 @@ pub const USE: Function = function!("USE", env, |arg| {
 });
 
 /// **4.2.2** `EVAL`
-#[cfg(feature = "eval-function")]
 pub const EVAL: Function = function!("EVAL", env, |val| {
 	let code = val.run(env)?.to_text()?;
 	env.play(&code)?
 });
 
-#[cfg(feature = "system-function")]
 /// **4.2.5** `` ` ``
 pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
 	let command = cmd.run(env)?.to_text()?;
@@ -714,8 +707,6 @@ pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
 });
 
 /// **Compiler extension**: SRAND
-#[cfg(feature = "xsrand-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xsrand-function")))]
 pub const XSRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
@@ -723,16 +714,12 @@ pub const XSRAND: Function = function!("XSRAND", env, |arg| {
 });
 
 /// **Compiler extension**: REV
-#[cfg(feature = "xreverse-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
 pub const XREVERSE: Function = function!("XREVERSE", env, |arg| {
 	let seed = arg.run(env)?.to_integer()?;
 	env.srand(seed);
 	Value::default()
 });
 
-#[cfg(feature = "xrange-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xrange-function")))]
 pub const XRANGE: Function = function!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
@@ -746,10 +733,10 @@ pub const XRANGE: Function = function!("XRANGE", env, |start, stop| {
 					.expect("todo: out of bounds error")
 					.conv::<Value>(),
 
-				#[cfg(feature = "negative-ranges")]
-				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
+				// #[cfg(feature = "negative-ranges")]
+				// false => (stop..start).map(Value::from).rev().collect::<List>().into(),
 
-				#[cfg(not(feature = "negative-ranges"))]
+				// #[cfg(not(feature = "negative-ranges"))]
 				false => return Err(Error::DomainError("start is greater than stop")),
 			}
 		}

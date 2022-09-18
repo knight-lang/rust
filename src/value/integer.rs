@@ -23,13 +23,11 @@ use std::fmt::{self, Display, Formatter};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
-cfg_if! {
-	if #[cfg(feature = "strict-integers")] {
-		type Inner = i32;
-	} else {
-		type Inner = i64;
-	}
-}
+#[cfg(feature = "strict-integers")]
+type Inner = i32;
+
+#[cfg(not(feature = "strict-integers"))]
+type Inner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
