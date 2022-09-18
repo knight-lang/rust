@@ -87,19 +87,21 @@ impl std::error::Error for IllegalVariableName {}
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
 fn validate_name(name: &TextSlice, options: &Options) -> Result<(), IllegalVariableName> {
-	if options.validate_variable_length && Variable::MAX_LEN < name.len() {
+	if !options.compliance.variable_name {
+		return Ok(());
+	}
+
+	if Variable::MAX_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
 
-	if options.validate_variable_contents {
-		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-		if !first.is_lower() {
-			return Err(IllegalVariableName::IllegalStartingChar(first));
-		}
+	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
+	if !first.is_lower() {
+		return Err(IllegalVariableName::IllegalStartingChar(first));
+	}
 
-		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
-			return Err(IllegalVariableName::IllegalBodyChar(bad));
-		}
+	if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+		return Err(IllegalVariableName::IllegalBodyChar(bad));
 	}
 
 	Ok(())

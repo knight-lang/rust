@@ -44,14 +44,19 @@ impl Debug for Function {
 	}
 }
 
-pub fn default() -> HashMap<Character, &'static Function> {
+pub fn default(options: &Options) -> HashMap<Character, &'static Function> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($(#[$meta:meta])* $name:ident)*) => {
+		($($name:ident $(($ext_name:ident))?)*) => {
 			$(
-				$(#[$meta])*
-				map.insert($name.short_form().unwrap(), &$name);
+				{
+					let mut insert = true;
+					$(if !options.spec_extensions.$ext_name { insert = false })?
+					if insert {
+						map.insert($name.short_form().unwrap(), &$name);
+					}
+				}
 			)*
 		}
 	}
@@ -63,33 +68,35 @@ pub fn default() -> HashMap<Character, &'static Function> {
 			THEN ASSIGN WHILE
 		IF GET SET
 
-		#[cfg(feature = "value-function")] VALUE
-		#[cfg(feature = "eval-function")] EVAL
-		#[cfg(feature = "handle-function")] HANDLE
-		#[cfg(feature = "yeet-function")] YEET
-		#[cfg(feature = "use-function")] USE
-		#[cfg(feature = "system-function")] SYSTEM
+		VALUE (value_fn)
+		EVAL (eval_fn)
+		HANDLE (handle_fn)
+		YEET (yeet_fn)
+		USE (use_fn)
+		SYSTEM (system_fn)
 	}
 
 	map
 }
 
-pub fn extensions() -> HashMap<Text, &'static Function> {
+pub fn extensions(options: &Options) -> HashMap<Text, &'static Function> {
+	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($feature:literal $name:ident)*) => {
+		($($name:ident ($feature:ident))*) => {
 			$(
-				#[cfg(feature=$feature)]
-				map.insert($name.name.try_into().unwrap(), &$name);
+				if options.compiler.$feature {
+					map.insert($name.name.try_into().unwrap(), &$name);
+				}
 			)*
 		}
 	}
 
 	insert! {
-		"xsrand-function" XSRAND
-		"xreverse-function" XREVERSE
-		"xrange-function" XRANGE
+		XSRAND (srand_fn)
+		XREVERSE (range_fn)
+		XRANGE (reverse_fn)
 	}
 
 	map
@@ -126,7 +133,7 @@ macro_rules! function2 {
 
 /// **4.1.4**: `PROMPT`
 pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	if env.options().assign_to_prompt {
+	if env.options().compiler.assign_to_prompt {
 		if let Some(line) = env.get_next_prompt_line() {
 			return Ok(line.into());
 		}
@@ -188,7 +195,7 @@ pub const BLOCK: Function = function!("BLOCK", env, |arg| {
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
 	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
 	// from `BLOCK`, so `CALL` can verify them.
-	if env.options().strict_call_argument && !matches!(arg, Value::Ast(_)) {
+	if env.options().compliance.call_argument && !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
 		const NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
@@ -210,7 +217,7 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
 	// arguments are `Value::Ast`s.
-	if env.options().strict_call_argument && !matches!(block, Value::Ast(_)) {
+	if env.options().compliance.call_argument && !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError(block.typename(), "CALL"));
 	}
 
@@ -220,7 +227,9 @@ pub const CALL: Function = function!("CALL", env, |arg| {
 /// **4.2.6** `QUIT`  
 pub const QUIT: Function = function!("QUIT", env, |arg| {
 	match arg.run(env)?.to_integer()?.try_conv::<i32>() {
-		Ok(status) if !env.options().check_quit_argument || (0..=127).contains(&status) => {
+		Ok(status)
+			if !env.options().compliance.check_quit_argument || (0..=127).contains(&status) =>
+		{
 			return Err(Error::Quit(status))
 		}
 		_ => return Err(Error::DomainError("exit code out of bounds")),
@@ -305,7 +314,7 @@ pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
-		Value::List(list) if env.options().list_extensions => {
+		Value::List(list) if env.options().compiler.list_extensions => {
 			list.difference(&rhs.run(env)?.to_list()?)?.into()
 		}
 
@@ -335,7 +344,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 		Value::List(list) => {
 			let rhs = rhs.run(env)?;
 
-			if env.options().list_extensions && matches!(rhs, Value::Ast(_)) {
+			if env.options().compiler.list_extensions && matches!(rhs, Value::Ast(_)) {
 				return Ok(list.map(&rhs, env)?.into());
 			}
 
@@ -358,10 +367,10 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.conv::<Value>(),
 
-		Value::Text(text) if env.options().string_extensions => {
+		Value::Text(text) if env.options().compiler.string_extensions => {
 			text.split(&rhs.run(env)?.to_text()?).into()
 		}
-		Value::List(list) if env.options().list_extensions => {
+		Value::List(list) if env.options().compiler.list_extensions => {
 			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
 		}
 
@@ -413,7 +422,7 @@ pub const MODULO: Function = function!("%", env, |lhs, rhs| {
 
 		// 	Text::new(formatted).unwrap().into()
 		// }
-		Value::List(list) if env.options().list_extensions => {
+		Value::List(list) if env.options().compiler.list_extensions => {
 			list.filter(&rhs.run(env)?, env)?.into()
 		}
 
@@ -480,7 +489,7 @@ pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 	let r = rhs.run(env)?;
 
-	if env.options().strict_equality {
+	if env.options().compliance.strict_equality {
 		check_for_strict_compliance(&l)?;
 		check_for_strict_compliance(&r)?;
 	}
@@ -522,22 +531,25 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 			var.assign(value);
 		}
 
-		Value::Ast(ast) if env.options().assign_to_prompt && ast.function().name == PROMPT.name => {
+		Value::Ast(ast) if env.options().compiler.assign_to_prompt && *ast.function() == PROMPT => {
 			env.add_to_prompt(value.to_text()?)
 		}
 
-		Value::Ast(ast) if env.options().assign_to_system && ast.function().name == SYSTEM.name => {
+		Value::Ast(ast) if env.options().compiler.assign_to_system && *ast.function() == SYSTEM => {
 			env.add_to_system(value.to_text()?)
 		}
 
-		other if !env.options().assign_to_string && !env.options().assign_to_list => {
+		other
+			if !env.options().spec_extensions.assign_to_string
+				&& !env.options().spec_extensions.assign_to_list =>
+		{
 			return Err(Error::TypeError(other.typename(), "="))
 		}
 
 		other => match other.run(env)? {
-			Value::List(_list) if env.options().assign_to_list => todo!(),
+			Value::List(_list) if env.options().spec_extensions.assign_to_list => todo!(),
 
-			Value::Text(name) if env.options().assign_to_string => {
+			Value::Text(name) if env.options().spec_extensions.assign_to_string => {
 				env.lookup(&name)?.assign(value);
 			}
 
@@ -576,7 +588,7 @@ pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
 });
 
 fn fix_len(container: &Value<'_>, mut start: Integer, options: &Options) -> Result<usize> {
-	if start.is_negative() && options.negative_indexing {
+	if start.is_negative() && options.compiler.negative_indexing {
 		let len = match container {
 			Value::Text(text) => text.len(),
 			Value::List(list) => list.len(),

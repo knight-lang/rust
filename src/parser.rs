@@ -172,7 +172,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		let ret = self.parse()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
-		if self.env.options().forbid_trailing_tokens
+		if self.env.options().compliance.single_expression
 			&& !matches!(self.parse().map_err(|e| e.kind), Err(ErrorKind::EmptySource))
 		{
 			return Err(self.error(ErrorKind::TrailingTokens));
@@ -285,10 +285,6 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 			}
 
 			// Parenthesis groupings
-			'(' | ')' if self.env.options().dont_check_parens => {
-				self.advance();
-				self.parse()
-			}
 			'(' => self.parse_grouped_expression(),
 			')' => Err(self.error(ErrorKind::UnmatchedRightParen)),
 
