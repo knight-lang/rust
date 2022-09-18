@@ -1,6 +1,7 @@
+use crate::env::Options;
 use crate::value::text::Character;
 use crate::value::{Runnable, Text, TextSlice, Value};
-use crate::{Environment, Error, Mutable, RefCount, Result};
+use crate::{Environment, Error, Mutable, RefCount};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -74,7 +75,7 @@ impl Display for IllegalVariableName {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Empty => write!(f, "empty variable name supplied"),
-			Self::TooLong(count) => write!(f, "variable name was too long ({count} > {MAX_NAME_LEN})"),
+			Self::TooLong(len) => write!(f, "variable too long ({len} > {})", Variable::MAX_LEN),
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
@@ -83,36 +84,34 @@ impl Display for IllegalVariableName {
 
 impl std::error::Error for IllegalVariableName {}
 
-/// Maximum length a name can have when `verify-variable-names` is enabled.
-pub const MAX_NAME_LEN: usize = 127;
-
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
-pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
-	if cfg!(not(feature = "verify-variable-names")) {
-		return Ok(());
-	}
-
-	if MAX_NAME_LEN < name.len() {
+fn validate_name(name: &TextSlice, options: &Options) -> Result<(), IllegalVariableName> {
+	if options.validate_variable_length && Variable::MAX_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
 
-	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-	if !first.is_lower() {
-		return Err(IllegalVariableName::IllegalStartingChar(first));
-	}
+	if options.validate_variable_contents {
+		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
+		if !first.is_lower() {
+			return Err(IllegalVariableName::IllegalStartingChar(first));
+		}
 
-	if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
-		return Err(IllegalVariableName::IllegalBodyChar(bad));
+		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+			return Err(IllegalVariableName::IllegalBodyChar(bad));
+		}
 	}
 
 	Ok(())
 }
 
 impl<'e> Variable<'e> {
+	/// Maximum length a name can have when `verify-variable-names` is enabled.
+	pub const MAX_LEN: usize = 127;
+
 	/// Creates a new `Variable`.
-	pub fn new(name: Text) -> std::result::Result<Self, IllegalVariableName> {
-		validate_name(&name)?;
+	pub fn new(name: Text, options: &Options) -> Result<Self, IllegalVariableName> {
+		validate_name(&name, options)?;
 
 		Ok(Self((name, None.into()).into()))
 	}
@@ -137,7 +136,7 @@ impl<'e> Variable<'e> {
 }
 
 impl<'e> Runnable<'e> for Variable<'e> {
-	fn run(&self, _env: &mut Environment) -> Result<Value<'e>> {
+	fn run(&self, _env: &mut Environment) -> crate::Result<Value<'e>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
 	}
 }
