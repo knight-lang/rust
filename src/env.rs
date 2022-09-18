@@ -7,7 +7,9 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 
 mod builder;
+mod options;
 pub use builder::Builder;
+pub use options::Options;
 
 type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
 type Stdout<'e> = dyn Write + 'e + Send + Sync;
@@ -26,6 +28,7 @@ pub struct Environment<'e> {
 	stdin: Box<Stdin<'e>>,
 	stdout: Box<Stdout<'e>>,
 	rng: Box<StdRng>,
+	options: Options,
 
 	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
@@ -62,6 +65,10 @@ impl<'e> Environment<'e> {
 
 	pub fn functions(&self) -> &HashMap<Character, &'e Function> {
 		&self.functions
+	}
+
+	pub fn options(&self) -> &Options {
+		&self.options
 	}
 
 	pub fn stdin(&mut self) -> &mut dyn BufRead {

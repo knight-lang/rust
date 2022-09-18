@@ -6,6 +6,7 @@ use std::io;
 pub struct Builder<'e> {
 	stdin: Option<Box<Stdin<'e>>>,
 	stdout: Option<Box<Stdout<'e>>>,
+	options: Options,
 	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
 
@@ -21,6 +22,7 @@ impl Default for Builder<'_> {
 		Self {
 			stdin: None,
 			stdout: None,
+			options: Options::default(),
 			functions: crate::function::default(),
 			extensions: crate::function::extensions(),
 
@@ -36,6 +38,10 @@ impl Default for Builder<'_> {
 impl<'e> Builder<'e> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
+	}
+
+	pub fn options(&mut self) -> &mut Options {
+		&mut self.options
 	}
 
 	pub fn stdout<S: Write + Send + Sync + 'e>(&mut self, stdout: S) {
@@ -68,6 +74,7 @@ impl<'e> Builder<'e> {
 
 	pub fn build(self) -> Environment<'e> {
 		Environment {
+			options: self.options,
 			variables: HashSet::default(),
 			stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
