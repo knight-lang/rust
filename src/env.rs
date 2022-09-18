@@ -57,11 +57,11 @@ impl Default for Environment<'_> {
 impl<'e> Environment<'e> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
-		crate::Parser::new(source).parse(self)?.run(self)
+		crate::Parser::new(source, self).parse_program()?.run(self)
 	}
 
-	pub fn lookup_function(&self, name: Character) -> Option<&'e Function> {
-		self.functions.get(&name).copied()
+	pub fn functions(&self) -> &HashMap<Character, &'e Function> {
+		&self.functions
 	}
 
 	pub fn stdin(&mut self) -> &mut dyn BufRead {

@@ -1,3 +1,4 @@
+#![feature(let_else)]
 #![allow(clippy::module_inception)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 
@@ -20,6 +21,6 @@ pub use containers::{Mutable, RefCount};
 pub use env::Environment;
 pub use error::{Error, Result};
 pub use function::Function;
-pub use parser::{ParseError, Parser};
+pub use parser::{Error as ParseError, Parser};
 pub use value::*;
 pub use variable::Variable;

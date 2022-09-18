@@ -1,4 +1,4 @@
-use crate::parser::ParseError;
+use crate::parser::Error as ParseError;
 use crate::value::text::NewTextError;
 use crate::variable::IllegalVariableName;
 use crate::Text;
