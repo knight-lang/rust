@@ -83,3 +83,9 @@ impl TryFrom<&str> for Text {
 		<&TextSlice>::try_from(inp).map(From::from)
 	}
 }
+
+impl FromIterator<Character> for Text {
+	fn from_iter<T: IntoIterator<Item = Character>>(iter: T) -> Self {
+		iter.into_iter().map(char::from).collect::<String>().try_into().unwrap()
+	}
+}

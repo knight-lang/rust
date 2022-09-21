@@ -53,7 +53,7 @@ impl Integer {
 	pub const ZERO: Self = Self(0);
 
 	/// The number one.
-	pub const ONE: Self = Self(0);
+	pub const ONE: Self = Self(1);
 
 	/// The maximum value for `Integer`s.
 	pub const MAX: Self = Self(Inner::MAX);

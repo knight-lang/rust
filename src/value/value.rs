@@ -44,11 +44,11 @@ impl Debug for Value<'_> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Null => write!(f, "Null()"),
-			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
-			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::Text(text) => write!(f, "Text({text})"), // TODO: make text do this itself?
-			Self::Variable(variable) => write!(f, "{variable:?}"),
+			Self::Null => write!(f, "null"),
+			Self::Boolean(boolean) => write!(f, "{boolean}"),
+			Self::Integer(integer) => write!(f, "{integer}"),
+			Self::Text(text) => write!(f, "{:?}", &***text), // TODO: make text do this itself?
+			Self::Variable(variable) => Debug::fmt(&variable, f),
 			Self::Ast(ast) => Debug::fmt(&ast, f),
 			Self::List(list) => Debug::fmt(&list, f),
 		}

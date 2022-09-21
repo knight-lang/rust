@@ -726,9 +726,21 @@ pub const XSRAND: Function = function!("XSRAND", env, |arg| {
 #[cfg(feature = "xreverse-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
 pub const XREVERSE: Function = function!("XREVERSE", env, |arg| {
-	let seed = arg.run(env)?.to_integer()?;
-	env.srand(seed);
-	Value::default()
+	match arg.run(env)? {
+		Value::Text(text) => text
+			.chars()
+			.collect::<Vec<Character>>()
+			.into_iter()
+			.rev()
+			.collect::<Text>()
+			.conv::<Value>(),
+		Value::List(list) => {
+			let mut eles = list.iter().cloned().collect::<Vec<Value<'_>>>();
+			eles.reverse();
+			eles.try_conv::<List>()?.into()
+		}
+		other => return Err(Error::TypeError(other.typename(), "XRANGE")),
+	}
 });
 
 #[cfg(feature = "xrange-function")]

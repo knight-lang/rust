@@ -251,8 +251,15 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		self.advance();
 
 		match self.parse() {
-			Ok(val) if matches!(self.parse(), Err(Error { kind: UnmatchedRightParen, .. })) => Ok(val),
-			Ok(_) | Err(Error { kind: EmptySource, .. }) => Err(UnmatchedLeftParen.error(start)),
+			Ok(val) => {
+				self.strip_whitespace_and_comments();
+				if self.peek().map_or(false, |c| c == ')') {
+					self.advance();
+					return Ok(val);
+				}
+				Err(UnmatchedLeftParen.error(start))
+			}
+			Err(Error { kind: EmptySource, .. }) => Err(UnmatchedLeftParen.error(start)),
 			Err(Error { kind: UnmatchedRightParen, .. }) => Err(DoesntEncloseExpression.error(start)),
 			Err(other) => Err(other),
 		}
