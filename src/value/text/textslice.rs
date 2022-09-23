@@ -88,11 +88,10 @@ impl TextSlice {
 			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
 
-	#[cfg(feature = "list-extensions")]
-	pub fn split<'e>(&self, sep: &Self) -> crate::List<'e> {
+	pub fn split<'e>(&self, sep: &Self, opts: &Options) -> crate::List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			crate::Value::from(self.to_owned()).to_list().unwrap()
+			crate::Value::from(self.to_owned()).to_list(opts).unwrap()
 		} else {
 			(**self)
 				.split(&**sep)

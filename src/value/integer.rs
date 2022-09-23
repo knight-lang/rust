@@ -158,7 +158,7 @@ impl Integer {
 			return Err(Error::DivisionByZero);
 		}
 
-		if cfg!(feature = "strict-integers") && base.is_negative() {
+		if opts.compliance.check_modulo_argument && base.is_negative() {
 			return Err(Error::DomainError("modulo by a negative base"));
 		}
 
@@ -178,7 +178,7 @@ impl Integer {
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	pub fn power(self, mut exponent: Self, opts: &Options) -> Result<Self> {
 		if exponent.is_negative() {
-			if cfg!(feature = "strict-integers") {
+			if opts.compliance.check_power_argument {
 				return Err(Error::DomainError("negative exponent"));
 			}
 

@@ -184,9 +184,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 	fn parse_integer(&mut self) -> Result<Integer> {
 		// The only way that `.parse` can fail is if we overflow, so we can safely map its error to
 		// `IntegerLiteralOverflow`.
-		self
-			.take_while(Character::is_numeric)
-			.parse()
+		Integer::parse(self.take_while(Character::is_numeric), self.env.options())
 			.map_err(|_| self.error(ErrorKind::IntegerLiteralOverflow))
 	}
 

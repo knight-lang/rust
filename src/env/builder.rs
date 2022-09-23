@@ -19,12 +19,18 @@ pub struct Builder<'e> {
 
 impl Default for Builder<'_> {
 	fn default() -> Self {
+		Self::new(Options::default())
+	}
+}
+
+impl<'e> Builder<'e> {
+	pub fn new(options: Options) -> Self {
 		Self {
 			stdin: None,
 			stdout: None,
-			options: Options::default(),
-			functions: crate::function::default(),
-			extensions: crate::function::extensions(),
+			functions: crate::function::default(&options),
+			extensions: crate::function::extensions(&options),
+			options,
 
 			#[cfg(feature = "system-function")]
 			system: None,
@@ -33,9 +39,7 @@ impl Default for Builder<'_> {
 			read_file: None,
 		}
 	}
-}
 
-impl<'e> Builder<'e> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}

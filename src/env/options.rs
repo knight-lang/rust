@@ -58,13 +58,15 @@ pub struct SpecDefined {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct StrictCompliance {
 	pub single_expression: bool,
-	pub container_length: bool,
+	pub check_container_length: bool,
 	pub knight_encoding: bool,
 	pub checked_overflow: bool,
 	pub i32_integer: bool,
 	pub call_argument: bool,
 	pub variable_name: bool,
 	pub check_quit_argument: bool,
+	pub check_modulo_argument: bool,
+	pub check_power_argument: bool,
 	pub strict_equality: bool,
 	pub restrict_rand: bool,
 }

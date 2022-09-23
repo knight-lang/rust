@@ -51,6 +51,7 @@ pub fn default(options: &Options) -> HashMap<Character, &'static Function> {
 		($($name:ident $(($ext_name:ident))?)*) => {
 			$(
 				{
+					#[allow(unused_mut)]
 					let mut insert = true;
 					$(if !options.spec_extensions.$ext_name { insert = false })?
 					if insert {
@@ -308,7 +309,9 @@ pub const ADD: Function = function!("+", env, |lhs, rhs| {
 			integer.add(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
 		}
 		Value::Text(string) => string.concat(&rhs.run(env)?.to_text(env.options())?).into(),
-		Value::List(list) => list.concat(&rhs.run(env)?.to_list(env.options())?)?.into(),
+		Value::List(list) => {
+			list.concat(&rhs.run(env)?.to_list(env.options())?, env.options())?.into()
+		}
 
 		other => return Err(Error::TypeError(other.typename(), "+")),
 	}
@@ -364,7 +367,7 @@ pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 
 			// No need to check for repetition length because `list.repeat` doesnt actually
 			// make a list.
-			list.repeat(amount)?.conv::<Value>()
+			list.repeat(amount, env.options())?.conv::<Value>()
 		}
 
 		other => return Err(Error::TypeError(other.typename(), "*")),
@@ -379,7 +382,7 @@ pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
 		}
 
 		Value::Text(text) if env.options().compiler.string_extensions => {
-			text.split(&rhs.run(env)?.to_text(env.options())?).into()
+			text.split(&rhs.run(env)?.to_text(env.options())?, env.options()).into()
 		}
 		Value::List(list) if env.options().compiler.list_extensions => {
 			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
@@ -449,7 +452,7 @@ pub const POWER: Function = function!("^", env, |lhs, rhs| {
 		Value::Integer(integer) => {
 			integer.power(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
 		}
-		Value::List(list) => list.join(&rhs.run(env)?.to_text(env.options())?)?.into(),
+		Value::List(list) => list.join(&rhs.run(env)?.to_text(env.options())?, env.options())?.into(),
 		other => return Err(Error::TypeError(other.typename(), "^")),
 	}
 });

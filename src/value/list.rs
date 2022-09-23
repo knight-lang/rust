@@ -166,7 +166,7 @@ impl<'e> List<'e> {
 	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
 	/// returned.
-	pub fn concat(&self, rhs: &Self) -> Result<Self> {
+	pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<Self> {
 		if self.is_empty() {
 			return Ok(rhs.clone());
 		}
@@ -175,7 +175,7 @@ impl<'e> List<'e> {
 			return Ok(self.clone());
 		}
 
-		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() + rhs.len() {
+		if opts.compliance.check_container_length && Self::MAX_LEN < self.len() + rhs.len() {
 			return Err(Error::DomainError("length of concatenation is out of bounds"));
 		}
 
@@ -190,8 +190,8 @@ impl<'e> List<'e> {
 	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
-	pub fn repeat(&self, amount: usize) -> Result<Self> {
-		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() * amount {
+	pub fn repeat(&self, amount: usize, opts: &Options) -> Result<Self> {
+		if opts.compliance.check_container_length && Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
 
@@ -206,7 +206,7 @@ impl<'e> List<'e> {
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &TextSlice) -> Result<Text> {
+	pub fn join(&self, sep: &TextSlice, opts: &Options) -> Result<Text> {
 		let mut joined = Text::builder();
 
 		let mut is_first = true;
@@ -217,7 +217,7 @@ impl<'e> List<'e> {
 				joined.push(sep);
 			}
 
-			joined.push(&ele.to_text()?);
+			joined.push(&ele.to_text(opts)?);
 		}
 
 		Ok(joined.finish())
@@ -297,7 +297,7 @@ impl<'e> List<'e> {
 		for ele in self {
 			arg.assign(ele.clone());
 
-			if block.run(env)?.to_boolean()? {
+			if block.run(env)?.to_boolean(env.options())? {
 				filtering.push(ele.clone());
 			}
 		}
@@ -339,7 +339,7 @@ impl<'e> List<'e> {
 impl<'e> ToList<'e> for List<'e> {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_list(&self) -> Result<Self> {
+	fn to_list(&self, _: &Options) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -347,7 +347,7 @@ impl<'e> ToList<'e> for List<'e> {
 impl ToBoolean for List<'_> {
 	/// Returns whether `self` is nonempty.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &Options) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
@@ -355,17 +355,17 @@ impl ToBoolean for List<'_> {
 impl ToInteger for List<'_> {
 	/// Returns `self`'s length.
 	#[inline]
-	fn to_integer(&self) -> Result<Integer> {
+	fn to_integer(&self, _: &Options) -> Result<Integer> {
 		self.len().try_into()
 	}
 }
 
 impl ToText for List<'_> {
 	/// Returns `self` [joined](Self::join) with a newline.
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, opts: &Options) -> Result<Text> {
 		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
 
-		self.join(NEWLINE)
+		self.join(NEWLINE, opts)
 	}
 }
 

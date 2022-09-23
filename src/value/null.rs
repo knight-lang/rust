@@ -1,3 +1,4 @@
+use crate::env::Options;
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::Result;
 
@@ -15,7 +16,7 @@ impl NamedType for Null {
 impl ToBoolean for Null {
 	/// Simple returns `false`.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &Options) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
@@ -23,7 +24,7 @@ impl ToBoolean for Null {
 impl ToInteger for Null {
 	/// Simple returns zero.
 	#[inline]
-	fn to_integer(&self) -> Result<Integer> {
+	fn to_integer(&self, _: &Options) -> Result<Integer> {
 		Ok(Integer::default())
 	}
 }
@@ -31,7 +32,7 @@ impl ToInteger for Null {
 impl<'e> ToList<'e> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e>> {
 		Ok(List::default())
 	}
 }
@@ -39,7 +40,7 @@ impl<'e> ToList<'e> for Null {
 impl ToText for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, _: &Options) -> Result<Text> {
 		Ok(Text::default())
 	}
 }

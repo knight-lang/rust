@@ -1,4 +1,4 @@
-use crate::env::Environment;
+use crate::env::{Environment, Options};
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -44,10 +44,10 @@ impl Debug for Value<'_> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Null => write!(f, "Null()"),
-			Self::Boolean(boolean) => write!(f, "Boolean({boolean})"),
-			Self::Integer(number) => write!(f, "Integer({number})"),
-			Self::Text(text) => write!(f, "Text({text})"), // TODO: make text do this itself?
+			Self::Null => write!(f, "null"),
+			Self::Boolean(boolean) => write!(f, "{boolean}"),
+			Self::Integer(number) => write!(f, "{number}"),
+			Self::Text(text) => write!(f, "{:?}", &**text),
 			Self::Variable(variable) => write!(f, "{variable:?}"),
 			Self::Ast(ast) => Debug::fmt(&ast, f),
 			Self::List(list) => Debug::fmt(&list, f),
@@ -112,52 +112,52 @@ impl<'e> From<List<'e>> for Value<'e> {
 }
 
 impl ToBoolean for Value<'_> {
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, opts: &Options) -> Result<Boolean> {
 		match *self {
-			Self::Null => Null.to_boolean(),
-			Self::Boolean(boolean) => boolean.to_boolean(),
-			Self::Integer(integer) => integer.to_boolean(),
-			Self::Text(ref text) => text.to_boolean(),
-			Self::List(ref list) => list.to_boolean(),
+			Self::Null => Null.to_boolean(opts),
+			Self::Boolean(boolean) => boolean.to_boolean(opts),
+			Self::Integer(integer) => integer.to_boolean(opts),
+			Self::Text(ref text) => text.to_boolean(opts),
+			Self::List(ref list) => list.to_boolean(opts),
 			_ => Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
 impl ToInteger for Value<'_> {
-	fn to_integer(&self) -> Result<Integer> {
+	fn to_integer(&self, opts: &Options) -> Result<Integer> {
 		match *self {
-			Self::Null => Null.to_integer(),
-			Self::Boolean(boolean) => boolean.to_integer(),
-			Self::Integer(integer) => integer.to_integer(),
-			Self::Text(ref text) => text.to_integer(),
-			Self::List(ref list) => list.to_integer(),
+			Self::Null => Null.to_integer(opts),
+			Self::Boolean(boolean) => boolean.to_integer(opts),
+			Self::Integer(integer) => integer.to_integer(opts),
+			Self::Text(ref text) => text.to_integer(opts),
+			Self::List(ref list) => list.to_integer(opts),
 			_ => Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
 impl ToText for Value<'_> {
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, opts: &Options) -> Result<Text> {
 		match *self {
-			Self::Null => Null.to_text(),
-			Self::Boolean(boolean) => boolean.to_text(),
-			Self::Integer(integer) => integer.to_text(),
-			Self::Text(ref text) => text.to_text(),
-			Self::List(ref list) => list.to_text(),
+			Self::Null => Null.to_text(opts),
+			Self::Boolean(boolean) => boolean.to_text(opts),
+			Self::Integer(integer) => integer.to_text(opts),
+			Self::Text(ref text) => text.to_text(opts),
+			Self::List(ref list) => list.to_text(opts),
 			_ => Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
 impl<'e> ToList<'e> for Value<'e> {
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, opts: &Options) -> Result<List<'e>> {
 		match *self {
-			Self::Null => Null.to_list(),
-			Self::Boolean(boolean) => boolean.to_list(),
-			Self::Integer(integer) => integer.to_list(),
-			Self::Text(ref text) => text.to_list(),
-			Self::List(ref list) => list.to_list(),
+			Self::Null => Null.to_list(opts),
+			Self::Boolean(boolean) => boolean.to_list(opts),
+			Self::Integer(integer) => integer.to_list(opts),
+			Self::Text(ref text) => text.to_list(opts),
+			Self::List(ref list) => list.to_list(opts),
 			_ => Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() }),
 		}
 	}
