@@ -1,5 +1,5 @@
 use crate::env::Options;
-use crate::value::text::Character;
+use crate::value::text::{Character, Encoding};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
@@ -80,7 +80,7 @@ impl Integer {
 		self.0.is_negative()
 	}
 
-	pub fn chr(self) -> Result<Character> {
+	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		self.try_into()
 	}
 
@@ -235,18 +235,18 @@ impl ToBoolean for Integer {
 	}
 }
 
-impl ToText for Integer {
+impl<E> ToText<E> for Integer {
 	/// Returns a string representation of `self`.
-	fn to_text(&self, _: &Options) -> Result<Text> {
+	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		Ok(Text::new(*self).unwrap())
 	}
 }
 
-impl<'e> ToList<'e> for Integer {
+impl<'e, E> ToList<'e, E> for Integer {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self, _: &Options) -> Result<List<'e>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e, E>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
 		}

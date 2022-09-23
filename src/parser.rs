@@ -1,5 +1,5 @@
 use crate::function::Function;
-use crate::text::{Character, Text, TextSlice};
+use crate::value::text::{Character, Encoding, Text, TextSlice};
 use crate::value::{Integer, List, Value};
 use crate::variable::{IllegalVariableName, Variable};
 use crate::{Ast, Environment};
@@ -28,18 +28,18 @@ pub enum ErrorKind {
 	EmptySource,
 
 	/// An unrecognized character was encountered.
-	UnknownTokenStart(Character),
+	UnknownTokenStart(char),
 
 	/// A starting quote was found without an associated ending quote.
 	UnterminatedString {
 		/// The starting character of the quote (ie either `'` or `"`)
-		quote: Character,
+		quote: char,
 	},
 
 	/// A function name was parsed, but an argument of its was missing.
 	MissingArgument {
 		/// The name of the function whose argument is missing.
-		name: Text,
+		name: String,
 
 		/// The argument number.
 		index: usize,
@@ -58,7 +58,7 @@ pub enum ErrorKind {
 	IntegerLiteralOverflow,
 
 	/// An unknown extension name was encountered.
-	UnknownExtensionFunction(Text),
+	UnknownExtensionFunction(String),
 
 	/// A variable name wasn't valid for some reason
 	///
@@ -110,15 +110,15 @@ impl std::error::Error for Error {}
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'a, 'e> {
-	source: &'s TextSlice,
-	env: &'a mut Environment<'e>,
+pub struct Parser<'s, 'a, 'e, E> {
+	source: &'s TextSlice<E>,
+	env: &'a mut Environment<'e, E>,
 	line: usize,
 }
 
-impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
+impl<'s, 'a, 'e, E> Parser<'s, 'a, 'e, E> {
 	/// Create a new `Parser` from the given source.
-	pub fn new(source: &'s TextSlice, env: &'a mut Environment<'e>) -> Self {
+	pub fn new(source: &'s TextSlice<E>, env: &'a mut Environment<'e, E>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -126,11 +126,11 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		kind.error(self.line)
 	}
 
-	fn peek(&self) -> Option<Character> {
+	fn peek(&self) -> Option<Character<E>> {
 		self.source.head()
 	}
 
-	fn advance(&mut self) -> Option<Character> {
+	fn advance(&mut self) -> Option<Character<E>> {
 		let mut chars = self.source.chars();
 
 		let head = chars.next()?;
@@ -142,7 +142,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		Some(head)
 	}
 
-	fn take_while<F: FnMut(Character) -> bool>(&mut self, mut func: F) -> &'s TextSlice {
+	fn take_while<F: FnMut(Character<E>) -> bool>(&mut self, mut func: F) -> &'s TextSlice<E> {
 		let start = self.source;
 
 		while self.peek().map_or(false, &mut func) {
@@ -151,7 +151,9 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 
 		start.get(..start.len() - self.source.len()).unwrap()
 	}
+}
 
+impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 	fn strip_whitespace_and_comments(&mut self) {
 		loop {
 			// strip all leading whitespace, if any.
@@ -168,7 +170,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
-	pub fn parse_program(mut self) -> Result<Value<'e>> {
+	pub fn parse_program(mut self) -> Result<Value<'e, E>> {
 		let ret = self.parse()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -188,13 +190,13 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 			.map_err(|_| self.error(ErrorKind::IntegerLiteralOverflow))
 	}
 
-	fn parse_identifier(&mut self) -> Result<Variable<'e>> {
+	fn parse_identifier(&mut self) -> Result<Variable<'e, E>> {
 		let identifier = self.take_while(|chr| chr.is_lowercase() || chr.is_numeric());
 
 		self.env.lookup(identifier).map_err(|err| self.error(ErrorKind::IllegalVariableName(err)))
 	}
 
-	fn parse_string(&mut self) -> Result<Text> {
+	fn parse_string(&mut self) -> Result<Text<E>> {
 		let quote = match self.advance() {
 			Some(quote) if quote == '\'' || quote == '\"' => quote,
 			_ => unreachable!(),
@@ -204,7 +206,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		let body = self.take_while(|chr| chr != quote);
 
 		if self.advance() != Some(quote) {
-			return Err(ErrorKind::UnterminatedString { quote }.error(start));
+			return Err(ErrorKind::UnterminatedString { quote: quote.inner() }.error(start));
 		}
 
 		Ok(body.to_owned())
@@ -220,21 +222,21 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		}
 	}
 
-	fn parse_function(&mut self, func: &'e Function) -> Result<Ast<'e>> {
+	fn parse_function(&mut self, func: Function<'e, E>) -> Result<Ast<'e, E>> {
 		self.strip_function();
 
 		// `MissingArgument` errors have their `line` field set to the beginning of the function
 		// parsing.
 		let start_line = self.line;
 
-		let mut args = Vec::with_capacity(func.arity);
+		let mut args = Vec::with_capacity(func.arity());
 
-		for index in 0..func.arity {
+		for index in 0..func.arity() {
 			match self.parse() {
 				Ok(arg) => args.push(arg),
 				Err(Error { kind: ErrorKind::EmptySource, .. }) => {
 					return Err(
-						ErrorKind::MissingArgument { name: func.name.to_owned(), index }
+						ErrorKind::MissingArgument { name: func.name().to_owned(), index }
 							.error(start_line),
 					)
 				}
@@ -245,7 +247,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		Ok(Ast::new(func, args.into()))
 	}
 
-	fn parse_grouped_expression(&mut self) -> Result<Value<'e>> {
+	fn parse_grouped_expression(&mut self) -> Result<Value<'e, E>> {
 		use ErrorKind::*;
 
 		let start = self.line;
@@ -259,7 +261,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		}
 	}
 
-	fn parse(&mut self) -> Result<Value<'e>> {
+	fn parse(&mut self) -> Result<Value<'e, E>> {
 		self.strip_whitespace_and_comments();
 
 		let head = self.peek().ok_or_else(|| self.error(ErrorKind::EmptySource))?;
@@ -289,20 +291,22 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 			// functions
 			'X' => {
 				let name = self.take_while(Character::is_uppercase);
-				let &function = self
+				let function = self
 					.env
 					.extensions()
 					.get(name)
-					.ok_or_else(|| self.error(ErrorKind::UnknownExtensionFunction(name.into())))?;
+					.ok_or_else(|| self.error(ErrorKind::UnknownExtensionFunction(name.to_string())))?
+					.clone();
 
 				self.parse_function(function).map(Value::from)
 			}
 			_ => {
-				let &function = self
+				let function = self
 					.env
 					.functions()
 					.get(&head)
-					.ok_or_else(|| self.error(ErrorKind::UnknownTokenStart(head)))?;
+					.ok_or_else(|| self.error(ErrorKind::UnknownTokenStart(head.inner())))?
+					.clone();
 
 				self.strip_function();
 				self.parse_function(function).map(Value::from)

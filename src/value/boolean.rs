@@ -31,9 +31,9 @@ impl ToInteger for Boolean {
 	}
 }
 
-impl<'e> ToList<'e> for Boolean {
+impl<'e, E> ToList<'e, E> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
-	fn to_list(&self, _: &Options) -> Result<List<'e>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e, E>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {
@@ -42,18 +42,18 @@ impl<'e> ToList<'e> for Boolean {
 	}
 }
 
-impl ToText for Boolean {
+impl<E> ToText<E> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
-	fn to_text(&self, _: &Options) -> Result<Text> {
+	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		use crate::text::TextSlice;
 
-		const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
-		const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
+		let true_text = unsafe { TextSlice::new_unchecked("true") };
+		let false_text = unsafe { TextSlice::new_unchecked("false") };
 
 		if *self {
-			Ok(TRUE_TEXT.into())
+			Ok(true_text.into())
 		} else {
-			Ok(FALSE_TEXT.into())
+			Ok(false_text.into())
 		}
 	}
 }

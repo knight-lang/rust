@@ -3,27 +3,27 @@ use std::collections::HashMap;
 use std::io;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Builder<'e> {
+pub struct Builder<'e, E> {
 	stdin: Option<Box<Stdin<'e>>>,
 	stdout: Option<Box<Stdout<'e>>>,
 	options: Options,
-	functions: HashMap<Character, &'e Function>,
-	extensions: HashMap<Text, &'e Function>,
+	functions: HashMap<Character<E>, Function<'e, E>>,
+	extensions: HashMap<Text<E>, Function<'e, E>>,
 
 	#[cfg(feature = "system-function")]
-	system: Option<Box<System<'e>>>,
+	system: Option<Box<System<'e, E>>>,
 
 	#[cfg(feature = "use-function")]
-	read_file: Option<Box<ReadFile<'e>>>,
+	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl Default for Builder<'_> {
+impl<E> Default for Builder<'_, E> {
 	fn default() -> Self {
 		Self::new(Options::default())
 	}
 }
 
-impl<'e> Builder<'e> {
+impl<'e, E> Builder<'e, E> {
 	pub fn new(options: Options) -> Self {
 		Self {
 			stdin: None,
@@ -52,18 +52,18 @@ impl<'e> Builder<'e> {
 		self.stdout = Some(Box::new(stdout) as Box<_>);
 	}
 
-	pub fn functions(&mut self) -> &mut HashMap<Character, &'e Function> {
+	pub fn functions(&mut self) -> &mut HashMap<Character<E>, Function<'e, E>> {
 		&mut self.functions
 	}
 
-	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
+	pub fn extensions(&mut self) -> &mut HashMap<Text<E>, Function<'e, E>> {
 		&mut self.extensions
 	}
 
 	#[cfg(feature = "system-function")]
 	pub fn system<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice<E>, Option<&TextSlice<E>>) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
@@ -71,12 +71,12 @@ impl<'e> Builder<'e> {
 	#[cfg(feature = "use-function")]
 	pub fn read_file<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice<E>) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 
-	pub fn build(self) -> Environment<'e> {
+	pub fn build(self) -> Environment<'e, E> {
 		Environment {
 			options: self.options,
 			variables: HashSet::default(),

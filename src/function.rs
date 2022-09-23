@@ -3,48 +3,71 @@ use crate::value::text::{Character, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use std::fmt::{self, Debug, Formatter};
 use tap::prelude::*;
 
-/// A function in knight indicates
-#[derive(Clone, Copy)]
-pub struct Function {
+// A function in Knight
+#[derive(Clone)]
+pub struct Function<'e, E>(Arc<Inner<'e, E>>);
+
+struct Inner<'e, E> {
 	/// The code associated with this function
-	pub func: for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>,
+	func: fn(&[Value<'e, E>], &mut Environment<'e, E>) -> Result<Value<'e, E>>,
 
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'static TextSlice,
+	name: Text<E>,
 
 	/// The arity of the function.
-	pub arity: usize,
+	arity: usize,
 }
 
-impl Function {
-	pub fn short_form(&self) -> Option<Character> {
-		match self.name.chars().next() {
+impl<'e, E> Function<'e, E> {
+	pub fn new(
+		name: Text<E>,
+		arity: usize,
+		func: fn(&[Value<'e, E>], &mut Environment<'e, E>) -> Result<Value<'e, E>>,
+	) -> Self {
+		Self(Arc::new(Inner { name, arity, func }))
+	}
+
+	pub fn short_form(&self) -> Option<Character<E>> {
+		match self.name().chars().next() {
 			Some(c) if c == 'X' => None,
 			other => other,
 		}
 	}
+
+	pub fn name(&self) -> &TextSlice<E> {
+		&self.0.name
+	}
+
+	pub fn arity(&self) -> usize {
+		self.0.arity
+	}
+
+	pub fn call(&self, args: &[Value<'e, E>], env: &mut Environment<'e, E>) -> Result<Value<'e, E>> {
+		(self.0.func)(args, env)
+	}
 }
 
-impl Eq for Function {}
-impl PartialEq for Function {
+impl<E> Eq for Function<'_, E> {}
+impl<E> PartialEq for Function<'_, E> {
 	fn eq(&self, rhs: &Self) -> bool {
-		std::ptr::eq(self, rhs)
+		Arc::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl Debug for Function {
+impl<E> Debug for Function<'_, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		write!(f, "Function({})", self.name)
+		write!(f, "Function({})", self.name())
 	}
 }
 
-pub fn default(options: &Options) -> HashMap<Character, &'static Function> {
+pub fn default<E>(options: &Options) -> HashMap<Character<E>, Function<'static, E>> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
@@ -55,7 +78,8 @@ pub fn default(options: &Options) -> HashMap<Character, &'static Function> {
 					let mut insert = true;
 					$(if !options.spec_extensions.$ext_name { insert = false })?
 					if insert {
-						map.insert($name.short_form().unwrap(), &$name);
+						let func = $name();
+						map.insert(func.short_form().unwrap(), func);
 					}
 				}
 			)*
@@ -80,7 +104,7 @@ pub fn default(options: &Options) -> HashMap<Character, &'static Function> {
 	map
 }
 
-pub fn extensions(options: &Options) -> HashMap<Text, &'static Function> {
+pub fn extensions<E>(options: &Options) -> HashMap<Text<E>, Function<'static, E>> {
 	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
@@ -88,7 +112,8 @@ pub fn extensions(options: &Options) -> HashMap<Text, &'static Function> {
 		($($name:ident ($feature:ident))*) => {
 			$(
 				if options.compiler.$feature {
-					map.insert($name.name.try_into().unwrap(), &$name);
+					let func = $name();
+					map.insert(func.name().to_owned(), func);
 				}
 			)*
 		}
@@ -109,31 +134,20 @@ macro_rules! arity {
 }
 macro_rules! function {
 	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
-		Function {
-			name: unsafe { TextSlice::new_unchecked($name) },
-			arity: arity!($($args)*),
-			func: |args, $env| {
+		Function::new(
+			unsafe { TextSlice::new_unchecked($name) }.to_owned(),
+			arity!($($args)*),
+			|args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body.into())
 			}
-		}
-	};
-}
-macro_rules! function2 {
-	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
-		Function {
-			name: unsafe { TextSlice::new_unchecked($name) },
-			arity: arity!($($args)*),
-			func: |args, $env| {
-				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
-				Ok($body)
-			}
-		}
+		)
 	};
 }
 
 /// **4.1.4**: `PROMPT`
-pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
+pub fn PROMPT<'e, E>() -> Function<'e, E> {
+	function!("PROMPT", env, |/* comment for rustfmt */| {
 	if env.options().compiler.assign_to_prompt {
 		if let Some(line) = env.get_next_prompt_line() {
 			return Ok(line.into());
@@ -159,305 +173,350 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 	}
 
 	buf.try_conv::<Text>()?
-});
+})
+}
 
 /// **4.1.5**: `RANDOM`
-pub const RANDOM: Function = function!("RANDOM", env, |/* comment for rustfmt */| {
+pub fn RANDOM<'e, E>() -> Function<'e, E> {
+	function!("RANDOM", env, |/* comment for rustfmt */| {
 	// note that `env.random()` is seedable with `XSRAND`
 	env.random()
-});
+})
+}
 
 /// **4.2.2** `BOX`
-pub const BOX: Function = function!(",", env, |val| {
-	// `boxed` is optimized over `vec![val.run(env)]`
-	List::boxed(val.run(env)?)
-});
+pub fn BOX<'e, E>() -> Function<'e, E> {
+	function!(",", env, |val| {
+		// `boxed` is optimized over `vec![val.run(env)]`
+		List::boxed(val.run(env)?)
+	})
+}
 
-pub const HEAD: Function = function2!("[", env, |val| {
-	match val.run(env)? {
-		Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?,
-		Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename(), "[")),
-	}
-});
+pub fn HEAD<'e, E>() -> Function<'e, E> {
+	function!("[", env, |val| {
+		match val.run(env)? {
+			Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?.into(),
+			Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
+			other => return Err(Error::TypeError(other.typename(), "[")),
+		}
+	})
+}
 
-pub const TAIL: Function = function!("]", env, |val| {
-	match val.run(env)? {
-		Value::List(list) => list.tail().ok_or(Error::DomainError("empty list"))?.conv::<Value>(),
-		Value::Text(text) => text.tail().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename(), "]")),
-	}
-});
+pub fn TAIL<'e, E>() -> Function<'e, E> {
+	function!("]", env, |val| {
+		match val.run(env)? {
+			Value::List(list) => {
+				list.tail().ok_or(Error::DomainError("empty list"))?.conv::<Value<'_, E>>()
+			}
+			Value::Text(text) => text.tail().ok_or(Error::DomainError("empty text"))?.into(),
+			other => return Err(Error::TypeError(other.typename(), "]")),
+		}
+	})
+}
+
+// The NOOP function literally just runs its argument.
+pub fn NOOP<'e, E>() -> Function<'e, E> {
+	function!(":", env, |arg| {
+		debug_assert!(!matches!(arg, Value::Ast(_)));
+
+		arg.run(env)? // We can't `.clone()` the arg in case we're given a variable name.
+	})
+}
 
 /// **4.2.3** `BLOCK`  
-pub const BLOCK: Function = function!("BLOCK", env, |arg| {
-	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
-	// Since this function normally just returns whatever it's argument is, it's impossible to
-	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
-	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
-	// from `BLOCK`, so `CALL` can verify them.
-	if env.options().compliance.call_argument && !matches!(arg, Value::Ast(_)) {
-		// The NOOP function literally just runs its argument.
-		const NOOP: Function = function!(":", env, |arg| {
-			debug_assert!(!matches!(arg, Value::Ast(_)));
+pub fn BLOCK<'e, E>() -> Function<'e, E> {
+	function!("BLOCK", env, |arg| {
+		// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
+		// Since this function normally just returns whatever it's argument is, it's impossible to
+		// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
+		// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
+		// from `BLOCK`, so `CALL` can verify them.
+		if env.options().compliance.call_argument && !matches!(arg, Value::Ast(_)) {
+			return Ok(crate::Ast::new(NOOP(), vec![arg.clone()].into()).into());
+		}
 
-			arg.run(env)? // We can't `.clone()` the arg in case we're given a variable name.
-		});
+		let _ = env;
 
-		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()].into()).into());
-	}
-
-	let _ = env;
-
-	arg.clone()
-});
+		arg.clone()
+	})
+}
 
 /// **4.2.4** `CALL`  
-pub const CALL: Function = function!("CALL", env, |arg| {
-	let block = arg.run(env)?;
+pub fn CALL<'e, E>() -> Function<'e, E> {
+	function!("CALL", env, |arg| {
+		let block = arg.run(env)?;
 
-	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
-	// arguments are `Value::Ast`s.
-	if env.options().compliance.call_argument && !matches!(block, Value::Ast(_)) {
-		return Err(Error::TypeError(block.typename(), "CALL"));
-	}
+		// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
+		// arguments are `Value::Ast`s.
+		if env.options().compliance.call_argument && !matches!(block, Value::Ast(_)) {
+			return Err(Error::TypeError(block.typename(), "CALL"));
+		}
 
-	block.run(env)?
-});
+		block.run(env)?
+	})
+}
 
 /// **4.2.6** `QUIT`  
-pub const QUIT: Function = function!("QUIT", env, |arg| {
-	match arg.run(env)?.to_integer(env.options())?.try_conv::<i32>() {
-		Ok(status)
-			if !env.options().compliance.check_quit_argument || (0..=127).contains(&status) =>
-		{
-			return Err(Error::Quit(status))
+pub fn QUIT<'e, E>() -> Function<'e, E> {
+	function!("QUIT", env, |arg| {
+		match arg.run(env)?.to_integer(env.options())?.try_conv::<i32>() {
+			Ok(status)
+				if !env.options().compliance.check_quit_argument || (0..=127).contains(&status) =>
+			{
+				return Err(Error::Quit(status))
+			}
+			_ => return Err(Error::DomainError("exit code out of bounds")),
 		}
-		_ => return Err(Error::DomainError("exit code out of bounds")),
-	}
 
-	// The `function!` macro calls `.into()` on the return value of this block,
-	// so we need _something_ here so it can typecheck correctly.
-	#[allow(unreachable_code)]
-	Value::Null
-});
+		// The `function!` macro calls `.into()` on the return value of this block,
+		// so we need _something_ here so it can typecheck correctly.
+		#[allow(unreachable_code)]
+		Value::Null
+	})
+}
 
 /// **4.2.7** `!`  
-pub const NOT: Function = function!("!", env, |arg| {
-	// <blank line so rustfmt doesnt wrap onto the prev line>
-	!arg.run(env)?.to_boolean(env.options())?
-});
+pub fn NOT<'e, E>() -> Function<'e, E> {
+	function!("!", env, |arg| {
+		// <blank line so rustfmt doesnt wrap onto the prev line>
+		!arg.run(env)?.to_boolean(env.options())?
+	})
+}
 
 /// **4.2.8** `LENGTH`  
-pub const LENGTH: Function = function!("LENGTH", env, |arg| {
-	match arg.run(env)? {
-		Value::Text(text) => {
-			debug_assert_eq!(
-				text.len(),
-				Value::Text(text.clone()).to_list(env.options()).unwrap().len()
-			);
-			text.len().try_conv::<Integer>()?
+pub fn LENGTH<'e, E>() -> Function<'e, E> {
+	function!("LENGTH", env, |arg| {
+		match arg.run(env)? {
+			Value::Text(text) => {
+				debug_assert_eq!(
+					text.len(),
+					Value::Text(text.clone()).to_list(env.options()).unwrap().len()
+				);
+				text.len().try_conv::<Integer>()?
+			}
+			Value::List(list) => list.len().try_conv::<Integer>()?,
+			// TODO: integer base10 when that comes out.
+			other => other.to_list(env.options())?.len().try_conv::<Integer>()?,
 		}
-		Value::List(list) => list.len().try_conv::<Integer>()?,
-		// TODO: integer base10 when that comes out.
-		other => other.to_list(env.options())?.len().try_conv::<Integer>()?,
-	}
-});
+	})
+}
 
 /// **4.2.9** `DUMP`  
-pub const DUMP: Function = function!("DUMP", env, |arg| {
-	let value = arg.run(env)?;
-	writeln!(env.stdout(), "{value:?}")?;
-	value
-});
+pub fn DUMP<'e, E>() -> Function<'e, E> {
+	function!("DUMP", env, |arg| {
+		let value = arg.run(env)?;
+		writeln!(env.stdout(), "{value:?}")?;
+		value
+	})
+}
 
 /// **4.2.10** `OUTPUT`  
-pub const OUTPUT: Function = function!("OUTPUT", env, |arg| {
-	let text = arg.run(env)?.to_text(env.options())?;
-	let stdout = env.stdout();
+pub fn OUTPUT<'e, E>() -> Function<'e, E> {
+	function!("OUTPUT", env, |arg| {
+		let text = arg.run(env)?.to_text(env.options())?;
+		let stdout = env.stdout();
 
-	if let Some(stripped) = text.strip_suffix('\\') {
-		write!(stdout, "{stripped}")?
-	} else {
-		writeln!(stdout, "{text}")?;
-	}
+		if let Some(stripped) = text.strip_suffix('\\') {
+			write!(stdout, "{stripped}")?
+		} else {
+			writeln!(stdout, "{text}")?;
+		}
 
-	stdout.flush()?;
+		stdout.flush()?;
 
-	Value::Null
-});
+		Value::Null
+	})
+}
 
 /// **4.2.11** `ASCII`  
-pub const ASCII: Function = function!("ASCII", env, |arg| {
-	match arg.run(env)? {
-		Value::Integer(integer) => integer.chr()?.conv::<Value>(),
-		Value::Text(text) => text.ord()?.conv::<Value>(),
-		other => return Err(Error::TypeError(other.typename(), "ASCII")),
-	}
-});
+pub fn ASCII<'e, E>() -> Function<'e, E> {
+	function!("ASCII", env, |arg| {
+		match arg.run(env)? {
+			Value::Integer(integer) => integer.chr()?.conv::<Value<'_, E>>(),
+			Value::Text(text) => text.ord()?.conv::<Value<'_, E>>(),
+			other => return Err(Error::TypeError(other.typename(), "ASCII")),
+		}
+	})
+}
 
 /// **4.2.12** `~`  
-pub const NEG: Function = function!("~", env, |arg| {
-	// comment so it wont make it one line
-	arg.run(env)?.to_integer(env.options())?.negate(env.options())?
-});
+pub fn NEG<'e, E>() -> Function<'e, E> {
+	function!("~", env, |arg| {
+		// comment so it wont make it one line
+		arg.run(env)?.to_integer(env.options())?.negate(env.options())?
+	})
+}
 
 /// **4.3.1** `+`  
-pub const ADD: Function = function!("+", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.add(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
-		}
-		Value::Text(string) => string.concat(&rhs.run(env)?.to_text(env.options())?).into(),
-		Value::List(list) => {
-			list.concat(&rhs.run(env)?.to_list(env.options())?, env.options())?.into()
-		}
+pub fn ADD<'e, E>() -> Function<'e, E> {
+	function!("+", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.add(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
+			Value::Text(string) => string.concat(&rhs.run(env)?.to_text(env.options())?).into(),
+			Value::List(list) => {
+				list.concat(&rhs.run(env)?.to_list(env.options())?, env.options())?.into()
+			}
 
-		other => return Err(Error::TypeError(other.typename(), "+")),
-	}
-});
+			other => return Err(Error::TypeError(other.typename(), "+")),
+		}
+	})
+}
 
 /// **4.3.2** `-`  
-pub const SUBTRACT: Function = function!("-", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.subtract(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
-		}
+pub fn SUBTRACT<'e, E>() -> Function<'e, E> {
+	function!("-", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.subtract(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
 
-		Value::List(list) if env.options().compiler.list_extensions => {
-			list.difference(&rhs.run(env)?.to_list(env.options())?)?.into()
-		}
+			Value::List(list) if env.options().compiler.list_extensions => {
+				list.difference(&rhs.run(env)?.to_list(env.options())?)?.into()
+			}
 
-		other => return Err(Error::TypeError(other.typename(), "-")),
-	}
-});
+			other => return Err(Error::TypeError(other.typename(), "-")),
+		}
+	})
+}
 
 /// **4.3.3** `*`  
-pub const MULTIPLY: Function = function!("*", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.multiply(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
-		}
+pub fn MULTIPLY<'e, E>() -> Function<'e, E> {
+	function!("*", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.multiply(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
 
-		Value::Text(lstr) => {
-			let amount = rhs
-				.run(env)?
-				.to_integer(env.options())?
-				.try_conv::<usize>()
-				.or(Err(Error::DomainError("repetition count is negative")))?;
+			Value::Text(lstr) => {
+				let amount = rhs
+					.run(env)?
+					.to_integer(env.options())?
+					.try_conv::<usize>()
+					.or(Err(Error::DomainError("repetition count is negative")))?;
 
-			if isize::MAX as usize <= amount * lstr.len() {
-				return Err(Error::DomainError("repetition is too large"));
+				if isize::MAX as usize <= amount * lstr.len() {
+					return Err(Error::DomainError("repetition is too large"));
+				}
+
+				lstr.repeat(amount).conv::<Value<'_, E>>()
 			}
 
-			lstr.repeat(amount).conv::<Value>()
-		}
+			Value::List(list) => {
+				let rhs = rhs.run(env)?;
 
-		Value::List(list) => {
-			let rhs = rhs.run(env)?;
+				if env.options().compiler.list_extensions && matches!(rhs, Value::Ast(_)) {
+					return Ok(list.map(&rhs, env)?.into());
+				}
 
-			if env.options().compiler.list_extensions && matches!(rhs, Value::Ast(_)) {
-				return Ok(list.map(&rhs, env)?.into());
+				let amount = rhs
+					.to_integer(env.options())?
+					.try_conv::<usize>()
+					.or(Err(Error::DomainError("repetition count is negative")))?;
+
+				// No need to check for repetition length because `list.repeat` doesnt actually
+				// make a list.
+				list.repeat(amount, env.options())?.conv::<Value<'_, E>>()
 			}
 
-			let amount = rhs
-				.to_integer(env.options())?
-				.try_conv::<usize>()
-				.or(Err(Error::DomainError("repetition count is negative")))?;
-
-			// No need to check for repetition length because `list.repeat` doesnt actually
-			// make a list.
-			list.repeat(amount, env.options())?.conv::<Value>()
+			other => return Err(Error::TypeError(other.typename(), "*")),
 		}
-
-		other => return Err(Error::TypeError(other.typename(), "*")),
-	}
-});
+	})
+}
 
 /// **4.3.4** `/`  
-pub const DIVIDE: Function = function!("/", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.divide(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
-		}
+pub fn DIVIDE<'e, E>() -> Function<'e, E> {
+	function!("/", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.divide(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
 
-		Value::Text(text) if env.options().compiler.string_extensions => {
-			text.split(&rhs.run(env)?.to_text(env.options())?, env.options()).into()
-		}
-		Value::List(list) if env.options().compiler.list_extensions => {
-			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
-		}
+			Value::Text(text) if env.options().compiler.string_extensions => {
+				text.split(&rhs.run(env)?.to_text(env.options())?, env.options()).into()
+			}
+			Value::List(list) if env.options().compiler.list_extensions => {
+				list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
+			}
 
-		other => return Err(Error::TypeError(other.typename(), "/")),
-	}
-});
+			other => return Err(Error::TypeError(other.typename(), "/")),
+		}
+	})
+}
 
 /// **4.3.5** `%`  
-pub const MODULO: Function = function!("%", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.modulo(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
+pub fn MODULO<'e, E>() -> Function<'e, E> {
+	function!("%", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.modulo(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
+
+			// #[cfg(feature = "string-extensions")]
+			// Value::Text(lstr) => {
+			// 	let values = rhs.run(env)?.to_list(env.options())?;
+			// 	let mut values_index = 0;
+
+			// 	let mut formatted = String::new();
+			// 	let mut chars = lstr.chars();
+
+			// 	while let Some(chr) = chars.next() {
+			// 		match chr {
+			// 			'\\' => {
+			// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
+			// 					'n' => '\n',
+			// 					'r' => '\r',
+			// 					't' => '\t',
+			// 					'{' => '{',
+			// 					'}' => '}',
+			// 					_ => panic!("todo: error for unknown escape code"),
+			// 				});
+			// 			}
+			// 			'{' => {
+			// 				if chars.next() != Some('}') {
+			// 					panic!("todo, missing closing `}}`");
+			// 				}
+			// 				formatted.push_str(
+			// 					&values
+			// 						.as_slice()
+			// 						.get(values_index)
+			// 						.expect("no values left to format")
+			// 						.to_text(env.options())?,
+			// 				);
+			// 				values_index += 1;
+			// 			}
+			// 			_ => formatted.push(chr),
+			// 		}
+			// 	}
+
+			// 	Text::new(formatted).unwrap().into()
+			// }
+			Value::List(list) if env.options().compiler.list_extensions => {
+				list.filter(&rhs.run(env)?, env)?.into()
+			}
+
+			other => return Err(Error::TypeError(other.typename(), "%")),
 		}
-
-		// #[cfg(feature = "string-extensions")]
-		// Value::Text(lstr) => {
-		// 	let values = rhs.run(env)?.to_list(env.options())?;
-		// 	let mut values_index = 0;
-
-		// 	let mut formatted = String::new();
-		// 	let mut chars = lstr.chars();
-
-		// 	while let Some(chr) = chars.next() {
-		// 		match chr {
-		// 			'\\' => {
-		// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
-		// 					'n' => '\n',
-		// 					'r' => '\r',
-		// 					't' => '\t',
-		// 					'{' => '{',
-		// 					'}' => '}',
-		// 					_ => panic!("todo: error for unknown escape code"),
-		// 				});
-		// 			}
-		// 			'{' => {
-		// 				if chars.next() != Some('}') {
-		// 					panic!("todo, missing closing `}}`");
-		// 				}
-		// 				formatted.push_str(
-		// 					&values
-		// 						.as_slice()
-		// 						.get(values_index)
-		// 						.expect("no values left to format")
-		// 						.to_text(env.options())?,
-		// 				);
-		// 				values_index += 1;
-		// 			}
-		// 			_ => formatted.push(chr),
-		// 		}
-		// 	}
-
-		// 	Text::new(formatted).unwrap().into()
-		// }
-		Value::List(list) if env.options().compiler.list_extensions => {
-			list.filter(&rhs.run(env)?, env)?.into()
-		}
-
-		other => return Err(Error::TypeError(other.typename(), "%")),
-	}
-});
+	})
+}
 
 /// **4.3.6** `^`  
-pub const POWER: Function = function!("^", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => {
-			integer.power(rhs.run(env)?.to_integer(env.options())?, env.options())?.conv::<Value>()
+pub fn POWER<'e, E>() -> Function<'e, E> {
+	function!("^", env, |lhs, rhs| {
+		match lhs.run(env)? {
+			Value::Integer(integer) => integer
+				.power(rhs.run(env)?.to_integer(env.options())?, env.options())?
+				.conv::<Value<'_, E>>(),
+			Value::List(list) => {
+				list.join(&rhs.run(env)?.to_text(env.options())?, env.options())?.into()
+			}
+			other => return Err(Error::TypeError(other.typename(), "^")),
 		}
-		Value::List(list) => list.join(&rhs.run(env)?.to_text(env.options())?, env.options())?.into(),
-		other => return Err(Error::TypeError(other.typename(), "^")),
-	}
-});
+	})
+}
 
-fn compare(lhs: &Value, rhs: &Value, opts: &Options) -> Result<std::cmp::Ordering> {
+fn compare<E>(lhs: &Value<E>, rhs: &Value<E>, opts: &Options) -> Result<std::cmp::Ordering> {
 	match lhs {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer(opts)?)),
 		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_boolean(opts)?)),
@@ -480,70 +539,86 @@ fn compare(lhs: &Value, rhs: &Value, opts: &Options) -> Result<std::cmp::Orderin
 }
 
 /// **4.3.7** `<`  
-pub const LESS_THAN: Function = function!("<", env, |lhs, rhs| {
-	compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Less
-});
+pub fn LESS_THAN<'e, E>() -> Function<'e, E> {
+	function!("<", env, |lhs, rhs| {
+		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Less
+	})
+}
 
 /// **4.3.8** `>`  
-pub const GREATER_THAN: Function = function!(">", env, |lhs, rhs| {
-	compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Greater
-});
+pub fn GREATER_THAN<'e, E>() -> Function<'e, E> {
+	function!(">", env, |lhs, rhs| {
+		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Greater
+	})
+}
 
 /// **4.3.9** `?`  
-pub const EQUALS: Function = function!("?", env, |lhs, rhs| {
-	fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
-		match value {
-			Value::List(list) => {
-				for ele in list {
-					check_for_strict_compliance(&ele)?;
+pub fn EQUALS<'e, E>() -> Function<'e, E> {
+	function!("?", env, |lhs, rhs| {
+		fn check_for_strict_compliance<E>(value: &Value<'_, E>) -> Result<()> {
+			match value {
+				Value::List(list) => {
+					for ele in list {
+						check_for_strict_compliance(&ele)?;
+					}
+					Ok(())
 				}
-				Ok(())
+				Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename(), "?")),
+				_ => Ok(()),
 			}
-			Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename(), "?")),
-			_ => Ok(()),
 		}
-	}
 
-	let l = lhs.run(env)?;
-	let r = rhs.run(env)?;
+		let l = lhs.run(env)?;
+		let r = rhs.run(env)?;
 
-	if env.options().compliance.strict_equality {
-		check_for_strict_compliance(&l)?;
-		check_for_strict_compliance(&r)?;
-	}
+		if env.options().compliance.strict_equality {
+			check_for_strict_compliance(&l)?;
+			check_for_strict_compliance(&r)?;
+		}
 
-	l == r
-});
+		l == r
+	})
+}
 
 /// **4.3.10** `&`  
-pub const AND: Function = function!("&", env, |lhs, rhs| {
-	let l = lhs.run(env)?;
+pub fn AND<'e, E>() -> Function<'e, E> {
+	function!("&", env, |lhs, rhs| {
+		let l = lhs.run(env)?;
 
-	if l.to_boolean(env.options())? {
-		rhs.run(env)?
-	} else {
-		l
-	}
-});
+		if l.to_boolean(env.options())? {
+			rhs.run(env)?
+		} else {
+			l
+		}
+	})
+}
 
 /// **4.3.11** `|`  
-pub const OR: Function = function!("|", env, |lhs, rhs| {
-	let l = lhs.run(env)?;
+pub fn OR<'e, E>() -> Function<'e, E> {
+	function!("|", env, |lhs, rhs| {
+		let l = lhs.run(env)?;
 
-	if l.to_boolean(env.options())? {
-		l
-	} else {
-		rhs.run(env)?
-	}
-});
+		if l.to_boolean(env.options())? {
+			l
+		} else {
+			rhs.run(env)?
+		}
+	})
+}
 
 /// **4.3.12** `;`  
-pub const THEN: Function = function!(";", env, |lhs, rhs| {
-	lhs.run(env)?;
-	rhs.run(env)?
-});
+pub fn THEN<'e, E>() -> Function<'e, E> {
+	function!(";", env, |lhs, rhs| {
+		lhs.run(env)?;
+		rhs.run(env)?
+	})
+}
 
-fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
+fn assign<'e, E>(
+	variable: &Value<'e, E>,
+	value: Value<'e, E>,
+	env: &mut Environment<'e, E>,
+) -> Result<()> {
 	match variable {
 		Value::Variable(var) => {
 			var.assign(value);
@@ -581,31 +656,37 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 }
 
 /// **4.3.13** `=`  
-pub const ASSIGN: Function = function!("=", env, |var, value| {
-	let ret = value.run(env)?;
-	assign(var, ret.clone(), env)?;
-	ret
-});
+pub fn ASSIGN<'e, E>() -> Function<'e, E> {
+	function!("=", env, |var, value| {
+		let ret = value.run(env)?;
+		assign(var, ret.clone(), env)?;
+		ret
+	})
+}
 
 /// **4.3.14** `WHILE`  
-pub const WHILE: Function = function!("WHILE", env, |cond, body| {
-	while cond.run(env)?.to_boolean(env.options())? {
-		body.run(env)?;
-	}
+pub fn WHILE<'e, E>() -> Function<'e, E> {
+	function!("WHILE", env, |cond, body| {
+		while cond.run(env)?.to_boolean(env.options())? {
+			body.run(env)?;
+		}
 
-	Value::Null
-});
+		Value::Null
+	})
+}
 
 /// **4.4.1** `IF`  
-pub const IF: Function = function!("IF", env, |cond, iftrue, iffalse| {
-	if cond.run(env)?.to_boolean(env.options())? {
-		iftrue.run(env)?
-	} else {
-		iffalse.run(env)?
-	}
-});
+pub fn IF<'e, E>() -> Function<'e, E> {
+	function!("IF", env, |cond, iftrue, iffalse| {
+		if cond.run(env)?.to_boolean(env.options())? {
+			iftrue.run(env)?
+		} else {
+			iffalse.run(env)?
+		}
+	})
+}
 
-fn fix_len(container: &Value<'_>, mut start: Integer, options: &Options) -> Result<usize> {
+fn fix_len<E>(container: &Value<'_, E>, mut start: Integer, options: &Options) -> Result<usize> {
 	if start.is_negative() && options.compiler.negative_indexing {
 		let len = match container {
 			Value::Text(text) => text.len(),
@@ -620,162 +701,185 @@ fn fix_len(container: &Value<'_>, mut start: Integer, options: &Options) -> Resu
 }
 
 /// **4.4.2** `GET`  
-pub const GET: Function = function!("GET", env, |string, start, length| {
-	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
-	let length = length
-		.run(env)?
-		.to_integer(env.options())?
-		.try_conv::<usize>()
-		.or(Err(Error::DomainError("negative length")))?;
+pub fn GET<'e, E>() -> Function<'e, E> {
+	function!("GET", env, |string, start, length| {
+		let source = string.run(env)?;
+		let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
+		let length = length
+			.run(env)?
+			.to_integer(env.options())?
+			.try_conv::<usize>()
+			.or(Err(Error::DomainError("negative length")))?;
 
-	match source {
-		Value::List(list) => list
-			.get(start..start + length)
-			.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + length })?
-			.conv::<Value>(),
-		Value::Text(text) => text
-			.get(start..start + length)
-			.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + length })?
-			.to_owned()
-			.into(),
-		other => return Err(Error::TypeError(other.typename(), "GET")),
-	}
-});
+		match source {
+			Value::List(list) => list
+				.get(start..start + length)
+				.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + length })?
+				.conv::<Value<'_, E>>(),
+			Value::Text(text) => text
+				.get(start..start + length)
+				.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + length })?
+				.to_owned()
+				.into(),
+			other => return Err(Error::TypeError(other.typename(), "GET")),
+		}
+	})
+}
 
 /// **4.5.1** `SET`  
-pub const SET: Function = function!("SET", env, |string, start, length, replacement| {
-	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
-	let length = length
-		.run(env)?
-		.to_integer(env.options())?
-		.try_conv::<usize>()
-		.or(Err(Error::DomainError("negative length")))?;
-	let replacement_source = replacement.run(env)?;
+pub fn SET<'e, E>() -> Function<'e, E> {
+	function!("SET", env, |string, start, length, replacement| {
+		let source = string.run(env)?;
+		let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
+		let length = length
+			.run(env)?
+			.to_integer(env.options())?
+			.try_conv::<usize>()
+			.or(Err(Error::DomainError("negative length")))?;
+		let replacement_source = replacement.run(env)?;
 
-	match source {
-		Value::List(list) => {
-			// FIXME: cons?
+		match source {
+			Value::List(list) => {
+				// FIXME: cons?
 
-			let replacement = replacement_source.to_list(env.options())?;
-			let mut ret = Vec::new();
-			ret.extend(list.iter().take(start).cloned());
-			ret.extend(replacement.iter().cloned());
-			ret.extend(list.iter().skip((start) + length).cloned());
+				let replacement = replacement_source.to_list(env.options())?;
+				let mut ret = Vec::new();
+				ret.extend(list.iter().take(start).cloned());
+				ret.extend(replacement.iter().cloned());
+				ret.extend(list.iter().skip((start) + length).cloned());
 
-			List::try_from(ret)?.conv::<Value>()
+				List::try_from(ret)?.conv::<Value<'_, E>>()
+			}
+			Value::Text(text) => {
+				let replacement = replacement_source.to_text(env.options())?;
+
+				// lol, todo, optimize me
+				let mut builder = Text::builder();
+				builder.push(text.get(..start).unwrap());
+				builder.push(&replacement);
+				builder.push(text.get(start + length..).unwrap());
+				builder.finish().into()
+			}
+			other => return Err(Error::TypeError(other.typename(), "SET")),
 		}
-		Value::Text(text) => {
-			let replacement = replacement_source.to_text(env.options())?;
-
-			// lol, todo, optimize me
-			let mut builder = Text::builder();
-			builder.push(text.get(..start).unwrap());
-			builder.push(&replacement);
-			builder.push(text.get(start + length..).unwrap());
-			builder.finish().into()
-		}
-		other => return Err(Error::TypeError(other.typename(), "SET")),
-	}
-});
+	})
+}
 
 /// **6.1** `VALUE`
-pub const VALUE: Function = function!("VALUE", env, |arg| {
-	let name = arg.run(env)?.to_text(env.options())?;
-	env.lookup(&name)?
-});
+pub fn VALUE<'e, E>() -> Function<'e, E> {
+	function!("VALUE", env, |arg| {
+		let name = arg.run(env)?.to_text(env.options())?;
+		env.lookup(&name)?
+	})
+}
 
-pub const HANDLE: Function = function!("HANDLE", env, |block, iferr| {
-	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
+pub fn HANDLE<'e, E>() -> Function<'e, E> {
+	function!("HANDLE", env, |block, iferr| {
+		const ERR_VAR_NAME: &crate::TextSlice<crate::value::text::Unicode> =
+			unsafe { crate::TextSlice::new_unchecked("_") };
 
-	match block.run(env) {
-		Ok(value) => value,
-		Err(err) => {
-			// This is fallible, as the error string might have had something bad.
-			let errmsg = err.to_string().try_conv::<Text>()?;
+		match block.run(env) {
+			Ok(value) => value,
+			Err(err) => {
+				// This is fallible, as the error string might have had something bad.
+				let errmsg = err.to_string().try_conv::<Text>()?;
 
-			// Assign it to the error variable
-			env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());
+				// Assign it to the error variable
+				env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());
 
-			// Finally, execute the RHS.
-			iferr.run(env)?
-		}
-	}
-});
-
-pub const YEET: Function = function!("YEET", env, |errmsg| {
-	return Err(Error::Custom(errmsg.run(env)?.to_text(env.options())?.to_string().into()));
-	#[allow(unreachable_code)]
-	Value::Null
-});
-
-/// **6.3** `USE`
-pub const USE: Function = function!("USE", env, |arg| {
-	let filename = arg.run(env)?.to_text(env.options())?;
-	let contents = env.read_file(&filename)?;
-
-	env.play(&contents)?
-});
-
-/// **4.2.2** `EVAL`
-pub const EVAL: Function = function!("EVAL", env, |val| {
-	let code = val.run(env)?.to_text(env.options())?;
-	env.play(&code)?
-});
-
-/// **4.2.5** `` ` ``
-pub const SYSTEM: Function = function!("$", env, |cmd, stdin| {
-	let command = cmd.run(env)?.to_text(env.options())?;
-	let stdin = match stdin.run(env)? {
-		Value::Text(text) => Some(text),
-		Value::Null => None,
-		other => return Err(Error::TypeError(other.typename(), "$")),
-	};
-
-	env.run_command(&command, stdin.as_deref())?
-});
-
-/// **Compiler extension**: SRAND
-pub const XSRAND: Function = function!("XSRAND", env, |arg| {
-	let seed = arg.run(env)?.to_integer(env.options())?;
-	env.srand(seed);
-	Value::default()
-});
-
-/// **Compiler extension**: REV
-pub const XREVERSE: Function = function!("XREVERSE", env, |arg| {
-	let seed = arg.run(env)?.to_integer(env.options())?;
-	env.srand(seed);
-	Value::default()
-});
-
-pub const XRANGE: Function = function!("XRANGE", env, |start, stop| {
-	match start.run(env)? {
-		Value::Integer(start) => {
-			let stop = stop.run(env)?.to_integer(env.options())?;
-
-			match start <= stop {
-				true => (i64::from(start)..i64::from(stop))
-					.map(|x| Value::from(Integer::try_from(x).unwrap()))
-					.collect::<Vec<Value<'_>>>()
-					.try_conv::<List<'_>>()
-					.expect("todo: out of bounds error")
-					.conv::<Value>(),
-
-				// #[cfg(feature = "negative-ranges")]
-				// false => (stop..start).map(Value::from).rev().collect::<List>().into(),
-
-				// #[cfg(not(feature = "negative-ranges"))]
-				false => return Err(Error::DomainError("start is greater than stop")),
+				// Finally, execute the RHS.
+				iferr.run(env)?
 			}
 		}
+	})
+}
 
-		Value::Text(_text) => {
-			// let start = text.get(0).a;
-			todo!()
+pub fn YEET<'e, E>() -> Function<'e, E> {
+	function!("YEET", env, |errmsg| {
+		return Err(Error::Custom(errmsg.run(env)?.to_text(env.options())?.to_string().into()));
+		#[allow(unreachable_code)]
+		Value::Null
+	})
+}
+
+/// **6.3** `USE`
+pub fn USE<'e, E>() -> Function<'e, E> {
+	function!("USE", env, |arg| {
+		let filename = arg.run(env)?.to_text(env.options())?;
+		let contents = env.read_file(&filename)?;
+
+		env.play(&contents)?
+	})
+}
+
+/// **4.2.2** `EVAL`
+pub fn EVAL<'e, E>() -> Function<'e, E> {
+	function!("EVAL", env, |val| {
+		let code = val.run(env)?.to_text(env.options())?;
+		env.play(&code)?
+	})
+}
+
+/// **4.2.5** `` ` ``
+pub fn SYSTEM<'e, E>() -> Function<'e, E> {
+	function!("$", env, |cmd, stdin| {
+		let command = cmd.run(env)?.to_text(env.options())?;
+		let stdin = match stdin.run(env)? {
+			Value::Text(text) => Some(text),
+			Value::Null => None,
+			other => return Err(Error::TypeError(other.typename(), "$")),
+		};
+
+		env.run_command(&command, stdin.as_deref())?
+	})
+}
+
+/// **Compiler extension**: SRAND
+pub fn XSRAND<'e, E>() -> Function<'e, E> {
+	function!("XSRAND", env, |arg| {
+		let seed = arg.run(env)?.to_integer(env.options())?;
+		env.srand(seed);
+		Value::default()
+	})
+}
+
+/// **Compiler extension**: REV
+pub fn XREVERSE<'e, E>() -> Function<'e, E> {
+	function!("XREVERSE", env, |arg| {
+		let seed = arg.run(env)?.to_integer(env.options())?;
+		env.srand(seed);
+		Value::default()
+	})
+}
+
+pub fn XRANGE<'e, E>() -> Function<'e, E> {
+	function!("XRANGE", env, |start, stop| {
+		match start.run(env)? {
+			Value::Integer(start) => {
+				let stop = stop.run(env)?.to_integer(env.options())?;
+
+				match start <= stop {
+					true => (i64::from(start)..i64::from(stop))
+						.map(|x| Value::from(Integer::try_from(x).unwrap()))
+						.collect::<Vec<Value<'_>>>()
+						.try_conv::<List<'_>>()
+						.expect("todo: out of bounds error")
+						.conv::<Value<'_, E>>(),
+
+					// #[cfg(feature = "negative-ranges")]
+					// false => (stop..start).map(Value::from).rev().collect::<List>().into(),
+
+					// #[cfg(not(feature = "negative-ranges"))]
+					false => return Err(Error::DomainError("start is greater than stop")),
+				}
+			}
+
+			Value::Text(_text) => {
+				// let start = text.get(0).a;
+				todo!()
+			}
+
+			other => return Err(Error::TypeError(other.typename(), "XRANGE")),
 		}
-
-		other => return Err(Error::TypeError(other.typename(), "XRANGE")),
-	}
-});
+	})
+}

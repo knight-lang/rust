@@ -1,14 +1,43 @@
-use super::{validate, Character, Chars, NewTextError, Text};
+use super::{validate, Character, Chars, Encoding, NewTextError, Text};
 use crate::env::Options;
 use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
-use std::fmt::{self, Display, Formatter};
-use std::ops::{Deref, DerefMut};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct TextSlice(str);
+pub struct TextSlice<E>(PhantomData<E>, str);
 
-impl Default for &TextSlice {
+impl<E> Debug for TextSlice<E> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&**self, f)
+	}
+}
+
+impl<E> Eq for TextSlice<E> {}
+impl<E> PartialEq for TextSlice<E> {
+	fn eq(&self, rhs: &Self) -> bool {
+		**self == **rhs
+	}
+}
+
+impl<E> PartialOrd for TextSlice<E> {
+	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(rhs))
+	}
+}
+impl<E> Ord for TextSlice<E> {
+	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+		(**self).cmp(&**rhs)
+	}
+}
+impl<E> Hash for TextSlice<E> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		(**self).hash(state)
+	}
+}
+
+impl<E> Default for &TextSlice<E> {
 	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
@@ -16,43 +45,23 @@ impl Default for &TextSlice {
 	}
 }
 
-impl Display for TextSlice {
+impl<E> Display for TextSlice<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl Deref for TextSlice {
+impl<E> std::ops::Deref for TextSlice<E> {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
-		&self.0
+		&self.1
 	}
 }
 
-impl DerefMut for TextSlice {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0
-	}
-}
-
-impl TextSlice {
-	pub const MAX_LEN: usize = i32::MAX as usize;
-
-	/// Creates a new `TextSlice` without validating `inp`.
-	///
-	/// # Safety
-	/// - `inp` must be a valid `TextSlice`.
-	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
-		debug_assert!(validate::<super::Unicode>(inp).is_ok());
-
-		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
-		// safely transmute.
-		&*(inp as *const str as *const Self)
-	}
-
+impl<E: Encoding> TextSlice<E> {
 	pub const fn new(inp: &str) -> Result<&Self, NewTextError> {
-		match validate::<super::Unicode>(inp) {
+		match validate::<E>(inp) {
 			// SAFETY: we justverified it was valid
 			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
 
@@ -60,19 +69,39 @@ impl TextSlice {
 			Err(err) => Err(err),
 		}
 	}
+}
 
-	pub fn chars(&self) -> Chars<'_> {
-		Chars(self.0.chars())
+impl<E> TextSlice<E> {
+	pub const MAX_LEN: usize = i32::MAX as usize;
+
+	/// Creates a new `TextSlice` without validating `inp`.
+	///
+	/// # Safety
+	/// - `inp` must be a valid `TextSlice`.
+	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
+		// safely transmute.
+		&*(inp as *const str as *const Self)
+	}
+
+	pub unsafe fn new_boxed_unchecked(inp: Box<str>) -> Box<Self> {
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
+		// safely transmute.
+		unsafe { Box::from_raw(Box::into_raw(inp) as _) }
+	}
+
+	pub fn chars(&self) -> Chars<'_, E> {
+		Chars(self.1.chars(), PhantomData)
 	}
 
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-		let substring = self.0.get(range)?;
+		let substring = self.1.get(range)?;
 
 		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self) -> Text {
+	pub fn concat(&self, rhs: &Self) -> Text<E> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
@@ -81,14 +110,14 @@ impl TextSlice {
 		builder.finish()
 	}
 
-	pub fn repeat(&self, amount: usize) -> Text {
+	pub fn repeat(&self, amount: usize) -> Text<E> {
 		(**self)
 			.repeat(amount)
 			.try_into()
 			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
 
-	pub fn split<'e>(&self, sep: &Self, opts: &Options) -> crate::List<'e> {
+	pub fn split<'e>(&self, sep: &Self, opts: &Options) -> crate::List<'e, E> {
 		if sep.is_empty() {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list(opts).unwrap()
@@ -108,11 +137,11 @@ impl TextSlice {
 		)
 	}
 
-	pub fn head(&self) -> Option<Character> {
+	pub fn head(&self) -> Option<Character<E>> {
 		self.chars().next()
 	}
 
-	pub fn tail(&self) -> Option<Text> {
+	pub fn tail(&self) -> Option<Text<E>> {
 		let mut chrs = self.chars();
 
 		if chrs.next().is_none() {
@@ -123,7 +152,7 @@ impl TextSlice {
 	}
 }
 
-impl<'a> TryFrom<&'a str> for &'a TextSlice {
+impl<'a, E: Encoding> TryFrom<&'a str> for &'a TextSlice<E> {
 	type Error = NewTextError;
 
 	#[inline]
@@ -132,67 +161,64 @@ impl<'a> TryFrom<&'a str> for &'a TextSlice {
 	}
 }
 
-impl<'a> From<&'a TextSlice> for &'a str {
+impl<'a, E> From<&'a TextSlice<E>> for &'a str {
 	#[inline]
-	fn from(text: &'a TextSlice) -> Self {
+	fn from(text: &'a TextSlice<E>) -> Self {
 		text
 	}
 }
 
-impl TryFrom<Box<str>> for Box<TextSlice> {
+impl<E: Encoding> TryFrom<Box<str>> for Box<TextSlice<E>> {
 	type Error = NewTextError;
 
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
-		validate::<super::Unicode>(&inp)?;
+		validate::<E>(&inp)?;
 
-		#[allow(unsafe_code)]
-		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
-		// safely transmute.
-		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
+		Ok(unsafe { Self::new_boxed_unchecked(inp) })
 	}
 }
 
-impl ToOwned for TextSlice {
-	type Owned = Text;
+impl<E> ToOwned for TextSlice<E> {
+	type Owned = Text<E>;
 
 	fn to_owned(&self) -> Self::Owned {
 		self.into()
 	}
 }
 
-impl<'a> IntoIterator for &'a TextSlice {
-	type Item = Character;
-	type IntoIter = Chars<'a>;
+impl<'a, E> IntoIterator for &'a TextSlice<E> {
+	type Item = Character<E>;
+	type IntoIter = Chars<'a, E>;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.chars()
 	}
 }
 
-impl ToBoolean for Text {
+impl<E> ToBoolean for Text<E> {
 	fn to_boolean(&self, _: &Options) -> crate::Result<crate::Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl ToText for Text {
+impl<E> ToText<E> for Text<E> {
 	fn to_text(&self, _: &Options) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl crate::value::NamedType for Text {
+impl<E> crate::value::NamedType for Text<E> {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl ToInteger for Text {
+impl<E> ToInteger for Text<E> {
 	fn to_integer(&self, opts: &Options) -> crate::Result<Integer> {
 		Integer::parse(&self, opts)
 	}
 }
 
-impl<'e> ToList<'e> for Text {
-	fn to_list(&self, _: &Options) -> crate::Result<crate::value::List<'e>> {
+impl<'e, E> ToList<'e, E> for Text<E> {
+	fn to_list(&self, _: &Options) -> crate::Result<crate::value::List<'e, E>> {
 		self
 			.chars()
 			.map(|c| crate::Value::from(Self::try_from(c.to_string()).unwrap()))

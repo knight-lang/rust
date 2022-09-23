@@ -29,18 +29,18 @@ impl ToInteger for Null {
 	}
 }
 
-impl<'e> ToList<'e> for Null {
+impl<'e, E> ToList<'e, E> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
-	fn to_list(&self, _: &Options) -> Result<List<'e>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e, E>> {
 		Ok(List::default())
 	}
 }
 
-impl ToText for Null {
+impl<E> ToText<E> for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
-	fn to_text(&self, _: &Options) -> Result<Text> {
+	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		Ok(Text::default())
 	}
 }

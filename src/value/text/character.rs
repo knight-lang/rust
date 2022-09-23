@@ -5,7 +5,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
-pub struct Character<E = super::Unicode>(char, PhantomData<E>);
+pub struct Character<E>(char, PhantomData<E>);
 
 impl<E> Debug for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -69,6 +69,16 @@ impl<E: Encoding> TryFrom<Integer> for Character<E> {
 	}
 }
 
+impl<E> Character<E> {
+	pub const unsafe fn new_unchecked(chr: char) -> Self {
+		Self(chr, PhantomData)
+	}
+
+	pub const fn inner(self) -> char {
+		self.0
+	}
+}
+
 impl<E: Encoding> Character<E> {
 	#[inline]
 	#[must_use]
@@ -78,17 +88,6 @@ impl<E: Encoding> Character<E> {
 		// }
 
 		Some(Self(chr, PhantomData))
-	}
-
-	pub const unsafe fn new_unchecked(chr: char) -> Self {
-		match Self::new(chr) {
-			Some(character) => character,
-			None => unreachable!(),
-		}
-	}
-
-	pub const fn inner(self) -> char {
-		self.0
 	}
 
 	pub fn is_whitespace(self) -> bool {
@@ -108,8 +107,8 @@ impl<E: Encoding> Character<E> {
 	}
 }
 
-impl From<Character> for char {
-	fn from(character: Character) -> Self {
+impl<E> From<Character<E>> for char {
+	fn from(character: Character<E>) -> Self {
 		character.0
 	}
 }

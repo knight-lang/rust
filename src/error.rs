@@ -1,7 +1,6 @@
 use crate::parser::Error as ParseError;
 use crate::value::text::NewTextError;
 use crate::variable::IllegalVariableName;
-use crate::Text;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -17,7 +16,7 @@ pub enum Error {
 	},
 
 	/// An undefined variable was accessed.
-	UndefinedVariable(Text),
+	UndefinedVariable(String),
 
 	/// There was a problem with I/O.
 	IoError(io::Error),
