@@ -18,7 +18,7 @@ pub struct Builder<'e, E> {
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<E: Encoding + 'static> Default for Builder<'_, E> {
+impl<'e, E: Encoding + 'e> Default for Builder<'e, E> {
 	fn default() -> Self {
 		Self::new(Options::default())
 	}
@@ -62,7 +62,7 @@ impl<'e, E> Builder<'e, E> {
 	}
 }
 
-impl<'e, E: Encoding + 'static> Builder<'e, E> {
+impl<'e, E: Encoding + 'e> Builder<'e, E> {
 	pub fn new(options: Options) -> Self {
 		Self {
 			stdin: None,

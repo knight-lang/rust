@@ -1,7 +1,10 @@
 use knightrs::*;
 
 fn main() {
-	let mut env = Environment::<Ascii>::default();
+	let mut stdout = Vec::new();
+	let mut env = Environment::<Ascii>::builder();
+	env.stdout(&mut stdout);
+	let mut env = env.build();
 	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
 
 	let arg = if std::env::args().nth(1).unwrap() == "-e" {
@@ -18,6 +21,8 @@ fn main() {
 		}
 		_ => {}
 	}
+	drop(env);
+	dbg!(stdout);
 	/*
 				r##"
 	; = å = j 0

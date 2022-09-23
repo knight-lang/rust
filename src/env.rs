@@ -45,7 +45,13 @@ sa::assert_impl_all!(Environment: Send, Sync);
 
 impl<E: Encoding + 'static> Default for Environment<'_, E> {
 	fn default() -> Self {
-		Builder::default().build()
+		Self::builder().build()
+	}
+}
+
+impl<'e, E: Encoding + 'e> Environment<'e, E> {
+	pub fn builder() -> Builder<'e, E> {
+		Builder::default()
 	}
 }
 
