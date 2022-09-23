@@ -19,19 +19,19 @@ type System<'e, E> =
 type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>) -> Result<Text<E>> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment<'e, E> {
+pub struct Environment<'e, E, I> {
 	options: Options,
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
-	variables: HashSet<Variable<'e, E>>,
+	variables: HashSet<Variable<'e, E, I>>,
 	stdin: Box<Stdin<'e>>,
 	stdout: Box<Stdout<'e>>,
 	rng: Box<StdRng>,
 	system: Box<System<'e, E>>,
 	read_file: Box<ReadFile<'e, E>>,
 
-	functions: HashMap<Character<E>, Function<'e, E>>,
-	extensions: HashMap<Text<E>, Function<'e, E>>,
+	functions: HashMap<Character<E>, Function<'e, E, I>>,
+	extensions: HashMap<Text<E>, Function<'e, E, I>>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
 	prompt_lines: VecDeque<Text<E>>,
@@ -43,7 +43,7 @@ pub struct Environment<'e, E> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl<E: Encoding + 'static> Default for Environment<'_, E> {
+impl<E: Encoding + 'static, I> Default for Environment<'_, E, I> {
 	fn default() -> Self {
 		Self::builder().build()
 	}
@@ -55,9 +55,9 @@ impl<'e, E: Encoding + 'e> Environment<'e, E> {
 	}
 }
 
-impl<'e, E: Encoding> Environment<'e, E> {
+impl<'e, E: Encoding, I> Environment<'e, E, I> {
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, E>> {
+	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, E, I>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)
 	}
 
@@ -66,7 +66,7 @@ impl<'e, E: Encoding> Environment<'e, E> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<'e, E>, IllegalVariableName> {
+	) -> std::result::Result<Variable<'e, E, I>, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -78,8 +78,8 @@ impl<'e, E: Encoding> Environment<'e, E> {
 	}
 }
 
-impl<'e, E> Environment<'e, E> {
-	pub fn functions(&self) -> &HashMap<Character<E>, Function<'e, E>> {
+impl<'e, E, I> Environment<'e, E, I> {
+	pub fn functions(&self) -> &HashMap<Character<E>, Function<'e, E, I>> {
 		&self.functions
 	}
 
@@ -144,7 +144,7 @@ impl<'e, E> Environment<'e, E> {
 		self.system_results.pop_front()
 	}
 
-	pub fn read_file(&mut self, filename: &TextSlice<E>) -> crate::Result<Text<E>> {
+	pub fn read_file(&mut self, filename: &TextSlice<E>) -> Result<Text<E>> {
 		(self.read_file)(filename)
 	}
 }

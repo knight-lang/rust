@@ -168,7 +168,7 @@ impl Integer {
 			return Err(Error::DivisionByZero);
 		}
 
-		if opts.compliance.check_modulo_argument && base.is_negative() {
+		if opts.compliance.check_modulo_argument && self.is_negative() || base.is_negative() {
 			return Err(Error::DomainError("modulo by a negative base"));
 		}
 

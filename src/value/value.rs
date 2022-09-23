@@ -7,7 +7,7 @@ use crate::{Ast, Error, Result, Variable};
 use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
-pub enum Value<'e, E> {
+pub enum Value<'e, E, I> {
 	/// Represents the `NULL` value.
 	Null,
 
@@ -21,26 +21,26 @@ pub enum Value<'e, E> {
 	Text(Text<E>),
 
 	/// Represents a list of [`Value`]s.
-	List(List<'e, E>),
+	List(List<'e, E, I>),
 
 	/// Represents a variable.
-	Variable(Variable<'e, E>),
+	Variable(Variable<'e, E, I>),
 
 	/// Represents a block of code.
-	Ast(Ast<'e, E>),
+	Ast(Ast<'e, E, I>),
 }
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_>: Send, Sync);
 
-impl<E> Default for Value<'_, E> {
+impl<E, I> Default for Value<'_, E, I> {
 	#[inline]
 	fn default() -> Self {
 		Self::Null
 	}
 }
 
-impl<E> Clone for Value<'_, E> {
+impl<E, I> Clone for Value<'_, E, I> {
 	fn clone(&self) -> Self {
 		match self {
 			Self::Null => Self::Null,
@@ -54,7 +54,7 @@ impl<E> Clone for Value<'_, E> {
 	}
 }
 
-impl<E> PartialEq for Value<'_, E> {
+impl<E, I> PartialEq for Value<'_, E, I> {
 	fn eq(&self, rhs: &Self) -> bool {
 		match (self, rhs) {
 			(Self::Null, Self::Null) => true,
@@ -69,7 +69,7 @@ impl<E> PartialEq for Value<'_, E> {
 	}
 }
 
-impl<E> Debug for Value<'_, E> {
+impl<E, I> Debug for Value<'_, E, I> {
 	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
@@ -84,63 +84,63 @@ impl<E> Debug for Value<'_, E> {
 	}
 }
 
-impl<E> From<Null> for Value<'_, E> {
+impl<E, I> From<Null> for Value<'_, E, I> {
 	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl<E> From<Boolean> for Value<'_, E> {
+impl<E, I> From<Boolean> for Value<'_, E, I> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl<E> From<Integer> for Value<'_, E> {
+impl<E, I> From<Integer> for Value<'_, E, I> {
 	#[inline]
 	fn from(number: Integer) -> Self {
 		Self::Integer(number)
 	}
 }
 
-impl<E> From<Text<E>> for Value<'_, E> {
+impl<E, I> From<Text<E>> for Value<'_, E, I> {
 	#[inline]
 	fn from(text: Text<E>) -> Self {
 		Self::Text(text)
 	}
 }
 
-impl<E> From<Character<E>> for Value<'_, E> {
+impl<E, I> From<Character<E>> for Value<'_, E, I> {
 	#[inline]
 	fn from(character: Character<E>) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
 
-impl<'e, E> From<Variable<'e, E>> for Value<'e, E> {
+impl<'e, E, I> From<Variable<'e, E, I>> for Value<'e, E, I> {
 	#[inline]
-	fn from(variable: Variable<'e, E>) -> Self {
+	fn from(variable: Variable<'e, E, I>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl<'e, E> From<Ast<'e, E>> for Value<'e, E> {
+impl<'e, E, I> From<Ast<'e, E, I>> for Value<'e, E, I> {
 	#[inline]
-	fn from(inp: Ast<'e, E>) -> Self {
+	fn from(inp: Ast<'e, E, I>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl<'e, E> From<List<'e, E>> for Value<'e, E> {
+impl<'e, E, I> From<List<'e, E, I>> for Value<'e, E, I> {
 	#[inline]
-	fn from(list: List<'e, E>) -> Self {
+	fn from(list: List<'e, E, I>) -> Self {
 		Self::List(list)
 	}
 }
 
-impl<E> ToBoolean for Value<'_, E> {
+impl<E, I> ToBoolean for Value<'_, E, I> {
 	fn to_boolean(&self, opts: &Options) -> Result<Boolean> {
 		match *self {
 			Self::Null => Null.to_boolean(opts),
@@ -153,7 +153,7 @@ impl<E> ToBoolean for Value<'_, E> {
 	}
 }
 
-impl<E> ToInteger for Value<'_, E> {
+impl<E, I> ToInteger for Value<'_, E, I> {
 	fn to_integer(&self, opts: &Options) -> Result<Integer> {
 		match *self {
 			Self::Null => Null.to_integer(opts),
@@ -166,7 +166,7 @@ impl<E> ToInteger for Value<'_, E> {
 	}
 }
 
-impl<E: Encoding> ToText<E> for Value<'_, E> {
+impl<E: Encoding, I> ToText<E> for Value<'_, E, I> {
 	fn to_text(&self, opts: &Options) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(opts),
@@ -179,8 +179,8 @@ impl<E: Encoding> ToText<E> for Value<'_, E> {
 	}
 }
 
-impl<'e, E> ToList<'e, E> for Value<'e, E> {
-	fn to_list(&self, opts: &Options) -> Result<List<'e, E>> {
+impl<'e, E, I> ToList<'e, E, I> for Value<'e, E, I> {
+	fn to_list(&self, opts: &Options) -> Result<List<'e, E, I>> {
 		match *self {
 			Self::Null => Null.to_list(opts),
 			Self::Boolean(boolean) => boolean.to_list(opts),
@@ -192,9 +192,9 @@ impl<'e, E> ToList<'e, E> for Value<'e, E> {
 	}
 }
 
-impl<'e, E> Runnable<'e, E> for Value<'e, E> {
+impl<'e, E, I> Runnable<'e, E, I> for Value<'e, E, I> {
 	/// Executes the value.
-	fn run(&self, env: &mut Environment<'e, E>) -> Result<Self> {
+	fn run(&self, env: &mut Environment<'e, E, I>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => variable.run(env),
 			Self::Ast(ast) => ast.run(env),
@@ -203,7 +203,7 @@ impl<'e, E> Runnable<'e, E> for Value<'e, E> {
 	}
 }
 
-impl<'e, E> Value<'e, E> {
+impl<'e, E, I> Value<'e, E, I> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub const fn typename(&self) -> &'static str {
