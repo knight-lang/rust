@@ -254,7 +254,7 @@ pub const LENGTH: Function = function!("LENGTH", env, |arg| {
 /// **4.2.9** `DUMP`  
 pub const DUMP: Function = function!("DUMP", env, |arg| {
 	let value = arg.run(env)?;
-	writeln!(env.stdout(), "{value:?}")?;
+	write!(env.stdout(), "{value:?}")?;
 	value
 });
 
