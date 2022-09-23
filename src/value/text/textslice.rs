@@ -1,4 +1,5 @@
 use super::{validate, Character, Chars, NewTextError, Text};
+use crate::env::Options;
 use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -170,13 +171,13 @@ impl<'a> IntoIterator for &'a TextSlice {
 }
 
 impl ToBoolean for Text {
-	fn to_boolean(&self) -> crate::Result<crate::Boolean> {
+	fn to_boolean(&self, _: &Options) -> crate::Result<crate::Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
 impl ToText for Text {
-	fn to_text(&self) -> crate::Result<Self> {
+	fn to_text(&self, _: &Options) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -186,13 +187,13 @@ impl crate::value::NamedType for Text {
 }
 
 impl ToInteger for Text {
-	fn to_integer(&self) -> crate::Result<Integer> {
-		self.parse()
+	fn to_integer(&self, opts: &Options) -> crate::Result<Integer> {
+		Integer::parse(&self, opts)
 	}
 }
 
 impl<'e> ToList<'e> for Text {
-	fn to_list(&self) -> crate::Result<crate::value::List<'e>> {
+	fn to_list(&self, _: &Options) -> crate::Result<crate::value::List<'e>> {
 		self
 			.chars()
 			.map(|c| crate::Value::from(Self::try_from(c.to_string()).unwrap()))

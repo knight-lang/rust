@@ -1,3 +1,4 @@
+use crate::env::Options;
 use crate::value::{
 	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
 };
@@ -30,7 +31,7 @@ enum Inner<'e> {
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList<'e> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self) -> Result<List<'e>>;
+	fn to_list(&self, opts: &Options) -> Result<List<'e>>;
 }
 
 impl PartialEq for List<'_> {

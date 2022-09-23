@@ -1,3 +1,4 @@
+use crate::env::Options;
 use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
@@ -32,7 +33,7 @@ type Inner = i64;
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self) -> Result<Integer>;
+	fn to_integer(&self, opts: &Options) -> Result<Integer>;
 }
 
 impl Display for Integer {
@@ -78,9 +79,8 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn negate(self) -> Result<Self> {
-		if cfg!(feature = "checked-overflow") {
+	pub fn negate(self, opts: &Options) -> Result<Self> {
+		if opts.compliance.checked_overflow {
 			self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
 		} else {
 			Ok(Self(self.0.wrapping_neg()))
@@ -90,10 +90,11 @@ impl Integer {
 	fn binary_op<T>(
 		self,
 		rhs: T,
+		opts: &Options,
 		checked: impl FnOnce(Inner, T) -> Option<Inner>,
 		wrapping: impl FnOnce(Inner, T) -> Inner,
 	) -> Result<Self> {
-		if cfg!(feature = "checked-overflow") {
+		if opts.compliance.checked_overflow {
 			(checked)(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
 		} else {
 			Ok(Self((wrapping)(self.0, rhs)))
@@ -106,9 +107,8 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn add(self, augend: Self) -> Result<Self> {
-		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
+	pub fn add(self, augend: Self, opts: &Options) -> Result<Self> {
+		self.binary_op(augend.0, opts, Inner::checked_add, Inner::wrapping_add)
 	}
 
 	/// Subtracts `subtrahend` from `self`.
@@ -116,9 +116,8 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
-		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
+	pub fn subtract(self, subtrahend: Self, opts: &Options) -> Result<Self> {
+		self.binary_op(subtrahend.0, opts, Inner::checked_sub, Inner::wrapping_sub)
 	}
 
 	/// Multiplies `self` by `multiplier`.
@@ -126,9 +125,8 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn multiply(self, multiplier: Self) -> Result<Self> {
-		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
+	pub fn multiply(self, multiplier: Self, opts: &Options) -> Result<Self> {
+		self.binary_op(multiplier.0, opts, Inner::checked_mul, Inner::wrapping_mul)
 	}
 
 	/// Multiplies `self` by `divisor`.
@@ -138,13 +136,12 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn divide(self, divisor: Self) -> Result<Self> {
+	pub fn divide(self, divisor: Self, opts: &Options) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		self.binary_op(divisor.0, Inner::checked_div, Inner::wrapping_div)
+		self.binary_op(divisor.0, opts, Inner::checked_div, Inner::wrapping_div)
 	}
 
 	/// Returns `self` modulo `base`.
@@ -156,8 +153,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn modulo(self, base: Self) -> Result<Self> {
+	pub fn modulo(self, base: Self, opts: &Options) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
@@ -166,7 +162,7 @@ impl Integer {
 			return Err(Error::DomainError("modulo by a negative base"));
 		}
 
-		self.binary_op(base.0, Inner::checked_rem, Inner::wrapping_rem)
+		self.binary_op(base.0, opts, Inner::checked_rem, Inner::wrapping_rem)
 	}
 
 	/// Raises `self` to the `exponent` power.
@@ -180,15 +176,14 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn power(self, mut exponent: Self) -> Result<Self> {
+	pub fn power(self, mut exponent: Self, opts: &Options) -> Result<Self> {
 		if exponent.is_negative() {
 			if cfg!(feature = "strict-integers") {
 				return Err(Error::DomainError("negative exponent"));
 			}
 
 			match self.0 {
-				-1 => exponent = exponent.negate()?,
+				-1 => exponent = exponent.negate(opts)?,
 				0 => return Err(Error::DivisionByZero),
 				1 => return Ok(Self::ONE),
 				_ => return Ok(Self::ZERO),
@@ -204,20 +199,20 @@ impl Integer {
 		}
 
 		// FIXME: you could probably optimize this.
-		let exponent = if cfg!(feature = "checked-overflow") {
+		let exponent = if opts.compliance.checked_overflow {
 			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
 		} else {
 			exponent.0 as u32
 		};
 
-		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
+		self.binary_op(exponent, opts, Inner::checked_pow, Inner::wrapping_pow)
 	}
 }
 
 impl ToInteger for Integer {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self) -> Result<Self> {
+	fn to_integer(&self, _: &Options) -> Result<Self> {
 		Ok(*self)
 	}
 }
@@ -225,14 +220,14 @@ impl ToInteger for Integer {
 impl ToBoolean for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &Options) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
 }
 
 impl ToText for Integer {
 	/// Returns a string representation of `self`.
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, _: &Options) -> Result<Text> {
 		Ok(Text::new(*self).unwrap())
 	}
 }
@@ -241,7 +236,7 @@ impl<'e> ToList<'e> for Integer {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
 		}
@@ -262,11 +257,9 @@ impl<'e> ToList<'e> for Integer {
 	}
 }
 
-impl std::str::FromStr for Integer {
-	type Err = Error;
-
-	fn from_str(inp: &str) -> Result<Self> {
-		let mut bytes = inp.trim_start().bytes();
+impl Integer {
+	pub fn parse(input: &str, opts: &Options) -> Result<Self> {
+		let mut bytes = input.trim_start().bytes();
 
 		let (is_negative, mut number) = match bytes.next() {
 			Some(b'+') => (false, Integer::ZERO),
@@ -276,11 +269,11 @@ impl std::str::FromStr for Integer {
 		};
 
 		while let Some(digit @ b'0'..=b'9') = bytes.next() {
-			number = number.multiply(10.into())?.add((digit - b'0').into())?;
+			number = number.multiply(10.into(), opts)?.add((digit - b'0').into(), opts)?;
 		}
 
 		if is_negative {
-			number = number.negate()?;
+			number = number.negate(opts)?;
 		}
 
 		Ok(number)

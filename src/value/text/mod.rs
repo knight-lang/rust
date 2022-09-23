@@ -4,7 +4,7 @@ mod text;
 mod textslice;
 
 pub trait ToText {
-	fn to_text(&self) -> crate::Result<Text>;
+	fn to_text(&self, _: &crate::env::Options) -> crate::Result<Text>;
 }
 
 pub use builder::Builder;
