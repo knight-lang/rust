@@ -164,8 +164,14 @@ impl Integer {
 			return Err(Error::DivisionByZero);
 		}
 
-		if cfg!(feature = "strict-integers") && base.is_negative() {
-			return Err(Error::DomainError("modulo by a negative base"));
+		if cfg!(feature = "strict-integers") {
+			if self.is_negative() {
+				return Err(Error::DomainError("modulo with a negative number"));
+			}
+
+			if base.is_negative() {
+				return Err(Error::DomainError("modulo by a negative base"));
+			}
 		}
 
 		self.binary_op(base.0, Inner::checked_rem, Inner::wrapping_rem)

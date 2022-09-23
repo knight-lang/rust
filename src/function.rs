@@ -74,6 +74,7 @@ pub fn default() -> HashMap<Character, &'static Function> {
 }
 
 pub fn extensions() -> HashMap<Text, &'static Function> {
+	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
@@ -529,6 +530,7 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		#[cfg(not(any(feature = "assign-to-strings", feature = "assign-to-lists")))]
 		other => return Err(Error::TypeError(other.typename(), "=")),
 
+		#[cfg(any(feature = "assign-to-strings", feature = "assign-to-lists"))]
 		other => match other.run(env)? {
 			#[cfg(feature = "assign-to-lists")]
 			Value::List(_list) => todo!(),
