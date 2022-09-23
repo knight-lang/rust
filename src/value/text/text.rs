@@ -78,15 +78,14 @@ impl<E: Encoding> TryFrom<String> for Text<E> {
 	type Error = NewTextError;
 
 	fn try_from(inp: String) -> Result<Self, Self::Error> {
-		let boxed = Box::<TextSlice<E>>::try_from(inp.into_boxed_str())?;
-
-		Ok(Self(boxed.into(), PhantomData))
+		Box::<TextSlice<E>>::try_from(inp.into_boxed_str())
+			.map(|boxed| Self(boxed.into(), PhantomData))
 	}
 }
 
 impl<E> From<Character<E>> for Text<E> {
-	fn from(inp: Character<E>) -> Self {
-		Self::new(inp).unwrap()
+	fn from(chr: Character<E>) -> Self {
+		unsafe { Self::new_unchecked(chr.to_string()) }
 	}
 }
 
@@ -95,6 +94,12 @@ impl<E> Text<E> {
 		Default::default()
 	}
 
+	pub unsafe fn new_unchecked(string: String) -> Self {
+		Self(Arc::from(TextSlice::from_boxed_unchecked(string.into_boxed_str())), PhantomData)
+	}
+}
+
+impl<E: Encoding> Text<E> {
 	pub fn new(inp: impl ToString) -> Result<Self, NewTextError> {
 		inp.to_string().try_into()
 	}
@@ -108,11 +113,11 @@ impl<E> std::borrow::Borrow<TextSlice<E>> for Text<E> {
 
 impl<E> From<&TextSlice<E>> for Text<E> {
 	fn from(text: &TextSlice<E>) -> Self {
-		Self(Arc::from(text.to_string().into_boxed_str()), PhantomData)
+		unsafe { Self::new_unchecked(text.to_string()) }
 	}
 }
 
-impl<E> TryFrom<&str> for Text<E> {
+impl<E: Encoding> TryFrom<&str> for Text<E> {
 	type Error = NewTextError;
 
 	#[inline]

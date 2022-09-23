@@ -60,31 +60,10 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-pub const fn validate<E: Encoding>(data: &str) -> Result<(), NewTextError> {
+pub fn validate<E: Encoding>(data: &str) -> Result<(), NewTextError> {
 	if cfg!(feature = "container-length-limit") && TextSlice::<E>::MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
 	}
 
-	// All valid `str`s are valid TextSlice when no length limit and no char requirements are set.
-	if cfg!(not(feature = "strict-charset")) {
-		return Ok(());
-	}
-
-	// We're in const context, so we must use `while` with bytes.
-	// Since we're not using unicode, everything's just a byte anyways.
-	let bytes = data.as_bytes();
-	let mut index = 0;
-
-	while index < bytes.len() {
-		let chr = bytes[index] as char;
-
-		if Character::<E>::new(chr).is_none() {
-			// Since everything's a byte, the byte index is the same as the char index.
-			return Err(NewTextError::IllegalChar { chr, index });
-		}
-
-		index += 1;
-	}
-
-	Ok(())
+	E::validate_contents(data)
 }

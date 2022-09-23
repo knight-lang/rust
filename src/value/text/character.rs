@@ -82,10 +82,10 @@ impl<E> Character<E> {
 impl<E: Encoding> Character<E> {
 	#[inline]
 	#[must_use]
-	pub const fn new(chr: char) -> Option<Self> {
-		// if !E::is_valid(chr) {
-		// return None;
-		// }
+	pub fn new(chr: char) -> Option<Self> {
+		if !E::is_valid(chr) {
+			return None;
+		}
 
 		Some(Self(chr, PhantomData))
 	}

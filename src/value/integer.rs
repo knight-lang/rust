@@ -235,7 +235,7 @@ impl ToBoolean for Integer {
 	}
 }
 
-impl<E> ToText<E> for Integer {
+impl<E: Encoding> ToText<E> for Integer {
 	/// Returns a string representation of `self`.
 	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		Ok(Text::new(*self).unwrap())

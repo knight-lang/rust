@@ -1,13 +1,13 @@
 use knightrs::*;
 
 fn main() {
-	let mut env = Environment::default();
+	let mut env = Environment::<Ascii>::default();
 	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
 
 	let arg = if std::env::args().nth(1).unwrap() == "-e" {
 		arg
 	} else {
-		std::fs::read_to_string(&**arg).unwrap().as_str().try_into().unwrap()
+		Text::try_from(std::fs::read_to_string(&**arg).unwrap()).unwrap()
 	};
 
 	match env.play(&arg) {

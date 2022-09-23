@@ -1,5 +1,5 @@
 use crate::env::{Environment, Options};
-use crate::value::text::Character;
+use crate::value::text::{Character, Encoding};
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -166,7 +166,7 @@ impl<E> ToInteger for Value<'_, E> {
 	}
 }
 
-impl<E> ToText<E> for Value<'_, E> {
+impl<E: Encoding> ToText<E> for Value<'_, E> {
 	fn to_text(&self, opts: &Options) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(opts),
@@ -174,7 +174,7 @@ impl<E> ToText<E> for Value<'_, E> {
 			Self::Integer(integer) => integer.to_text(opts),
 			Self::Text(ref text) => text.to_text(opts),
 			Self::List(ref list) => list.to_text(opts),
-			_ => Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: Text::<E>::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -187,7 +187,7 @@ impl<'e, E> ToList<'e, E> for Value<'e, E> {
 			Self::Integer(integer) => integer.to_list(opts),
 			Self::Text(ref text) => text.to_list(opts),
 			Self::List(ref list) => list.to_list(opts),
-			_ => Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: List::<E>::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -211,8 +211,8 @@ impl<'e, E> Value<'e, E> {
 			Self::Null => Null::TYPENAME,
 			Self::Boolean(_) => Boolean::TYPENAME,
 			Self::Integer(_) => Integer::TYPENAME,
-			Self::Text(_) => Text::TYPENAME,
-			Self::List(_) => List::TYPENAME,
+			Self::Text(_) => Text::<E>::TYPENAME,
+			Self::List(_) => List::<E>::TYPENAME,
 			Self::Ast(_) => "Ast",
 			Self::Variable(_) => "Variable",
 		}

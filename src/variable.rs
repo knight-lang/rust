@@ -7,11 +7,16 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
-#[derive(Clone)]
 pub struct Variable<'e, E>(RefCount<(Text<E>, Mutable<Option<Value<'e, E>>>)>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
+
+impl<E> Clone for Variable<'_, E> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
 
 impl<E> Debug for Variable<'_, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -75,7 +80,11 @@ impl Display for IllegalVariableName {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Empty => write!(f, "empty variable name supplied"),
-			Self::TooLong(len) => write!(f, "variable too long ({len} > {})", Variable::MAX_LEN),
+			Self::TooLong(len) => write!(
+				f,
+				"variable too long ({len} > {})",
+				Variable::<crate::value::text::Unicode>::MAX_LEN
+			),
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
@@ -94,17 +103,17 @@ fn validate_name<E: Encoding>(
 		return Ok(());
 	}
 
-	if Variable::MAX_LEN < name.len() {
+	if Variable::<E>::MAX_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
 
 	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
 	if !first.is_lowercase() {
-		return Err(IllegalVariableName::IllegalStartingChar(first));
+		return Err(IllegalVariableName::IllegalStartingChar(first.into()));
 	}
 
 	if let Some(bad) = name.chars().find(|&c| !c.is_lowercase() && !c.is_numeric()) {
-		return Err(IllegalVariableName::IllegalBodyChar(bad));
+		return Err(IllegalVariableName::IllegalBodyChar(bad.into()));
 	}
 
 	Ok(())
@@ -144,6 +153,6 @@ impl<'e, E> Variable<'e, E> {
 
 impl<'e, E> Runnable<'e, E> for Variable<'e, E> {
 	fn run(&self, _env: &mut Environment<'e, E>) -> crate::Result<Value<'e, E>> {
-		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
+		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
 	}
 }

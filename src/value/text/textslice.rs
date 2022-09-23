@@ -60,7 +60,7 @@ impl<E> std::ops::Deref for TextSlice<E> {
 }
 
 impl<E: Encoding> TextSlice<E> {
-	pub const fn new(inp: &str) -> Result<&Self, NewTextError> {
+	pub fn new(inp: &str) -> Result<&Self, NewTextError> {
 		match validate::<E>(inp) {
 			// SAFETY: we justverified it was valid
 			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
@@ -84,7 +84,7 @@ impl<E> TextSlice<E> {
 		&*(inp as *const str as *const Self)
 	}
 
-	pub unsafe fn new_boxed_unchecked(inp: Box<str>) -> Box<Self> {
+	pub unsafe fn from_boxed_unchecked(inp: Box<str>) -> Box<Self> {
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		unsafe { Box::from_raw(Box::into_raw(inp) as _) }
@@ -111,10 +111,9 @@ impl<E> TextSlice<E> {
 	}
 
 	pub fn repeat(&self, amount: usize) -> Text<E> {
-		(**self)
-			.repeat(amount)
-			.try_into()
-			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
+		let repeated = (**self).repeat(amount);
+
+		unsafe { Text::new_unchecked(repeated) }
 	}
 
 	pub fn split<'e>(&self, sep: &Self, opts: &Options) -> crate::List<'e, E> {
@@ -124,7 +123,7 @@ impl<E> TextSlice<E> {
 		} else {
 			(**self)
 				.split(&**sep)
-				.map(|x| Text::new(x).unwrap().into())
+				.map(|x| unsafe { Text::new_unchecked(x.to_string()).into() })
 				.collect::<Vec<_>>()
 				.try_into()
 				.unwrap()
@@ -174,7 +173,7 @@ impl<E: Encoding> TryFrom<Box<str>> for Box<TextSlice<E>> {
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
 		validate::<E>(&inp)?;
 
-		Ok(unsafe { Self::new_boxed_unchecked(inp) })
+		Ok(unsafe { TextSlice::from_boxed_unchecked(inp) })
 	}
 }
 
@@ -219,10 +218,6 @@ impl<E> ToInteger for Text<E> {
 
 impl<'e, E> ToList<'e, E> for Text<E> {
 	fn to_list(&self, _: &Options) -> crate::Result<crate::value::List<'e, E>> {
-		self
-			.chars()
-			.map(|c| crate::Value::from(Self::try_from(c.to_string()).unwrap()))
-			.collect::<Vec<_>>()
-			.try_into()
+		self.chars().map(|c| Self::from(c).into()).collect::<Vec<_>>().try_into()
 	}
 }

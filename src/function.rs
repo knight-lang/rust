@@ -1,5 +1,7 @@
+#![allow(non_snake_case)]
+
 use crate::env::Options;
-use crate::value::text::{Character, TextSlice};
+use crate::value::text::{Character, Encoding, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::collections::HashMap;
@@ -57,7 +59,7 @@ impl<'e, E> Function<'e, E> {
 impl<E> Eq for Function<'_, E> {}
 impl<E> PartialEq for Function<'_, E> {
 	fn eq(&self, rhs: &Self) -> bool {
-		Arc::ptr_eq(&self.0, &rhs.0)
+		self.name() == rhs.name()
 	}
 }
 
@@ -67,7 +69,7 @@ impl<E> Debug for Function<'_, E> {
 	}
 }
 
-pub fn default<E>(options: &Options) -> HashMap<Character<E>, Function<'static, E>> {
+pub fn default<'e, E: Encoding + 'e>(options: &Options) -> HashMap<Character<E>, Function<'e, E>> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
@@ -104,7 +106,7 @@ pub fn default<E>(options: &Options) -> HashMap<Character<E>, Function<'static, 
 	map
 }
 
-pub fn extensions<E>(options: &Options) -> HashMap<Text<E>, Function<'static, E>> {
+pub fn extensions<'e, E: Encoding + 'e>(options: &Options) -> HashMap<Text<E>, Function<'e, E>> {
 	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
@@ -138,7 +140,7 @@ macro_rules! function {
 			unsafe { TextSlice::new_unchecked($name) }.to_owned(),
 			arity!($($args)*),
 			|args, $env| {
-				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
+				let [$($args,)*]: &[Value<'_, _>; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body.into())
 			}
 		)
@@ -146,7 +148,7 @@ macro_rules! function {
 }
 
 /// **4.1.4**: `PROMPT`
-pub fn PROMPT<'e, E>() -> Function<'e, E> {
+pub fn PROMPT<'e, E: Encoding>() -> Function<'e, E> {
 	function!("PROMPT", env, |/* comment for rustfmt */| {
 	if env.options().compiler.assign_to_prompt {
 		if let Some(line) = env.get_next_prompt_line() {
@@ -172,7 +174,7 @@ pub fn PROMPT<'e, E>() -> Function<'e, E> {
 		None => {}
 	}
 
-	buf.try_conv::<Text>()?
+	buf.try_conv::<Text<E>>()?
 })
 }
 
@@ -192,17 +194,17 @@ pub fn BOX<'e, E>() -> Function<'e, E> {
 	})
 }
 
-pub fn HEAD<'e, E>() -> Function<'e, E> {
+pub fn HEAD<'e, E: 'e>() -> Function<'e, E> {
 	function!("[", env, |val| {
 		match val.run(env)? {
-			Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?.into(),
+			Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?,
 			Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
 			other => return Err(Error::TypeError(other.typename(), "[")),
 		}
 	})
 }
 
-pub fn TAIL<'e, E>() -> Function<'e, E> {
+pub fn TAIL<'e, E: 'e>() -> Function<'e, E> {
 	function!("]", env, |val| {
 		match val.run(env)? {
 			Value::List(list) => {
@@ -311,7 +313,7 @@ pub fn DUMP<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.2.10** `OUTPUT`  
-pub fn OUTPUT<'e, E>() -> Function<'e, E> {
+pub fn OUTPUT<'e, E: Encoding>() -> Function<'e, E> {
 	function!("OUTPUT", env, |arg| {
 		let text = arg.run(env)?.to_text(env.options())?;
 		let stdout = env.stdout();
@@ -329,7 +331,7 @@ pub fn OUTPUT<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.2.11** `ASCII`  
-pub fn ASCII<'e, E>() -> Function<'e, E> {
+pub fn ASCII<'e, E: Encoding>() -> Function<'e, E> {
 	function!("ASCII", env, |arg| {
 		match arg.run(env)? {
 			Value::Integer(integer) => integer.chr()?.conv::<Value<'_, E>>(),
@@ -348,7 +350,7 @@ pub fn NEG<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.3.1** `+`  
-pub fn ADD<'e, E>() -> Function<'e, E> {
+pub fn ADD<'e, E: Encoding>() -> Function<'e, E> {
 	function!("+", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -382,7 +384,7 @@ pub fn SUBTRACT<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.3.3** `*`  
-pub fn MULTIPLY<'e, E>() -> Function<'e, E> {
+pub fn MULTIPLY<'e, E: Encoding>() -> Function<'e, E> {
 	function!("*", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -426,7 +428,7 @@ pub fn MULTIPLY<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.3.4** `/`  
-pub fn DIVIDE<'e, E>() -> Function<'e, E> {
+pub fn DIVIDE<'e, E: Encoding>() -> Function<'e, E> {
 	function!("/", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -446,7 +448,7 @@ pub fn DIVIDE<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.3.5** `%`  
-pub fn MODULO<'e, E>() -> Function<'e, E> {
+pub fn MODULO<'e, E: Encoding>() -> Function<'e, E> {
 	function!("%", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -502,7 +504,7 @@ pub fn MODULO<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.3.6** `^`  
-pub fn POWER<'e, E>() -> Function<'e, E> {
+pub fn POWER<'e, E: Encoding>() -> Function<'e, E> {
 	function!("^", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -516,7 +518,11 @@ pub fn POWER<'e, E>() -> Function<'e, E> {
 	})
 }
 
-fn compare<E>(lhs: &Value<E>, rhs: &Value<E>, opts: &Options) -> Result<std::cmp::Ordering> {
+fn compare<E: Encoding>(
+	lhs: &Value<E>,
+	rhs: &Value<E>,
+	opts: &Options,
+) -> Result<std::cmp::Ordering> {
 	match lhs {
 		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer(opts)?)),
 		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_boolean(opts)?)),
@@ -539,14 +545,14 @@ fn compare<E>(lhs: &Value<E>, rhs: &Value<E>, opts: &Options) -> Result<std::cmp
 }
 
 /// **4.3.7** `<`  
-pub fn LESS_THAN<'e, E>() -> Function<'e, E> {
+pub fn LESS_THAN<'e, E: Encoding>() -> Function<'e, E> {
 	function!("<", env, |lhs, rhs| {
 		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Less
 	})
 }
 
 /// **4.3.8** `>`  
-pub fn GREATER_THAN<'e, E>() -> Function<'e, E> {
+pub fn GREATER_THAN<'e, E: Encoding>() -> Function<'e, E> {
 	function!(">", env, |lhs, rhs| {
 		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Greater
 	})
@@ -614,7 +620,7 @@ pub fn THEN<'e, E>() -> Function<'e, E> {
 	})
 }
 
-fn assign<'e, E>(
+fn assign<'e, E: Encoding>(
 	variable: &Value<'e, E>,
 	value: Value<'e, E>,
 	env: &mut Environment<'e, E>,
@@ -624,11 +630,11 @@ fn assign<'e, E>(
 			var.assign(value);
 		}
 
-		Value::Ast(ast) if env.options().compiler.assign_to_prompt && *ast.function() == PROMPT => {
+		Value::Ast(ast) if env.options().compiler.assign_to_prompt && *ast.function() == PROMPT() => {
 			env.add_to_prompt(value.to_text(env.options())?)
 		}
 
-		Value::Ast(ast) if env.options().compiler.assign_to_system && *ast.function() == SYSTEM => {
+		Value::Ast(ast) if env.options().compiler.assign_to_system && *ast.function() == SYSTEM() => {
 			env.add_to_system(value.to_text(env.options())?)
 		}
 
@@ -656,7 +662,7 @@ fn assign<'e, E>(
 }
 
 /// **4.3.13** `=`  
-pub fn ASSIGN<'e, E>() -> Function<'e, E> {
+pub fn ASSIGN<'e, E: Encoding>() -> Function<'e, E> {
 	function!("=", env, |var, value| {
 		let ret = value.run(env)?;
 		assign(var, ret.clone(), env)?;
@@ -727,7 +733,7 @@ pub fn GET<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.5.1** `SET`  
-pub fn SET<'e, E>() -> Function<'e, E> {
+pub fn SET<'e, E: Encoding>() -> Function<'e, E> {
 	function!("SET", env, |string, start, length, replacement| {
 		let source = string.run(env)?;
 		let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
@@ -766,23 +772,22 @@ pub fn SET<'e, E>() -> Function<'e, E> {
 }
 
 /// **6.1** `VALUE`
-pub fn VALUE<'e, E>() -> Function<'e, E> {
+pub fn VALUE<'e, E: Encoding>() -> Function<'e, E> {
 	function!("VALUE", env, |arg| {
 		let name = arg.run(env)?.to_text(env.options())?;
 		env.lookup(&name)?
 	})
 }
 
-pub fn HANDLE<'e, E>() -> Function<'e, E> {
+pub fn HANDLE<'e, E: Encoding>() -> Function<'e, E> {
 	function!("HANDLE", env, |block, iferr| {
-		const ERR_VAR_NAME: &crate::TextSlice<crate::value::text::Unicode> =
-			unsafe { crate::TextSlice::new_unchecked("_") };
+		let ERR_VAR_NAME = unsafe { TextSlice::new_unchecked("_") };
 
 		match block.run(env) {
 			Ok(value) => value,
 			Err(err) => {
 				// This is fallible, as the error string might have had something bad.
-				let errmsg = err.to_string().try_conv::<Text>()?;
+				let errmsg = err.to_string().try_conv::<Text<E>>()?;
 
 				// Assign it to the error variable
 				env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());
@@ -794,7 +799,7 @@ pub fn HANDLE<'e, E>() -> Function<'e, E> {
 	})
 }
 
-pub fn YEET<'e, E>() -> Function<'e, E> {
+pub fn YEET<'e, E: Encoding>() -> Function<'e, E> {
 	function!("YEET", env, |errmsg| {
 		return Err(Error::Custom(errmsg.run(env)?.to_text(env.options())?.to_string().into()));
 		#[allow(unreachable_code)]
@@ -803,7 +808,7 @@ pub fn YEET<'e, E>() -> Function<'e, E> {
 }
 
 /// **6.3** `USE`
-pub fn USE<'e, E>() -> Function<'e, E> {
+pub fn USE<'e, E: Encoding>() -> Function<'e, E> {
 	function!("USE", env, |arg| {
 		let filename = arg.run(env)?.to_text(env.options())?;
 		let contents = env.read_file(&filename)?;
@@ -813,7 +818,7 @@ pub fn USE<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.2.2** `EVAL`
-pub fn EVAL<'e, E>() -> Function<'e, E> {
+pub fn EVAL<'e, E: Encoding>() -> Function<'e, E> {
 	function!("EVAL", env, |val| {
 		let code = val.run(env)?.to_text(env.options())?;
 		env.play(&code)?
@@ -821,7 +826,7 @@ pub fn EVAL<'e, E>() -> Function<'e, E> {
 }
 
 /// **4.2.5** `` ` ``
-pub fn SYSTEM<'e, E>() -> Function<'e, E> {
+pub fn SYSTEM<'e, E: Encoding>() -> Function<'e, E> {
 	function!("$", env, |cmd, stdin| {
 		let command = cmd.run(env)?.to_text(env.options())?;
 		let stdin = match stdin.run(env)? {
@@ -861,10 +866,10 @@ pub fn XRANGE<'e, E>() -> Function<'e, E> {
 				match start <= stop {
 					true => (i64::from(start)..i64::from(stop))
 						.map(|x| Value::from(Integer::try_from(x).unwrap()))
-						.collect::<Vec<Value<'_>>>()
-						.try_conv::<List<'_>>()
+						.collect::<Vec<Value<'_, _>>>()
+						.try_conv::<List<'_, _>>()
 						.expect("todo: out of bounds error")
-						.conv::<Value<'_, E>>(),
+						.conv::<Value<'_, _>>(),
 
 					// #[cfg(feature = "negative-ranges")]
 					// false => (stop..start).map(Value::from).rev().collect::<List>().into(),

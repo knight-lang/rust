@@ -1,4 +1,5 @@
 use super::*;
+use crate::value::text::Encoding;
 use std::collections::HashMap;
 use std::io;
 
@@ -17,29 +18,13 @@ pub struct Builder<'e, E> {
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<E> Default for Builder<'_, E> {
+impl<E: Encoding + 'static> Default for Builder<'_, E> {
 	fn default() -> Self {
 		Self::new(Options::default())
 	}
 }
 
 impl<'e, E> Builder<'e, E> {
-	pub fn new(options: Options) -> Self {
-		Self {
-			stdin: None,
-			stdout: None,
-			functions: crate::function::default(&options),
-			extensions: crate::function::extensions(&options),
-			options,
-
-			#[cfg(feature = "system-function")]
-			system: None,
-
-			#[cfg(feature = "use-function")]
-			read_file: None,
-		}
-	}
-
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}
@@ -74,6 +59,24 @@ impl<'e, E> Builder<'e, E> {
 		F: FnMut(&TextSlice<E>) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
+	}
+}
+
+impl<'e, E: Encoding + 'static> Builder<'e, E> {
+	pub fn new(options: Options) -> Self {
+		Self {
+			stdin: None,
+			stdout: None,
+			functions: crate::function::default(&options),
+			extensions: crate::function::extensions(&options),
+			options,
+
+			#[cfg(feature = "system-function")]
+			system: None,
+
+			#[cfg(feature = "use-function")]
+			read_file: None,
+		}
 	}
 
 	pub fn build(self) -> Environment<'e, E> {

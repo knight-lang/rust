@@ -1,9 +1,14 @@
 use super::{Text, TextSlice};
 use std::marker::PhantomData;
 
-#[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
 pub struct Builder<E>(String, PhantomData<E>);
+
+impl<E> Default for Builder<E> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
 
 impl<E> Builder<E> {
 	pub const fn new() -> Self {
@@ -11,7 +16,7 @@ impl<E> Builder<E> {
 	}
 
 	pub fn with_capacity(cap: usize) -> Self {
-		Self(String::with_capacity(cap))
+		Self(String::with_capacity(cap), PhantomData)
 	}
 
 	pub fn push(&mut self, text: &TextSlice<E>) {
@@ -19,6 +24,6 @@ impl<E> Builder<E> {
 	}
 
 	pub fn finish(self) -> Text<E> {
-		self.0.try_into().unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
+		unsafe { Text::new_unchecked(self.0) }
 	}
 }

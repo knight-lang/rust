@@ -1,4 +1,5 @@
 use crate::env::Options;
+use crate::value::text::Encoding;
 use crate::value::{
 	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
 };
@@ -35,7 +36,7 @@ impl<E> Default for List<'_, E> {
 
 impl<E> Clone for List<'_, E> {
 	fn clone(&self) -> Self {
-		match self.0.map(|x| &*x) {
+		match self.0.as_deref() {
 			None => Self(None),
 			Some(Inner::Boxed(val)) => Self::_new(Inner::Boxed(val.clone())),
 			Some(Inner::Slice(slice)) => Self::_new(Inner::Slice(slice.clone())),
@@ -160,16 +161,6 @@ impl<'e, E> List<'e, E> {
 		}
 	}
 
-	/// Returns the first element in `self`.
-	pub fn head(&self) -> Option<Value<'e, E>> {
-		self.get(0).cloned()
-	}
-
-	/// Returns everything but the first element in `self`.
-	pub fn tail(&self) -> Option<Self> {
-		self.get(1..)
-	}
-
 	/// Gets the value(s) at `index`.
 	///
 	/// This is syntactic sugar for `index.get(self)`.
@@ -219,27 +210,6 @@ impl<'e, E> List<'e, E> {
 		}
 	}
 
-	/// Converts each element of `self` to a string,and inserts `sep` between them.
-	///
-	/// # Errors
-	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &TextSlice<E>, opts: &Options) -> Result<Text<E>> {
-		let mut joined = Text::builder();
-
-		let mut is_first = true;
-		for ele in self {
-			if is_first {
-				is_first = false;
-			} else {
-				joined.push(sep);
-			}
-
-			joined.push(&ele.to_text(opts)?);
-		}
-
-		Ok(joined.finish())
-	}
-
 	/// Returns an [`Iter`] instance, which iterates over borrowed references.
 	pub fn iter(&self) -> Iter<'_, 'e, E> {
 		match self.inner() {
@@ -275,6 +245,41 @@ impl<'e, E> List<'e, E> {
 		}
 
 		Ok(list.try_into().unwrap())
+	}
+}
+
+impl<'e, E: 'e> List<'e, E> {
+	/// Returns the first element in `self`.
+	pub fn head(&self) -> Option<Value<'e, E>> {
+		self.get(0).cloned()
+	}
+
+	/// Returns everything but the first element in `self`.
+	pub fn tail(&self) -> Option<Self> {
+		self.get(1..)
+	}
+}
+
+impl<'e, E: Encoding> List<'e, E> {
+	/// Converts each element of `self` to a string,and inserts `sep` between them.
+	///
+	/// # Errors
+	/// Any errors that occur when converting elements to a string are returned.
+	pub fn join(&self, sep: &TextSlice<E>, opts: &Options) -> Result<Text<E>> {
+		let mut joined = Text::builder();
+
+		let mut is_first = true;
+		for ele in self {
+			if is_first {
+				is_first = false;
+			} else {
+				joined.push(sep);
+			}
+
+			joined.push(&ele.to_text(opts)?);
+		}
+
+		Ok(joined.finish())
 	}
 
 	/// Returns a new list with element mapped to the return value of `block`.
@@ -381,7 +386,7 @@ impl<E> ToInteger for List<'_, E> {
 	}
 }
 
-impl<E> ToText<E> for List<'_, E> {
+impl<E: Encoding> ToText<E> for List<'_, E> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, opts: &Options) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };

@@ -236,7 +236,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 				Ok(arg) => args.push(arg),
 				Err(Error { kind: ErrorKind::EmptySource, .. }) => {
 					return Err(
-						ErrorKind::MissingArgument { name: func.name().to_owned(), index }
+						ErrorKind::MissingArgument { name: func.name().to_string(), index }
 							.error(start_line),
 					)
 				}
@@ -265,6 +265,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 		self.strip_whitespace_and_comments();
 
 		let head = self.peek().ok_or_else(|| self.error(ErrorKind::EmptySource))?;
+		dbg!(head);
 
 		match head.inner() {
 			// Literals
@@ -308,7 +309,6 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 					.ok_or_else(|| self.error(ErrorKind::UnknownTokenStart(head.inner())))?
 					.clone();
 
-				self.strip_function();
 				self.parse_function(function).map(Value::from)
 			}
 		}

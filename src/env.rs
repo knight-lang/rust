@@ -1,4 +1,5 @@
 use crate::value::text::Character;
+use crate::value::text::Encoding;
 use crate::value::Runnable;
 use crate::variable::IllegalVariableName;
 use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
@@ -42,32 +43,16 @@ pub struct Environment<'e, E> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl<E> Default for Environment<'_, E> {
+impl<E: Encoding + 'static> Default for Environment<'_, E> {
 	fn default() -> Self {
 		Builder::default().build()
 	}
 }
 
-impl<'e, E> Environment<'e, E> {
+impl<'e, E: Encoding> Environment<'e, E> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, E>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)
-	}
-
-	pub fn functions(&self) -> &HashMap<Character<E>, Function<'e, E>> {
-		&self.functions
-	}
-
-	pub fn options(&self) -> &Options {
-		&self.options
-	}
-
-	pub fn stdin(&mut self) -> &mut dyn BufRead {
-		&mut self.stdin
-	}
-
-	pub fn stdout(&mut self) -> &mut dyn Write {
-		&mut self.stdout
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
@@ -84,6 +69,24 @@ impl<'e, E> Environment<'e, E> {
 		let variable = Variable::new(name.into(), &self.options)?;
 		self.variables.insert(variable.clone());
 		Ok(variable)
+	}
+}
+
+impl<'e, E> Environment<'e, E> {
+	pub fn functions(&self) -> &HashMap<Character<E>, Function<'e, E>> {
+		&self.functions
+	}
+
+	pub fn options(&self) -> &Options {
+		&self.options
+	}
+
+	pub fn stdin(&mut self) -> &mut dyn BufRead {
+		&mut self.stdin
+	}
+
+	pub fn stdout(&mut self) -> &mut dyn Write {
+		&mut self.stdout
 	}
 
 	/// Gets a random `Integer`.
@@ -119,7 +122,7 @@ impl<'e, E> Environment<'e, E> {
 
 	pub fn add_to_prompt(&mut self, line: Text<E>) {
 		for line in (&**line).split('\n') {
-			self.prompt_lines.push_back(line.try_into().unwrap());
+			self.prompt_lines.push_back(unsafe { Text::new_unchecked(line.to_string()) });
 		}
 	}
 
