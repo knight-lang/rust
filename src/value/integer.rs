@@ -2,7 +2,9 @@ use crate::env::Options;
 use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::Hash;
+pub use std::num::Wrapping;
 
 /// The integer type within Knight.
 ///
@@ -63,6 +65,14 @@ impl Integer {
 	/// Returns whether `self` is zero.
 	pub const fn is_zero(self) -> bool {
 		self.0 == 0
+	}
+
+	pub const fn new(num: i64, opts: &Options) -> Option<Self> {
+		if opts.compliance.i32_integer && (num < i32::MIN as i64 || num > i32::MAX as i64) {
+			None
+		} else {
+			Some(Self(num))
+		}
 	}
 
 	/// Returns whether `self` is negative.

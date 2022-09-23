@@ -1,42 +1,83 @@
+use super::Encoding;
+use crate::value::Integer;
 use crate::{Error, Result};
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Character(char);
+pub struct Character<E = super::Unicode>(char, PhantomData<E>);
 
-impl Display for Character {
+impl<E> Debug for Character<E> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
+}
+
+impl<E> Display for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl PartialEq<char> for Character {
+impl<E> Copy for Character<E> {}
+impl<E> Clone for Character<E> {
+	fn clone(&self) -> Self {
+		Self(self.0, self.1)
+	}
+}
+
+impl<E> Eq for Character<E> {}
+impl<E> PartialEq for Character<E> {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.0 == rhs.0
+	}
+}
+
+impl<E> PartialEq<char> for Character<E> {
 	fn eq(&self, rhs: &char) -> bool {
 		self.0 == *rhs
 	}
 }
 
-impl TryFrom<crate::value::Integer> for Character {
+impl<E> PartialOrd for Character<E> {
+	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.0.cmp(&rhs.0))
+	}
+}
+
+impl<E> Ord for Character<E> {
+	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+		self.0.cmp(&rhs.0)
+	}
+}
+
+impl<E> Hash for Character<E> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.0.hash(state)
+	}
+}
+
+impl<E: Encoding> TryFrom<Integer> for Character<E> {
 	type Error = Error;
 
-	fn try_from(inp: crate::value::Integer) -> Result<Self> {
+	fn try_from(inp: Integer) -> Result<Self> {
 		u32::try_from(inp)
 			.ok()
 			.and_then(char::from_u32)
-			.and_then(Character::new)
+			.and_then(Self::new)
 			.ok_or(Error::DomainError("number isn't a valid char"))
 	}
 }
 
-impl Character {
+impl<E: Encoding> Character<E> {
 	#[inline]
 	#[must_use]
 	pub const fn new(chr: char) -> Option<Self> {
-		if cfg!(feature = "strict-charset") && !matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
-			return None;
-		}
+		// if !E::is_valid(chr) {
+		// return None;
+		// }
 
-		Some(Self(chr))
+		Some(Self(chr, PhantomData))
 	}
 
 	pub const unsafe fn new_unchecked(chr: char) -> Self {
@@ -51,38 +92,19 @@ impl Character {
 	}
 
 	pub fn is_whitespace(self) -> bool {
-		self.0 == ':'
-			|| if cfg!(feature = "strict-charset") {
-				"\r\n\t ".contains(self.0)
-			} else {
-				self.0.is_whitespace()
-			}
+		self.0 == ':' || E::is_whitespace(self.0)
 	}
 
 	pub fn is_numeric(self) -> bool {
-		if cfg!(feature = "strict-charset") {
-			self.0.is_ascii_digit()
-		} else {
-			self.0.is_numeric()
-		}
+		E::is_numeric(self.0)
 	}
 
-	pub fn is_lower(self) -> bool {
-		self.0 == '_'
-			|| if cfg!(feature = "strict-charset") {
-				self.0.is_ascii_lowercase()
-			} else {
-				self.0.is_lowercase()
-			}
+	pub fn is_lowercase(self) -> bool {
+		self.0 == '_' || E::is_lowercase(self.0)
 	}
 
-	pub fn is_upper(self) -> bool {
-		self.0 == '_'
-			|| if cfg!(feature = "strict-charset") {
-				self.0.is_ascii_uppercase()
-			} else {
-				self.0.is_uppercase()
-			}
+	pub fn is_uppercase(self) -> bool {
+		self.0 == '_' || E::is_uppercase(self.0)
 	}
 }
 

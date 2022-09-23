@@ -189,7 +189,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 	}
 
 	fn parse_identifier(&mut self) -> Result<Variable<'e>> {
-		let identifier = self.take_while(|chr| chr.is_lower() || chr.is_numeric());
+		let identifier = self.take_while(|chr| chr.is_lowercase() || chr.is_numeric());
 
 		self.env.lookup(identifier).map_err(|err| self.error(ErrorKind::IllegalVariableName(err)))
 	}
@@ -211,9 +211,9 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 	}
 
 	fn strip_function(&mut self) {
-		if self.peek().expect("strip function at eof").is_upper() {
+		if self.peek().expect("strip function at eof").is_uppercase() {
 			// If it's a keyword function, then take all keyword characters.
-			self.take_while(Character::is_upper);
+			self.take_while(Character::is_uppercase);
 		} else {
 			// otherwise, only take that character.
 			self.advance();
@@ -267,7 +267,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 		match head.inner() {
 			// Literals
 			_ if head.is_numeric() => self.parse_integer().map(Value::from),
-			_ if head.is_lower() => self.parse_identifier().map(Value::from),
+			_ if head.is_lowercase() => self.parse_identifier().map(Value::from),
 			'\'' | '\"' => self.parse_string().map(Value::from),
 
 			// Constants
@@ -288,7 +288,7 @@ impl<'s, 'a, 'e> Parser<'s, 'a, 'e> {
 
 			// functions
 			'X' => {
-				let name = self.take_while(Character::is_upper);
+				let name = self.take_while(Character::is_uppercase);
 				let &function = self
 					.env
 					.extensions()

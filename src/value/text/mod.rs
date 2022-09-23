@@ -1,7 +1,10 @@
 mod builder;
 mod character;
+mod encoding;
 mod text;
 mod textslice;
+
+pub use encoding::*;
 
 pub trait ToText {
 	fn to_text(&self, _: &crate::env::Options) -> crate::Result<Text>;
@@ -57,20 +60,7 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-/// Returns whether `chr` is a character that can appear within Knight.
-///
-/// Normally, every character is considered valid. However, when the `disallow-unicode` feature is
-/// enabled, only characters which are explicitly mentioned in the Knight spec are allowed.
-#[inline]
-pub const fn is_valid(chr: char) -> bool {
-	if cfg!(feature = "strict-charset") {
-		matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
-	} else {
-		true
-	}
-}
-
-pub const fn validate(data: &str) -> Result<(), NewTextError> {
+pub const fn validate<E: Encoding>(data: &str) -> Result<(), NewTextError> {
 	if cfg!(feature = "container-length-limit") && TextSlice::MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
 	}
@@ -88,7 +78,7 @@ pub const fn validate(data: &str) -> Result<(), NewTextError> {
 	while index < bytes.len() {
 		let chr = bytes[index] as char;
 
-		if Character::new(chr).is_none() {
+		if Character::<E>::new(chr).is_none() {
 			// Since everything's a byte, the byte index is the same as the char index.
 			return Err(NewTextError::IllegalChar { chr, index });
 		}

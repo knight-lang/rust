@@ -44,7 +44,7 @@ impl TextSlice {
 	/// # Safety
 	/// - `inp` must be a valid `TextSlice`.
 	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
-		debug_assert!(validate(inp).is_ok());
+		debug_assert!(validate::<super::Unicode>(inp).is_ok());
 
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
@@ -52,7 +52,7 @@ impl TextSlice {
 	}
 
 	pub const fn new(inp: &str) -> Result<&Self, NewTextError> {
-		match validate(inp) {
+		match validate::<super::Unicode>(inp) {
 			// SAFETY: we justverified it was valid
 			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
 
@@ -143,7 +143,7 @@ impl TryFrom<Box<str>> for Box<TextSlice> {
 	type Error = NewTextError;
 
 	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
-		validate(&inp)?;
+		validate::<super::Unicode>(&inp)?;
 
 		#[allow(unsafe_code)]
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to

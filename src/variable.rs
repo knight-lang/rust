@@ -96,11 +96,11 @@ fn validate_name(name: &TextSlice, options: &Options) -> Result<(), IllegalVaria
 	}
 
 	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-	if !first.is_lower() {
+	if !first.is_lowercase() {
 		return Err(IllegalVariableName::IllegalStartingChar(first));
 	}
 
-	if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+	if let Some(bad) = name.chars().find(|&c| !c.is_lowercase() && !c.is_numeric()) {
 		return Err(IllegalVariableName::IllegalBodyChar(bad));
 	}
 
