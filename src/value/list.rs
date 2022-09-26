@@ -194,6 +194,10 @@ impl<'e> List<'e> {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
 
+		if self.is_empty() {
+			return Ok(Self::EMPTY);
+		}
+
 		match amount {
 			0 => Ok(Self::EMPTY),
 			1 => Ok(self.clone()),
