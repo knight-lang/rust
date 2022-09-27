@@ -23,17 +23,17 @@ impl ToBoolean for Boolean {
 	}
 }
 
-impl ToInteger for Boolean {
+impl<I> ToInteger<I> for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_integer(&self, _: &Options) -> Result<Integer> {
+	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
 		Ok((*self).into())
 	}
 }
 
-impl<'e, E> ToList<'e, E> for Boolean {
+impl<'e, E, I> ToList<'e, E, I> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
-	fn to_list(&self, _: &Options) -> Result<List<'e, E>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e, E, I>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {

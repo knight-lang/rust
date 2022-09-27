@@ -21,18 +21,18 @@ impl ToBoolean for Null {
 	}
 }
 
-impl ToInteger for Null {
+impl<I> ToInteger<I> for Null {
 	/// Simple returns zero.
 	#[inline]
-	fn to_integer(&self, _: &Options) -> Result<Integer> {
+	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
 		Ok(Integer::default())
 	}
 }
 
-impl<'e, E> ToList<'e, E> for Null {
+impl<'e, E, I> ToList<'e, E, I> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
-	fn to_list(&self, _: &Options) -> Result<List<'e, E>> {
+	fn to_list(&self, _: &Options) -> Result<List<'e, E, I>> {
 		Ok(List::default())
 	}
 }

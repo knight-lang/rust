@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::io;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Builder<'e, E> {
+pub struct Builder<'e, E, I> {
 	stdin: Option<Box<Stdin<'e>>>,
 	stdout: Option<Box<Stdout<'e>>>,
 	options: Options,
-	functions: HashMap<Character<E>, Function<'e, E>>,
-	extensions: HashMap<Text<E>, Function<'e, E>>,
+	functions: HashMap<Character<E>, Function<'e, E, I>>,
+	extensions: HashMap<Text<E>, Function<'e, E, I>>,
 
 	#[cfg(feature = "system-function")]
 	system: Option<Box<System<'e, E>>>,
@@ -18,13 +18,13 @@ pub struct Builder<'e, E> {
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<'e, E: Encoding + 'e> Default for Builder<'e, E> {
+impl<'e, E: Encoding + 'e, I: 'e> Default for Builder<'e, E, I> {
 	fn default() -> Self {
 		Self::new(Options::default())
 	}
 }
 
-impl<'e, E> Builder<'e, E> {
+impl<'e, E, I> Builder<'e, E, I> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}
@@ -37,11 +37,11 @@ impl<'e, E> Builder<'e, E> {
 		self.stdout = Some(Box::new(stdout) as Box<_>);
 	}
 
-	pub fn functions(&mut self) -> &mut HashMap<Character<E>, Function<'e, E>> {
+	pub fn functions(&mut self) -> &mut HashMap<Character<E>, Function<'e, E, I>> {
 		&mut self.functions
 	}
 
-	pub fn extensions(&mut self) -> &mut HashMap<Text<E>, Function<'e, E>> {
+	pub fn extensions(&mut self) -> &mut HashMap<Text<E>, Function<'e, E, I>> {
 		&mut self.extensions
 	}
 
@@ -62,7 +62,7 @@ impl<'e, E> Builder<'e, E> {
 	}
 }
 
-impl<'e, E: Encoding + 'e> Builder<'e, E> {
+impl<'e, E: Encoding + 'e, I: 'e> Builder<'e, E, I> {
 	pub fn new(options: Options) -> Self {
 		Self {
 			stdin: None,
@@ -79,7 +79,7 @@ impl<'e, E: Encoding + 'e> Builder<'e, E> {
 		}
 	}
 
-	pub fn build(self) -> Environment<'e, E> {
+	pub fn build(self) -> Environment<'e, E, I> {
 		Environment {
 			options: self.options,
 			variables: HashSet::default(),

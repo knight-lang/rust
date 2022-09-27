@@ -248,7 +248,7 @@ impl<'e, E, I> List<'e, E, I> {
 	}
 }
 
-impl<'e, E, I: 'e> List<'e, E, I> {
+impl<'e, E: 'e, I: 'e> List<'e, E, I> {
 	/// Returns the first element in `self`.
 	pub fn head(&self) -> Option<Value<'e, E, I>> {
 		self.get(0).cloned()
@@ -260,12 +260,12 @@ impl<'e, E, I: 'e> List<'e, E, I> {
 	}
 }
 
-impl<'e, E, I: Encoding> List<'e, E, I> {
+impl<'e, E: Encoding, I> List<'e, E, I> {
 	/// Converts each element of `self` to a string,and inserts `sep` between them.
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &TextSlice<E, I>, opts: &Options) -> Result<Text<E, I>> {
+	pub fn join(&self, sep: &TextSlice<E>, opts: &Options) -> Result<Text<E>> {
 		let mut joined = Text::builder();
 
 		let mut is_first = true;
@@ -378,17 +378,17 @@ impl<E, I> ToBoolean for List<'_, E, I> {
 	}
 }
 
-impl<E, I> ToInteger for List<'_, E, I> {
+impl<E, I> ToInteger<I> for List<'_, E, I> {
 	/// Returns `self`'s length.
 	#[inline]
-	fn to_integer(&self, _: &Options) -> Result<Integer> {
+	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
 		self.len().try_into()
 	}
 }
 
-impl<E, I: Encoding> ToText<E, I> for List<'_, E, I> {
+impl<E: Encoding, I> ToText<E> for List<'_, E, I> {
 	/// Returns `self` [joined](Self::join) with a newline.
-	fn to_text(&self, opts: &Options) -> Result<Text<E, I>> {
+	fn to_text(&self, opts: &Options) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };
 
 		self.join(&newline, opts)
@@ -404,7 +404,7 @@ pub trait ListFetch<'a, 'e, E, I> {
 	fn get(self, list: &'a List<'e, E, I>) -> Option<Self::Output>;
 }
 
-impl<'a, 'e: 'a, E, I: 'e> ListFetch<'a, 'e, E, I> for usize {
+impl<'a, 'e: 'a, E: 'e, I: 'e> ListFetch<'a, 'e, E, I> for usize {
 	type Output = &'a Value<'e, E, I>;
 
 	fn get(self, list: &'a List<'e, E, I>) -> Option<Self::Output> {

@@ -57,10 +57,10 @@ impl<E> Hash for Character<E> {
 	}
 }
 
-impl<E: Encoding> TryFrom<Integer> for Character<E> {
+impl<E: Encoding, I> TryFrom<Integer<I>> for Character<E> {
 	type Error = Error;
 
-	fn try_from(inp: Integer) -> Result<Self> {
+	fn try_from(inp: Integer<I>) -> Result<Self> {
 		u32::try_from(inp)
 			.ok()
 			.and_then(char::from_u32)

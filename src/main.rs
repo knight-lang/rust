@@ -2,7 +2,7 @@ use knightrs::*;
 
 fn main() {
 	let mut stdout = Vec::new();
-	let mut env = Environment::<Ascii>::builder();
+	let mut env = Environment::<Ascii, ()>::builder();
 	env.stdout(&mut stdout);
 	let mut env = env.build();
 	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();

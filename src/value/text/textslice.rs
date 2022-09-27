@@ -1,6 +1,6 @@
 use super::{validate, Character, Chars, Encoding, NewTextError, Text};
 use crate::env::Options;
-use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
+use crate::value::{Integer, List, ToBoolean, ToInteger, ToList, ToText};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -116,7 +116,7 @@ impl<E> TextSlice<E> {
 		unsafe { Text::new_unchecked(repeated) }
 	}
 
-	pub fn split<'e>(&self, sep: &Self, opts: &Options) -> crate::List<'e, E> {
+	pub fn split<'e, I>(&self, sep: &Self, opts: &Options) -> List<'e, E, I> {
 		if sep.is_empty() {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list(opts).unwrap()
@@ -130,7 +130,7 @@ impl<E> TextSlice<E> {
 		}
 	}
 
-	pub fn ord(&self) -> crate::Result<Integer> {
+	pub fn ord<I>(&self) -> crate::Result<Integer<I>> {
 		Integer::try_from(
 			self.chars().next().ok_or(crate::Error::DomainError("empty string"))?.inner(),
 		)
@@ -210,14 +210,14 @@ impl<E> crate::value::NamedType for Text<E> {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<E> ToInteger for Text<E> {
-	fn to_integer(&self, opts: &Options) -> crate::Result<Integer> {
+impl<E, I> ToInteger<I> for Text<E> {
+	fn to_integer(&self, opts: &Options) -> crate::Result<Integer<I>> {
 		Integer::parse(&self, opts)
 	}
 }
 
-impl<'e, E> ToList<'e, E> for Text<E> {
-	fn to_list(&self, _: &Options) -> crate::Result<crate::value::List<'e, E>> {
+impl<'e, E, I> ToList<'e, E, I> for Text<E> {
+	fn to_list(&self, _: &Options) -> crate::Result<List<'e, E, I>> {
 		self.chars().map(|c| Self::from(c).into()).collect::<Vec<_>>().try_into()
 	}
 }

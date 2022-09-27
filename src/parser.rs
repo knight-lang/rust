@@ -110,15 +110,15 @@ impl std::error::Error for Error {}
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'a, 'e, E> {
+pub struct Parser<'s, 'a, 'e, E, I> {
 	source: &'s TextSlice<E>,
-	env: &'a mut Environment<'e, E>,
+	env: &'a mut Environment<'e, E, I>,
 	line: usize,
 }
 
-impl<'s, 'a, 'e, E> Parser<'s, 'a, 'e, E> {
+impl<'s, 'a, 'e, E, I> Parser<'s, 'a, 'e, E, I> {
 	/// Create a new `Parser` from the given source.
-	pub fn new(source: &'s TextSlice<E>, env: &'a mut Environment<'e, E>) -> Self {
+	pub fn new(source: &'s TextSlice<E>, env: &'a mut Environment<'e, E, I>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -153,7 +153,7 @@ impl<'s, 'a, 'e, E> Parser<'s, 'a, 'e, E> {
 	}
 }
 
-impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
+impl<'s, 'a, 'e, E: Encoding, I> Parser<'s, 'a, 'e, E, I> {
 	fn strip_whitespace_and_comments(&mut self) {
 		loop {
 			// strip all leading whitespace, if any.
@@ -170,7 +170,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
-	pub fn parse_program(mut self) -> Result<Value<'e, E>> {
+	pub fn parse_program(mut self) -> Result<Value<'e, E, I>> {
 		let ret = self.parse()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -183,14 +183,14 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 		Ok(ret)
 	}
 
-	fn parse_integer(&mut self) -> Result<Integer> {
+	fn parse_integer(&mut self) -> Result<Integer<I>> {
 		// The only way that `.parse` can fail is if we overflow, so we can safely map its error to
 		// `IntegerLiteralOverflow`.
-		Integer::parse(self.take_while(Character::is_numeric), self.env.options())
+		Integer::<I>::parse(self.take_while(Character::is_numeric), self.env.options())
 			.map_err(|_| self.error(ErrorKind::IntegerLiteralOverflow))
 	}
 
-	fn parse_identifier(&mut self) -> Result<Variable<'e, E>> {
+	fn parse_identifier(&mut self) -> Result<Variable<'e, E, I>> {
 		let identifier = self.take_while(|chr| chr.is_lowercase() || chr.is_numeric());
 
 		self.env.lookup(identifier).map_err(|err| self.error(ErrorKind::IllegalVariableName(err)))
@@ -222,7 +222,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 		}
 	}
 
-	fn parse_function(&mut self, func: Function<'e, E>) -> Result<Ast<'e, E>> {
+	fn parse_function(&mut self, func: Function<'e, E, I>) -> Result<Ast<'e, E, I>> {
 		self.strip_function();
 
 		// `MissingArgument` errors have their `line` field set to the beginning of the function
@@ -247,7 +247,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 		Ok(Ast::new(func, args.into()))
 	}
 
-	fn parse_grouped_expression(&mut self) -> Result<Value<'e, E>> {
+	fn parse_grouped_expression(&mut self) -> Result<Value<'e, E, I>> {
 		use ErrorKind::*;
 
 		let start = self.line;
@@ -261,7 +261,7 @@ impl<'s, 'a, 'e, E: Encoding> Parser<'s, 'a, 'e, E> {
 		}
 	}
 
-	fn parse(&mut self) -> Result<Value<'e, E>> {
+	fn parse(&mut self) -> Result<Value<'e, E, I>> {
 		self.strip_whitespace_and_comments();
 
 		let head = self.peek().ok_or_else(|| self.error(ErrorKind::EmptySource))?;

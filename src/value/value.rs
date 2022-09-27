@@ -15,7 +15,7 @@ pub enum Value<'e, E, I> {
 	Boolean(Boolean),
 
 	/// Represents integers.
-	Integer(Integer),
+	Integer(Integer<I>),
 
 	/// Represents a string.
 	Text(Text<E>),
@@ -98,9 +98,9 @@ impl<E, I> From<Boolean> for Value<'_, E, I> {
 	}
 }
 
-impl<E, I> From<Integer> for Value<'_, E, I> {
+impl<E, I> From<Integer<I>> for Value<'_, E, I> {
 	#[inline]
-	fn from(number: Integer) -> Self {
+	fn from(number: Integer<I>) -> Self {
 		Self::Integer(number)
 	}
 }
@@ -153,15 +153,15 @@ impl<E, I> ToBoolean for Value<'_, E, I> {
 	}
 }
 
-impl<E, I> ToInteger for Value<'_, E, I> {
-	fn to_integer(&self, opts: &Options) -> Result<Integer> {
+impl<E, I> ToInteger<I> for Value<'_, E, I> {
+	fn to_integer(&self, opts: &Options) -> Result<Integer<I>> {
 		match *self {
 			Self::Null => Null.to_integer(opts),
 			Self::Boolean(boolean) => boolean.to_integer(opts),
 			Self::Integer(integer) => integer.to_integer(opts),
 			Self::Text(ref text) => text.to_integer(opts),
 			Self::List(ref list) => list.to_integer(opts),
-			_ => Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: Integer::<I>::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -187,7 +187,7 @@ impl<'e, E, I> ToList<'e, E, I> for Value<'e, E, I> {
 			Self::Integer(integer) => integer.to_list(opts),
 			Self::Text(ref text) => text.to_list(opts),
 			Self::List(ref list) => list.to_list(opts),
-			_ => Err(Error::NoConversion { to: List::<E>::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: List::<E, I>::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -210,9 +210,9 @@ impl<'e, E, I> Value<'e, E, I> {
 		match self {
 			Self::Null => Null::TYPENAME,
 			Self::Boolean(_) => Boolean::TYPENAME,
-			Self::Integer(_) => Integer::TYPENAME,
+			Self::Integer(_) => Integer::<I>::TYPENAME,
 			Self::Text(_) => Text::<E>::TYPENAME,
-			Self::List(_) => List::<E>::TYPENAME,
+			Self::List(_) => List::<E, I>::TYPENAME,
 			Self::Ast(_) => "Ast",
 			Self::Variable(_) => "Variable",
 		}

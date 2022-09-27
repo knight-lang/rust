@@ -43,14 +43,14 @@ pub struct Environment<'e, E, I> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl<E: Encoding + 'static, I> Default for Environment<'_, E, I> {
+impl<E: Encoding + 'static, I: 'static> Default for Environment<'_, E, I> {
 	fn default() -> Self {
 		Self::builder().build()
 	}
 }
 
-impl<'e, E: Encoding + 'e> Environment<'e, E> {
-	pub fn builder() -> Builder<'e, E> {
+impl<'e, E: Encoding + 'e, I: 'e> Environment<'e, E, I> {
+	pub fn builder() -> Builder<'e, E, I> {
 		Builder::default()
 	}
 }
@@ -96,14 +96,14 @@ impl<'e, E, I> Environment<'e, E, I> {
 	}
 
 	/// Gets a random `Integer`.
-	pub fn random(&mut self) -> Integer {
+	pub fn random(&mut self) -> Integer<I> {
 		let rand = self.rng.gen::<i32>().abs();
 
 		Integer::from(if self.options().compliance.restrict_rand { rand & 0x7fff } else { rand })
 	}
 
 	/// Seeds the random number generator.
-	pub fn srand(&mut self, seed: Integer) {
+	pub fn srand(&mut self, seed: Integer<I>) {
 		*self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
@@ -117,12 +117,12 @@ impl<'e, E, I> Environment<'e, E, I> {
 	}
 
 	/// Gets the list of known extension functions.
-	pub fn extensions(&self) -> &HashMap<Text<E>, Function<'e, E>> {
+	pub fn extensions(&self) -> &HashMap<Text<E>, Function<'e, E, I>> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
-	pub fn extensions_mut(&mut self) -> &mut HashMap<Text<E>, Function<'e, E>> {
+	pub fn extensions_mut(&mut self) -> &mut HashMap<Text<E>, Function<'e, E, I>> {
 		&mut self.extensions
 	}
 
