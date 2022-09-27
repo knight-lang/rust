@@ -5,7 +5,9 @@ use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-pub use std::num::Wrapping;
+
+mod int_type;
+pub use int_type::*;
 
 /// The integer type within Knight.
 ///
@@ -121,20 +123,20 @@ impl<I> Integer<I> {
 	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		self.try_into()
 	}
+}
 
+impl<I: IntType> Integer<I> {
 	/// Negates `self`.
 	///
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn negate(self, opts: &Options) -> Result<Self> {
-		if opts.compliance.checked_overflow {
-			self.0.checked_neg().map(|x| Self(x, PhantomData)).ok_or(Error::IntegerOverflow)
-		} else {
-			Ok(Self(self.0.wrapping_neg(), PhantomData))
-		}
+	pub fn negate(self) -> Result<Self> {
+		I::negate(self)
 	}
+}
 
+impl<I> Integer<I> {
 	fn binary_op<T>(
 		self,
 		rhs: T,
@@ -305,7 +307,7 @@ impl<'e, E, I> ToList<'e, E, I> for Integer<I> {
 	}
 }
 
-impl<I> Integer<I> {
+impl<I: IntType> Integer<I> {
 	pub fn parse(input: &str, opts: &Options) -> Result<Self> {
 		let mut bytes = input.trim_start().bytes();
 
@@ -321,7 +323,7 @@ impl<I> Integer<I> {
 		}
 
 		if is_negative {
-			number = number.negate(opts)?;
+			number = number.negate()?;
 		}
 
 		Ok(number)

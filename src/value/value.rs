@@ -153,7 +153,7 @@ impl<E, I> ToBoolean for Value<'_, E, I> {
 	}
 }
 
-impl<E, I> ToInteger<I> for Value<'_, E, I> {
+impl<E, I: crate::value::integer::IntType> ToInteger<I> for Value<'_, E, I> {
 	fn to_integer(&self, opts: &Options) -> Result<Integer<I>> {
 		match *self {
 			Self::Null => Null.to_integer(opts),

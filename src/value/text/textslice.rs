@@ -210,7 +210,7 @@ impl<E> crate::value::NamedType for Text<E> {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<E, I> ToInteger<I> for Text<E> {
+impl<E, I: crate::value::integer::IntType> ToInteger<I> for Text<E> {
 	fn to_integer(&self, opts: &Options) -> crate::Result<Integer<I>> {
 		Integer::parse(&self, opts)
 	}

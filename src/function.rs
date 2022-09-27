@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::env::Options;
+use crate::value::integer::IntType;
 use crate::value::text::{Character, Encoding, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
@@ -271,7 +272,7 @@ pub fn CALL<'e, E, I>() -> Function<'e, E, I> {
 }
 
 /// **4.2.6** `QUIT`  
-pub fn QUIT<'e, E, I>() -> Function<'e, E, I> {
+pub fn QUIT<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("QUIT", env, |arg| {
 		match arg.run(env)?.to_integer(env.options())?.try_conv::<i32>() {
 			Ok(status)

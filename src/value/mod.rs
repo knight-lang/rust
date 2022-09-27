@@ -1,7 +1,7 @@
 //! Types relating to [`Value`]s.
 
 mod boolean;
-mod integer;
+pub mod integer;
 mod list;
 mod null;
 pub mod text;
