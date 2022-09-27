@@ -18,7 +18,7 @@ pub struct Builder<'e, E, I> {
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<'e, E: Encoding + 'e, I: 'e> Default for Builder<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Default for Builder<'e, E, I> {
 	fn default() -> Self {
 		Self::new(Options::default())
 	}
@@ -62,7 +62,7 @@ impl<'e, E, I> Builder<'e, E, I> {
 	}
 }
 
-impl<'e, E: Encoding + 'e, I: 'e> Builder<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 	pub fn new(options: Options) -> Self {
 		Self {
 			stdin: None,

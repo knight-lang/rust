@@ -3,6 +3,8 @@ use crate::{Error, Result};
 use std::marker::PhantomData;
 
 pub trait IntType: Sized + 'static {
+	type Int: std::fmt::Debug + Clone + Copy + Eq + Ord + std::hash::Hash + Default + 'static;
+
 	fn is_in_bounds(int: i64) -> bool;
 	fn negate(int: Integer<Self>) -> Result<Integer<Self>>;
 }
@@ -11,6 +13,8 @@ pub struct Wrapping<T>(PhantomData<T>);
 pub struct Checked<T>(PhantomData<T>);
 
 impl IntType for Wrapping<i32> {
+	type Int = i32;
+
 	fn is_in_bounds(int: i64) -> bool {
 		i32::try_from(int).is_ok()
 	}
@@ -21,6 +25,8 @@ impl IntType for Wrapping<i32> {
 }
 
 impl IntType for Wrapping<i64> {
+	type Int = i64;
+
 	fn is_in_bounds(_int: i64) -> bool {
 		true
 	}
@@ -31,6 +37,8 @@ impl IntType for Wrapping<i64> {
 }
 
 impl IntType for Checked<i32> {
+	type Int = i32;
+
 	fn is_in_bounds(int: i64) -> bool {
 		i32::try_from(int).is_ok()
 	}
@@ -41,6 +49,8 @@ impl IntType for Checked<i32> {
 }
 
 impl IntType for Checked<i64> {
+	type Int = i64;
+
 	fn is_in_bounds(_int: i64) -> bool {
 		true
 	}

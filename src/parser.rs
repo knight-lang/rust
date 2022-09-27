@@ -1,4 +1,5 @@
 use crate::function::Function;
+use crate::value::integer::IntType;
 use crate::value::text::{Character, Encoding, Text, TextSlice};
 use crate::value::{Integer, List, Value};
 use crate::variable::{IllegalVariableName, Variable};
@@ -153,7 +154,7 @@ impl<'s, 'a, 'e, E, I> Parser<'s, 'a, 'e, E, I> {
 	}
 }
 
-impl<'s, 'a, 'e, E: Encoding, I> Parser<'s, 'a, 'e, E, I> {
+impl<'s, 'a, 'e, E: Encoding, I: IntType> Parser<'s, 'a, 'e, E, I> {
 	fn strip_whitespace_and_comments(&mut self) {
 		loop {
 			// strip all leading whitespace, if any.

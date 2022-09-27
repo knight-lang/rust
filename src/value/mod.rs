@@ -9,7 +9,7 @@ pub mod text;
 mod value;
 
 pub use boolean::{Boolean, ToBoolean};
-pub use integer::{Integer, ToInteger};
+pub use integer::{IntType, Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;
 pub use text::*;
@@ -22,7 +22,7 @@ pub trait NamedType {
 }
 
 /// A trait indicating a type can be run.
-pub trait Runnable<'e, E, I> {
+pub trait Runnable<'e, E, I: IntType> {
 	/// Runs `self`.
 	fn run(&self, env: &mut crate::Environment<'e, E, I>) -> crate::Result<Value<'e, E, I>>;
 }

@@ -78,7 +78,7 @@ impl<E, I> Debug for Function<'_, E, I> {
 	}
 }
 
-pub fn default<'e, E: Encoding + 'e, I: 'e>(
+pub fn default<'e, E: Encoding, I: IntType>(
 	options: &Options,
 ) -> HashMap<Character<E>, Function<'e, E, I>> {
 	let mut map = HashMap::new();
@@ -117,7 +117,7 @@ pub fn default<'e, E: Encoding + 'e, I: 'e>(
 	map
 }
 
-pub fn extensions<'e, E: Encoding + 'e, I>(
+pub fn extensions<'e, E: Encoding, I: IntType>(
 	options: &Options,
 ) -> HashMap<Text<E>, Function<'e, E, I>> {
 	#[allow(unused_mut)]
@@ -355,15 +355,15 @@ pub fn ASCII<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.2.12** `~`  
-pub fn NEG<'e, E, I>() -> Function<'e, E, I> {
+pub fn NEG<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("~", env, |arg| {
 		// comment so it wont make it one line
-		arg.run(env)?.to_integer(env.options())?.negate(env.options())?
+		arg.run(env)?.to_integer(env.options())?.negate()?
 	})
 }
 
 /// **4.3.1** `+`  
-pub fn ADD<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn ADD<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("+", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -380,7 +380,7 @@ pub fn ADD<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.3.2** `-`  
-pub fn SUBTRACT<'e, E, I>() -> Function<'e, E, I> {
+pub fn SUBTRACT<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("-", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -397,7 +397,7 @@ pub fn SUBTRACT<'e, E, I>() -> Function<'e, E, I> {
 }
 
 /// **4.3.3** `*`  
-pub fn MULTIPLY<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn MULTIPLY<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("*", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -441,7 +441,7 @@ pub fn MULTIPLY<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.3.4** `/`  
-pub fn DIVIDE<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn DIVIDE<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("/", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -461,7 +461,7 @@ pub fn DIVIDE<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.3.5** `%`  
-pub fn MODULO<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn MODULO<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("%", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -517,7 +517,7 @@ pub fn MODULO<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.3.6** `^`  
-pub fn POWER<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn POWER<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("^", env, |lhs, rhs| {
 		match lhs.run(env)? {
 			Value::Integer(integer) => integer
@@ -531,7 +531,7 @@ pub fn POWER<'e, E: Encoding, I>() -> Function<'e, E, I> {
 	})
 }
 
-fn compare<E: Encoding, I>(
+fn compare<E: Encoding, I: IntType>(
 	lhs: &Value<E, I>,
 	rhs: &Value<E, I>,
 	opts: &Options,
@@ -558,14 +558,14 @@ fn compare<E: Encoding, I>(
 }
 
 /// **4.3.7** `<`  
-pub fn LESS_THAN<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn LESS_THAN<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("<", env, |lhs, rhs| {
 		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Less
 	})
 }
 
 /// **4.3.8** `>`  
-pub fn GREATER_THAN<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn GREATER_THAN<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!(">", env, |lhs, rhs| {
 		compare(&lhs.run(env)?, &rhs.run(env)?, env.options())? == std::cmp::Ordering::Greater
 	})
@@ -705,7 +705,7 @@ pub fn IF<'e, E, I>() -> Function<'e, E, I> {
 	})
 }
 
-fn fix_len<E, I>(
+fn fix_len<E, I: IntType>(
 	container: &Value<'_, E, I>,
 	mut start: Integer<I>,
 	options: &Options,
@@ -724,7 +724,7 @@ fn fix_len<E, I>(
 }
 
 /// **4.4.2** `GET`  
-pub fn GET<'e, E, I>() -> Function<'e, E, I> {
+pub fn GET<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("GET", env, |string, start, length| {
 		let source = string.run(env)?;
 		let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
@@ -750,7 +750,7 @@ pub fn GET<'e, E, I>() -> Function<'e, E, I> {
 }
 
 /// **4.5.1** `SET`  
-pub fn SET<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn SET<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("SET", env, |string, start, length, replacement| {
 		let source = string.run(env)?;
 		let start = fix_len(&source, start.run(env)?.to_integer(env.options())?, env.options())?;
@@ -825,7 +825,7 @@ pub fn YEET<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **6.3** `USE`
-pub fn USE<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn USE<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("USE", env, |arg| {
 		let filename = arg.run(env)?.to_text(env.options())?;
 		let contents = env.read_file(&filename)?;
@@ -835,7 +835,7 @@ pub fn USE<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **4.2.2** `EVAL`
-pub fn EVAL<'e, E: Encoding, I>() -> Function<'e, E, I> {
+pub fn EVAL<'e, E: Encoding, I: IntType>() -> Function<'e, E, I> {
 	function!("EVAL", env, |val| {
 		let code = val.run(env)?.to_text(env.options())?;
 		env.play(&code)?
@@ -857,7 +857,7 @@ pub fn SYSTEM<'e, E: Encoding, I>() -> Function<'e, E, I> {
 }
 
 /// **Compiler extension**: SRAND
-pub fn XSRAND<'e, E, I>() -> Function<'e, E, I> {
+pub fn XSRAND<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("XSRAND", env, |arg| {
 		let seed = arg.run(env)?.to_integer(env.options())?;
 		env.srand(seed);
@@ -866,7 +866,7 @@ pub fn XSRAND<'e, E, I>() -> Function<'e, E, I> {
 }
 
 /// **Compiler extension**: REV
-pub fn XREVERSE<'e, E, I>() -> Function<'e, E, I> {
+pub fn XREVERSE<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("XREVERSE", env, |arg| {
 		let seed = arg.run(env)?.to_integer(env.options())?;
 		env.srand(seed);
@@ -874,7 +874,7 @@ pub fn XREVERSE<'e, E, I>() -> Function<'e, E, I> {
 	})
 }
 
-pub fn XRANGE<'e, E, I>() -> Function<'e, E, I> {
+pub fn XRANGE<'e, E, I: IntType>() -> Function<'e, E, I> {
 	function!("XRANGE", env, |start, stop| {
 		match start.run(env)? {
 			Value::Integer(start) => {

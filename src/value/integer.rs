@@ -26,41 +26,41 @@ pub use int_type::*;
 /// undefined. Within this implementation, all operations normally use wrapping logic. However, if
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
-pub struct Integer<I>(Inner, PhantomData<I>);
+pub struct Integer<I: IntType>(I::Int);
 
-impl<I> Debug for Integer<I> {
+impl<I: IntType> Debug for Integer<I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
-impl<I> Default for Integer<I> {
+impl<I: IntType> Default for Integer<I> {
 	fn default() -> Self {
 		Self::ZERO
 	}
 }
-impl<I> Copy for Integer<I> {}
-impl<I> Clone for Integer<I> {
+impl<I: IntType> Copy for Integer<I> {}
+impl<I: IntType> Clone for Integer<I> {
 	fn clone(&self) -> Self {
 		Self(self.0, PhantomData)
 	}
 }
-impl<I> Eq for Integer<I> {}
-impl<I> PartialEq for Integer<I> {
+impl<I: IntType> Eq for Integer<I> {}
+impl<I: IntType> PartialEq for Integer<I> {
 	fn eq(&self, rhs: &Self) -> bool {
 		self.0 == rhs.0
 	}
 }
-impl<I> PartialOrd for Integer<I> {
+impl<I: IntType> PartialOrd for Integer<I> {
 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
 		Some(self.cmp(&rhs))
 	}
 }
-impl<I> Ord for Integer<I> {
+impl<I: IntType> Ord for Integer<I> {
 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
 		self.0.cmp(&rhs.0)
 	}
 }
-impl<I> Hash for Integer<I> {
+impl<I: IntType> Hash for Integer<I> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.0.hash(state)
 	}
@@ -73,23 +73,23 @@ type Inner = i32;
 type Inner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger<I> {
+pub trait ToInteger<I: IntType> {
 	/// Converts `self` to an [`Integer`].
 	fn to_integer(&self, opts: &Options) -> Result<Integer<I>>;
 }
 
-impl<I> Display for Integer<I> {
+impl<I: IntType> Display for Integer<I> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl<I> NamedType for Integer<I> {
+impl<I: IntType> NamedType for Integer<I> {
 	const TYPENAME: &'static str = "Integer";
 }
 
-impl<I> Integer<I> {
+impl<I: IntType> Integer<I> {
 	/// The number zero.
 	pub const ZERO: Self = Self(0, PhantomData);
 
@@ -123,9 +123,7 @@ impl<I> Integer<I> {
 	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		self.try_into()
 	}
-}
 
-impl<I: IntType> Integer<I> {
 	/// Negates `self`.
 	///
 	/// # Errors
@@ -134,9 +132,7 @@ impl<I: IntType> Integer<I> {
 	pub fn negate(self) -> Result<Self> {
 		I::negate(self)
 	}
-}
 
-impl<I> Integer<I> {
 	fn binary_op<T>(
 		self,
 		rhs: T,
@@ -233,7 +229,7 @@ impl<I> Integer<I> {
 			}
 
 			match self.0 {
-				-1 => exponent = exponent.negate(opts)?,
+				-1 => exponent = exponent.negate()?,
 				0 => return Err(Error::DivisionByZero),
 				1 => return Ok(Self::ONE),
 				_ => return Ok(Self::ZERO),
@@ -259,7 +255,7 @@ impl<I> Integer<I> {
 	}
 }
 
-impl<I> ToInteger<I> for Integer<I> {
+impl<I: IntType> ToInteger<I> for Integer<I> {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_integer(&self, _: &Options) -> Result<Self> {
@@ -267,7 +263,7 @@ impl<I> ToInteger<I> for Integer<I> {
 	}
 }
 
-impl<I> ToBoolean for Integer<I> {
+impl<I: IntType> ToBoolean for Integer<I> {
 	/// Returns whether `self` is nonzero.
 	#[inline]
 	fn to_boolean(&self, _: &Options) -> Result<Boolean> {
@@ -275,14 +271,14 @@ impl<I> ToBoolean for Integer<I> {
 	}
 }
 
-impl<E: Encoding, I> ToText<E> for Integer<I> {
+impl<E: Encoding, I: IntType> ToText<E> for Integer<I> {
 	/// Returns a string representation of `self`.
 	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		Ok(Text::new(*self).unwrap())
 	}
 }
 
-impl<'e, E, I> ToList<'e, E, I> for Integer<I> {
+impl<'e, E, I: IntType> ToList<'e, E, I> for Integer<I> {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
@@ -332,13 +328,13 @@ impl<I: IntType> Integer<I> {
 
 macro_rules! impl_integer_from {
 	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl<I> From<$smaller> for Integer<I> {
+		$(impl<I: IntType> From<$smaller> for Integer<I> {
 			#[inline]
 			fn from(num: $smaller) -> Self {
 				Self(num as Inner, PhantomData)
 			}
 		})*
-		$(impl<I> TryFrom<$larger> for Integer<I> {
+		$(impl<I: IntType> TryFrom<$larger> for Integer<I> {
 			type Error = Error;
 
 			#[inline]
@@ -351,13 +347,13 @@ macro_rules! impl_integer_from {
 
 macro_rules! impl_from_integer {
 	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl<I> From<Integer<I>> for $larger {
+		$(impl<I: IntType> From<Integer<I>> for $larger {
 			#[inline]
 			fn from(int: Integer<I>) -> Self {
 				int.0.into()
 			}
 		})*
-		$(impl<I> TryFrom<Integer<I>> for $smaller {
+		$(impl<I: IntType> TryFrom<Integer<I>> for $smaller {
 			type Error = Error;
 
 			#[inline]
@@ -371,7 +367,7 @@ macro_rules! impl_from_integer {
 impl_integer_from!(bool u8 u16 i8 i16 i32 ; u32 u64 u128 usize i64 i128 isize );
 impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
 
-impl<I> TryFrom<char> for Integer<I> {
+impl<I: IntType> TryFrom<char> for Integer<I> {
 	type Error = Error;
 
 	fn try_from(chr: char) -> Result<Self> {
@@ -379,7 +375,7 @@ impl<I> TryFrom<char> for Integer<I> {
 	}
 }
 
-impl<I> TryFrom<Integer<I>> for char {
+impl<I: IntType> TryFrom<Integer<I>> for char {
 	type Error = Error;
 
 	fn try_from(int: Integer<I>) -> Result<Self> {

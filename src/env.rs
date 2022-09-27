@@ -1,5 +1,5 @@
-use crate::value::text::Character;
-use crate::value::text::Encoding;
+use crate::value::integer::IntType;
+use crate::value::text::{Character, Encoding};
 use crate::value::Runnable;
 use crate::variable::IllegalVariableName;
 use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
@@ -43,24 +43,24 @@ pub struct Environment<'e, E, I> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment: Send, Sync);
 
-impl<E: Encoding + 'static, I: 'static> Default for Environment<'_, E, I> {
+impl<E: Encoding, I: IntType> Default for Environment<'_, E, I> {
 	fn default() -> Self {
 		Self::builder().build()
 	}
 }
 
-impl<'e, E: Encoding + 'e, I: 'e> Environment<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Environment<'e, E, I> {
 	pub fn builder() -> Builder<'e, E, I> {
 		Builder::default()
 	}
-}
 
-impl<'e, E: Encoding, I> Environment<'e, E, I> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, E, I>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)
 	}
+}
 
+impl<'e, E: Encoding, I> Environment<'e, E, I> {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
 	pub fn lookup(

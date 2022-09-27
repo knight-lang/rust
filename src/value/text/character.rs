@@ -1,5 +1,5 @@
 use super::Encoding;
-use crate::value::Integer;
+use crate::value::{IntType, Integer};
 use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -57,7 +57,7 @@ impl<E> Hash for Character<E> {
 	}
 }
 
-impl<E: Encoding, I> TryFrom<Integer<I>> for Character<E> {
+impl<E: Encoding, I: IntType> TryFrom<Integer<I>> for Character<E> {
 	type Error = Error;
 
 	fn try_from(inp: Integer<I>) -> Result<Self> {

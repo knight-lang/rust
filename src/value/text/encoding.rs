@@ -14,7 +14,7 @@ fn validate_every_character<E: Encoding>(s: &str) -> Result<(), NewTextError> {
 }
 
 pub trait Encoding:
-	std::fmt::Debug + Clone + Copy + PartialEq + Eq + PartialOrd + Ord + std::hash::Hash
+	std::fmt::Debug + Clone + Copy + PartialEq + Eq + PartialOrd + Ord + std::hash::Hash + 'static
 {
 	fn is_valid(chr: char) -> bool;
 	fn is_whitespace(chr: char) -> bool;
