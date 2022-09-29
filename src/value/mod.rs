@@ -5,7 +5,6 @@ mod integer;
 mod list;
 mod null;
 pub mod text;
-// pub mod text2;
 mod value;
 
 pub use boolean::{Boolean, ToBoolean};

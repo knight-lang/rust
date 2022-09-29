@@ -138,15 +138,21 @@ pub const PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */
 		return Ok(Value::Null);
 	}
 
-	// remove trailing newlines
+	// remove trailing newline
 	match buf.pop() {
-		Some('\n') => match buf.pop() {
-			Some('\r') => {}
-			Some(other) => buf.push(other), // ie `<anything>\n`
-			None => {}
-		},
+		Some('\n') => {}
 		Some(other) => buf.push(other),
 		None => {}
+	}
+		
+	// delete trailing `\r`s
+	loop {
+		match buf.pop() {
+			Some('\r') => continue,
+			Some(other) => buf.push(other),
+			None => {}
+		}
+		break;
 	}
 
 	buf.try_conv::<Text>()?

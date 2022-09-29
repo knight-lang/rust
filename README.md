@@ -1,8 +1,5 @@
-# Knight v2.0 in Rust
-This is the Rust version of Knight. It's intended to be usable as both a standalone binary and within embedded applications.
-
-# Knight v2.0: Rust Edition 
-This is a fully functioning [Knight 2.0](https://github.com/knight-lang/knight-lang) implementation in Rust. More details about Knight, its license, and specifications can be found in the [knight-lang](https://github.com/knight-lang/knight-lang) repo.
+# Knight v2.0.1: Rust Edition 
+This is a fully functioning [Knight 2.0.1](https://github.com/knight-lang/knight-lang) implementation in Rust. More details about Knight, its license, and specifications can be found in the [knight-lang](https://github.com/knight-lang/knight-lang) repo.
 
 The Rust implementation is a "paragon" implementation: It implements nearly all the suggested extensions—and some compiler-specific quality of life ones—, is able to be embedded within other Rust programs (eg the `discord-bot` directory), and even catches _all_ undefined behaviour.
 
