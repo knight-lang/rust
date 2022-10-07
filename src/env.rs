@@ -14,7 +14,6 @@ pub use flags::Flags;
 pub use prompt::Prompt;
 pub use variable::{IllegalVariableName, Variable};
 
-type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
 type Stdout<'e> = dyn Write + 'e + Send + Sync;
 
 #[cfg(feature = "extensions")]

@@ -87,7 +87,7 @@ impl TextSlice {
 			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
 	}
 
-	#[cfg(feature = "list-extensions")]
+	#[cfg(feature = "extensions")]
 	pub fn split<'e>(&self, sep: &Self) -> crate::List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me

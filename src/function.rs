@@ -1,3 +1,4 @@
+use crate::env::Flags;
 use crate::value::text::{Character, TextSlice};
 use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Error, Result, Value};
@@ -115,7 +116,11 @@ macro_rules! function {
 
 /// **4.1.4**: `PROMPT`
 pub static PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	env.prompt().read_line(env)?.map(Value::from).unwrap_or_default()
+	// env.prompt().read_line(env)?.map(Value::from).unwrap_or_default()
+	let _ = env;
+	todo!();
+	#[allow(unreachable_code)]
+	Value::Null
 });
 
 /// **4.1.5**: `RANDOM`
@@ -153,9 +158,10 @@ pub static BLOCK: Function = function!("BLOCK", _env, |arg| {
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
 	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
 	// from `BLOCK`, so `CALL` can verify them.
-	if cfg!(feature = "strict-call-argument") && !matches!(arg, Value::Ast(_)) {
+	#[cfg(not(feature = "lax-compliance"))]
+	if !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
-		const NOOP: Function = function!(":", env, |arg| {
+		static NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
 
 			arg.run(env)? // We can't simply `.clone()` the arg in case we're given a variable name.
@@ -173,7 +179,7 @@ pub static CALL: Function = function!("CALL", env, |arg| {
 
 	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
 	// arguments are `Value::Ast`s.
-	#[cfg(feature = "strict-call-argument")]
+	#[cfg(not(feature = "lax-compliance"))]
 	if !matches!(block, Value::Ast(_)) {
 		return Err(Error::TypeError(block.typename(), "CALL"));
 	}
@@ -184,7 +190,7 @@ pub static CALL: Function = function!("CALL", env, |arg| {
 /// **4.2.6** `QUIT`  
 pub static QUIT: Function = function!("QUIT", env, |arg| {
 	match i32::try_from(arg.run(env)?.to_integer()?) {
-		Ok(status) if !cfg!(feature = "strict-compliance") || (0..=127).contains(&status) => {
+		Ok(status) if !env.flags().compliance.check_quit_bounds || (0..=127).contains(&status) => {
 			return Err(Error::Quit(status))
 		}
 		_ => return Err(Error::DomainError("exit code out of bounds")),
@@ -215,8 +221,8 @@ pub static LENGTH: Function = function!("LENGTH", env, |arg| {
 			// TODO: integer base10 when that comes out.
 			let mut i = 0;
 			while !int.is_zero() {
-				i += 1;
 				int = int.divide(10.into()).unwrap();
+				i += 1;
 			}
 			Integer::from(i).into()
 		}
@@ -254,6 +260,9 @@ pub static ASCII: Function = function!("ASCII", env, |arg| {
 	match arg.run(env)? {
 		Value::Integer(integer) => integer.chr()?.into(),
 		Value::Text(text) => text.ord()?.into(),
+
+		#[cfg(feature = "extensions")]
+		Value::List(_list) if env.flags().exts.ascii_on_lists => todo!("ascii on lists"),
 		other => return Err(Error::TypeError(other.typename(), "ASCII")),
 	}
 });
@@ -271,6 +280,9 @@ pub static ADD: Function = function!("+", env, |lhs, rhs| {
 		Value::Text(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
 		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?)?.into(),
 
+		#[cfg(feature = "extensions")]
+		Value::Boolean(lhs) if env.flags().exts.boolean => (lhs | rhs.run(env)?.to_boolean()?).into(),
+
 		other => return Err(Error::TypeError(other.typename(), "+")),
 	}
 });
@@ -280,11 +292,13 @@ pub static SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.into(),
 
-		#[cfg(feature = "string-extensions")]
-		Value::Text(text) => text.remove_substr(&rhs.run(env)?.to_text()?).into(),
+		#[cfg(feature = "extensions")]
+		Value::Text(text) if env.flags().exts.text => {
+			text.remove_substr(&rhs.run(env)?.to_text()?).into()
+		}
 
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.difference(&rhs.run(env)?.to_list()?)?.into(),
+		#[cfg(feature = "extensions")]
+		Value::List(list) if env.flags().exts.list => list.difference(&rhs.run(env)?.to_list()?)?.into(),
 
 		other => return Err(Error::TypeError(other.typename(), "-")),
 	}
@@ -310,8 +324,8 @@ pub static MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 			let rhs = rhs.run(env)?;
 
 			// Multiplying by a block is invalid, so we can do this as an extension.
-			#[cfg(feature = "list-extensions")]
-			if matches!(rhs, Value::Ast(_)) {
+			#[cfg(feature = "extensions")]
+			if env.flags().exts.list && matches!(rhs, Value::Ast(_)) {
 				return Ok(list.map(&rhs, env)?.into());
 			}
 
@@ -324,6 +338,9 @@ pub static MULTIPLY: Function = function!("*", env, |lhs, rhs| {
 			list.repeat(amount)?.into()
 		}
 
+		#[cfg(feature = "extensions")]
+		Value::Boolean(lhs) if env.flags().exts.boolean => (lhs & rhs.run(env)?.to_boolean()?).into(),
+
 		other => return Err(Error::TypeError(other.typename(), "*")),
 	}
 });
@@ -333,11 +350,13 @@ pub static DIVIDE: Function = function!("/", env, |lhs, rhs| {
 	match lhs.run(env)? {
 		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.into(),
 
-		#[cfg(feature = "string-extensions")]
-		Value::Text(text) => text.split(&rhs.run(env)?.to_text()?).into(),
+		#[cfg(feature = "extensions")]
+		Value::Text(text) if env.flags().exts.text => text.split(&rhs.run(env)?.to_text()?).into(),
 
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.reduce(&rhs.run(env)?, env)?.unwrap_or_default(),
+		#[cfg(feature = "extensions")]
+		Value::List(list) if env.flags().exts.list => {
+			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
+		}
 
 		other => return Err(Error::TypeError(other.typename(), "/")),
 	}
@@ -387,8 +406,8 @@ pub static REMAINDER: Function = function!("%", env, |lhs, rhs| {
 
 		// 	Text::new(formatted).unwrap().into()
 		// }
-		#[cfg(feature = "list-extensions")]
-		Value::List(list) => list.filter(&rhs.run(env)?, env)?.into(),
+		#[cfg(feature = "extensions")]
+		Value::List(list) if env.flags().exts.list => list.filter(&rhs.run(env)?, env)?.into(),
 
 		other => return Err(Error::TypeError(other.typename(), "%")),
 	}
@@ -441,7 +460,8 @@ pub static EQUALS: Function = function!("?", env, |lhs, rhs| {
 	let l = lhs.run(env)?;
 	let r = rhs.run(env)?;
 
-	if cfg!(feature = "strict-compliance") {
+	#[cfg(not(feature = "lax-compliance"))]
+	{
 		fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
 			match value {
 				Value::List(list) => {
@@ -454,6 +474,7 @@ pub static EQUALS: Function = function!("?", env, |lhs, rhs| {
 				_ => Ok(()),
 			}
 		}
+
 		check_for_strict_compliance(&l)?;
 		check_for_strict_compliance(&r)?;
 	}
@@ -501,13 +522,14 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 		#[cfg(feature = "extensions")]
 		Value::Ast(ast) if env.flags().assign_to.prompt && ast.function() == &PROMPT => {
 			match value {
-				// `= PROMPT NULL` disables replacements
-				Value::Null => env.prompt().reset_replacement(),
+				// `= PROMPT NULL` or `= PROMPT FALSE` makes it always return nothing.
+				Value::Null | Value::Boolean(false) => env.prompt().close(),
 
-				// `= PROMPT FALSE` makes it always return nothing.
-				Value::Boolean(false) => env.prompt().close(),
+				// `= PROMPT TRUE` clears all replacements
+				Value::Boolean(true) => env.prompt().reset_replacement(),
 
-				// `= PROMPT "foo<newline>bar"` will add the newlines to the end of the buffer.
+				// `= PROMPT "foo<newline>bar"` will add the two lines to the end of the buffer.
+				// after the buffer's exhausted, it's assumed to be EOF.
 				Value::Text(text) => env.prompt().add_lines(&text),
 
 				// `= PROMPT BLOCK ...` will compute the new ast each time
@@ -524,8 +546,8 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 
 		#[cfg(feature = "extensions")]
 		other => match other.run(env)? {
-			Value::List(_list) if env.flags().assign_to.lists => todo!(),
-			Value::Text(name) if env.flags().assign_to.strings => {
+			Value::List(_list) if env.flags().assign_to.list => todo!(),
+			Value::Text(name) if env.flags().assign_to.text => {
 				env.lookup(&name)?.assign(value);
 			}
 			other => return Err(Error::TypeError(other.typename(), "=")),
@@ -562,8 +584,9 @@ pub static IF: Function = function!("IF", env, |condition, iftrue, iffalse| {
 	}
 });
 
-fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
-	if start.is_negative() && cfg!(feature = "negative-indexing") {
+fn fix_len(container: &Value<'_>, mut start: Integer, flags: &Flags) -> Result<usize> {
+	#[cfg(feature = "extensions")]
+	if flags.negative_indexing && start.is_negative() {
 		let len = match container {
 			Value::Text(text) => text.len(),
 			Value::List(list) => list.len(),
@@ -579,7 +602,7 @@ fn fix_len(container: &Value<'_>, mut start: Integer) -> Result<usize> {
 /// **4.4.2** `GET`  
 pub static GET: Function = function!("GET", env, |string, start, length| {
 	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?, env.flags())?;
 	let length = usize::try_from(length.run(env)?.to_integer()?)
 		.or(Err(Error::DomainError("negative length")))?;
 
@@ -600,7 +623,7 @@ pub static GET: Function = function!("GET", env, |string, start, length| {
 /// **4.5.1** `SET`  
 pub static SET: Function = function!("SET", env, |string, start, length, replacement| {
 	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?)?;
+	let start = fix_len(&source, start.run(env)?.to_integer()?, env.flags())?;
 	let length = usize::try_from(length.run(env)?.to_integer()?)
 		.or(Err(Error::DomainError("negative length")))?;
 	let replacement_source = replacement.run(env)?;

@@ -12,13 +12,14 @@ license = "MIT"
 
 [features]
 default = ["extensions"]
+extensions = [] # stuff that's not part of base knight
+lax-compliance = [] # runs non-compliant code, but improves the speed. 
 
 #######################################
 #            Miscellaneous           ##
 #######################################
 multithreaded = [] # Enables multithreading support
 extensions_ = ["spec-extensions", "compiler-extensions", "qol-extensions"]
-extensions = []
 
 #######################################
 ##      Spec-defined Extensions      ##

@@ -1,14 +1,30 @@
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flags {
 	pub assign_to: AssignToFlags,
+	pub compliance: ComplianceFlags,
+	pub negative_indexing: bool,
+	pub exts: ExtensionFlags,
+}
+
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComplianceFlags {
+	pub check_quit_bounds: bool,
+}
+
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExtensionFlags {
+	pub ascii_on_lists: bool,
+	pub boolean: bool,
+	pub list: bool,
+	pub text: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssignToFlags {
 	pub prompt: bool,
 	pub system: bool,
-	pub lists: bool,
-	pub strings: bool,
+	pub list: bool,
+	pub text: bool,
 }
 
 /*
