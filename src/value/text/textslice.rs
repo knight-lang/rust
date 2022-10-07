@@ -71,13 +71,14 @@ impl TextSlice {
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self) -> Text {
+	pub fn concat(&self, rhs: &Self) -> crate::Result<Text> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
 		builder.push(rhs);
 
-		builder.finish()
+		// TODO: error if the length is too large
+		Ok(builder.finish())
 	}
 
 	pub fn repeat(&self, amount: usize) -> Text {

@@ -136,19 +136,13 @@ pub static BOX: Function = function!(",", env, |val| {
 });
 
 pub static HEAD: Function = function!("[", env, |val| {
-	match val.run(env)? {
-		Value::List(list) => list.head().ok_or(Error::DomainError("empty list"))?,
-		Value::Text(text) => text.head().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename(), "[")),
-	}
+	// <comment for a single line>
+	val.run(env)?.head()?
 });
 
 pub static TAIL: Function = function!("]", env, |val| {
-	match val.run(env)? {
-		Value::List(list) => list.tail().ok_or(Error::DomainError("empty list"))?.into(),
-		Value::Text(text) => text.tail().ok_or(Error::DomainError("empty text"))?.into(),
-		other => return Err(Error::TypeError(other.typename(), "]")),
-	}
+	// <comment for a single line>
+	val.run(env)?.tail()?
 });
 
 /// **4.2.3** `BLOCK`  
@@ -210,26 +204,8 @@ pub static NOT: Function = function!("!", env, |arg| {
 
 /// **4.2.8** `LENGTH`  
 pub static LENGTH: Function = function!("LENGTH", env, |arg| {
-	match arg.run(env)? {
-		Value::List(list) => Integer::try_from(list.len())?.into(),
-		Value::Text(text) => {
-			debug_assert_eq!(text.len(), Value::Text(text.clone()).to_list().unwrap().len());
-			Integer::try_from(text.len())?.into()
-		}
-		Value::Integer(int) if int.is_zero() => Integer::ONE.into(),
-		Value::Integer(mut int) => {
-			// TODO: integer base10 when that comes out.
-			let mut i = 0;
-			while !int.is_zero() {
-				int = int.divide(10.into()).unwrap();
-				i += 1;
-			}
-			Integer::from(i).into()
-		}
-		Value::Boolean(true) => Integer::ONE.into(),
-		Value::Boolean(false) | Value::Null => Integer::ZERO.into(),
-		other => return Err(Error::TypeError(other.typename(), "LENGTH")),
-	}
+	//
+	arg.run(env)?.length()?
 });
 
 /// **4.2.9** `DUMP`  
@@ -257,14 +233,8 @@ pub static OUTPUT: Function = function!("OUTPUT", env, |arg| {
 
 /// **4.2.11** `ASCII`  
 pub static ASCII: Function = function!("ASCII", env, |arg| {
-	match arg.run(env)? {
-		Value::Integer(integer) => integer.chr()?.into(),
-		Value::Text(text) => text.ord()?.into(),
-
-		#[cfg(feature = "extensions")]
-		Value::List(_list) if env.flags().exts.ascii_on_lists => todo!("ascii on lists"),
-		other => return Err(Error::TypeError(other.typename(), "ASCII")),
-	}
+	//
+	arg.run(env)?.ascii()?
 });
 
 /// **4.2.12** `~`  
@@ -275,33 +245,14 @@ pub static NEG: Function = function!("~", env, |arg| {
 
 /// **4.3.1** `+`  
 pub static ADD: Function = function!("+", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.add(rhs.run(env)?.to_integer()?)?.into(),
-		Value::Text(string) => string.concat(&rhs.run(env)?.to_text()?).into(),
-		Value::List(list) => list.concat(&rhs.run(env)?.to_list()?)?.into(),
-
-		#[cfg(feature = "extensions")]
-		Value::Boolean(lhs) if env.flags().exts.boolean => (lhs | rhs.run(env)?.to_boolean()?).into(),
-
-		other => return Err(Error::TypeError(other.typename(), "+")),
-	}
+	//
+	lhs.run(env)?.add(&rhs.run(env)?, env.flags())?
 });
 
 /// **4.3.2** `-`  
 pub static SUBTRACT: Function = function!("-", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.subtract(rhs.run(env)?.to_integer()?)?.into(),
-
-		#[cfg(feature = "extensions")]
-		Value::Text(text) if env.flags().exts.text => {
-			text.remove_substr(&rhs.run(env)?.to_text()?).into()
-		}
-
-		#[cfg(feature = "extensions")]
-		Value::List(list) if env.flags().exts.list => list.difference(&rhs.run(env)?.to_list()?)?.into(),
-
-		other => return Err(Error::TypeError(other.typename(), "-")),
-	}
+	//
+	lhs.run(env)?.subtract(&rhs.run(env)?, env.flags())?
 });
 
 /// **4.3.3** `*`  

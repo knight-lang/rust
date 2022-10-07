@@ -74,6 +74,31 @@ impl Integer {
 		self.try_into()
 	}
 
+	pub fn head(self) -> Self {
+		let mut n = self.0;
+		while 10 <= n.abs() {
+			n /= 10;
+		}
+		Self(n)
+	}
+
+	pub fn tail(self) -> Self {
+		Self(self.0 % 10)
+	}
+
+	pub fn log10(self) -> usize {
+		// TODO: integer base10 when that comes out.
+		let mut log = 0;
+		let mut n = self.0;
+
+		while n != 0 {
+			log += 1;
+			n /= 10;
+		}
+
+		log
+	}
+
 	/// Negates `self`.
 	///
 	/// # Errors
@@ -256,7 +281,7 @@ impl<'e> ToList<'e> for Integer {
 		let mut integer = self.0;
 
 		// FIXME: update the capacity and algorithm when `ilog` is dropped.
-		let mut digits = Vec::new();
+		let mut digits = Vec::with_capacity(self.log10());
 
 		while integer != 0 {
 			digits.insert(0, Self(integer % 10).into());

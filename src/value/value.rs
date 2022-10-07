@@ -1,4 +1,4 @@
-use crate::env::Environment;
+use crate::env::{Environment, Flags};
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -164,5 +164,121 @@ impl<'e> Runnable<'e> for Value<'e> {
 			Self::Ast(ast) => ast.run(env),
 			_ => Ok(self.clone()),
 		}
+	}
+}
+
+impl<'e> Value<'e> {
+	pub fn head(&self) -> Result<Self> {
+		match self {
+			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
+			Self::Text(text) => text.head().ok_or(Error::DomainError("empty text")).map(Self::from),
+
+			#[cfg(feature = "extensions")]
+			Self::Integer(integer) => Ok(integer.head().into()),
+
+			other => Err(Error::TypeError(other.typename(), "[")),
+		}
+	}
+
+	pub fn tail(&self) -> Result<Self> {
+		match self {
+			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
+			Self::Text(text) => text.tail().ok_or(Error::DomainError("empty text")).map(Self::from),
+
+			#[cfg(feature = "extensions")]
+			Self::Integer(integer) => Ok(integer.tail().into()),
+
+			other => Err(Error::TypeError(other.typename(), "]")),
+		}
+	}
+
+	pub fn length(&self) -> Result<Self> {
+		match self {
+			Self::List(list) => Integer::try_from(list.len()).map(Self::from),
+			Self::Text(text) => {
+				debug_assert_eq!(text.len(), self.to_list().unwrap().len());
+				Integer::try_from(text.len()).map(Self::from)
+			}
+			Self::Integer(int) if int.is_zero() => Ok(Integer::ONE.into()),
+			Self::Integer(int) => Integer::try_from(int.log10()).map(Self::from),
+			Self::Boolean(true) => Ok(Integer::ONE.into()),
+			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
+			other => Err(Error::TypeError(other.typename(), "LENGTH")),
+		}
+	}
+
+	pub fn ascii(&self) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => Ok(integer.chr()?.into()),
+			Self::Text(text) => Ok(text.ord()?.into()),
+
+			other => return Err(Error::TypeError(other.typename(), "ASCII")),
+		}
+	}
+
+	pub fn add(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.add(rhs.to_integer()?).map(Self::from),
+			Self::Text(string) => string.concat(&rhs.to_text()?).map(Self::from),
+			Self::List(list) => list.concat(&rhs.to_list()?).map(Self::from),
+
+			#[cfg(feature = "extensions")]
+			Self::Boolean(lhs) if flags.exts.boolean => Ok((lhs | rhs.to_boolean()?).into()),
+
+			other => Err(Error::TypeError(other.typename(), "+")),
+		}
+	}
+
+	pub fn subtract(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.subtract(rhs.to_integer()?).map(Self::from),
+
+			#[cfg(feature = "extensions")]
+			Self::Text(text) if flags.exts.text => Ok(text.remove_substr(&rhs.to_text()?).into()),
+
+			#[cfg(feature = "extensions")]
+			Self::List(list) if flags.exts.list => list.difference(&rhs.to_list()?).map(Self::from),
+
+			other => return Err(Error::TypeError(other.typename(), "-")),
+		}
+	}
+
+	pub fn multiply(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.multiply(rhs.to_integer()?).map(Self::from),
+
+			Self::Text(lstr) => {
+				let amount = usize::try_from(rhs.to_integer()?)
+					.or(Err(Error::DomainError("repetition count is negative")))?;
+
+				if isize::MAX as usize <= amount * lstr.len() {
+					return Err(Error::DomainError("repetition is too large"));
+				}
+
+				lstr.repeat(amount).into()
+			}
+
+			Self::List(list) => {
+				let rhs = rhs;
+
+				// Multiplying by a block is invalid, so we can do this as an extension.
+				#[cfg(feature = "extensions")]
+				if flags.exts.list && matches!(rhs, Self::Ast(_)) {
+					return Ok(list.map(&rhs, env).map(Self::from));
+				}
+
+				let amount = usize::try_from(rhs.to_integer()?)
+					.or(Err(Error::DomainError("repetition count is negative")))?;
+
+				// No need to check for repetition length because `list.repeat` doesnt actually
+				// make a list.
+
+				list.repeat(amount).map(Self::from)
+			}
+
+			#[cfg(feature = "extensions")]
+			Self::Boolean(lhs) if env.flags().exts.boolean => (lhs & rhs.to_boolean()?).into(),
+
+			other => return Err(Error::TypeError(other.typename(), "*")),
 	}
 }
