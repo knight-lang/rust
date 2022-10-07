@@ -1,7 +1,7 @@
-use crate::env::Flags;
 use crate::value::text::{Character, TextSlice};
-use crate::value::{Integer, List, Runnable, Text, ToBoolean, ToInteger, ToList, ToText};
+use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use std::fmt::{self, Debug, Formatter};
@@ -137,12 +137,12 @@ pub static BOX: Function = function!(",", env, |val| {
 
 pub static HEAD: Function = function!("[", env, |val| {
 	// <comment for a single line>
-	val.run(env)?.head()?
+	val.run(env)?.head(env)?
 });
 
 pub static TAIL: Function = function!("]", env, |val| {
 	// <comment for a single line>
-	val.run(env)?.tail()?
+	val.run(env)?.tail(env)?
 });
 
 /// **4.2.3** `BLOCK`  
@@ -205,7 +205,7 @@ pub static NOT: Function = function!("!", env, |arg| {
 /// **4.2.8** `LENGTH`  
 pub static LENGTH: Function = function!("LENGTH", env, |arg| {
 	//
-	arg.run(env)?.length()?
+	arg.run(env)?.length(env)?
 });
 
 /// **4.2.9** `DUMP`  
@@ -234,7 +234,7 @@ pub static OUTPUT: Function = function!("OUTPUT", env, |arg| {
 /// **4.2.11** `ASCII`  
 pub static ASCII: Function = function!("ASCII", env, |arg| {
 	//
-	arg.run(env)?.ascii()?
+	arg.run(env)?.ascii(env)?
 });
 
 /// **4.2.12** `~`  
@@ -246,191 +246,53 @@ pub static NEG: Function = function!("~", env, |arg| {
 /// **4.3.1** `+`  
 pub static ADD: Function = function!("+", env, |lhs, rhs| {
 	//
-	lhs.run(env)?.add(&rhs.run(env)?, env.flags())?
+	lhs.run(env)?.add(&rhs.run(env)?, env)?
 });
 
 /// **4.3.2** `-`  
 pub static SUBTRACT: Function = function!("-", env, |lhs, rhs| {
 	//
-	lhs.run(env)?.subtract(&rhs.run(env)?, env.flags())?
+	lhs.run(env)?.subtract(&rhs.run(env)?, env)?
 });
 
 /// **4.3.3** `*`  
 pub static MULTIPLY: Function = function!("*", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.multiply(rhs.run(env)?.to_integer()?)?.into(),
-
-		Value::Text(lstr) => {
-			let amount = usize::try_from(rhs.run(env)?.to_integer()?)
-				.or(Err(Error::DomainError("repetition count is negative")))?;
-
-			if isize::MAX as usize <= amount * lstr.len() {
-				return Err(Error::DomainError("repetition is too large"));
-			}
-
-			lstr.repeat(amount).into()
-		}
-
-		Value::List(list) => {
-			let rhs = rhs.run(env)?;
-
-			// Multiplying by a block is invalid, so we can do this as an extension.
-			#[cfg(feature = "extensions")]
-			if env.flags().exts.list && matches!(rhs, Value::Ast(_)) {
-				return Ok(list.map(&rhs, env)?.into());
-			}
-
-			let amount = usize::try_from(rhs.to_integer()?)
-				.or(Err(Error::DomainError("repetition count is negative")))?;
-
-			// No need to check for repetition length because `list.repeat` doesnt actually
-			// make a list.
-
-			list.repeat(amount)?.into()
-		}
-
-		#[cfg(feature = "extensions")]
-		Value::Boolean(lhs) if env.flags().exts.boolean => (lhs & rhs.run(env)?.to_boolean()?).into(),
-
-		other => return Err(Error::TypeError(other.typename(), "*")),
-	}
+	//
+	lhs.run(env)?.multiply(&rhs.run(env)?, env)?
 });
 
 /// **4.3.4** `/`  
 pub static DIVIDE: Function = function!("/", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.divide(rhs.run(env)?.to_integer()?)?.into(),
-
-		#[cfg(feature = "extensions")]
-		Value::Text(text) if env.flags().exts.text => text.split(&rhs.run(env)?.to_text()?).into(),
-
-		#[cfg(feature = "extensions")]
-		Value::List(list) if env.flags().exts.list => {
-			list.reduce(&rhs.run(env)?, env)?.unwrap_or_default()
-		}
-
-		other => return Err(Error::TypeError(other.typename(), "/")),
-	}
+	//
+	lhs.run(env)?.divide(&rhs.run(env)?, env)?
 });
 
 /// **4.3.5** `%`  
 pub static REMAINDER: Function = function!("%", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.remainder(rhs.run(env)?.to_integer()?)?.into(),
-
-		// #[cfg(feature = "string-extensions")]
-		// Value::Text(lstr) => {
-		// 	let values = rhs.run(env)?.to_list()?;
-		// 	let mut values_index = 0;
-
-		// 	let mut formatted = String::new();
-		// 	let mut chars = lstr.chars();
-
-		// 	while let Some(chr) = chars.next() {
-		// 		match chr {
-		// 			'\\' => {
-		// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
-		// 					'n' => '\n',
-		// 					'r' => '\r',
-		// 					't' => '\t',
-		// 					'{' => '{',
-		// 					'}' => '}',
-		// 					_ => panic!("todo: error for unknown escape code"),
-		// 				});
-		// 			}
-		// 			'{' => {
-		// 				if chars.next() != Some('}') {
-		// 					panic!("todo, missing closing `}}`");
-		// 				}
-		// 				formatted.push_str(
-		// 					&values
-		// 						.as_slice()
-		// 						.get(values_index)
-		// 						.expect("no values left to format")
-		// 						.to_text()?,
-		// 				);
-		// 				values_index += 1;
-		// 			}
-		// 			_ => formatted.push(chr),
-		// 		}
-		// 	}
-
-		// 	Text::new(formatted).unwrap().into()
-		// }
-		#[cfg(feature = "extensions")]
-		Value::List(list) if env.flags().exts.list => list.filter(&rhs.run(env)?, env)?.into(),
-
-		other => return Err(Error::TypeError(other.typename(), "%")),
-	}
+	//
+	lhs.run(env)?.remainder(&rhs.run(env)?, env)?
 });
 
 /// **4.3.6** `^`  
 pub static POWER: Function = function!("^", env, |lhs, rhs| {
-	match lhs.run(env)? {
-		Value::Integer(integer) => integer.power(rhs.run(env)?.to_integer()?)?.into(),
-		Value::List(list) => list.join(&rhs.run(env)?.to_text()?)?.into(),
-		other => return Err(Error::TypeError(other.typename(), "^")),
-	}
+	//
+	lhs.run(env)?.power(&rhs.run(env)?, env)?
 });
-
-// Cant use `Iter.cmp` in case our conversions to integer/boolean etc fail.
-fn compare(lhs: &Value, rhs: &Value) -> Result<std::cmp::Ordering> {
-	match lhs {
-		Value::Integer(lnum) => Ok(lnum.cmp(&rhs.to_integer()?)),
-		Value::Boolean(lbool) => Ok(lbool.cmp(&rhs.to_boolean()?)),
-		Value::Text(ltext) => Ok(ltext.cmp(&rhs.to_text()?)),
-		Value::List(list) => {
-			let rhs = rhs.to_list()?;
-
-			// feels bad to be iterating over by-values.
-			for (left, right) in list.iter().zip(&rhs) {
-				match compare(left, right)? {
-					std::cmp::Ordering::Equal => {}
-					other => return Ok(other),
-				}
-			}
-
-			Ok(list.len().cmp(&rhs.len()))
-		}
-		other => Err(Error::TypeError(other.typename(), "<cmp>")),
-	}
-}
 
 /// **4.3.7** `<`  
 pub static LESS_THAN: Function = function!("<", env, |lhs, rhs| {
-	(compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Less).into()
+	(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Less).into()
 });
 
 /// **4.3.8** `>`  
 pub static GREATER_THAN: Function = function!(">", env, |lhs, rhs| {
-	(compare(&lhs.run(env)?, &rhs.run(env)?)? == std::cmp::Ordering::Greater).into()
+	(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Greater).into()
 });
 
 /// **4.3.9** `?`  
 pub static EQUALS: Function = function!("?", env, |lhs, rhs| {
-	let l = lhs.run(env)?;
-	let r = rhs.run(env)?;
-
-	#[cfg(not(feature = "lax-compliance"))]
-	{
-		fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
-			match value {
-				Value::List(list) => {
-					for ele in list {
-						check_for_strict_compliance(&ele)?;
-					}
-					Ok(())
-				}
-				Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename(), "?")),
-				_ => Ok(()),
-			}
-		}
-
-		check_for_strict_compliance(&l)?;
-		check_for_strict_compliance(&r)?;
-	}
-
-	(l == r).into()
+	//
+	lhs.run(env)?.equals(&rhs.run(env)?, env)?.into()
 });
 
 /// **4.3.10** `&`  
@@ -461,59 +323,10 @@ pub static THEN: Function = function!(";", env, |lhs, rhs| {
 	rhs.run(env)?
 });
 
-fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
-	match variable {
-		Value::Variable(var) => {
-			var.assign(value);
-		}
-
-		#[cfg(not(feature = "extensions"))]
-		other => return Err(Error::TypeError(other.typename(), "=")),
-
-		#[cfg(feature = "extensions")]
-		Value::Ast(ast) if env.flags().assign_to.prompt && ast.function() == &PROMPT => {
-			match value {
-				// `= PROMPT NULL` or `= PROMPT FALSE` makes it always return nothing.
-				Value::Null | Value::Boolean(false) => env.prompt().close(),
-
-				// `= PROMPT TRUE` clears all replacements
-				Value::Boolean(true) => env.prompt().reset_replacement(),
-
-				// `= PROMPT "foo<newline>bar"` will add the two lines to the end of the buffer.
-				// after the buffer's exhausted, it's assumed to be EOF.
-				Value::Text(text) => env.prompt().add_lines(&text),
-
-				// `= PROMPT BLOCK ...` will compute the new ast each time
-				Value::Ast(ast) => env.prompt().set_ast(ast),
-
-				other => return Err(Error::TypeError(other.typename(), "=")),
-			}
-		}
-
-		#[cfg(feature = "extensions")]
-		Value::Ast(ast) if env.flags().assign_to.prompt && ast.function() == &SYSTEM => {
-			env.add_to_system(value.to_text()?);
-		}
-
-		#[cfg(feature = "extensions")]
-		other => match other.run(env)? {
-			Value::List(_list) if env.flags().assign_to.list => todo!(),
-			Value::Text(name) if env.flags().assign_to.text => {
-				env.lookup(&name)?.assign(value);
-			}
-			other => return Err(Error::TypeError(other.typename(), "=")),
-		},
-	}
-
-	let _ = env;
-
-	Ok(())
-}
-
 /// **4.3.13** `=`  
-pub static ASSIGN: Function = function!("=", env, |var, value| {
+pub static ASSIGN: Function = function!("=", env, |variable, value| {
 	let ran = value.run(env)?;
-	assign(var, ran.clone(), env)?;
+	variable.assign(ran.clone(), env)?;
 	ran
 });
 
@@ -535,73 +348,16 @@ pub static IF: Function = function!("IF", env, |condition, iftrue, iffalse| {
 	}
 });
 
-fn fix_len(container: &Value<'_>, mut start: Integer, flags: &Flags) -> Result<usize> {
-	#[cfg(feature = "extensions")]
-	if flags.negative_indexing && start.is_negative() {
-		let len = match container {
-			Value::Text(text) => text.len(),
-			Value::List(list) => list.len(),
-			other => return Err(Error::TypeError(other.typename(), "get/set")),
-		};
-
-		start = start.add(len.try_into()?)?;
-	}
-
-	usize::try_from(start).or(Err(Error::DomainError("negative start position")))
-}
-
 /// **4.4.2** `GET`  
-pub static GET: Function = function!("GET", env, |string, start, length| {
-	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?, env.flags())?;
-	let length = usize::try_from(length.run(env)?.to_integer()?)
-		.or(Err(Error::DomainError("negative length")))?;
-
-	match source {
-		Value::List(list) => list
-			.get(start..start + length)
-			.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + length })?
-			.into(),
-		Value::Text(text) => text
-			.get(start..start + length)
-			.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + length })?
-			.to_owned()
-			.into(),
-		other => return Err(Error::TypeError(other.typename(), "GET")),
-	}
+pub static GET: Function = function!("GET", env, |source, start, length| {
+	//
+	source.run(env)?.get(&start.run(env)?, &length.run(env)?, env)?
 });
 
 /// **4.5.1** `SET`  
-pub static SET: Function = function!("SET", env, |string, start, length, replacement| {
-	let source = string.run(env)?;
-	let start = fix_len(&source, start.run(env)?.to_integer()?, env.flags())?;
-	let length = usize::try_from(length.run(env)?.to_integer()?)
-		.or(Err(Error::DomainError("negative length")))?;
-	let replacement_source = replacement.run(env)?;
-
-	match source {
-		Value::List(list) => {
-			// OPTIMIZE ME: cons?
-			let replacement = replacement_source.to_list()?;
-			let mut ret = Vec::new();
-			ret.extend(list.iter().take(start).cloned());
-			ret.extend(replacement.iter().cloned());
-			ret.extend(list.iter().skip((start) + length).cloned());
-
-			List::try_from(ret)?.into()
-		}
-		Value::Text(text) => {
-			let replacement = replacement_source.to_text()?;
-
-			// lol, todo, optimize me
-			let mut builder = Text::builder();
-			builder.push(text.get(..start).unwrap());
-			builder.push(&replacement);
-			builder.push(text.get(start + length..).unwrap());
-			builder.finish().into()
-		}
-		other => return Err(Error::TypeError(other.typename(), "SET")),
-	}
+pub static SET: Function = function!("SET", env, |source, start, length, replacement| {
+	//
+	source.run(env)?.set(&start.run(env)?, &length.run(env)?, &replacement.run(env)?, env)?
 });
 
 /// **6.1** `VALUE`

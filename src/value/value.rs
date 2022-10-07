@@ -1,8 +1,10 @@
-use crate::env::{Environment, Flags};
+use crate::env::Environment;
+use crate::value::text::Character;
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
 use crate::{Ast, Error, Result, Variable};
+use std::cmp::Ordering;
 
 /// A Value within Knight.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -49,8 +51,8 @@ impl From<Boolean> for Value<'_> {
 
 impl From<Integer> for Value<'_> {
 	#[inline]
-	fn from(number: Integer) -> Self {
-		Self::Integer(number)
+	fn from(integer: Integer) -> Self {
+		Self::Integer(integer)
 	}
 }
 
@@ -61,9 +63,9 @@ impl From<Text> for Value<'_> {
 	}
 }
 
-impl From<crate::value::text::Character> for Value<'_> {
+impl From<Character> for Value<'_> {
 	#[inline]
-	fn from(character: crate::value::text::Character) -> Self {
+	fn from(character: Character) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
@@ -168,7 +170,7 @@ impl<'e> Runnable<'e> for Value<'e> {
 }
 
 impl<'e> Value<'e> {
-	pub fn head(&self) -> Result<Self> {
+	pub fn head(&self, _: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
 			Self::Text(text) => text.head().ok_or(Error::DomainError("empty text")).map(Self::from),
@@ -180,7 +182,7 @@ impl<'e> Value<'e> {
 		}
 	}
 
-	pub fn tail(&self) -> Result<Self> {
+	pub fn tail(&self, _: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
 			Self::Text(text) => text.tail().ok_or(Error::DomainError("empty text")).map(Self::from),
@@ -192,7 +194,7 @@ impl<'e> Value<'e> {
 		}
 	}
 
-	pub fn length(&self) -> Result<Self> {
+	pub fn length(&self, _: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::List(list) => Integer::try_from(list.len()).map(Self::from),
 			Self::Text(text) => {
@@ -207,43 +209,43 @@ impl<'e> Value<'e> {
 		}
 	}
 
-	pub fn ascii(&self) -> Result<Self> {
+	pub fn ascii(&self, _: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.chr()?.into()),
 			Self::Text(text) => Ok(text.ord()?.into()),
 
-			other => return Err(Error::TypeError(other.typename(), "ASCII")),
+			other => Err(Error::TypeError(other.typename(), "ASCII")),
 		}
 	}
 
-	pub fn add(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+	pub fn add(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.add(rhs.to_integer()?).map(Self::from),
 			Self::Text(string) => string.concat(&rhs.to_text()?).map(Self::from),
 			Self::List(list) => list.concat(&rhs.to_list()?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if flags.exts.boolean => Ok((lhs | rhs.to_boolean()?).into()),
+			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs | rhs.to_boolean()?).into()),
 
 			other => Err(Error::TypeError(other.typename(), "+")),
 		}
 	}
 
-	pub fn subtract(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+	pub fn subtract(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.subtract(rhs.to_integer()?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Text(text) if flags.exts.text => Ok(text.remove_substr(&rhs.to_text()?).into()),
+			Self::Text(text) if env.flags().exts.text => Ok(text.remove_substr(&rhs.to_text()?).into()),
 
 			#[cfg(feature = "extensions")]
-			Self::List(list) if flags.exts.list => list.difference(&rhs.to_list()?).map(Self::from),
+			Self::List(list) if env.flags().exts.list => list.difference(&rhs.to_list()?).map(Self::from),
 
-			other => return Err(Error::TypeError(other.typename(), "-")),
+			other => Err(Error::TypeError(other.typename(), "-")),
 		}
 	}
 
-	pub fn multiply(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
+	pub fn multiply(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.multiply(rhs.to_integer()?).map(Self::from),
 
@@ -255,7 +257,7 @@ impl<'e> Value<'e> {
 					return Err(Error::DomainError("repetition is too large"));
 				}
 
-				lstr.repeat(amount).into()
+				Ok(lstr.repeat(amount).into())
 			}
 
 			Self::List(list) => {
@@ -263,8 +265,8 @@ impl<'e> Value<'e> {
 
 				// Multiplying by a block is invalid, so we can do this as an extension.
 				#[cfg(feature = "extensions")]
-				if flags.exts.list && matches!(rhs, Self::Ast(_)) {
-					return Ok(list.map(&rhs, env).map(Self::from));
+				if env.flags().exts.list && matches!(rhs, Self::Ast(_)) {
+					return list.map(&rhs, env).map(Self::from);
 				}
 
 				let amount = usize::try_from(rhs.to_integer()?)
@@ -277,8 +279,245 @@ impl<'e> Value<'e> {
 			}
 
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if env.flags().exts.boolean => (lhs & rhs.to_boolean()?).into(),
+			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs & rhs.to_boolean()?).into()),
 
-			other => return Err(Error::TypeError(other.typename(), "*")),
+			other => Err(Error::TypeError(other.typename(), "*")),
+		}
 	}
+
+	pub fn divide(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.divide(rhs.to_integer()?).map(Self::from),
+
+			#[cfg(feature = "extensions")]
+			Self::Text(text) if env.flags().exts.text => Ok(text.split(&rhs.to_text()?).into()),
+
+			#[cfg(feature = "extensions")]
+			Self::List(list) if env.flags().exts.list => Ok(list.reduce(&rhs, env)?.unwrap_or_default()),
+
+			other => Err(Error::TypeError(other.typename(), "/")),
+		}
+	}
+
+	pub fn remainder(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.remainder(rhs.to_integer()?).map(Self::from),
+
+			// #[cfg(feature = "string-extensions")]
+			// Self::Text(lstr) => {
+			// 	let values = rhs.to_list()?;
+			// 	let mut values_index = 0;
+
+			// 	let mut formatted = String::new();
+			// 	let mut chars = lstr.chars();
+
+			// 	while let Some(chr) = chars.next() {
+			// 		match chr {
+			// 			'\\' => {
+			// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
+			// 					'n' => '\n',
+			// 					'r' => '\r',
+			// 					't' => '\t',
+			// 					'{' => '{',
+			// 					'}' => '}',
+			// 					_ => panic!("todo: error for unknown escape code"),
+			// 				});
+			// 			}
+			// 			'{' => {
+			// 				if chars.next() != Some('}') {
+			// 					panic!("todo, missing closing `}}`");
+			// 				}
+			// 				formatted.push_str(
+			// 					&values
+			// 						.as_slice()
+			// 						.get(values_index)
+			// 						.expect("no values left to format")
+			// 						.to_text()?,
+			// 				);
+			// 				values_index += 1;
+			// 			}
+			// 			_ => formatted.push(chr),
+			// 		}
+			// 	}
+
+			// 	Text::new(formatted).unwrap().into()
+			// }
+			#[cfg(feature = "extensions")]
+			Self::List(list) if env.flags().exts.list => list.filter(&rhs, env).map(Self::from),
+
+			other => Err(Error::TypeError(other.typename(), "%")),
+		}
+	}
+	pub fn power(&self, rhs: &Self, _env: &mut Environment<'e>) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => integer.power(rhs.to_integer()?).map(Self::from),
+			Self::List(list) => list.join(&rhs.to_text()?).map(Self::from),
+			other => Err(Error::TypeError(other.typename(), "^")),
+		}
+	}
+
+	pub fn compare(&self, rhs: &Self, _env: &mut Environment<'_>) -> Result<Ordering> {
+		match self {
+			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer()?)),
+			Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean()?)),
+			Value::Text(text) => Ok(text.cmp(&rhs.to_text()?)),
+			Value::List(list) => {
+				let rhs = rhs.to_list()?;
+
+				for (left, right) in list.iter().zip(&rhs) {
+					match left.compare(right, _env)? {
+						Ordering::Equal => {}
+						other => return Ok(other),
+					}
+				}
+
+				Ok(list.len().cmp(&rhs.len()))
+			}
+			other => Err(Error::TypeError(other.typename(), "<cmp>")),
+		}
+	}
+
+	pub fn equals(&self, rhs: &Self, _env: &mut Environment<'_>) -> Result<bool> {
+		#[cfg(not(feature = "lax-compliance"))]
+		{
+			fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
+				match value {
+					Value::List(list) => {
+						for ele in list {
+							check_for_strict_compliance(&ele)?;
+						}
+						Ok(())
+					}
+					Value::Ast(_) | Value::Variable(_) => Err(Error::TypeError(value.typename(), "?")),
+					_ => Ok(()),
+				}
+			}
+
+			check_for_strict_compliance(self)?;
+			check_for_strict_compliance(rhs)?;
+		}
+
+		Ok((self == rhs).into())
+	}
+
+	pub fn assign(&self, value: Self, env: &mut Environment<'e>) -> Result<()> {
+		match self {
+			Value::Variable(variable) => {
+				variable.assign(value);
+			}
+
+			#[cfg(not(feature = "extensions"))]
+			other => return Err(Error::TypeError(other.typename(), "=")),
+
+			#[cfg(feature = "extensions")]
+			Value::Ast(ast)
+				if env.flags().assign_to.prompt && ast.function() == &crate::function::PROMPT =>
+			{
+				match value {
+					// `= PROMPT NULL` or `= PROMPT FALSE` makes it always return nothing.
+					Value::Null | Value::Boolean(false) => env.prompt().close(),
+
+					// `= PROMPT TRUE` clears all replacements
+					Value::Boolean(true) => env.prompt().reset_replacement(),
+
+					// `= PROMPT "foo<newline>bar"` will add the two lines to the end of the buffer.
+					// after the buffer's exhausted, it's assumed to be EOF.
+					Value::Text(text) => env.prompt().add_lines(&text),
+
+					// `= PROMPT BLOCK ...` will compute the new ast each time
+					Value::Ast(ast) => env.prompt().set_ast(ast),
+
+					other => return Err(Error::TypeError(other.typename(), "=")),
+				}
+			}
+
+			#[cfg(feature = "extensions")]
+			Value::Ast(ast)
+				if env.flags().assign_to.prompt && ast.function() == &crate::function::SYSTEM =>
+			{
+				env.add_to_system(value.to_text()?);
+			}
+
+			#[cfg(feature = "extensions")]
+			other => match other.run(env)? {
+				Value::List(_list) if env.flags().assign_to.list => todo!(),
+				Value::Text(name) if env.flags().assign_to.text => {
+					env.lookup(&name)?.assign(value);
+				}
+				other => return Err(Error::TypeError(other.typename(), "=")),
+			},
+		}
+
+		Ok(())
+	}
+
+	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<'e>) -> Result<Self> {
+		let start = fix_len(self, start.to_integer()?, env.flags())?;
+		let len =
+			usize::try_from(len.to_integer()?).or(Err(Error::DomainError("negative length")))?;
+
+		match self {
+			Self::List(list) => list
+				.get(start..start + len)
+				.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + len })
+				.map(Self::from),
+			Self::Text(text) => text
+				.get(start..start + len)
+				.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + len })
+				.map(ToOwned::to_owned)
+				.map(Self::from),
+			other => return Err(Error::TypeError(other.typename(), "GET")),
+		}
+	}
+
+	pub fn set(
+		&self,
+		start: &Self,
+		len: &Self,
+		replacement: &Self,
+		env: &mut Environment<'e>,
+	) -> Result<Self> {
+		let start = fix_len(self, start.to_integer()?, env.flags())?;
+		let len =
+			usize::try_from(len.to_integer()?).or(Err(Error::DomainError("negative length")))?;
+
+		match self {
+			Self::List(list) => {
+				// OPTIMIZE ME: cons?
+				let replacement = replacement.to_list()?;
+				let mut ret = Vec::new();
+				ret.extend(list.iter().take(start).cloned());
+				ret.extend(replacement.iter().cloned());
+				ret.extend(list.iter().skip((start) + len).cloned());
+
+				List::try_from(ret).map(Self::from)
+			}
+			Self::Text(text) => {
+				let replacement = replacement.to_text()?;
+
+				// lol, todo, optimize me
+				let mut builder = Text::builder();
+				builder.push(text.get(..start).unwrap());
+				builder.push(&replacement);
+				builder.push(text.get(start + len..).unwrap());
+				Ok(builder.finish().into())
+			}
+			other => return Err(Error::TypeError(other.typename(), "SET")),
+		}
+	}
+}
+
+fn fix_len(container: &Value<'_>, mut start: Integer, flags: &crate::env::Flags) -> Result<usize> {
+	#[cfg(feature = "extensions")]
+	if flags.negative_indexing && start.is_negative() {
+		let len = match container {
+			Value::Text(text) => text.len(),
+			Value::List(list) => list.len(),
+			other => return Err(Error::TypeError(other.typename(), "get/set")),
+		};
+
+		start = start.add(len.try_into()?)?;
+	}
+
+	usize::try_from(start).or(Err(Error::DomainError("negative start position")))
 }
