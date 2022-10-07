@@ -6,17 +6,19 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 
 mod builder;
+mod flags;
 mod variable;
 pub use builder::Builder;
+pub use flags::Flags;
 pub use variable::{IllegalVariableName, Variable};
 
 type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
 type Stdout<'e> = dyn Write + 'e + Send + Sync;
 
-#[cfg(feature = "system-function")]
+#[cfg(feature = "extensions")]
 type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e + Send + Sync;
 
-#[cfg(feature = "use-function")]
+#[cfg(feature = "extensions")]
 type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
@@ -32,18 +34,20 @@ pub struct Environment<'e> {
 	extensions: HashMap<Text, &'e Function>,
 
 	// A queue of things that'll be read from for `PROMPT` instead of stdin.
-	#[cfg(feature = "assign-to-prompt")]
+	#[cfg(feature = "extensions")]
 	prompt_lines: std::collections::VecDeque<Text>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
-	#[cfg(feature = "assign-to-system")]
+	#[cfg(feature = "extensions")]
 	system_results: std::collections::VecDeque<Text>,
 
-	#[cfg(feature = "system-function")]
+	#[cfg(feature = "extensions")]
 	system: Box<System<'e>>,
 
-	#[cfg(feature = "use-function")]
+	#[cfg(feature = "extensions")]
 	read_file: Box<ReadFile<'e>>,
+
+	flags: Flags,
 }
 
 #[cfg(feature = "multithreaded")]
@@ -59,6 +63,10 @@ impl<'e> Environment<'e> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)
+	}
+
+	pub fn flags(&self) -> &Flags {
+		&self.flags
 	}
 
 	pub fn functions(&self) -> &HashMap<Character, &'e Function> {
@@ -102,7 +110,7 @@ impl<'e> Environment<'e> {
 	}
 
 	/// Executes `command` as a shell command, returning its result.
-	#[cfg(feature = "system-function")]
+	#[cfg(feature = "extensions")]
 	pub fn run_command(&mut self, command: &TextSlice, stdin: Option<&TextSlice>) -> Result<Text> {
 		(self.system)(command, stdin)
 	}
@@ -117,29 +125,29 @@ impl<'e> Environment<'e> {
 		&mut self.extensions
 	}
 
-	#[cfg(feature = "assign-to-prompt")]
+	#[cfg(feature = "extensions")]
 	pub fn add_to_prompt(&mut self, line: Text) {
 		for line in (&**line).split('\n') {
 			self.prompt_lines.push_back(line.try_into().unwrap());
 		}
 	}
 
-	#[cfg(feature = "assign-to-prompt")]
+	#[cfg(feature = "extensions")]
 	pub fn get_next_prompt_line(&mut self) -> Option<Text> {
 		self.prompt_lines.pop_front()
 	}
 
-	#[cfg(feature = "assign-to-system")]
+	#[cfg(feature = "extensions")]
 	pub fn add_to_system(&mut self, output: Text) {
 		self.system_results.push_back(output);
 	}
 
-	#[cfg(feature = "assign-to-system")]
+	#[cfg(feature = "extensions")]
 	pub fn get_next_system_result(&mut self) -> Option<Text> {
 		self.system_results.pop_front()
 	}
 
-	#[cfg(feature = "use-function")]
+	#[cfg(feature = "extensions")]
 	pub fn read_file(&mut self, filename: &TextSlice) -> crate::Result<Text> {
 		(self.read_file)(filename)
 	}

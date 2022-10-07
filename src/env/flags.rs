@@ -1,24 +1,17 @@
-[package]
-name = "knightrs"
-version = "0.9.9"
-authors = ["Sam Westerman <mail@sampersand.me>"]
-edition = "2021"
-description = "The Knight programming language, in Rust"
-repository = "https://github.com/knight-lang/rust"
-license = "MIT"
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Flags {
+	pub assign_to: AssignToFlags,
+}
 
-# keywords = []
-# categories = []
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AssignToFlags {
+	pub prompt: bool,
+	pub system: bool,
+	pub lists: bool,
+	pub strings: bool,
+}
 
-[features]
-default = ["extensions"]
-
-#######################################
-#            Miscellaneous           ##
-#######################################
-multithreaded = [] # Enables multithreading support
-extensions_ = ["spec-extensions", "compiler-extensions", "qol-extensions"]
-extensions = []
+/*
 
 #######################################
 ##      Spec-defined Extensions      ##
@@ -60,14 +53,14 @@ compiler-extensions = [  # Enables everything in this section
 ##     Quality-Of-Life Extensions    ##
 #######################################
 negative-index-length = [] # Use negative start index in `GET`/`SET` for lists/strings.
-#assign-to-prompt      = [] # Assign to `PROMPT` changes what it returns next, in a queue.
-#assign-to-system      = ["system-function"] # Assign to `$` changes its next value, in a queue.
-#assign-to-lists       = [] # Assignment to lists enables destructoring.
+assign-to-prompt      = [] # Assign to `PROMPT` changes what it returns next, in a queue.
+assign-to-system      = ["system-function"] # Assign to `$` changes its next value, in a queue.
+assign-to-lists       = [] # Assignment to lists enables destructoring.
 assignment-overloads  = [  # Enables all assignment overloads
-#	"assign-to-strings",
-#	"assign-to-prompt",
-#	"assign-to-system",
-#	"assign-to-lists",
+	"assign-to-strings",
+	"assign-to-prompt",
+	"assign-to-system",
+	"assign-to-lists",
 ]
 qol-extensions        = [ # Enables everything in thiss section
 	"negative-index-length",
@@ -93,19 +86,4 @@ strict-compliance      = [  # Enables everything in this section, as well as mor
 	"strict-call-argument",
 	"verify-variable-names",
 ]
-
-[dependencies]
-rand = "0.8"
-once_cell = "1.7"
-lazy_static = "1.4"
-clap = { version = "2.33", optional = true }
-static_assertions = "1.1"
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "doc_cfg"]
-
-[[bin]]
-name = "knight"
-path = "src/main.rs"
-# required-features = ["clap"]
-
+*/

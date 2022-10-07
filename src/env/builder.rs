@@ -9,10 +9,10 @@ pub struct Builder<'e> {
 	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
 
-	#[cfg(feature = "system-function")]
+	#[cfg(feature = "extensions")]
 	system: Option<Box<System<'e>>>,
 
-	#[cfg(feature = "use-function")]
+	#[cfg(feature = "extensions")]
 	read_file: Option<Box<ReadFile<'e>>>,
 }
 
@@ -24,10 +24,10 @@ impl Default for Builder<'_> {
 			functions: crate::function::default(),
 			extensions: crate::function::extensions(),
 
-			#[cfg(feature = "system-function")]
+			#[cfg(feature = "extensions")]
 			system: None,
 
-			#[cfg(feature = "use-function")]
+			#[cfg(feature = "extensions")]
 			read_file: None,
 		}
 	}
@@ -50,7 +50,7 @@ impl<'e> Builder<'e> {
 		&mut self.extensions
 	}
 
-	#[cfg(feature = "system-function")]
+	#[cfg(feature = "extensions")]
 	pub fn system<F>(&mut self, func: F)
 	where
 		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
@@ -58,7 +58,7 @@ impl<'e> Builder<'e> {
 		self.system = Some(Box::new(func) as Box<_>);
 	}
 
-	#[cfg(feature = "use-function")]
+	#[cfg(feature = "extensions")]
 	pub fn read_file<F>(&mut self, func: F)
 	where
 		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
@@ -72,7 +72,7 @@ impl<'e> Builder<'e> {
 			stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
 
-			#[cfg(feature = "system-function")]
+			#[cfg(feature = "extensions")]
 			system: self.system.unwrap_or_else(|| {
 				Box::new(|cmd, stdin| {
 					use std::process::{Command, Stdio};
@@ -90,7 +90,7 @@ impl<'e> Builder<'e> {
 				})
 			}),
 
-			#[cfg(feature = "use-function")]
+			#[cfg(feature = "extensions")]
 			read_file: self.read_file.unwrap_or_else(|| {
 				Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?))
 			}),
@@ -99,11 +99,13 @@ impl<'e> Builder<'e> {
 			functions: self.functions,
 			rng: Box::new(StdRng::from_entropy()),
 
-			#[cfg(feature = "assign-to-prompt")]
+			#[cfg(feature = "extensions")]
 			prompt_lines: Default::default(),
 
-			#[cfg(feature = "assign-to-system")]
+			#[cfg(feature = "extensions")]
 			system_results: Default::default(),
+
+			flags: Default::default(),
 		}
 	}
 }
