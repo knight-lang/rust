@@ -1,30 +1,32 @@
 use crate::value::{Runnable, Value};
+use crate::Encoding;
+use crate::IntType;
 use crate::{Environment, Function, Result};
 use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
 
 /// [`Ast`]s represent functions and their arguments.
-pub struct Ast<'e, E, I>(Arc<(Function<'e, E, I>, Box<[Value<'e, E, I>]>)>);
+pub struct Ast<'e, E: Encoding, I: IntType>(Arc<(Function<'e, E, I>, Box<[Value<'e, E, I>]>)>);
 
-impl<E, I> Debug for Ast<'_, E, I> {
+impl<E: Encoding, I: IntType> Debug for Ast<'_, E, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_struct("Ast").field("fn", &self.function()).field("args", &self.args()).finish()
 	}
 }
 
-impl<E, I> Clone for Ast<'_, E, I> {
+impl<E: Encoding, I: IntType> Clone for Ast<'_, E, I> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone())
 	}
 }
 
-impl<E, I> PartialEq for Ast<'_, E, I> {
+impl<E: Encoding, I: IntType> PartialEq for Ast<'_, E, I> {
 	fn eq(&self, rhs: &Self) -> bool {
 		Arc::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<'e, E, I> Ast<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Ast<'e, E, I> {
 	/// Creates a new `Ast` from the given arguments.
 	///
 	/// # Panics
@@ -49,7 +51,7 @@ impl<'e, E, I> Ast<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> Runnable<'e, E, I> for Ast<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Runnable<'e, E, I> for Ast<'e, E, I> {
 	fn run(&self, env: &mut Environment<'e, E, I>) -> Result<Value<'e, E, I>> {
 		self.function().call(self.args(), env)
 	}

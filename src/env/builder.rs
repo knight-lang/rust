@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Builder<'e, E, I> {
+pub struct Builder<'e, E: Encoding, I: IntType> {
 	stdin: Option<Box<Stdin<'e>>>,
 	stdout: Option<Box<Stdout<'e>>>,
 	options: Options,
@@ -24,7 +24,7 @@ impl<'e, E: Encoding, I: IntType> Default for Builder<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> Builder<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}

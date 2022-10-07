@@ -1,43 +1,44 @@
 use super::{validate, Character, Chars, Encoding, NewTextError, Text};
 use crate::env::Options;
 use crate::value::{Integer, List, ToBoolean, ToInteger, ToList, ToText};
+use crate::IntType;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 #[repr(transparent)]
-pub struct TextSlice<E>(PhantomData<E>, str);
+pub struct TextSlice<E: Encoding>(PhantomData<E>, str);
 
-impl<E> Debug for TextSlice<E> {
+impl<E: Encoding> Debug for TextSlice<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&**self, f)
 	}
 }
 
-impl<E> Eq for TextSlice<E> {}
-impl<E> PartialEq for TextSlice<E> {
+impl<E: Encoding> Eq for TextSlice<E> {}
+impl<E: Encoding> PartialEq for TextSlice<E> {
 	fn eq(&self, rhs: &Self) -> bool {
 		**self == **rhs
 	}
 }
 
-impl<E> PartialOrd for TextSlice<E> {
+impl<E: Encoding> PartialOrd for TextSlice<E> {
 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
 		Some(self.cmp(rhs))
 	}
 }
-impl<E> Ord for TextSlice<E> {
+impl<E: Encoding> Ord for TextSlice<E> {
 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
 		(**self).cmp(&**rhs)
 	}
 }
-impl<E> Hash for TextSlice<E> {
+impl<E: Encoding> Hash for TextSlice<E> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		(**self).hash(state)
 	}
 }
 
-impl<E> Default for &TextSlice<E> {
+impl<E: Encoding> Default for &TextSlice<E> {
 	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
@@ -45,13 +46,13 @@ impl<E> Default for &TextSlice<E> {
 	}
 }
 
-impl<E> Display for TextSlice<E> {
+impl<E: Encoding> Display for TextSlice<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl<E> std::ops::Deref for TextSlice<E> {
+impl<E: Encoding> std::ops::Deref for TextSlice<E> {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
@@ -71,9 +72,9 @@ impl<E: Encoding> TextSlice<E> {
 	}
 }
 
-impl<E> TextSlice<E> {
-	pub const MAX_LEN: usize = i32::MAX as usize;
+pub const MAX_LEN: usize = i32::MAX as usize;
 
+impl<E: Encoding> TextSlice<E> {
 	/// Creates a new `TextSlice` without validating `inp`.
 	///
 	/// # Safety
@@ -116,7 +117,7 @@ impl<E> TextSlice<E> {
 		unsafe { Text::new_unchecked(repeated) }
 	}
 
-	pub fn split<'e, I>(&self, sep: &Self, opts: &Options) -> List<'e, E, I> {
+	pub fn split<'e, I: IntType>(&self, sep: &Self, opts: &Options) -> List<'e, E, I> {
 		if sep.is_empty() {
 			// TODO: optimize me
 			crate::Value::from(self.to_owned()).to_list(opts).unwrap()
@@ -130,7 +131,7 @@ impl<E> TextSlice<E> {
 		}
 	}
 
-	pub fn ord<I>(&self) -> crate::Result<Integer<I>> {
+	pub fn ord<I: IntType>(&self) -> crate::Result<Integer<I>> {
 		Integer::try_from(
 			self.chars().next().ok_or(crate::Error::DomainError("empty string"))?.inner(),
 		)
@@ -160,7 +161,7 @@ impl<'a, E: Encoding> TryFrom<&'a str> for &'a TextSlice<E> {
 	}
 }
 
-impl<'a, E> From<&'a TextSlice<E>> for &'a str {
+impl<'a, E: Encoding> From<&'a TextSlice<E>> for &'a str {
 	#[inline]
 	fn from(text: &'a TextSlice<E>) -> Self {
 		text
@@ -177,7 +178,7 @@ impl<E: Encoding> TryFrom<Box<str>> for Box<TextSlice<E>> {
 	}
 }
 
-impl<E> ToOwned for TextSlice<E> {
+impl<E: Encoding> ToOwned for TextSlice<E> {
 	type Owned = Text<E>;
 
 	fn to_owned(&self) -> Self::Owned {
@@ -185,7 +186,7 @@ impl<E> ToOwned for TextSlice<E> {
 	}
 }
 
-impl<'a, E> IntoIterator for &'a TextSlice<E> {
+impl<'a, E: Encoding> IntoIterator for &'a TextSlice<E> {
 	type Item = Character<E>;
 	type IntoIter = Chars<'a, E>;
 
@@ -194,29 +195,29 @@ impl<'a, E> IntoIterator for &'a TextSlice<E> {
 	}
 }
 
-impl<E> ToBoolean for Text<E> {
+impl<E: Encoding> ToBoolean for Text<E> {
 	fn to_boolean(&self, _: &Options) -> crate::Result<crate::Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<E> ToText<E> for Text<E> {
+impl<E: Encoding> ToText<E> for Text<E> {
 	fn to_text(&self, _: &Options) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl<E> crate::value::NamedType for Text<E> {
+impl<E: Encoding> crate::value::NamedType for Text<E> {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<E, I: crate::value::integer::IntType> ToInteger<I> for Text<E> {
+impl<E: Encoding, I: IntType> ToInteger<I> for Text<E> {
 	fn to_integer(&self, opts: &Options) -> crate::Result<Integer<I>> {
 		Integer::parse(&self, opts)
 	}
 }
 
-impl<'e, E, I> ToList<'e, E, I> for Text<E> {
+impl<'e, E: Encoding, I: IntType> ToList<'e, E, I> for Text<E> {
 	fn to_list(&self, _: &Options) -> crate::Result<List<'e, E, I>> {
 		self.chars().map(|c| Self::from(c).into()).collect::<Vec<_>>().try_into()
 	}

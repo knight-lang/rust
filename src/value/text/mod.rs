@@ -6,7 +6,7 @@ mod textslice;
 
 pub use encoding::*;
 
-pub trait ToText<E> {
+pub trait ToText<E: Encoding> {
 	fn to_text(&self, _: &crate::env::Options) -> crate::Result<Text<E>>;
 }
 
@@ -16,7 +16,7 @@ pub use text::*;
 pub use textslice::*;
 
 pub struct Chars<'a, E>(std::str::Chars<'a>, std::marker::PhantomData<E>);
-impl<'a, E> Chars<'a, E> {
+impl<'a, E: Encoding> Chars<'a, E> {
 	pub fn as_text(&self) -> &'a TextSlice<E> {
 		unsafe { TextSlice::new_unchecked(self.0.as_str()) }
 	}
@@ -49,7 +49,7 @@ impl std::fmt::Display for NewTextError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::LengthTooLong(len) => {
-				write!(f, "length {len } longer than max {}", TextSlice::<u8>::MAX_LEN)
+				write!(f, "length {len} longer than max {}", MAX_LEN)
 			}
 			Self::IllegalChar { chr, index } => {
 				write!(f, "illegal char {chr:?} found at index {index}")
@@ -61,7 +61,7 @@ impl std::fmt::Display for NewTextError {
 impl std::error::Error for NewTextError {}
 
 pub fn validate<E: Encoding>(data: &str) -> Result<(), NewTextError> {
-	if cfg!(feature = "container-length-limit") && TextSlice::<E>::MAX_LEN < data.len() {
+	if cfg!(feature = "container-length-limit") && MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
 	}
 

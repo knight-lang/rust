@@ -1,15 +1,16 @@
 use crate::env::Options;
 use crate::value::text::Encoding;
 use crate::value::{Runnable, Text, TextSlice, Value};
+use crate::IntType;
 use crate::{Environment, Error, Mutable, RefCount};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
-pub struct Variable<'e, E, I>(RefCount<Inner<'e, E, I>>);
+pub struct Variable<'e, E: Encoding, I: IntType>(RefCount<Inner<'e, E, I>>);
 
-struct Inner<'e, E, I> {
+struct Inner<'e, E: Encoding, I: IntType> {
 	name: Text<E>,
 	value: Mutable<Option<Value<'e, E, I>>>,
 }
@@ -17,13 +18,13 @@ struct Inner<'e, E, I> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
-impl<E, I> Clone for Variable<'_, E, I> {
+impl<E: Encoding, I: IntType> Clone for Variable<'_, E, I> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone())
 	}
 }
 
-impl<E, I> Debug for Variable<'_, E, I> {
+impl<E: Encoding, I: IntType> Debug for Variable<'_, E, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -36,8 +37,8 @@ impl<E, I> Debug for Variable<'_, E, I> {
 	}
 }
 
-impl<E, I> Eq for Variable<'_, E, I> {}
-impl<E, I> PartialEq for Variable<'_, E, I> {
+impl<E: Encoding, I: IntType> Eq for Variable<'_, E, I> {}
+impl<E: Encoding, I: IntType> PartialEq for Variable<'_, E, I> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This'll just check to see if their names are equivalent. Techincally, this means that
@@ -49,14 +50,14 @@ impl<E, I> PartialEq for Variable<'_, E, I> {
 	}
 }
 
-impl<E, I> Borrow<TextSlice<E>> for Variable<'_, E, I> {
+impl<E: Encoding, I: IntType> Borrow<TextSlice<E>> for Variable<'_, E, I> {
 	#[inline]
 	fn borrow(&self) -> &TextSlice<E> {
 		self.name()
 	}
 }
 
-impl<E, I> Hash for Variable<'_, E, I> {
+impl<E: Encoding, I: IntType> Hash for Variable<'_, E, I> {
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
@@ -85,11 +86,7 @@ impl Display for IllegalVariableName {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Empty => write!(f, "empty variable name supplied"),
-			Self::TooLong(len) => write!(
-				f,
-				"variable too long ({len} > {})",
-				Variable::<crate::value::text::Unicode, ()>::MAX_LEN
-			),
+			Self::TooLong(len) => write!(f, "variable too long ({len} > {MAX_LEN})",),
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
@@ -100,7 +97,7 @@ impl std::error::Error for IllegalVariableName {}
 
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
-fn validate_name<E: Encoding, I>(
+fn validate_name<E: Encoding>(
 	name: &TextSlice<E>,
 	options: &Options,
 ) -> Result<(), IllegalVariableName> {
@@ -108,7 +105,7 @@ fn validate_name<E: Encoding, I>(
 		return Ok(());
 	}
 
-	if Variable::<E, I>::MAX_LEN < name.len() {
+	if MAX_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
 
@@ -124,19 +121,19 @@ fn validate_name<E: Encoding, I>(
 	Ok(())
 }
 
-impl<'e, E: Encoding, I> Variable<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Variable<'e, E, I> {
 	/// Creates a new `Variable`.
 	pub fn new(name: Text<E>, options: &Options) -> Result<Self, IllegalVariableName> {
-		validate_name::<E, I>(&name, options)?;
+		validate_name::<E>(&name, options)?;
 
 		Ok(Self(Inner { name, value: None.into() }.into()))
 	}
 }
 
-impl<'e, E, I> Variable<'e, E, I> {
-	/// Maximum length a name can have when `verify-variable-names` is enabled.
-	pub const MAX_LEN: usize = 127;
+/// Maximum length a name can have when `verify-variable-names` is enabled.
+pub const MAX_LEN: usize = 127;
 
+impl<'e, E: Encoding, I: IntType> Variable<'e, E, I> {
 	/// Fetches the name of the variable.
 	#[must_use]
 	#[inline]
@@ -156,7 +153,7 @@ impl<'e, E, I> Variable<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> Runnable<'e, E, I> for Variable<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> Runnable<'e, E, I> for Variable<'e, E, I> {
 	fn run(&self, _env: &mut Environment<'e, E, I>) -> crate::Result<Value<'e, E, I>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
 	}

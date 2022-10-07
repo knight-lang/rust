@@ -4,38 +4,38 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-pub struct Text<E>(Arc<TextSlice<E>>, PhantomData<E>);
+pub struct Text<E: Encoding>(Arc<TextSlice<E>>, PhantomData<E>);
 
-impl<E> Clone for Text<E> {
+impl<E: Encoding> Clone for Text<E> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone(), self.1)
 	}
 }
 
-impl<E> Debug for Text<E> {
+impl<E: Encoding> Debug for Text<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&**self, f)
 	}
 }
 
-impl<E> Eq for Text<E> {}
-impl<E> PartialEq for Text<E> {
+impl<E: Encoding> Eq for Text<E> {}
+impl<E: Encoding> PartialEq for Text<E> {
 	fn eq(&self, rhs: &Self) -> bool {
 		**self == **rhs
 	}
 }
 
-impl<E> PartialOrd for Text<E> {
+impl<E: Encoding> PartialOrd for Text<E> {
 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
 		Some(self.cmp(rhs))
 	}
 }
-impl<E> Ord for Text<E> {
+impl<E: Encoding> Ord for Text<E> {
 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
 		(**self).cmp(&**rhs)
 	}
 }
-impl<E> Hash for Text<E> {
+impl<E: Encoding> Hash for Text<E> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		(**self).hash(state)
 	}
@@ -44,21 +44,21 @@ impl<E> Hash for Text<E> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Text: Send, Sync);
 
-impl<E> Default for Text<E> {
+impl<E: Encoding> Default for Text<E> {
 	#[inline]
 	fn default() -> Self {
 		<&TextSlice<E>>::default().into()
 	}
 }
 
-impl<E> Display for Text<E> {
+impl<E: Encoding> Display for Text<E> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl<E> std::ops::Deref for Text<E> {
+impl<E: Encoding> std::ops::Deref for Text<E> {
 	type Target = TextSlice<E>;
 
 	#[inline]
@@ -67,7 +67,7 @@ impl<E> std::ops::Deref for Text<E> {
 	}
 }
 
-impl<E> From<Box<TextSlice<E>>> for Text<E> {
+impl<E: Encoding> From<Box<TextSlice<E>>> for Text<E> {
 	#[inline]
 	fn from(text: Box<TextSlice<E>>) -> Self {
 		Self(text.into(), PhantomData)
@@ -83,13 +83,13 @@ impl<E: Encoding> TryFrom<String> for Text<E> {
 	}
 }
 
-impl<E> From<Character<E>> for Text<E> {
+impl<E: Encoding> From<Character<E>> for Text<E> {
 	fn from(chr: Character<E>) -> Self {
 		unsafe { Self::new_unchecked(chr.to_string()) }
 	}
 }
 
-impl<E> Text<E> {
+impl<E: Encoding> Text<E> {
 	pub fn builder() -> super::Builder<E> {
 		Default::default()
 	}
@@ -105,13 +105,13 @@ impl<E: Encoding> Text<E> {
 	}
 }
 
-impl<E> std::borrow::Borrow<TextSlice<E>> for Text<E> {
+impl<E: Encoding> std::borrow::Borrow<TextSlice<E>> for Text<E> {
 	fn borrow(&self) -> &TextSlice<E> {
 		self
 	}
 }
 
-impl<E> From<&TextSlice<E>> for Text<E> {
+impl<E: Encoding> From<&TextSlice<E>> for Text<E> {
 	fn from(text: &TextSlice<E>) -> Self {
 		unsafe { Self::new_unchecked(text.to_string()) }
 	}

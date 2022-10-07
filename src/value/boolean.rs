@@ -1,5 +1,7 @@
 use crate::env::Options;
 use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
+use crate::Encoding;
+use crate::IntType;
 use crate::Result;
 
 /// The boolean type within Knight.
@@ -23,15 +25,19 @@ impl ToBoolean for Boolean {
 	}
 }
 
-impl<I> ToInteger<I> for Boolean {
+impl<I: IntType> ToInteger<I> for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
 	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
-		Ok((*self).into())
+		if *self {
+			Ok(Integer::ONE)
+		} else {
+			Ok(Integer::ZERO)
+		}
 	}
 }
 
-impl<'e, E, I> ToList<'e, E, I> for Boolean {
+impl<'e, E: Encoding, I: IntType> ToList<'e, E, I> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	fn to_list(&self, _: &Options) -> Result<List<'e, E, I>> {
 		if *self {
@@ -42,7 +48,7 @@ impl<'e, E, I> ToList<'e, E, I> for Boolean {
 	}
 }
 
-impl<E> ToText<E> for Boolean {
+impl<E: Encoding> ToText<E> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	fn to_text(&self, _: &Options) -> Result<Text<E>> {
 		use crate::text::TextSlice;

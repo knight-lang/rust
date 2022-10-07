@@ -1,16 +1,17 @@
 use super::{Text, TextSlice};
+use crate::Encoding;
 use std::marker::PhantomData;
 
 #[must_use]
 pub struct Builder<E>(String, PhantomData<E>);
 
-impl<E> Default for Builder<E> {
+impl<E: Encoding> Default for Builder<E> {
 	fn default() -> Self {
 		Self::new()
 	}
 }
 
-impl<E> Builder<E> {
+impl<E: Encoding> Builder<E> {
 	pub const fn new() -> Self {
 		Self(String::new(), PhantomData)
 	}

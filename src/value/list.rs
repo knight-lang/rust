@@ -3,6 +3,7 @@ use crate::value::text::Encoding;
 use crate::value::{
 	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
 };
+use crate::IntType;
 use crate::{Environment, Error, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeFrom};
@@ -19,22 +20,22 @@ use std::ops::{Range, RangeFrom};
 ///
 /// However, since this can be a fairly significant performance penalty, this checking is disabled
 /// by default. To enable it, you should enable the `container-length-limit` feature.
-pub struct List<'e, E, I>(Option<RefCount<Inner<'e, E, I>>>);
+pub struct List<'e, E: Encoding, I: IntType>(Option<RefCount<Inner<'e, E, I>>>);
 
-enum Inner<'e, E, I> {
+enum Inner<'e, E: Encoding, I: IntType> {
 	Boxed(Value<'e, E, I>),
 	Slice(Box<[Value<'e, E, I>]>),        // nonempty slice
 	Cons(List<'e, E, I>, List<'e, E, I>), // neither list is empty
 	Repeat(List<'e, E, I>, usize),        // the usize is >= 2
 }
 
-impl<E, I> Default for List<'_, E, I> {
+impl<E: Encoding, I: IntType> Default for List<'_, E, I> {
 	fn default() -> Self {
 		Self(None)
 	}
 }
 
-impl<E, I> Clone for List<'_, E, I> {
+impl<E: Encoding, I: IntType> Clone for List<'_, E, I> {
 	fn clone(&self) -> Self {
 		match self.0.as_deref() {
 			None => Self(None),
@@ -47,12 +48,12 @@ impl<E, I> Clone for List<'_, E, I> {
 }
 
 /// Represents the ability to be converted to a [`List`].
-pub trait ToList<'e, E, I> {
+pub trait ToList<'e, E: Encoding, I: IntType> {
 	/// Converts `self` to a [`List`].
 	fn to_list(&self, opts: &Options) -> Result<List<'e, E, I>>;
 }
 
-impl<E, I> PartialEq for List<'_, E, I> {
+impl<E: Encoding, I: IntType> PartialEq for List<'_, E, I> {
 	/// Checks to see if two lists are equal.
 	fn eq(&self, rhs: &Self) -> bool {
 		if std::ptr::eq(self, rhs) {
@@ -67,13 +68,13 @@ impl<E, I> PartialEq for List<'_, E, I> {
 	}
 }
 
-impl<E, I> Debug for List<'_, E, I> {
+impl<E: Encoding, I: IntType> Debug for List<'_, E, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_list().entries(self.iter()).finish()
 	}
 }
 
-impl<'e, E, I> TryFrom<Box<[Value<'e, E, I>]>> for List<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> TryFrom<Box<[Value<'e, E, I>]>> for List<'e, E, I> {
 	type Error = Error;
 
 	#[inline]
@@ -82,7 +83,7 @@ impl<'e, E, I> TryFrom<Box<[Value<'e, E, I>]>> for List<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> TryFrom<Vec<Value<'e, E, I>>> for List<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> TryFrom<Vec<Value<'e, E, I>>> for List<'e, E, I> {
 	type Error = Error;
 
 	#[inline]
@@ -91,17 +92,17 @@ impl<'e, E, I> TryFrom<Vec<Value<'e, E, I>>> for List<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> FromIterator<Value<'e, E, I>> for Result<List<'e, E, I>> {
+impl<'e, E: Encoding, I: IntType> FromIterator<Value<'e, E, I>> for Result<List<'e, E, I>> {
 	fn from_iter<T: IntoIterator<Item = Value<'e, E, I>>>(iter: T) -> Self {
 		iter.into_iter().collect::<Vec<Value<'e, E, I>>>().try_into()
 	}
 }
 
-impl<E, I> NamedType for List<'_, E, I> {
+impl<E: Encoding, I: IntType> NamedType for List<'_, E, I> {
 	const TYPENAME: &'static str = "List";
 }
 
-impl<'e, E, I> List<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> List<'e, E, I> {
 	/// An empty [`List`].
 	pub const EMPTY: Self = Self(None);
 
@@ -246,9 +247,7 @@ impl<'e, E, I> List<'e, E, I> {
 
 		Ok(list.try_into().unwrap())
 	}
-}
 
-impl<'e, E: 'e, I: 'e> List<'e, E, I> {
 	/// Returns the first element in `self`.
 	pub fn head(&self) -> Option<Value<'e, E, I>> {
 		self.get(0).cloned()
@@ -258,9 +257,7 @@ impl<'e, E: 'e, I: 'e> List<'e, E, I> {
 	pub fn tail(&self) -> Option<Self> {
 		self.get(1..)
 	}
-}
 
-impl<'e, E: Encoding, I> List<'e, E, I> {
 	/// Converts each element of `self` to a string,and inserts `sep` between them.
 	///
 	/// # Errors
@@ -362,7 +359,7 @@ impl<'e, E: Encoding, I> List<'e, E, I> {
 	}
 }
 
-impl<'e, E, I> ToList<'e, E, I> for List<'e, E, I> {
+impl<'e, E: Encoding, I: IntType> ToList<'e, E, I> for List<'e, E, I> {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_list(&self, _: &Options) -> Result<Self> {
@@ -370,7 +367,7 @@ impl<'e, E, I> ToList<'e, E, I> for List<'e, E, I> {
 	}
 }
 
-impl<E, I> ToBoolean for List<'_, E, I> {
+impl<E: Encoding, I: IntType> ToBoolean for List<'_, E, I> {
 	/// Returns whether `self` is nonempty.
 	#[inline]
 	fn to_boolean(&self, _: &Options) -> Result<Boolean> {
@@ -378,7 +375,7 @@ impl<E, I> ToBoolean for List<'_, E, I> {
 	}
 }
 
-impl<E, I> ToInteger<I> for List<'_, E, I> {
+impl<E: Encoding, I: IntType> ToInteger<I> for List<'_, E, I> {
 	/// Returns `self`'s length.
 	#[inline]
 	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
@@ -386,7 +383,7 @@ impl<E, I> ToInteger<I> for List<'_, E, I> {
 	}
 }
 
-impl<E: Encoding, I> ToText<E> for List<'_, E, I> {
+impl<E: Encoding, I: IntType> ToText<E> for List<'_, E, I> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, opts: &Options) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };
@@ -396,7 +393,7 @@ impl<E: Encoding, I> ToText<E> for List<'_, E, I> {
 }
 
 /// A helper trait for [`List::get`], indicating a type can index into a `List`.
-pub trait ListFetch<'a, 'e, E, I> {
+pub trait ListFetch<'a, 'e, E: Encoding, I: IntType> {
 	/// The resulting type.
 	type Output;
 
@@ -404,7 +401,7 @@ pub trait ListFetch<'a, 'e, E, I> {
 	fn get(self, list: &'a List<'e, E, I>) -> Option<Self::Output>;
 }
 
-impl<'a, 'e: 'a, E: 'e, I: 'e> ListFetch<'a, 'e, E, I> for usize {
+impl<'a, 'e: 'a, E: Encoding, I: IntType> ListFetch<'a, 'e, E, I> for usize {
 	type Output = &'a Value<'e, E, I>;
 
 	fn get(self, list: &'a List<'e, E, I>) -> Option<Self::Output> {
@@ -429,7 +426,7 @@ impl<'a, 'e: 'a, E: 'e, I: 'e> ListFetch<'a, 'e, E, I> for usize {
 	}
 }
 
-impl<'e, E, I> ListFetch<'_, 'e, E, I> for Range<usize> {
+impl<'e, E: Encoding, I: IntType> ListFetch<'_, 'e, E, I> for Range<usize> {
 	type Output = List<'e, E, I>;
 
 	fn get(self, list: &List<'e, E, I>) -> Option<Self::Output> {
@@ -451,7 +448,7 @@ impl<'e, E, I> ListFetch<'_, 'e, E, I> for Range<usize> {
 	}
 }
 
-impl<'e, E, I> ListFetch<'_, 'e, E, I> for RangeFrom<usize> {
+impl<'e, E: Encoding, I: IntType> ListFetch<'_, 'e, E, I> for RangeFrom<usize> {
 	type Output = List<'e, E, I>;
 
 	fn get(self, list: &List<'e, E, I>) -> Option<Self::Output> {
@@ -460,7 +457,7 @@ impl<'e, E, I> ListFetch<'_, 'e, E, I> for RangeFrom<usize> {
 	}
 }
 
-impl<'a, 'e, E, I> IntoIterator for &'a List<'e, E, I> {
+impl<'a, 'e, E: Encoding, I: IntType> IntoIterator for &'a List<'e, E, I> {
 	type Item = &'a Value<'e, E, I>;
 	type IntoIter = Iter<'a, 'e, E, I>;
 
@@ -471,7 +468,7 @@ impl<'a, 'e, E, I> IntoIterator for &'a List<'e, E, I> {
 
 /// Represents an iterator over [`List`]s.
 #[non_exhaustive]
-pub enum Iter<'a, 'e, E, I> {
+pub enum Iter<'a, 'e, E: Encoding, I: IntType> {
 	/// There's nothing left.
 	Empty,
 
@@ -488,7 +485,7 @@ pub enum Iter<'a, 'e, E, I> {
 	Repeat(std::iter::Cycle<Box<Self>>, usize),
 }
 
-impl<E, I> Clone for Iter<'_, '_, E, I> {
+impl<E: Encoding, I: IntType> Clone for Iter<'_, '_, E, I> {
 	fn clone(&self) -> Self {
 		match self {
 			Self::Empty => Self::Empty,
@@ -500,7 +497,7 @@ impl<E, I> Clone for Iter<'_, '_, E, I> {
 	}
 }
 
-impl<'a, 'e, E, I> Iterator for Iter<'a, 'e, E, I> {
+impl<'a, 'e, E: Encoding, I: IntType> Iterator for Iter<'a, 'e, E, I> {
 	type Item = &'a Value<'e, E, I>;
 
 	fn next(&mut self) -> Option<Self::Item> {

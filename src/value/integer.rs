@@ -4,7 +4,6 @@ use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
 
 mod int_type;
 pub use int_type::*;
@@ -26,7 +25,7 @@ pub use int_type::*;
 /// undefined. Within this implementation, all operations normally use wrapping logic. However, if
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
-pub struct Integer<I: IntType>(I::Int);
+pub struct Integer<I: IntType>(I);
 
 impl<I: IntType> Debug for Integer<I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -41,7 +40,7 @@ impl<I: IntType> Default for Integer<I> {
 impl<I: IntType> Copy for Integer<I> {}
 impl<I: IntType> Clone for Integer<I> {
 	fn clone(&self) -> Self {
-		Self(self.0, PhantomData)
+		Self(self.0)
 	}
 }
 impl<I: IntType> Eq for Integer<I> {}
@@ -66,12 +65,6 @@ impl<I: IntType> Hash for Integer<I> {
 	}
 }
 
-#[cfg(feature = "strict-integers")]
-type Inner = i32;
-
-#[cfg(not(feature = "strict-integers"))]
-type Inner = i64;
-
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger<I: IntType> {
 	/// Converts `self` to an [`Integer`].
@@ -91,32 +84,31 @@ impl<I: IntType> NamedType for Integer<I> {
 
 impl<I: IntType> Integer<I> {
 	/// The number zero.
-	pub const ZERO: Self = Self(0, PhantomData);
+	pub const ZERO: Self = Self(I::ZERO);
 
 	/// The number one.
-	pub const ONE: Self = Self(0, PhantomData);
+	pub const ONE: Self = Self(I::ZERO);
 
 	// /// The maximum value for `Integer`s.
-	// pub const MAX: Self = Self(Inner::MAX, PhantomData);
+	// pub const MAX: Self = Self(Inner::MAX);
 
 	// /// The minimum value for `Integer`s.
-	// pub const MIN: Self = Self(Inner::MIN, PhantomData);
+	// pub const MIN: Self = Self(Inner::MIN);
 
 	/// Returns whether `self` is zero.
-	pub const fn is_zero(self) -> bool {
-		self.0 == 0
+	pub fn is_zero(self) -> bool {
+		self.0 == Self::ZERO.0
 	}
 
-	pub const fn new(num: i64) -> Option<Self> {
-		// if opts.compliance.i32_integer && (num < i32::MIN as i64 || num > i32::MAX as i64) {
-		// 	None
-		// } else {
-		Some(Self(num, PhantomData))
-		// }
+	pub fn new<T>(num: T) -> Option<Self>
+	where
+		I: TryFrom<T>,
+	{
+		num.try_into().ok().map(Self)
 	}
 
 	/// Returns whether `self` is negative.
-	pub const fn is_negative(self) -> bool {
+	pub fn is_negative(self) -> bool {
 		self.0.is_negative()
 	}
 
@@ -129,22 +121,8 @@ impl<I: IntType> Integer<I> {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn negate(self) -> Result<Self> {
-		I::negate(self)
-	}
-
-	fn binary_op<T>(
-		self,
-		rhs: T,
-		opts: &Options,
-		checked: impl FnOnce(Inner, T) -> Option<Inner>,
-		wrapping: impl FnOnce(Inner, T) -> Inner,
-	) -> Result<Self> {
-		if opts.compliance.checked_overflow {
-			(checked)(self.0, rhs).map(|x| Self(x, PhantomData)).ok_or(Error::IntegerOverflow)
-		} else {
-			Ok(Self((wrapping)(self.0, rhs), PhantomData))
-		}
+	pub fn negate(self, _: &Options) -> Result<Self> {
+		self.0.negate().map(Self)
 	}
 
 	/// Adds `self` to `augend`.
@@ -153,8 +131,8 @@ impl<I: IntType> Integer<I> {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
-	pub fn add(self, augend: Self, opts: &Options) -> Result<Self> {
-		self.binary_op(augend.0, opts, Inner::checked_add, Inner::wrapping_add)
+	pub fn add(self, augend: Self, _: &Options) -> Result<Self> {
+		self.0.add(augend.0).map(Self)
 	}
 
 	/// Subtracts `subtrahend` from `self`.
@@ -162,8 +140,8 @@ impl<I: IntType> Integer<I> {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn subtract(self, subtrahend: Self, opts: &Options) -> Result<Self> {
-		self.binary_op(subtrahend.0, opts, Inner::checked_sub, Inner::wrapping_sub)
+	pub fn subtract(self, subtrahend: Self, _: &Options) -> Result<Self> {
+		self.0.subtract(subtrahend.0).map(Self)
 	}
 
 	/// Multiplies `self` by `multiplier`.
@@ -171,8 +149,8 @@ impl<I: IntType> Integer<I> {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn multiply(self, multiplier: Self, opts: &Options) -> Result<Self> {
-		self.binary_op(multiplier.0, opts, Inner::checked_mul, Inner::wrapping_mul)
+	pub fn multiply(self, multiplier: Self, _: &Options) -> Result<Self> {
+		self.0.multiply(multiplier.0).map(Self)
 	}
 
 	/// Multiplies `self` by `divisor`.
@@ -182,12 +160,12 @@ impl<I: IntType> Integer<I> {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn divide(self, divisor: Self, opts: &Options) -> Result<Self> {
+	pub fn divide(self, divisor: Self, _: &Options) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		self.binary_op(divisor.0, opts, Inner::checked_div, Inner::wrapping_div)
+		self.0.divide(divisor.0).map(Self)
 	}
 
 	/// Returns `self` modulo `base`.
@@ -208,7 +186,7 @@ impl<I: IntType> Integer<I> {
 			return Err(Error::DomainError("modulo by a negative base"));
 		}
 
-		self.binary_op(base.0, opts, Inner::checked_rem, Inner::wrapping_rem)
+		self.0.remainder(base.0).map(Self)
 	}
 
 	/// Raises `self` to the `exponent` power.
@@ -228,10 +206,12 @@ impl<I: IntType> Integer<I> {
 				return Err(Error::DomainError("negative exponent"));
 			}
 
-			match self.0 {
-				-1 => exponent = exponent.negate()?,
-				0 => return Err(Error::DivisionByZero),
-				1 => return Ok(Self::ONE),
+			match () {
+				_ if self.negate(opts).map_or(false, |x| x == Self::ONE) => {
+					exponent = exponent.negate(opts)?
+				}
+				_ if self.is_zero() => return Err(Error::DivisionByZero),
+				_ if self == Self::ONE => return Ok(Self::ONE),
 				_ => return Ok(Self::ZERO),
 			}
 		}
@@ -248,10 +228,10 @@ impl<I: IntType> Integer<I> {
 		let exponent = if opts.compliance.checked_overflow {
 			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
 		} else {
-			exponent.0 as u32
+			<I as Into<i32>>::into(exponent.0) as u32
 		};
 
-		self.binary_op(exponent, opts, Inner::checked_pow, Inner::wrapping_pow)
+		self.0.power(exponent).map(Self)
 	}
 }
 
@@ -278,26 +258,24 @@ impl<E: Encoding, I: IntType> ToText<E> for Integer<I> {
 	}
 }
 
-impl<'e, E, I: IntType> ToList<'e, E, I> for Integer<I> {
+impl<'e, E: Encoding, I: IntType> ToList<'e, E, I> for Integer<I> {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self, _: &Options) -> Result<List<'e, E, I>> {
+	fn to_list(&self, opts: &Options) -> Result<List<'e, E, I>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
 		}
 
-		let mut integer = self.0;
+		let mut integer = *self;
 
 		// FIXME: update the capacity and algorithm when `ilog` is dropped.
 		let mut digits = Vec::new();
 
-		while integer != 0 {
-			digits.push(Self(integer % 10, PhantomData).into());
-			integer /= 10;
+		while !integer.is_zero() {
+			digits.insert(0, integer.modulo(10.into(), opts).unwrap().into());
+			integer = integer.divide(10.into(), opts).unwrap();
 		}
-
-		digits.reverse();
 
 		Ok(digits.try_into().unwrap())
 	}
@@ -319,59 +297,103 @@ impl<I: IntType> Integer<I> {
 		}
 
 		if is_negative {
-			number = number.negate()?;
+			number = number.negate(opts)?;
 		}
 
 		Ok(number)
 	}
 }
 
-macro_rules! impl_integer_from {
-	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl<I: IntType> From<$smaller> for Integer<I> {
-			#[inline]
-			fn from(num: $smaller) -> Self {
-				Self(num as Inner, PhantomData)
-			}
-		})*
-		$(impl<I: IntType> TryFrom<$larger> for Integer<I> {
-			type Error = Error;
+// macro_rules! impl_integer_from {
+// 	($($smaller:ident)* ; $($larger:ident)*) => {
+// 		$(impl<I: IntType> From<$smaller> for Integer<I> {
+// 			#[inline]
+// 			fn from(num: $smaller) -> Self {
+// 				Self(num as Inner)
+// 			}
+// 		})*
+// 		$(impl<I: IntType> TryFrom<$larger> for Integer<I> {
+// 			type Error = Error;
 
-			#[inline]
-			fn try_from(num: $larger) -> Result<Self> {
-				num.try_into().map(|x| Self(x, PhantomData)).or(Err(Error::IntegerOverflow))
-			}
-		})*
-	};
+// 			#[inline]
+// 			fn try_from(num: $larger) -> Result<Self> {
+// 				num.try_into().map(Self).or(Err(Error::IntegerOverflow))
+// 			}
+// 		})*
+// 	};
+// }
+
+// macro_rules! impl_from_integer {
+// 	($($smaller:ident)* ; $($larger:ident)*) => {
+// 		$(impl<I: IntType> From<Integer<I>> for $larger {
+// 			#[inline]
+// 			fn from(int: Integer<I>) -> Self {
+// 				int.0.into()
+// 			}
+// 		})*
+// 		$(impl<I: IntType> TryFrom<Integer<I>> for $smaller {
+// 			type Error = Error;
+
+// 			#[inline]
+// 			fn try_from(int: Integer<I>) -> Result<Self> {
+// 				int.0.try_into().or(Err(Error::IntegerOverflow))
+// 			}
+// 		})*
+// 	};
+// }
+
+impl<I: IntType> From<i32> for Integer<I> {
+	fn from(int: i32) -> Self {
+		Self(int.into())
+	}
 }
 
-macro_rules! impl_from_integer {
-	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl<I: IntType> From<Integer<I>> for $larger {
-			#[inline]
-			fn from(int: Integer<I>) -> Self {
-				int.0.into()
-			}
-		})*
-		$(impl<I: IntType> TryFrom<Integer<I>> for $smaller {
-			type Error = Error;
-
-			#[inline]
-			fn try_from(int: Integer<I>) -> Result<Self> {
-				int.0.try_into().or(Err(Error::IntegerOverflow))
-			}
-		})*
-	};
+impl<I: IntType> From<u8> for Integer<I> {
+	fn from(int: u8) -> Self {
+		Self::from(int as i32)
+	}
 }
 
-impl_integer_from!(bool u8 u16 i8 i16 i32 ; u32 u64 u128 usize i64 i128 isize );
-impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
+impl<I: IntType> From<Integer<I>> for i32 {
+	fn from(int: Integer<I>) -> Self {
+		int.0.into()
+	}
+}
+
+impl<I: IntType> From<Integer<I>> for i64 {
+	fn from(int: Integer<I>) -> Self {
+		int.0.into() as i64
+	}
+}
+
+impl<I: IntType> TryFrom<Integer<I>> for u32 {
+	type Error = Error;
+	fn try_from(int: Integer<I>) -> Result<Self> {
+		int.0.as_u32().ok_or(Error::DomainError("todo"))
+	}
+}
+
+impl<I: IntType> TryFrom<usize> for Integer<I> {
+	type Error = Error;
+	fn try_from(int: usize) -> Result<Self> {
+		I::try_from(int).map(Self)
+	}
+}
+impl<I: IntType> TryFrom<Integer<I>> for usize {
+	type Error = Error;
+	fn try_from(int: Integer<I>) -> Result<Self> {
+		int.0.try_into()
+	}
+}
+
+// impl_integer_from!(bool u8 u16 i8 i16 i32 ; u32 u64 u128 usize i64 i128 isize );
+// impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
 
 impl<I: IntType> TryFrom<char> for Integer<I> {
 	type Error = Error;
 
 	fn try_from(chr: char) -> Result<Self> {
-		(chr as u32).try_into()
+		i32::try_from(chr as u32).map(Self::from).or(Err(Error::DomainError("char is out of bounds")))
 	}
 }
 

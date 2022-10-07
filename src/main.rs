@@ -1,9 +1,9 @@
 use knightrs::*;
 
 fn main() {
-	let mut stdout = Vec::new();
+	let mut stdout = Vec::<u8>::new();
 	let mut env = Environment::<Ascii, value::integer::Wrapping<i64>>::builder();
-	env.stdout(&mut stdout);
+	// env.stdout(&mut stdout);
 	let mut env = env.build();
 	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
 

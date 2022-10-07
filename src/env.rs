@@ -19,7 +19,7 @@ type System<'e, E> =
 type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>) -> Result<Text<E>> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment<'e, E, I> {
+pub struct Environment<'e, E: Encoding, I: IntType> {
 	options: Options,
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
@@ -58,9 +58,7 @@ impl<'e, E: Encoding, I: IntType> Environment<'e, E, I> {
 	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, E, I>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)
 	}
-}
 
-impl<'e, E: Encoding, I> Environment<'e, E, I> {
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
 	/// first time that name has been requested
 	pub fn lookup(
@@ -76,9 +74,7 @@ impl<'e, E: Encoding, I> Environment<'e, E, I> {
 		self.variables.insert(variable.clone());
 		Ok(variable)
 	}
-}
 
-impl<'e, E, I> Environment<'e, E, I> {
 	pub fn functions(&self) -> &HashMap<Character<E>, Function<'e, E, I>> {
 		&self.functions
 	}

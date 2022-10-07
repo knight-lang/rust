@@ -1,5 +1,7 @@
 use crate::env::Options;
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
+use crate::Encoding;
+use crate::IntType;
 use crate::Result;
 
 /// Represents the `NULL` value within Knight.
@@ -21,7 +23,7 @@ impl ToBoolean for Null {
 	}
 }
 
-impl<I> ToInteger<I> for Null {
+impl<I: IntType> ToInteger<I> for Null {
 	/// Simple returns zero.
 	#[inline]
 	fn to_integer(&self, _: &Options) -> Result<Integer<I>> {
@@ -29,7 +31,7 @@ impl<I> ToInteger<I> for Null {
 	}
 }
 
-impl<'e, E, I> ToList<'e, E, I> for Null {
+impl<'e, E: Encoding, I: IntType> ToList<'e, E, I> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
 	fn to_list(&self, _: &Options) -> Result<List<'e, E, I>> {
@@ -37,7 +39,7 @@ impl<'e, E, I> ToList<'e, E, I> for Null {
 	}
 }
 
-impl<E> ToText<E> for Null {
+impl<E: Encoding> ToText<E> for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
 	fn to_text(&self, _: &Options) -> Result<Text<E>> {

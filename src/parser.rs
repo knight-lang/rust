@@ -111,13 +111,13 @@ impl std::error::Error for Error {}
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'a, 'e, E, I> {
+pub struct Parser<'s, 'a, 'e, E: Encoding, I: IntType> {
 	source: &'s TextSlice<E>,
 	env: &'a mut Environment<'e, E, I>,
 	line: usize,
 }
 
-impl<'s, 'a, 'e, E, I> Parser<'s, 'a, 'e, E, I> {
+impl<'s, 'a, 'e, E: Encoding, I: IntType> Parser<'s, 'a, 'e, E, I> {
 	/// Create a new `Parser` from the given source.
 	pub fn new(source: &'s TextSlice<E>, env: &'a mut Environment<'e, E, I>) -> Self {
 		Self { source, line: 1, env }
@@ -152,9 +152,7 @@ impl<'s, 'a, 'e, E, I> Parser<'s, 'a, 'e, E, I> {
 
 		start.get(..start.len() - self.source.len()).unwrap()
 	}
-}
 
-impl<'s, 'a, 'e, E: Encoding, I: IntType> Parser<'s, 'a, 'e, E, I> {
 	fn strip_whitespace_and_comments(&mut self) {
 		loop {
 			// strip all leading whitespace, if any.
