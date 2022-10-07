@@ -1,11 +1,17 @@
 use crate::text::{Character, NewTextError, TextSlice};
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Text(crate::RefCount<TextSlice>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Text: Send, Sync);
+
+impl Debug for Text {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&***self, f)
+	}
+}
 
 impl Default for Text {
 	#[inline]

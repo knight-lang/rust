@@ -1,13 +1,14 @@
 use crate::value::text::Character;
 use crate::value::Runnable;
-use crate::variable::IllegalVariableName;
-use crate::{Function, Integer, Result, Text, TextSlice, Value, Variable};
+use crate::{Function, Integer, Result, Text, TextSlice, Value};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 
 mod builder;
+mod variable;
 pub use builder::Builder;
+pub use variable::{IllegalVariableName, Variable};
 
 type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
 type Stdout<'e> = dyn Write + 'e + Send + Sync;

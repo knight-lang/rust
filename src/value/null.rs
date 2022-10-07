@@ -1,12 +1,19 @@
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::Result;
+use std::fmt::{self, Debug, Formatter};
 
 /// Represents the `NULL` value within Knight.
 ///
 /// Note that this explicitly doesn't implement [`PartialOrd`]/[`Ord`], as you cant compare `NULL`
 /// in knight.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Null;
+
+impl Debug for Null {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		f.write_str("null")
+	}
+}
 
 impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";

@@ -73,13 +73,11 @@ dependencies = [
 name = "knightrs"
 version = "0.9.9"
 dependencies = [
- "cfg-if",
  "clap",
  "lazy_static",
  "once_cell",
  "rand",
  "static_assertions",
- "tap",
 ]
 
 [[package]]
@@ -157,12 +155,6 @@ name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
-
-[[package]]
-name = "tap"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "textwrap"

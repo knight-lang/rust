@@ -6,8 +6,16 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 /// Represents a variable within Knight.
+///
+/// You'll never create variables directly; Instead, use [`Environment::lookup`].
+// FIXME: You can memory leak via `= a (B a)` (and also `= a (B + a 1)`, etc.)
 #[derive(Clone)]
-pub struct Variable<'e>(RefCount<(Text, Mutable<Option<Value<'e>>>)>);
+pub struct Variable<'e>(RefCount<Inner<'e>>);
+
+struct Inner<'e> {
+	name: Text,
+	value: Mutable<Option<Value<'e>>>,
+}
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
@@ -29,16 +37,15 @@ impl Eq for Variable<'_> {}
 impl PartialEq for Variable<'_> {
 	/// Checks to see if two variables are equal.
 	///
-	/// This'll just check to see if their names are equivalent. Techincally, this means that
-	/// two variables with the same name, but derived from different [`Environment`]s will end up
-	/// being the same.
+	/// This checks to see if the two variables are pointing to the _exact same object_.
 	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
-		self.name() == rhs.name()
+		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
 impl Borrow<TextSlice> for Variable<'_> {
+	/// Borrows the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn borrow(&self) -> &TextSlice {
 		self.name()
@@ -46,10 +53,15 @@ impl Borrow<TextSlice> for Variable<'_> {
 }
 
 impl Hash for Variable<'_> {
+	/// Hashes the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
 	}
+}
+
+impl crate::value::NamedType for Variable<'_> {
+	const TYPENAME: &'static str = "Variable";
 }
 
 /// Indicates that a a variable name was illegal.
@@ -57,7 +69,7 @@ impl Hash for Variable<'_> {
 /// This is only ever returned if the `verify-variable-names` feature is is enabled.
 #[derive(Debug, PartialEq, Eq)]
 pub enum IllegalVariableName {
-	/// The name was empty
+	/// The name was empty.
 	Empty,
 
 	/// The name was too long.
@@ -70,6 +82,8 @@ pub enum IllegalVariableName {
 	IllegalBodyChar(Character),
 }
 
+impl std::error::Error for IllegalVariableName {}
+
 impl Display for IllegalVariableName {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
@@ -81,18 +95,12 @@ impl Display for IllegalVariableName {
 	}
 }
 
-impl std::error::Error for IllegalVariableName {}
-
 /// Maximum length a name can have when `verify-variable-names` is enabled.
 pub const MAX_NAME_LEN: usize = 127;
 
 /// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
 /// will always return `Ok(())`.
-pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
-	if cfg!(not(feature = "verify-variable-names")) {
-		return Ok(());
-	}
-
+fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
 	if MAX_NAME_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
 	}
@@ -110,29 +118,30 @@ pub fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariabl
 }
 
 impl<'e> Variable<'e> {
-	/// Creates a new `Variable`.
-	pub fn new(name: Text) -> std::result::Result<Self, IllegalVariableName> {
-		validate_name(&name)?;
+	pub(crate) fn new(name: Text) -> std::result::Result<Self, IllegalVariableName> {
+		if cfg!(feature = "verify-variable-names") {
+			validate_name(&name)?;
+		}
 
-		Ok(Self((name, None.into()).into()))
+		Ok(Self(Inner { name, value: None.into() }.into()))
 	}
 
 	/// Fetches the name of the variable.
 	#[must_use]
 	#[inline]
 	pub fn name(&self) -> &Text {
-		&(self.0).0
+		&self.0.name
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
 	pub fn assign(&self, new: Value<'e>) -> Option<Value<'e>> {
-		(self.0).1.write().replace(new)
+		(self.0).value.write().replace(new)
 	}
 
-	/// Fetches the last value assigned to `self`, returning `None` if we haven't been assigned to yet.
+	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
 	pub fn fetch(&self) -> Option<Value<'e>> {
-		(self.0).1.read().clone()
+		(self.0).value.read().clone()
 	}
 }
 

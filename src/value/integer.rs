@@ -23,13 +23,11 @@ use std::fmt::{self, Display, Formatter};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
-cfg_if! {
-	if #[cfg(feature = "strict-integers")] {
-		type Inner = i32;
-	} else {
-		type Inner = i64;
-	}
-}
+#[cfg(feature = "strict-integers")]
+type Inner = i32;
+
+#[cfg(not(feature = "strict-integers"))]
+type Inner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
@@ -71,6 +69,7 @@ impl Integer {
 		self.0.is_negative()
 	}
 
+	/// Attempts to interpret `self` as a Unicode codepoint.
 	pub fn chr(self) -> Result<Character> {
 		self.try_into()
 	}
@@ -149,7 +148,7 @@ impl Integer {
 		self.binary_op(divisor.0, Inner::checked_div, Inner::wrapping_div)
 	}
 
-	/// Returns `self` modulo `base`.
+	/// Returns the remainder of `self` and `base`.
 	///
 	/// # Errors
 	/// If `base` is zero, this will return an [`Error::DivisionByZero`].
@@ -158,19 +157,19 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
-	pub fn modulo(self, base: Self) -> Result<Self> {
+	#[cfg_attr(not(any(feature = "checked-overflow", feature = "strict-integers-overflow")), inline)]
+	pub fn remainder(self, base: Self) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
 		if cfg!(feature = "strict-integers") {
 			if self.is_negative() {
-				return Err(Error::DomainError("modulo with a negative number"));
+				return Err(Error::DomainError("remainder with a negative number"));
 			}
 
 			if base.is_negative() {
-				return Err(Error::DomainError("modulo by a negative base"));
+				return Err(Error::DomainError("remainder by a negative base"));
 			}
 		}
 
@@ -188,7 +187,6 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
 	pub fn power(self, mut exponent: Self) -> Result<Self> {
 		if exponent.is_negative() {
 			if cfg!(feature = "strict-integers") {
@@ -240,6 +238,7 @@ impl ToBoolean for Integer {
 
 impl ToText for Integer {
 	/// Returns a string representation of `self`.
+	#[inline]
 	fn to_text(&self) -> Result<Text> {
 		Ok(Text::new(*self).unwrap())
 	}
@@ -260,11 +259,9 @@ impl<'e> ToList<'e> for Integer {
 		let mut digits = Vec::new();
 
 		while integer != 0 {
-			digits.push(Self(integer % 10).into());
+			digits.insert(0, Self(integer % 10).into());
 			integer /= 10;
 		}
-
-		digits.reverse();
 
 		Ok(digits.try_into().unwrap())
 	}
@@ -274,17 +271,21 @@ impl std::str::FromStr for Integer {
 	type Err = Error;
 
 	fn from_str(inp: &str) -> Result<Self> {
-		let mut bytes = inp.trim_start().bytes();
+		const TEN: Integer = Integer(10);
 
-		let (is_negative, mut number) = match bytes.next() {
-			Some(b'+') => (false, Integer::ZERO),
-			Some(b'-') => (true, Integer::ZERO),
-			Some(digit @ b'0'..=b'9') => (false, Integer::from(digit - b'0')),
+		let mut bytes = inp.trim_start().bytes();
+		let mut number = Integer::ZERO;
+		let mut is_negative = false;
+
+		match bytes.next() {
+			Some(b'+') => {}
+			Some(b'-') => is_negative = true,
+			Some(digit @ b'0'..=b'9') => number = Integer::from(digit - b'0'),
 			_ => return Ok(Integer::ZERO),
 		};
 
 		while let Some(digit @ b'0'..=b'9') = bytes.next() {
-			number = number.multiply(10.into())?.add((digit - b'0').into())?;
+			number = number.multiply(TEN)?.add((digit - b'0').into())?;
 		}
 
 		if is_negative {
@@ -339,6 +340,7 @@ impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
 impl TryFrom<char> for Integer {
 	type Error = Error;
 
+	#[inline]
 	fn try_from(chr: char) -> Result<Self> {
 		(chr as u32).try_into()
 	}
@@ -348,6 +350,6 @@ impl TryFrom<Integer> for char {
 	type Error = Error;
 
 	fn try_from(int: Integer) -> Result<Self> {
-		char::from_u32(u32::try_from(int)?).ok_or(Error::DomainError("integer isnt a char"))
+		char::from_u32(u32::try_from(int)?).ok_or(Error::DomainError("integer isn't a char"))
 	}
 }

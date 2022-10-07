@@ -3,11 +3,11 @@ use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
 use crate::{Ast, Error, Result, Variable};
-use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum Value<'e> {
+	#[default]
 	/// Represents the `NULL` value.
 	Null,
 
@@ -32,28 +32,6 @@ pub enum Value<'e> {
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_>: Send, Sync);
-
-impl Default for Value<'_> {
-	#[inline]
-	fn default() -> Self {
-		Self::Null
-	}
-}
-
-impl Debug for Value<'_> {
-	// note we need the custom impl becuase `Null()` and `Identifier(...)` are needed by the tester.
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Null => write!(f, "null"),
-			Self::Boolean(boolean) => write!(f, "{boolean}"),
-			Self::Integer(integer) => write!(f, "{integer}"),
-			Self::Text(text) => write!(f, "{:?}", &***text), // TODO: make text do this itself?
-			Self::Variable(variable) => Debug::fmt(&variable, f),
-			Self::Ast(ast) => Debug::fmt(&ast, f),
-			Self::List(list) => Debug::fmt(&list, f),
-		}
-	}
-}
 
 impl From<Null> for Value<'_> {
 	#[inline]
@@ -111,6 +89,22 @@ impl<'e> From<List<'e>> for Value<'e> {
 	}
 }
 
+impl<'e> Value<'e> {
+	/// Fetch the type's name.
+	#[must_use = "getting the type name by itself does nothing."]
+	pub const fn typename(&self) -> &'static str {
+		match self {
+			Self::Null => Null::TYPENAME,
+			Self::Boolean(_) => Boolean::TYPENAME,
+			Self::Integer(_) => Integer::TYPENAME,
+			Self::Text(_) => Text::TYPENAME,
+			Self::List(_) => List::TYPENAME,
+			Self::Ast(_) => Ast::TYPENAME,
+			Self::Variable(_) => Variable::TYPENAME,
+		}
+	}
+}
+
 impl ToBoolean for Value<'_> {
 	fn to_boolean(&self) -> Result<Boolean> {
 		match *self {
@@ -164,28 +158,11 @@ impl<'e> ToList<'e> for Value<'e> {
 }
 
 impl<'e> Runnable<'e> for Value<'e> {
-	/// Executes the value.
 	fn run(&self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => variable.run(env),
 			Self::Ast(ast) => ast.run(env),
 			_ => Ok(self.clone()),
-		}
-	}
-}
-
-impl<'e> Value<'e> {
-	/// Fetch the type's name.
-	#[must_use = "getting the type name by itself does nothing."]
-	pub const fn typename(&self) -> &'static str {
-		match self {
-			Self::Null => Null::TYPENAME,
-			Self::Boolean(_) => Boolean::TYPENAME,
-			Self::Integer(_) => Integer::TYPENAME,
-			Self::Text(_) => Text::TYPENAME,
-			Self::List(_) => List::TYPENAME,
-			Self::Ast(_) => "Ast",
-			Self::Variable(_) => "Variable",
 		}
 	}
 }

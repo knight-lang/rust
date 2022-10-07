@@ -8,6 +8,19 @@ pub struct RefCount<T: ?Sized>(
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(RefCount<()>: Send, Sync);
 
+impl<T: ?Sized> RefCount<T> {
+	pub fn ptr_eq(&self, rhs: &Self) -> bool {
+		#[cfg(feature = "multithreaded")]
+		{
+			std::sync::Arc::ptr_eq(&self.0, &rhs.0)
+		}
+		#[cfg(not(feature = "multithreaded"))]
+		{
+			std::rc::Rc::ptr_eq(&self.0, &rhs.0)
+		}
+	}
+}
+
 impl<T: ?Sized> Clone for RefCount<T> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone())

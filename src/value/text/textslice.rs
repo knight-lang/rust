@@ -121,6 +121,11 @@ impl TextSlice {
 			Some(chrs.as_text().to_owned())
 		}
 	}
+
+	pub fn remove_substr(&self, substr: &TextSlice) -> Text {
+		let _ = substr;
+		todo!();
+	}
 }
 
 impl<'a> TryFrom<&'a str> for &'a TextSlice {

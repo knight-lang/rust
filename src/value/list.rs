@@ -44,7 +44,7 @@ impl PartialEq for List<'_> {
 			return false;
 		}
 
-		self.iter().zip(rhs.iter()).all(|(l, r)| l == r)
+		self.iter().eq(rhs.iter())
 	}
 }
 
@@ -108,6 +108,7 @@ impl<'e> List<'e> {
 
 		match slice.len() {
 			0 => Ok(Self::default()),
+
 			// OPTIMIZE: is there a way to not do `.clone()`?
 			1 => Ok(Self::boxed(slice[0].clone())),
 
@@ -214,12 +215,10 @@ impl<'e> List<'e> {
 
 		let mut is_first = true;
 		for ele in self {
-			if is_first {
-				is_first = false;
-			} else {
+			if !is_first {
 				joined.push(sep);
 			}
-
+			is_first = false;
 			joined.push(&ele.to_text()?);
 		}
 
@@ -234,6 +233,9 @@ impl<'e> List<'e> {
 			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
 			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
+				// `list.len() * *amount` won't fail with strict-compliance because we know
+				// it's smaller than `i32::MAX`, which (unless we're on 16 bit platforms) is always
+				// smaller than `usize::MAX`.
 				Iter::Repeat(Box::new(list.iter()).cycle(), list.len() * *amount)
 			}
 		}
@@ -273,7 +275,6 @@ impl<'e> List<'e> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
-
 		let mut mapping = Vec::with_capacity(self.len());
 
 		for ele in self {
@@ -295,7 +296,7 @@ impl<'e> List<'e> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
-		let mut filtering = Vec::with_capacity(self.len() / 2); // some arbitrary cap constant.
+		let mut filtering = Vec::with_capacity(self.len() / 2); // an arbitrary capacity constant.
 
 		for ele in self {
 			arg.assign(ele.clone());
@@ -321,8 +322,8 @@ impl<'e> List<'e> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let mut iter = self.iter();
-
 		let acc = env.lookup(ACCUMULATE).unwrap();
+
 		if let Some(init) = iter.next() {
 			acc.assign(init.clone());
 		} else {
@@ -388,20 +389,10 @@ impl<'a, 'e: 'a> ListFetch<'a, 'e> for usize {
 		match list.inner()? {
 			Inner::Boxed(ele) => (self == 0).then_some(ele),
 			Inner::Slice(slice) => slice.get(self),
-			Inner::Cons(lhs, rhs) => {
-				if self < lhs.len() {
-					lhs.get(self)
-				} else {
-					rhs.get(self - lhs.len())
-				}
-			}
-			Inner::Repeat(list, amount) => {
-				if list.len() * amount < self {
-					None
-				} else {
-					list.get(self % amount)
-				}
-			}
+			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
+			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
+			Inner::Repeat(list, amount) if list.len() * amount < self => None,
+			Inner::Repeat(list, amount) => list.get(self % amount),
 		}
 	}
 }

@@ -1,7 +1,7 @@
+use crate::env::{IllegalVariableName, Variable};
 use crate::function::Function;
 use crate::text::{Character, Text, TextSlice};
 use crate::value::{Integer, List, Value};
-use crate::variable::{IllegalVariableName, Variable};
 use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
 
