@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::{Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 
@@ -54,5 +55,33 @@ impl<'e> Runnable<'e> for Ast<'e> {
 	#[inline]
 	fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
 		(self.function().func)(self.args(), env)
+	}
+}
+
+impl<'e> Parsable<'_, 'e> for Ast<'e> {
+	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		let Some(function) = <&Function>::parse(parser)? else {
+			return Ok(None);
+		};
+
+		// `MissingArgument` errors have their `line` field set to the beginning of the function
+		// parsing.
+		let start_line = parser.line();
+
+		let mut args = Vec::with_capacity(function.arity);
+		for index in 0..function.arity {
+			match parser.parse_expression() {
+				Ok(arg) => args.push(arg),
+				Err(parse::Error { kind: parse::ErrorKind::EmptySource, .. }) => {
+					return Err(
+						parse::ErrorKind::MissingArgument { name: function.name.to_owned(), index }
+							.error(start_line),
+					)
+				}
+				Err(err) => return Err(err),
+			}
+		}
+
+		Ok(Some(Self::new(function, args.into())))
 	}
 }

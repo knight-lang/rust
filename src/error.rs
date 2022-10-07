@@ -1,7 +1,6 @@
 use crate::env::IllegalVariableName;
-use crate::parser::Error as ParseError;
-use crate::value::text::NewTextError;
-use crate::Text;
+use crate::parse::Error as ParseError;
+use crate::value::text::{NewTextError, Text};
 use std::fmt::{self, Display, Formatter};
 use std::io;
 

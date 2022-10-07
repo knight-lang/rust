@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::text::{Character, NewTextError, TextSlice};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -93,5 +94,23 @@ impl TryFrom<&str> for Text {
 impl FromIterator<Character> for Text {
 	fn from_iter<T: IntoIterator<Item = Character>>(iter: T) -> Self {
 		iter.into_iter().map(char::from).collect::<String>().try_into().unwrap()
+	}
+}
+
+impl Parsable<'_, '_> for Text {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+		// since `.advance()` returns a `Character`, we can't match on it.
+		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
+			return Ok(None);
+		};
+
+		let starting_line = parser.line();
+		let body = parser.take_while(|chr| chr != quote).unwrap_or_default();
+
+		if parser.advance() != Some(quote) {
+			return Err(parse::ErrorKind::UnterminatedText { quote }.error(starting_line));
+		}
+
+		Ok(Some(body.to_owned()))
 	}
 }

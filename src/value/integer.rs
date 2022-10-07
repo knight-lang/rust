@@ -1,7 +1,8 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// The integer type within Knight.
 ///
@@ -20,7 +21,7 @@ use std::fmt::{self, Display, Formatter};
 /// undefined. Within this implementation, all operations normally use wrapping logic. However, if
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
 #[cfg(feature = "strict-integers")]
@@ -33,6 +34,13 @@ type Inner = i64;
 pub trait ToInteger {
 	/// Converts `self` to an [`Integer`].
 	fn to_integer(&self) -> Result<Integer>;
+}
+
+impl Debug for Integer {
+	#[inline]
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
 }
 
 impl Display for Integer {
@@ -242,6 +250,19 @@ impl Integer {
 		};
 
 		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
+	}
+}
+
+impl Parsable<'_, '_> for Integer {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+		let Some(source) = parser.take_while(Character::is_numeric) else {
+			return Ok(None);
+		};
+
+		source
+			.parse::<Self>()
+			.map(Some)
+			.map_err(|_| parser.error(parse::ErrorKind::IntegerLiteralOverflow))
 	}
 }
 

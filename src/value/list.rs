@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::{
 	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
 };
@@ -337,6 +338,16 @@ impl<'e> List<'e> {
 		}
 
 		Ok(Some(acc.fetch().unwrap()))
+	}
+}
+
+impl<'e> Parsable<'_, 'e> for List<'e> {
+	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		if parser.advance_if('@').is_some() {
+			return Ok(Some(Self::default()));
+		};
+
+		Ok(None)
 	}
 }
 

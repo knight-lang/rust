@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::text::{Character, TextSlice};
 use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
@@ -42,6 +43,38 @@ impl PartialEq for Function {
 impl Debug for Function {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		write!(f, "Function({})", self.name)
+	}
+}
+
+impl<'e> Parsable<'_, 'e> for &'e Function {
+	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		if parser.advance_if('X').is_some() {
+			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
+
+			return parser
+				.env()
+				.extensions()
+				.get(name)
+				.copied()
+				.map(Some)
+				.ok_or_else(|| parser.error(parse::ErrorKind::UnknownExtensionFunction(name.into())));
+		}
+
+		let Some(head) = parser.peek() else {
+			return Ok(None);
+		};
+
+		let Some(&function) = parser.env().functions().get(&head) else {
+			return Ok(None);
+		};
+
+		if head.is_upper() {
+			parser.take_while(Character::is_upper);
+		} else {
+			parser.advance();
+		}
+
+		Ok(Some(function))
 	}
 }
 

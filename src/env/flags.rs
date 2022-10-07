@@ -9,6 +9,7 @@ pub struct Flags {
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComplianceFlags {
 	pub check_quit_bounds: bool,
+	pub forbid_trailing_tokens: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::Result;
 use std::fmt::{self, Debug, Formatter};
@@ -17,6 +18,18 @@ impl Debug for Null {
 
 impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
+}
+
+impl Parsable<'_, '_> for Null {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+		if parser.advance_if('N').is_none() {
+			return Ok(None);
+		}
+
+		parser.strip_keyword_function();
+
+		Ok(Some(Self))
+	}
 }
 
 impl ToBoolean for Null {

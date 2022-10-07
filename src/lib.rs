@@ -9,7 +9,7 @@ mod containers;
 pub mod env;
 mod error;
 mod function;
-pub mod parser;
+pub mod parse;
 pub mod value;
 
 pub use ast::Ast;
@@ -17,7 +17,7 @@ pub use containers::{Mutable, RefCount};
 pub use env::{Environment, Variable};
 pub use error::{Error, Result};
 pub use function::Function;
-pub use parser::{Error as ParseError, Parser};
+pub use parse::{Error as ParseError, Parser};
 pub use value::*;
 
 pub fn play(input: &str) -> Result<Value<'_>> {

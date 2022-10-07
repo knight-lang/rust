@@ -5,9 +5,10 @@ use crate::value::{
 };
 use crate::{Ast, Error, Result, Variable};
 use std::cmp::Ordering;
+use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum Value<'e> {
 	#[default]
 	/// Represents the `NULL` value.
@@ -34,6 +35,20 @@ pub enum Value<'e> {
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_>: Send, Sync);
+
+impl Debug for Value<'_> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			Self::Null => Debug::fmt(&Null, f),
+			Self::Boolean(boolean) => Debug::fmt(boolean, f),
+			Self::Integer(integer) => Debug::fmt(integer, f),
+			Self::Text(text) => Debug::fmt(text, f),
+			Self::List(list) => Debug::fmt(list, f),
+			Self::Variable(variable) => Debug::fmt(variable, f),
+			Self::Ast(ast) => Debug::fmt(ast, f),
+		}
+	}
+}
 
 impl From<Null> for Value<'_> {
 	#[inline]

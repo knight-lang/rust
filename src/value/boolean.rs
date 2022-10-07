@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
 use crate::Result;
 
@@ -12,6 +13,18 @@ pub trait ToBoolean {
 
 impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
+}
+
+impl Parsable<'_, '_> for Boolean {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+		let Some(which) = parser.advance_if(|chr| chr == 'T' || chr == 'F') else {
+			return Ok(None);
+		};
+
+		parser.strip_keyword_function();
+
+		Ok(Some(which == 'T'))
+	}
 }
 
 impl ToBoolean for Boolean {

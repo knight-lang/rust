@@ -1,3 +1,4 @@
+use crate::parse::{self, Parsable, Parser};
 use crate::value::text::Character;
 use crate::value::{Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
@@ -148,5 +149,19 @@ impl<'e> Variable<'e> {
 impl<'e> Runnable<'e> for Variable<'e> {
 	fn run(&self, _env: &mut Environment) -> Result<Value<'e>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
+	}
+}
+
+impl<'e> Parsable<'_, 'e> for Variable<'e> {
+	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		let Some(identifier) = parser.take_while(|chr| chr.is_lower() || chr.is_numeric()) else {
+			return Ok(None);
+		};
+
+		parser
+			.env()
+			.lookup(identifier)
+			.map(Some)
+			.map_err(|err| parser.error(parse::ErrorKind::IllegalVariableName(err)))
 	}
 }

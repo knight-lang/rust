@@ -72,7 +72,7 @@ impl<'e> Builder<'e> {
 		Environment {
 			variables: HashSet::default(),
 			// stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
-			prompt: Prompt::default(),
+			prompt: self.prompt.unwrap_or_default(),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
 
 			#[cfg(feature = "extensions")]
