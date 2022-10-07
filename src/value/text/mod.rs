@@ -3,8 +3,8 @@ mod character;
 mod text;
 mod textslice;
 
-pub trait ToText {
-	fn to_text(&self) -> crate::Result<Text>;
+pub trait ToText<'e> {
+	fn to_text(&self, env: &mut crate::Environment<'e>) -> crate::Result<Text>;
 }
 
 pub use builder::Builder;

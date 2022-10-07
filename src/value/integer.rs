@@ -1,7 +1,7 @@
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
-use crate::{Error, Result};
+use crate::{Environment, Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// The integer type within Knight.
@@ -31,9 +31,9 @@ type Inner = i32;
 type Inner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger {
+pub trait ToInteger<'e> {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self) -> Result<Integer>;
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer>;
 }
 
 impl Debug for Integer {
@@ -266,26 +266,26 @@ impl Parsable<'_, '_> for Integer {
 	}
 }
 
-impl ToInteger for Integer {
+impl<'e> ToInteger<'e> for Integer {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self) -> Result<Self> {
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Self> {
 		Ok(*self)
 	}
 }
 
-impl ToBoolean for Integer {
+impl<'e> ToBoolean<'e> for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
 }
 
-impl ToText for Integer {
+impl<'e> ToText<'e> for Integer {
 	/// Returns a string representation of `self`.
 	#[inline]
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
 		Ok(Text::new(*self).unwrap())
 	}
 }
@@ -294,7 +294,7 @@ impl<'e> ToList<'e> for Integer {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, _: &mut Environment<'e>) -> Result<List<'e>> {
 		if self.is_zero() {
 			return Ok(List::boxed((*self).into()));
 		}

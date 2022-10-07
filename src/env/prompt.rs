@@ -98,7 +98,7 @@ impl<'e> Prompt<'e> {
 			Some(PromptReplacement::Computed(ast)) => {
 				return match ast.run(env)? {
 					Value::Null => Ok(None),
-					other => Ok(Some(other.to_text()?)),
+					other => Ok(Some(other.to_text(env)?)),
 				}
 			}
 		}

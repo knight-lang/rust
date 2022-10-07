@@ -216,7 +216,7 @@ pub static CALL: Function = function!("CALL", env, |arg| {
 
 /// **4.2.6** `QUIT`  
 pub static QUIT: Function = function!("QUIT", env, |arg| {
-	match i32::try_from(arg.run(env)?.to_integer()?) {
+	match i32::try_from(arg.run(env)?.to_integer(env)?) {
 		Ok(status) if !env.flags().compliance.check_quit_bounds || (0..=127).contains(&status) => {
 			return Err(Error::Quit(status))
 		}
@@ -232,7 +232,7 @@ pub static QUIT: Function = function!("QUIT", env, |arg| {
 /// **4.2.7** `!`  
 pub static NOT: Function = function!("!", env, |arg| {
 	// <blank line so rustfmt doesnt wrap onto the prev line>
-	(!arg.run(env)?.to_boolean()?).into()
+	(!arg.run(env)?.to_boolean(env)?).into()
 });
 
 /// **4.2.8** `LENGTH`  
@@ -250,7 +250,7 @@ pub static DUMP: Function = function!("DUMP", env, |arg| {
 
 /// **4.2.10** `OUTPUT`  
 pub static OUTPUT: Function = function!("OUTPUT", env, |arg| {
-	let text = arg.run(env)?.to_text()?;
+	let text = arg.run(env)?.to_text(env)?;
 	let stdout = env.stdout();
 
 	if let Some(stripped) = text.strip_suffix('\\') {
@@ -273,7 +273,7 @@ pub static ASCII: Function = function!("ASCII", env, |arg| {
 /// **4.2.12** `~`  
 pub static NEG: Function = function!("~", env, |arg| {
 	// comment so it wont make it one line
-	arg.run(env)?.to_integer()?.negate()?.into()
+	arg.run(env)?.to_integer(env)?.negate()?.into()
 });
 
 /// **4.3.1** `+`  
@@ -332,7 +332,7 @@ pub static EQUALS: Function = function!("?", env, |lhs, rhs| {
 pub static AND: Function = function!("&", env, |lhs, rhs| {
 	let condition = lhs.run(env)?;
 
-	if condition.to_boolean()? {
+	if condition.to_boolean(env)? {
 		return rhs.run(env);
 	}
 
@@ -343,7 +343,7 @@ pub static AND: Function = function!("&", env, |lhs, rhs| {
 pub static OR: Function = function!("|", env, |lhs, rhs| {
 	let condition = lhs.run(env)?;
 
-	if !condition.to_boolean()? {
+	if !condition.to_boolean(env)? {
 		return rhs.run(env);
 	}
 
@@ -365,7 +365,7 @@ pub static ASSIGN: Function = function!("=", env, |variable, value| {
 
 /// **4.3.14** `WHILE`  
 pub static WHILE: Function = function!("WHILE", env, |condition, body| {
-	while condition.run(env)?.to_boolean()? {
+	while condition.run(env)?.to_boolean(env)? {
 		body.run(env)?;
 	}
 
@@ -374,7 +374,7 @@ pub static WHILE: Function = function!("WHILE", env, |condition, body| {
 
 /// **4.4.1** `IF`  
 pub static IF: Function = function!("IF", env, |condition, iftrue, iffalse| {
-	if condition.run(env)?.to_boolean()? {
+	if condition.run(env)?.to_boolean(env)? {
 		iftrue.run(env)?
 	} else {
 		iffalse.run(env)?
@@ -397,7 +397,7 @@ pub static SET: Function = function!("SET", env, |source, start, length, replace
 #[cfg(feature = "value-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
 pub static VALUE: Function = function!("VALUE", env, |arg| {
-	let name = arg.run(env)?.to_text()?;
+	let name = arg.run(env)?.to_text(env)?;
 	env.lookup(&name)?.into()
 });
 
@@ -424,7 +424,7 @@ pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 #[cfg(feature = "yeet-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "yeet-function")))]
 pub static YEET: Function = function!("YEET", env, |errmsg| {
-	return Err(Error::Custom(errmsg.run(env)?.to_text()?.to_string().into()));
+	return Err(Error::Custom(errmsg.run(env)?.to_text(env)?.to_string().into()));
 
 	#[allow(unreachable_code)]
 	Value::Null
@@ -434,7 +434,7 @@ pub static YEET: Function = function!("YEET", env, |errmsg| {
 #[cfg(feature = "use-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
 pub static USE: Function = function!("USE", env, |arg| {
-	let filename = arg.run(env)?.to_text()?;
+	let filename = arg.run(env)?.to_text(env)?;
 	let contents = env.read_file(&filename)?;
 
 	env.play(&contents)?
@@ -443,14 +443,14 @@ pub static USE: Function = function!("USE", env, |arg| {
 /// **4.2.2** `EVAL`
 #[cfg(feature = "eval-function")]
 pub static EVAL: Function = function!("EVAL", env, |val| {
-	let code = val.run(env)?.to_text()?;
+	let code = val.run(env)?.to_text(env)?;
 	env.play(&code)?
 });
 
 #[cfg(feature = "extensions")]
 /// **4.2.5** `` ` ``
 pub static SYSTEM: Function = function!("$", env, |cmd, stdin| {
-	let command = cmd.run(env)?.to_text()?;
+	let command = cmd.run(env)?.to_text(env)?;
 	let stdin = match stdin.run(env)? {
 		Value::Text(text) => Some(text),
 		Value::Null => None,
@@ -464,7 +464,7 @@ pub static SYSTEM: Function = function!("$", env, |cmd, stdin| {
 #[cfg(feature = "xsrand-function")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xsrand-function")))]
 pub static XSRAND: Function = function!("XSRAND", env, |arg| {
-	let seed = arg.run(env)?.to_integer()?;
+	let seed = arg.run(env)?.to_integer(env)?;
 	env.srand(seed);
 	Value::Null
 });
@@ -491,7 +491,7 @@ pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
 pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
-			let stop = stop.run(env)?.to_integer()?;
+			let stop = stop.run(env)?.to_integer(env)?;
 
 			match start <= stop {
 				true => List::try_from(

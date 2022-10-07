@@ -1,5 +1,6 @@
 use super::{validate, Character, Chars, NewTextError, Text};
 use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
+use crate::Environment;
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -89,10 +90,10 @@ impl TextSlice {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn split<'e>(&self, sep: &Self) -> crate::List<'e> {
+	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> crate::List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			crate::Value::from(self.to_owned()).to_list().unwrap()
+			crate::Value::from(self.to_owned()).to_list(env).unwrap()
 		} else {
 			(**self)
 				.split(&**sep)
@@ -175,14 +176,14 @@ impl<'a> IntoIterator for &'a TextSlice {
 	}
 }
 
-impl ToBoolean for Text {
-	fn to_boolean(&self) -> crate::Result<crate::Boolean> {
+impl<'e> ToBoolean<'e> for Text {
+	fn to_boolean(&self, _: &mut Environment<'e>) -> crate::Result<crate::Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl ToText for Text {
-	fn to_text(&self) -> crate::Result<Self> {
+impl<'e> ToText<'e> for Text {
+	fn to_text(&self, _: &mut Environment<'e>) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -191,14 +192,14 @@ impl crate::value::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl ToInteger for Text {
-	fn to_integer(&self) -> crate::Result<Integer> {
+impl<'e> ToInteger<'e> for Text {
+	fn to_integer(&self, _: &mut Environment<'e>) -> crate::Result<Integer> {
 		self.parse()
 	}
 }
 
 impl<'e> ToList<'e> for Text {
-	fn to_list(&self) -> crate::Result<crate::value::List<'e>> {
+	fn to_list(&self, _: &mut Environment<'e>) -> crate::Result<crate::value::List<'e>> {
 		self
 			.chars()
 			.map(|c| crate::Value::from(Self::try_from(c.to_string()).unwrap()))

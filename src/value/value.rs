@@ -131,67 +131,76 @@ impl<'e> Value<'e> {
 			Self::List(_) => List::TYPENAME,
 			Self::Ast(_) => Ast::TYPENAME,
 			Self::Variable(_) => Variable::TYPENAME,
+
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.typename(),
 		}
 	}
 }
 
-impl ToBoolean for Value<'_> {
-	fn to_boolean(&self) -> Result<Boolean> {
+impl<'e> ToBoolean<'e> for Value<'e> {
+	fn to_boolean(&self, env: &mut Environment<'e>) -> Result<Boolean> {
 		match *self {
-			Self::Null => Null.to_boolean(),
-			Self::Boolean(boolean) => boolean.to_boolean(),
-			Self::Integer(integer) => integer.to_boolean(),
-			Self::Text(ref text) => text.to_boolean(),
-			Self::List(ref list) => list.to_boolean(),
+			Self::Null => Null.to_boolean(env),
+			Self::Boolean(boolean) => boolean.to_boolean(env),
+			Self::Integer(integer) => integer.to_boolean(env),
+			Self::Text(ref text) => text.to_boolean(env),
+			Self::List(ref list) => list.to_boolean(env),
+
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.to_boolean(),
+			Self::Custom(ref custom) => custom.to_boolean(env),
+
 			_ => Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
-impl ToInteger for Value<'_> {
-	fn to_integer(&self) -> Result<Integer> {
+impl<'e> ToInteger<'e> for Value<'e> {
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer> {
 		match *self {
-			Self::Null => Null.to_integer(),
-			Self::Boolean(boolean) => boolean.to_integer(),
-			Self::Integer(integer) => integer.to_integer(),
-			Self::Text(ref text) => text.to_integer(),
-			Self::List(ref list) => list.to_integer(),
+			Self::Null => Null.to_integer(env),
+			Self::Boolean(boolean) => boolean.to_integer(env),
+			Self::Integer(integer) => integer.to_integer(env),
+			Self::Text(ref text) => text.to_integer(env),
+			Self::List(ref list) => list.to_integer(env),
+
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.to_integer(),
+			Self::Custom(ref custom) => custom.to_integer(env),
+
 			_ => Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
-impl ToText for Value<'_> {
-	fn to_text(&self) -> Result<Text> {
+impl<'e> ToText<'e> for Value<'e> {
+	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
 		match *self {
-			Self::Null => Null.to_text(),
-			Self::Boolean(boolean) => boolean.to_text(),
-			Self::Integer(integer) => integer.to_text(),
-			Self::Text(ref text) => text.to_text(),
-			Self::List(ref list) => list.to_text(),
+			Self::Null => Null.to_text(env),
+			Self::Boolean(boolean) => boolean.to_text(env),
+			Self::Integer(integer) => integer.to_text(env),
+			Self::Text(ref text) => text.to_text(env),
+			Self::List(ref list) => list.to_text(env),
+
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.to_text(),
+			Self::Custom(ref custom) => custom.to_text(env),
+
 			_ => Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() }),
 		}
 	}
 }
 
 impl<'e> ToList<'e> for Value<'e> {
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, env: &mut Environment<'e>) -> Result<List<'e>> {
 		match *self {
-			Self::Null => Null.to_list(),
-			Self::Boolean(boolean) => boolean.to_list(),
-			Self::Integer(integer) => integer.to_list(),
-			Self::Text(ref text) => text.to_list(),
-			Self::List(ref list) => list.to_list(),
+			Self::Null => Null.to_list(env),
+			Self::Boolean(boolean) => boolean.to_list(env),
+			Self::Integer(integer) => integer.to_list(env),
+			Self::Text(ref text) => text.to_list(env),
+			Self::List(ref list) => list.to_list(env),
+
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.to_list(),
+			Self::Custom(ref custom) => custom.to_list(env),
+
 			_ => Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() }),
 		}
 	}
@@ -240,11 +249,11 @@ impl<'e> Value<'e> {
 		}
 	}
 
-	pub fn length(&self, _env: &mut Environment<'e>) -> Result<Self> {
+	pub fn length(&self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::List(list) => Integer::try_from(list.len()).map(Self::from),
 			Self::Text(text) => {
-				debug_assert_eq!(text.len(), self.to_list().unwrap().len());
+				debug_assert_eq!(text.len(), self.to_list(env).unwrap().len());
 				Integer::try_from(text.len()).map(Self::from)
 			}
 			Self::Integer(int) if int.is_zero() => Ok(Integer::ONE.into()),
@@ -253,7 +262,7 @@ impl<'e> Value<'e> {
 			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.length(_env),
+			Self::Custom(custom) => custom.length(env),
 
 			other => Err(Error::TypeError(other.typename(), "LENGTH")),
 		}
@@ -273,12 +282,12 @@ impl<'e> Value<'e> {
 
 	pub fn add(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.add(rhs.to_integer()?).map(Self::from),
-			Self::Text(string) => string.concat(&rhs.to_text()?).map(Self::from),
-			Self::List(list) => list.concat(&rhs.to_list()?).map(Self::from),
+			Self::Integer(integer) => integer.add(rhs.to_integer(env)?).map(Self::from),
+			Self::Text(string) => string.concat(&rhs.to_text(env)?).map(Self::from),
+			Self::List(list) => list.concat(&rhs.to_list(env)?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs | rhs.to_boolean()?).into()),
+			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs | rhs.to_boolean(env)?).into()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.add(rhs, env),
@@ -289,13 +298,13 @@ impl<'e> Value<'e> {
 
 	pub fn subtract(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.subtract(rhs.to_integer()?).map(Self::from),
+			Self::Integer(integer) => integer.subtract(rhs.to_integer(env)?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Text(text) if env.flags().exts.text => Ok(text.remove_substr(&rhs.to_text()?).into()),
+			Self::Text(text) if env.flags().exts.text => Ok(text.remove_substr(&rhs.to_text(env)?).into()),
 
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.flags().exts.list => list.difference(&rhs.to_list()?).map(Self::from),
+			Self::List(list) if env.flags().exts.list => list.difference(&rhs.to_list(env)?).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.subtract(rhs, env),
@@ -306,10 +315,10 @@ impl<'e> Value<'e> {
 
 	pub fn multiply(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.multiply(rhs.to_integer()?).map(Self::from),
+			Self::Integer(integer) => integer.multiply(rhs.to_integer(env)?).map(Self::from),
 
 			Self::Text(lstr) => {
-				let amount = usize::try_from(rhs.to_integer()?)
+				let amount = usize::try_from(rhs.to_integer(env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
 				if isize::MAX as usize <= amount * lstr.len() {
@@ -328,7 +337,7 @@ impl<'e> Value<'e> {
 					return list.map(&rhs, env).map(Self::from);
 				}
 
-				let amount = usize::try_from(rhs.to_integer()?)
+				let amount = usize::try_from(rhs.to_integer(env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
 				// No need to check for repetition length because `list.repeat` doesnt actually
@@ -338,7 +347,7 @@ impl<'e> Value<'e> {
 			}
 
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs & rhs.to_boolean()?).into()),
+			Self::Boolean(lhs) if env.flags().exts.boolean => Ok((lhs & rhs.to_boolean(env)?).into()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.multiply(rhs, env),
@@ -349,10 +358,10 @@ impl<'e> Value<'e> {
 
 	pub fn divide(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.divide(rhs.to_integer()?).map(Self::from),
+			Self::Integer(integer) => integer.divide(rhs.to_integer(env)?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Text(text) if env.flags().exts.text => Ok(text.split(&rhs.to_text()?).into()),
+			Self::Text(text) if env.flags().exts.text => Ok(text.split(&rhs.to_text(env)?, env).into()),
 
 			#[cfg(feature = "extensions")]
 			Self::List(list) if env.flags().exts.list => Ok(list.reduce(&rhs, env)?.unwrap_or_default()),
@@ -366,11 +375,11 @@ impl<'e> Value<'e> {
 
 	pub fn remainder(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.remainder(rhs.to_integer()?).map(Self::from),
+			Self::Integer(integer) => integer.remainder(rhs.to_integer(env)?).map(Self::from),
 
 			// #[cfg(feature = "string-extensions")]
 			// Self::Text(lstr) => {
-			// 	let values = rhs.to_list()?;
+			// 	let values = rhs.to_list(env)?;
 			// 	let mut values_index = 0;
 
 			// 	let mut formatted = String::new();
@@ -397,7 +406,7 @@ impl<'e> Value<'e> {
 			// 						.as_slice()
 			// 						.get(values_index)
 			// 						.expect("no values left to format")
-			// 						.to_text()?,
+			// 						.to_text(env)?,
 			// 				);
 			// 				values_index += 1;
 			// 			}
@@ -416,28 +425,28 @@ impl<'e> Value<'e> {
 			other => Err(Error::TypeError(other.typename(), "%")),
 		}
 	}
-	pub fn power(&self, rhs: &Self, _env: &mut Environment<'e>) -> Result<Self> {
+	pub fn power(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.power(rhs.to_integer()?).map(Self::from),
-			Self::List(list) => list.join(&rhs.to_text()?).map(Self::from),
+			Self::Integer(integer) => integer.power(rhs.to_integer(env)?).map(Self::from),
+			Self::List(list) => list.join(&rhs.to_text(env)?, env).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.power(rhs, _env),
+			Self::Custom(custom) => custom.power(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "^")),
 		}
 	}
 
-	pub fn compare(&self, rhs: &Self, _env: &mut Environment<'e>) -> Result<Ordering> {
+	pub fn compare(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Ordering> {
 		match self {
-			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer()?)),
-			Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean()?)),
-			Value::Text(text) => Ok(text.cmp(&rhs.to_text()?)),
+			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),
+			Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean(env)?)),
+			Value::Text(text) => Ok(text.cmp(&rhs.to_text(env)?)),
 			Value::List(list) => {
-				let rhs = rhs.to_list()?;
+				let rhs = rhs.to_list(env)?;
 
 				for (left, right) in list.iter().zip(&rhs) {
-					match left.compare(right, _env)? {
+					match left.compare(right, env)? {
 						Ordering::Equal => {}
 						other => return Ok(other),
 					}
@@ -447,7 +456,7 @@ impl<'e> Value<'e> {
 			}
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.compare(rhs, _env),
+			Self::Custom(custom) => custom.compare(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "<cmp>")),
 		}
@@ -514,7 +523,8 @@ impl<'e> Value<'e> {
 			Value::Ast(ast)
 				if env.flags().assign_to.prompt && ast.function() == &crate::function::SYSTEM =>
 			{
-				env.add_to_system(value.to_text()?);
+				let lines = value.to_text(env)?;
+				env.add_to_system(lines);
 			}
 
 			#[cfg(feature = "extensions")]
@@ -531,9 +541,9 @@ impl<'e> Value<'e> {
 	}
 
 	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<'e>) -> Result<Self> {
-		let start = fix_len(self, start.to_integer()?, env)?;
+		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
-			usize::try_from(len.to_integer()?).or(Err(Error::DomainError("negative length")))?;
+			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
 
 		match self {
 			Self::List(list) => list
@@ -561,14 +571,14 @@ impl<'e> Value<'e> {
 		replacement: &Self,
 		env: &mut Environment<'e>,
 	) -> Result<Self> {
-		let start = fix_len(self, start.to_integer()?, env)?;
+		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
-			usize::try_from(len.to_integer()?).or(Err(Error::DomainError("negative length")))?;
+			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
 
 		match self {
 			Self::List(list) => {
 				// OPTIMIZE ME: cons?
-				let replacement = replacement.to_list()?;
+				let replacement = replacement.to_list(env)?;
 				let mut ret = Vec::new();
 				ret.extend(list.iter().take(start).cloned());
 				ret.extend(replacement.iter().cloned());
@@ -577,7 +587,7 @@ impl<'e> Value<'e> {
 				List::try_from(ret).map(Self::from)
 			}
 			Self::Text(text) => {
-				let replacement = replacement.to_text()?;
+				let replacement = replacement.to_text(env)?;
 
 				// lol, todo, optimize me
 				let mut builder = Text::builder();
@@ -607,7 +617,7 @@ fn fix_len<'e>(
 			Value::List(list) => list.len(),
 
 			#[cfg(feature = "custom-types")]
-			Value::Custom(list) => list.length(env)?.to_integer()?.try_into()?,
+			Value::Custom(list) => list.length(env)?.to_integer(env)?.try_into()?,
 
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};

@@ -24,7 +24,7 @@ pub trait CustomType<'e>: std::fmt::Debug {
 	fn typename(&self) -> &'static str;
 
 	fn eq(&self, rhs: &dyn CustomType<'e>) -> bool {
-		// std::ptr::eq(self , rhs)
+		// std::ptr::eq(self as *const u8, rhs as *const u8)
 		let _ = rhs;
 		todo!();
 	}
@@ -33,49 +33,52 @@ pub trait CustomType<'e>: std::fmt::Debug {
 		Ok(this.clone().into())
 	}
 
-	fn to_text(&self, _this: &Custom<'e>) -> Result<Text> {
+	fn to_text(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Text> {
+		let _ = (this, env);
 		Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() })
 	}
 
-	fn to_integer(&self, _this: &Custom<'e>) -> Result<Integer> {
+	fn to_integer(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Integer> {
+		let _ = (this, env);
 		Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() })
 	}
 
-	fn to_boolean(&self, _this: &Custom<'e>) -> Result<Boolean> {
+	fn to_boolean(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Boolean> {
+		let _ = (this, env);
 		Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() })
 	}
 
-	fn to_list(&self, _this: &Custom<'e>) -> Result<List<'e>> {
+	fn to_list(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<List<'e>> {
+		let _ = (this, env);
 		Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() })
 	}
 
-	fn head(&self, _this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
-		let _ = env;
+	fn head(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "["))
 	}
 
-	fn tail(&self, _this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
-		let _ = env;
+	fn tail(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "]"))
 	}
 
-	fn length(&self, _this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
-		let _ = env;
-		Integer::try_from(self.to_list(_this)?.len()).map(Value::from)
+	fn length(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+		Integer::try_from(self.to_list(this, env)?.len()).map(Value::from)
 	}
 
-	fn ascii(&self, _this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
-		let _ = env;
+	fn ascii(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "ASCII"))
 	}
 
 	fn add(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "+"))
 	}
 
@@ -183,27 +186,27 @@ pub trait CustomType<'e>: std::fmt::Debug {
 	}
 }
 
-impl ToText for Custom<'_> {
-	fn to_text(&self) -> Result<Text> {
-		self.0.to_text(self)
+impl<'e> ToText<'e> for Custom<'e> {
+	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
+		self.0.to_text(self, env)
 	}
 }
 
-impl ToInteger for Custom<'_> {
-	fn to_integer(&self) -> Result<Integer> {
-		self.0.to_integer(self)
+impl<'e> ToInteger<'e> for Custom<'e> {
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer> {
+		self.0.to_integer(self, env)
 	}
 }
 
-impl ToBoolean for Custom<'_> {
-	fn to_boolean(&self) -> Result<Boolean> {
-		self.0.to_boolean(self)
+impl<'e> ToBoolean<'e> for Custom<'e> {
+	fn to_boolean(&self, env: &mut Environment<'e>) -> Result<Boolean> {
+		self.0.to_boolean(self, env)
 	}
 }
 
 impl<'e> ToList<'e> for Custom<'e> {
-	fn to_list(&self) -> Result<List<'e>> {
-		self.0.to_list(self)
+	fn to_list(&self, env: &mut Environment<'e>) -> Result<List<'e>> {
+		self.0.to_list(self, env)
 	}
 }
 

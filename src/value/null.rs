@@ -1,6 +1,6 @@
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
-use crate::Result;
+use crate::{Environment, Result};
 use std::fmt::{self, Debug, Formatter};
 
 /// Represents the `NULL` value within Knight.
@@ -32,18 +32,18 @@ impl Parsable<'_, '_> for Null {
 	}
 }
 
-impl ToBoolean for Null {
+impl<'e> ToBoolean<'e> for Null {
 	/// Simple returns `false`.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
 
-impl ToInteger for Null {
+impl<'e> ToInteger<'e> for Null {
 	/// Simple returns zero.
 	#[inline]
-	fn to_integer(&self) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer> {
 		Ok(Integer::default())
 	}
 }
@@ -51,15 +51,15 @@ impl ToInteger for Null {
 impl<'e> ToList<'e> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
-	fn to_list(&self) -> Result<List<'e>> {
+	fn to_list(&self, _: &mut Environment<'e>) -> Result<List<'e>> {
 		Ok(List::default())
 	}
 }
 
-impl ToText for Null {
+impl<'e> ToText<'e> for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
 		Ok(Text::default())
 	}
 }

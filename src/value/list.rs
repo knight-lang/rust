@@ -31,7 +31,7 @@ enum Inner<'e> {
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList<'e> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self) -> Result<List<'e>>;
+	fn to_list(&self, env: &mut Environment<'e>) -> Result<List<'e>>;
 }
 
 impl PartialEq for List<'_> {
@@ -211,7 +211,7 @@ impl<'e> List<'e> {
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &TextSlice) -> Result<Text> {
+	pub fn join(&self, sep: &TextSlice, env: &mut Environment<'e>) -> Result<Text> {
 		let mut joined = Text::builder();
 
 		let mut is_first = true;
@@ -220,7 +220,7 @@ impl<'e> List<'e> {
 				joined.push(sep);
 			}
 			is_first = false;
-			joined.push(&ele.to_text()?);
+			joined.push(&ele.to_text(env)?);
 		}
 
 		Ok(joined.finish())
@@ -302,7 +302,7 @@ impl<'e> List<'e> {
 		for ele in self {
 			arg.assign(ele.clone());
 
-			if block.run(env)?.to_boolean()? {
+			if block.run(env)?.to_boolean(env)? {
 				filtering.push(ele.clone());
 			}
 		}
@@ -369,33 +369,33 @@ impl<'e> Parsable<'_, 'e> for List<'e> {
 impl<'e> ToList<'e> for List<'e> {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_list(&self) -> Result<Self> {
+	fn to_list(&self, _: &mut Environment<'e>) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl ToBoolean for List<'_> {
+impl<'e> ToBoolean<'e> for List<'e> {
 	/// Returns whether `self` is nonempty.
 	#[inline]
-	fn to_boolean(&self) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl ToInteger for List<'_> {
+impl<'e> ToInteger<'e> for List<'e> {
 	/// Returns `self`'s length.
 	#[inline]
-	fn to_integer(&self) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer> {
 		self.len().try_into()
 	}
 }
 
-impl ToText for List<'_> {
+impl<'e> ToText<'e> for List<'e> {
 	/// Returns `self` [joined](Self::join) with a newline.
-	fn to_text(&self) -> Result<Text> {
+	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
 		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
 
-		self.join(NEWLINE)
+		self.join(NEWLINE, env)
 	}
 }
 
