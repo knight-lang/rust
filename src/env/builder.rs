@@ -4,7 +4,7 @@ use std::io;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Builder<'e> {
-	stdin: Option<Box<Stdin<'e>>>,
+	prompt: Option<Prompt<'e>>,
 	stdout: Option<Box<Stdout<'e>>>,
 	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
@@ -19,7 +19,7 @@ pub struct Builder<'e> {
 impl Default for Builder<'_> {
 	fn default() -> Self {
 		Self {
-			stdin: None,
+			prompt: None,
 			stdout: None,
 			functions: crate::function::default(),
 			extensions: crate::function::extensions(),
@@ -35,7 +35,9 @@ impl Default for Builder<'_> {
 
 impl<'e> Builder<'e> {
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
-		self.stdin = Some(Box::new(stdin) as Box<_>);
+		// self.prompt.unwrap_or_default().default = Some(Box::new(stdin) as Box<_>);
+		let _ = stdin;
+		todo!();
 	}
 
 	pub fn stdout<S: Write + Send + Sync + 'e>(&mut self, stdout: S) {
@@ -69,7 +71,8 @@ impl<'e> Builder<'e> {
 	pub fn build(self) -> Environment<'e> {
 		Environment {
 			variables: HashSet::default(),
-			stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
+			// stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
+			prompt: Prompt::default(),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
 
 			#[cfg(feature = "extensions")]
@@ -98,9 +101,6 @@ impl<'e> Builder<'e> {
 			extensions: self.extensions,
 			functions: self.functions,
 			rng: Box::new(StdRng::from_entropy()),
-
-			#[cfg(feature = "extensions")]
-			prompt_lines: Default::default(),
 
 			#[cfg(feature = "extensions")]
 			system_results: Default::default(),

@@ -7,9 +7,11 @@ use std::io::{BufRead, Write};
 
 mod builder;
 mod flags;
+mod prompt;
 mod variable;
 pub use builder::Builder;
 pub use flags::Flags;
+pub use prompt::Prompt;
 pub use variable::{IllegalVariableName, Variable};
 
 type Stdin<'e> = dyn BufRead + 'e + Send + Sync;
@@ -26,16 +28,12 @@ pub struct Environment<'e> {
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable<'e>>,
-	stdin: Box<Stdin<'e>>,
+	prompt: Prompt<'e>,
 	stdout: Box<Stdout<'e>>,
 	rng: Box<StdRng>,
 
 	functions: HashMap<Character, &'e Function>,
 	extensions: HashMap<Text, &'e Function>,
-
-	// A queue of things that'll be read from for `PROMPT` instead of stdin.
-	#[cfg(feature = "extensions")]
-	prompt_lines: std::collections::VecDeque<Text>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -73,8 +71,8 @@ impl<'e> Environment<'e> {
 		&self.functions
 	}
 
-	pub fn stdin(&mut self) -> &mut dyn BufRead {
-		&mut self.stdin
+	pub fn prompt(&mut self) -> &mut Prompt<'e> {
+		&mut self.prompt
 	}
 
 	pub fn stdout(&mut self) -> &mut dyn Write {
@@ -123,18 +121,6 @@ impl<'e> Environment<'e> {
 	/// Gets a mutable list of known extension functions, so you can add to them.
 	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'e Function> {
 		&mut self.extensions
-	}
-
-	#[cfg(feature = "extensions")]
-	pub fn add_to_prompt(&mut self, line: Text) {
-		for line in (&**line).split('\n') {
-			self.prompt_lines.push_back(line.try_into().unwrap());
-		}
-	}
-
-	#[cfg(feature = "extensions")]
-	pub fn get_next_prompt_line(&mut self) -> Option<Text> {
-		self.prompt_lines.pop_front()
 	}
 
 	#[cfg(feature = "extensions")]

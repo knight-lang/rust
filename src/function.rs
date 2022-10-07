@@ -115,36 +115,7 @@ macro_rules! function {
 
 /// **4.1.4**: `PROMPT`
 pub static PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	#[cfg(feature = "assign-to-prompt")]
-	if let Some(line) = env.get_next_prompt_line() {
-		return Ok(line.into());
-	}
-
-	let mut buf = String::new();
-
-	// If we read an empty line, return null.
-	if env.stdin().read_line(&mut buf)? == 0 {
-		return Ok(Value::Null);
-	}
-
-	// remove trailing newline
-	match buf.pop() {
-		Some('\n') => {}
-		Some(other) => buf.push(other),
-		None => {}
-	}
-		
-	// delete trailing `\r`s
-	loop {
-		match buf.pop() {
-			Some('\r') => continue,
-			Some(other) => buf.push(other),
-			None => {}
-		}
-		break;
-	}
-
-	Text::try_from(buf)?.into()
+	env.prompt().read_line(env)?.map(Value::from).unwrap_or_default()
 });
 
 /// **4.1.5**: `RANDOM`
@@ -520,14 +491,30 @@ pub static THEN: Function = function!(";", env, |lhs, rhs| {
 
 fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
 	match variable {
-		Value::Variable(var) => { var.assign(value); }
+		Value::Variable(var) => {
+			var.assign(value);
+		}
 
 		#[cfg(not(feature = "extensions"))]
 		other => return Err(Error::TypeError(other.typename(), "=")),
 
 		#[cfg(feature = "extensions")]
 		Value::Ast(ast) if env.flags().assign_to.prompt && ast.function() == &PROMPT => {
-			env.add_to_prompt(value.to_text()?);
+			match value {
+				// `= PROMPT NULL` disables replacements
+				Value::Null => env.prompt().reset_replacement(),
+
+				// `= PROMPT FALSE` makes it always return nothing.
+				Value::Boolean(false) => env.prompt().close(),
+
+				// `= PROMPT "foo<newline>bar"` will add the newlines to the end of the buffer.
+				Value::Text(text) => env.prompt().add_lines(&text),
+
+				// `= PROMPT BLOCK ...` will compute the new ast each time
+				Value::Ast(ast) => env.prompt().set_ast(ast),
+
+				other => return Err(Error::TypeError(other.typename(), "=")),
+			}
 		}
 
 		#[cfg(feature = "extensions")]
@@ -540,7 +527,7 @@ fn assign<'e>(variable: &Value<'e>, value: Value<'e>, env: &mut Environment<'e>)
 			Value::List(_list) if env.flags().assign_to.lists => todo!(),
 			Value::Text(name) if env.flags().assign_to.strings => {
 				env.lookup(&name)?.assign(value);
-			},
+			}
 			other => return Err(Error::TypeError(other.typename(), "=")),
 		},
 	}
@@ -675,7 +662,7 @@ pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "yeet-function")))]
 pub static YEET: Function = function!("YEET", env, |errmsg| {
 	return Err(Error::Custom(errmsg.run(env)?.to_text()?.to_string().into()));
-	
+
 	#[allow(unreachable_code)]
 	Value::Null
 });
@@ -724,13 +711,9 @@ pub static XSRAND: Function = function!("XSRAND", env, |arg| {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
 pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
 	match arg.run(env)? {
-		Value::Text(text) => text
-			.chars()
-			.collect::<Vec<Character>>()
-			.into_iter()
-			.rev()
-			.collect::<Text>()
-			.into(),
+		Value::Text(text) => {
+			text.chars().collect::<Vec<Character>>().into_iter().rev().collect::<Text>().into()
+		}
 		Value::List(list) => {
 			let mut eles = list.iter().cloned().collect::<Vec<Value<'_>>>();
 			eles.reverse();
@@ -748,11 +731,13 @@ pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
 			let stop = stop.run(env)?.to_integer()?;
 
 			match start <= stop {
-				true => List::try_from((i64::from(start)..i64::from(stop))
-					.map(|x| Value::from(Integer::try_from(x).unwrap()))
-					.collect::<Vec<Value<'_>>>())
-					.expect("todo: out of bounds error")
-					.into(),
+				true => List::try_from(
+					(i64::from(start)..i64::from(stop))
+						.map(|x| Value::from(Integer::try_from(x).unwrap()))
+						.collect::<Vec<Value<'_>>>(),
+				)
+				.expect("todo: out of bounds error")
+				.into(),
 
 				#[cfg(feature = "negative-ranges")]
 				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
