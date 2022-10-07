@@ -14,7 +14,8 @@ license = "MIT"
 default = ["extensions", "custom-types"]
 extensions = [] # stuff that's not part of base knight
 lax-compliance = [] # runs non-compliant code, but improves the speed. 
-custom-types = [] # Allows users to add custom types in
+custom-types = ["extensions"] # Allows users to add custom types in
+
 
 #######################################
 #            Miscellaneous           ##

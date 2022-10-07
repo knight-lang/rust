@@ -266,6 +266,18 @@ impl Parsable<'_, '_> for Integer {
 	}
 }
 
+impl rand::distributions::Distribution<Integer> for rand::distributions::Standard {
+	fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Integer {
+		let mut rand = rng.gen::<Inner>().abs();
+
+		if cfg!(feature = "lax-compliance") {
+			rand &= 0x7fff;
+		}
+
+		Integer(rand)
+	}
+}
+
 impl<'e> ToInteger<'e> for Integer {
 	/// Simply returns `self`.
 	#[inline]

@@ -49,6 +49,7 @@ impl Debug for Value<'_> {
 			Self::List(list) => Debug::fmt(list, f),
 			Self::Variable(variable) => Debug::fmt(variable, f),
 			Self::Ast(ast) => Debug::fmt(ast, f),
+
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => Debug::fmt(custom, f),
 		}

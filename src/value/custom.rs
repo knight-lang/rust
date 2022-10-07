@@ -144,16 +144,6 @@ pub trait CustomType<'e>: std::fmt::Debug {
 		Err(Error::TypeError(self.typename(), "<cmp>"))
 	}
 
-	fn equals(&self, this: &Custom<'e>, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<bool> {
-		let _ = (this, env);
-
-		if let Value::Custom(rhs) = rhs {
-			Ok(self.eq(&*rhs.0))
-		} else {
-			Ok(false)
-		}
-	}
-
 	fn assign(&self, this: &Custom<'e>, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "ASSIGN"))
@@ -268,10 +258,6 @@ impl<'e> Custom<'e> {
 
 	pub fn compare(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Ordering> {
 		self.0.compare(self, rhs, env)
-	}
-
-	pub fn equals(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<bool> {
-		self.0.equals(self, rhs, env)
 	}
 
 	pub fn assign(&self, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {

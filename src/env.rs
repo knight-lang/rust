@@ -100,9 +100,7 @@ impl<'e> Environment<'e> {
 
 	/// Gets a random `Integer`.
 	pub fn random(&mut self) -> Integer {
-		let rand = self.rng.gen::<i32>().abs();
-
-		Integer::from(if cfg!(feature = "strict-compliance") { rand & 0x7fff } else { rand })
+		self.rng.gen::<Integer>()
 	}
 
 	/// Seeds the random number generator.
