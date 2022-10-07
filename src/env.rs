@@ -52,11 +52,15 @@ sa::assert_impl_all!(Environment: Send, Sync);
 
 impl Default for Environment<'_> {
 	fn default() -> Self {
-		Builder::default().build()
+		Self::builder().build()
 	}
 }
 
 impl<'e> Environment<'e> {
+	pub fn builder() -> Builder<'e> {
+		Builder::default()
+	}
+
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
 		crate::Parser::new(source, self).parse_program()?.run(self)

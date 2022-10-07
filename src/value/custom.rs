@@ -1,18 +1,12 @@
 use crate::value::{
 	Boolean, Integer, List, NamedType, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
-use crate::{Environment, Error, Result, Value};
+use crate::{Environment, Error, RefCount, Result, Value};
 
 use std::cmp::Ordering;
 
-#[cfg(feature = "multithreaded")]
-type Inner<T> = std::sync::Arc<T>;
-
-#[cfg(not(feature = "multithreaded"))]
-type Inner<T> = std::rc::Rc<T>;
-
 #[derive(Debug, Clone)]
-pub struct Custom<'a>(pub Inner<dyn CustomType<'a>>);
+pub struct Custom<'a>(RefCount<dyn CustomType<'a>>);
 
 impl PartialEq for Custom<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
@@ -20,8 +14,16 @@ impl PartialEq for Custom<'_> {
 	}
 }
 
+impl<'a> Custom<'a> {
+	pub fn new<T: CustomType<'a> + 'static>(data: T) -> Self {
+		Self((Box::new(data) as Box<dyn CustomType<'a>>).into())
+	}
+}
+
 pub trait CustomType<'e>: std::fmt::Debug {
-	fn typename(&self) -> &'static str;
+	fn typename(&self) -> &'static str {
+		std::any::type_name::<Self>()
+	}
 
 	fn eq(&self, rhs: &dyn CustomType<'e>) -> bool {
 		// std::ptr::eq(self as *const u8, rhs as *const u8)
@@ -84,71 +86,66 @@ pub trait CustomType<'e>: std::fmt::Debug {
 
 	fn subtract(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "-"))
 	}
 
 	fn multiply(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "*"))
 	}
 
 	fn divide(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "/"))
 	}
 
 	fn remainder(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "%"))
 	}
 
 	fn power(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "^"))
 	}
 
 	fn compare(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		rhs: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Ordering> {
-		let _ = (rhs, env);
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "<cmp>"))
 	}
 
-	fn equals(
-		&self,
-		_this: &Custom<'e>,
-		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
-	) -> Result<bool> {
-		let _ = env;
+	fn equals(&self, this: &Custom<'e>, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<bool> {
+		let _ = (this, env);
 
 		if let Value::Custom(rhs) = rhs {
 			Ok(self.eq(&*rhs.0))
@@ -157,31 +154,31 @@ pub trait CustomType<'e>: std::fmt::Debug {
 		}
 	}
 
-	fn assign(&self, _this: &Custom<'e>, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
-		let _ = (rhs, env);
+	fn assign(&self, this: &Custom<'e>, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
+		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "ASSIGN"))
 	}
 
 	fn get(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		start: usize,
 		len: usize,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (start, len, env);
+		let _ = (this, start, len, env);
 		Err(Error::TypeError(self.typename(), "GET"))
 	}
 
 	fn set(
 		&self,
-		_this: &Custom<'e>,
+		this: &Custom<'e>,
 		start: usize,
 		len: usize,
 		replacement: &Value<'e>,
 		env: &mut Environment<'e>,
 	) -> Result<Value<'e>> {
-		let _ = (start, len, replacement, env);
+		let _ = (this, start, len, replacement, env);
 		Err(Error::TypeError(self.typename(), "GET"))
 	}
 }
