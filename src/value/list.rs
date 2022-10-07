@@ -347,6 +347,21 @@ impl<'e> Parsable<'_, 'e> for List<'e> {
 			return Ok(Some(Self::default()));
 		};
 
+		#[cfg(feature = "extensions")]
+		if parser.env().flags().exts.list_literal && parser.advance_if('{').is_some() {
+			let mut list = Vec::new();
+			while {
+				parser.strip_whitespace_and_comments();
+				parser.advance_if('}').is_none()
+			} {
+				list.push(parser.parse_expression()?);
+			}
+			return list
+				.try_into()
+				.map(Some)
+				.map_err(|e| parser.error(parse::ErrorKind::Custom(Box::new(e))));
+		}
+
 		Ok(None)
 	}
 }

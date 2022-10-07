@@ -1,6 +1,7 @@
 //! Types relating to [`Value`]s.
 
 mod boolean;
+pub mod custom;
 mod integer;
 mod list;
 mod null;
@@ -8,6 +9,7 @@ pub mod text;
 mod value;
 
 pub use boolean::{Boolean, ToBoolean};
+pub use custom::Custom;
 pub use integer::{Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;

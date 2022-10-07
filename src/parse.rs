@@ -80,6 +80,8 @@ pub enum ErrorKind {
 	///
 	/// This is only returned when `forbid-trailing-tokens` is enabled.
 	TrailingTokens,
+
+	Custom(Box<dyn std::error::Error>), // TODO: make this be the `cause`
 }
 
 impl ErrorKind {
@@ -107,6 +109,7 @@ impl Display for ErrorKind {
 
 			Self::UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
 			Self::TrailingTokens => write!(f, "trailing tokens encountered"),
+			Self::Custom(err) => Display::fmt(err, f),
 		}
 	}
 }
@@ -243,6 +246,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 		use ErrorKind::*;
 
 		let start = self.line;
+
 		match self.parse_expression() {
 			Ok(val) => {
 				self.strip_whitespace_and_comments();

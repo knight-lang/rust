@@ -18,6 +18,7 @@ pub struct ExtensionFlags {
 	pub boolean: bool,
 	pub list: bool,
 	pub text: bool,
+	pub list_literal: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

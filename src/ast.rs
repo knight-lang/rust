@@ -60,6 +60,8 @@ impl<'e> Runnable<'e> for Ast<'e> {
 
 impl<'e> Parsable<'_, 'e> for Ast<'e> {
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		use parse::{Error, ErrorKind};
+
 		let Some(function) = <&Function>::parse(parser)? else {
 			return Ok(None);
 		};
@@ -67,14 +69,14 @@ impl<'e> Parsable<'_, 'e> for Ast<'e> {
 		// `MissingArgument` errors have their `line` field set to the beginning of the function
 		// parsing.
 		let start_line = parser.line();
-
 		let mut args = Vec::with_capacity(function.arity);
+
 		for index in 0..function.arity {
 			match parser.parse_expression() {
 				Ok(arg) => args.push(arg),
-				Err(parse::Error { kind: parse::ErrorKind::EmptySource, .. }) => {
+				Err(Error { kind: ErrorKind::EmptySource, .. }) => {
 					return Err(
-						parse::ErrorKind::MissingArgument { name: function.name.to_owned(), index }
+						ErrorKind::MissingArgument { name: function.name.to_owned(), index }
 							.error(start_line),
 					)
 				}
