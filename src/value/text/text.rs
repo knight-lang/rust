@@ -41,9 +41,6 @@ impl<E: Encoding> Hash for Text<E> {
 	}
 }
 
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Text: Send, Sync);
-
 impl<E: Encoding> Default for Text<E> {
 	#[inline]
 	fn default() -> Self {

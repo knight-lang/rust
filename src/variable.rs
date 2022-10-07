@@ -2,21 +2,19 @@ use crate::env::Options;
 use crate::value::text::Encoding;
 use crate::value::{Runnable, Text, TextSlice, Value};
 use crate::IntType;
-use crate::{Environment, Error, Mutable, RefCount};
+use crate::{Environment, Error};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 /// Represents a variable within Knight.
-pub struct Variable<'e, E: Encoding, I: IntType>(RefCount<Inner<'e, E, I>>);
+pub struct Variable<'e, E: Encoding, I: IntType>(Arc<Inner<'e, E, I>>);
 
 struct Inner<'e, E: Encoding, I: IntType> {
 	name: Text<E>,
-	value: Mutable<Option<Value<'e, E, I>>>,
+	value: Mutex<Option<Value<'e, E, I>>>,
 }
-
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
 impl<E: Encoding, I: IntType> Clone for Variable<'_, E, I> {
 	fn clone(&self) -> Self {
@@ -143,13 +141,13 @@ impl<'e, E: Encoding, I: IntType> Variable<'e, E, I> {
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
 	pub fn assign(&self, new: Value<'e, E, I>) -> Option<Value<'e, E, I>> {
-		self.0.value.write().replace(new)
+		self.0.value.lock().unwrap().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if we haven't been assigned to yet.
 	#[must_use]
 	pub fn fetch(&self) -> Option<Value<'e, E, I>> {
-		self.0.value.read().clone()
+		self.0.value.lock().unwrap().clone()
 	}
 }
 

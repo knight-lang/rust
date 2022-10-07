@@ -4,9 +4,10 @@ use crate::value::{
 	Boolean, Integer, NamedType, Runnable, Text, ToBoolean, ToInteger, ToText, Value,
 };
 use crate::IntType;
-use crate::{Environment, Error, RefCount, Result, TextSlice};
+use crate::{Environment, Error, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeFrom};
+use std::sync::Arc;
 
 /// The list type within Knight.
 ///
@@ -20,7 +21,7 @@ use std::ops::{Range, RangeFrom};
 ///
 /// However, since this can be a fairly significant performance penalty, this checking is disabled
 /// by default. To enable it, you should enable the `container-length-limit` feature.
-pub struct List<'e, E: Encoding, I: IntType>(Option<RefCount<Inner<'e, E, I>>>);
+pub struct List<'e, E: Encoding, I: IntType>(Option<Arc<Inner<'e, E, I>>>);
 
 enum Inner<'e, E: Encoding, I: IntType> {
 	Boxed(Value<'e, E, I>),

@@ -40,9 +40,6 @@ pub struct Environment<'e, E: Encoding, I: IntType> {
 	system_results: VecDeque<Text<E>>,
 }
 
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Environment: Send, Sync);
-
 impl<E: Encoding, I: IntType> Default for Environment<'_, E, I> {
 	fn default() -> Self {
 		Self::builder().build()

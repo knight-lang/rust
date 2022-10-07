@@ -10,11 +10,7 @@ pub struct Builder<'e, E: Encoding, I: IntType> {
 	options: Options,
 	functions: HashMap<Character<E>, Function<'e, E, I>>,
 	extensions: HashMap<Text<E>, Function<'e, E, I>>,
-
-	#[cfg(feature = "system-function")]
 	system: Option<Box<System<'e, E>>>,
-
-	#[cfg(feature = "use-function")]
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
@@ -25,6 +21,18 @@ impl<'e, E: Encoding, I: IntType> Default for Builder<'e, E, I> {
 }
 
 impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
+	pub fn new(options: Options) -> Self {
+		Self {
+			stdin: None,
+			stdout: None,
+			functions: crate::function::default(&options),
+			extensions: crate::function::extensions(&options),
+			options,
+			system: None,
+			read_file: None,
+		}
+	}
+
 	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
 		self.stdin = Some(Box::new(stdin) as Box<_>);
 	}
@@ -45,38 +53,20 @@ impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 		&mut self.extensions
 	}
 
-	#[cfg(feature = "system-function")]
 	pub fn system<F>(&mut self, func: F)
 	where
 		F: FnMut(&TextSlice<E>, Option<&TextSlice<E>>) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
+		assert!(self.options.spec_extensions.system_fn, "set system function when system not usable");
 		self.system = Some(Box::new(func) as Box<_>);
 	}
 
-	#[cfg(feature = "use-function")]
 	pub fn read_file<F>(&mut self, func: F)
 	where
 		F: FnMut(&TextSlice<E>) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
+		assert!(self.options.spec_extensions.use_fn, "set use function when system not usable");
 		self.read_file = Some(Box::new(func) as Box<_>);
-	}
-}
-
-impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
-	pub fn new(options: Options) -> Self {
-		Self {
-			stdin: None,
-			stdout: None,
-			functions: crate::function::default(&options),
-			extensions: crate::function::extensions(&options),
-			options,
-
-			#[cfg(feature = "system-function")]
-			system: None,
-
-			#[cfg(feature = "use-function")]
-			read_file: None,
-		}
 	}
 
 	pub fn build(self) -> Environment<'e, E, I> {
@@ -86,7 +76,6 @@ impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 			stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
 
-			#[cfg(feature = "system-function")]
 			system: self.system.unwrap_or_else(|| {
 				Box::new(|cmd, stdin| {
 					use std::process::{Command, Stdio};
@@ -104,7 +93,6 @@ impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 				})
 			}),
 
-			#[cfg(feature = "use-function")]
 			read_file: self.read_file.unwrap_or_else(|| {
 				Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?))
 			}),
@@ -112,11 +100,7 @@ impl<'e, E: Encoding, I: IntType> Builder<'e, E, I> {
 			extensions: self.extensions,
 			functions: self.functions,
 			rng: Box::new(StdRng::from_entropy()),
-
-			#[cfg(feature = "assign-to-prompt")]
 			prompt_lines: Default::default(),
-
-			#[cfg(feature = "assign-to-system")]
 			system_results: Default::default(),
 		}
 	}

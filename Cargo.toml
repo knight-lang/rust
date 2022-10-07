@@ -96,11 +96,8 @@ strict-compliance      = [  # Enables everything in this section, as well as mor
 
 [dependencies]
 rand = "0.8"
-once_cell = "1.7"
-lazy_static = "1.4"
 clap = { version = "2.33", optional = true }
 tap = "1.0"
-static_assertions = "1.1"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "doc_cfg"]

@@ -3,7 +3,6 @@ use crate::value::text::{Character, Encoding};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
 
 mod int_type;
 pub use int_type::*;
@@ -25,45 +24,8 @@ pub use int_type::*;
 /// undefined. Within this implementation, all operations normally use wrapping logic. However, if
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Integer<I: IntType>(I);
-
-impl<I: IntType> Debug for Integer<I> {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(&self.0, f)
-	}
-}
-impl<I: IntType> Default for Integer<I> {
-	fn default() -> Self {
-		Self::ZERO
-	}
-}
-impl<I: IntType> Copy for Integer<I> {}
-impl<I: IntType> Clone for Integer<I> {
-	fn clone(&self) -> Self {
-		Self(self.0)
-	}
-}
-impl<I: IntType> Eq for Integer<I> {}
-impl<I: IntType> PartialEq for Integer<I> {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.0 == rhs.0
-	}
-}
-impl<I: IntType> PartialOrd for Integer<I> {
-	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		Some(self.cmp(&rhs))
-	}
-}
-impl<I: IntType> Ord for Integer<I> {
-	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.0.cmp(&rhs.0)
-	}
-}
-impl<I: IntType> Hash for Integer<I> {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.0.hash(state)
-	}
-}
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger<I: IntType> {
@@ -89,17 +51,12 @@ impl<I: IntType> Integer<I> {
 	/// The number one.
 	pub const ONE: Self = Self(I::ZERO);
 
-	// /// The maximum value for `Integer`s.
-	// pub const MAX: Self = Self(Inner::MAX);
-
-	// /// The minimum value for `Integer`s.
-	// pub const MIN: Self = Self(Inner::MIN);
-
 	/// Returns whether `self` is zero.
 	pub fn is_zero(self) -> bool {
 		self.0 == Self::ZERO.0
 	}
 
+	/// Tries to create a new [`Integer`], returning `None` if it's out of bounds.
 	pub fn new<T>(num: T) -> Option<Self>
 	where
 		I: TryFrom<T>,
@@ -112,6 +69,7 @@ impl<I: IntType> Integer<I> {
 		self.0.is_negative()
 	}
 
+	/// Gets the character
 	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		self.try_into()
 	}
@@ -183,7 +141,7 @@ impl<I: IntType> Integer<I> {
 		}
 
 		if opts.compliance.check_modulo_argument && self.is_negative() || base.is_negative() {
-			return Err(Error::DomainError("modulo by a negative base"));
+			return Err(Error::DomainError("modulo by a negative base or number"));
 		}
 
 		self.0.remainder(base.0).map(Self)
