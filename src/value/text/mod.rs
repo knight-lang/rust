@@ -57,26 +57,13 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-/// Returns whether `chr` is a character that can appear within Knight.
-///
-/// Normally, every character is considered valid. However, when the `disallow-unicode` feature is
-/// enabled, only characters which are explicitly mentioned in the Knight spec are allowed.
-#[inline]
-pub const fn is_valid(chr: char) -> bool {
-	if cfg!(feature = "strict-charset") {
-		matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
-	} else {
-		true
-	}
-}
-
 pub const fn validate(data: &str) -> Result<(), NewTextError> {
-	if cfg!(feature = "container-length-limit") && TextSlice::MAX_LEN < data.len() {
+	if cfg!(feature = "check-container-length") && TextSlice::MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
 	}
 
 	// All valid `str`s are valid TextSlice when no length limit and no char requirements are set.
-	if cfg!(not(feature = "strict-charset")) {
+	if cfg!(feature = "unicode") {
 		return Ok(());
 	}
 

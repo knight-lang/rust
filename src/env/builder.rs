@@ -18,11 +18,12 @@ pub struct Builder<'e> {
 
 impl Default for Builder<'_> {
 	fn default() -> Self {
+		let flags = super::Flags::default();
 		Self {
 			prompt: None,
 			stdout: None,
-			functions: crate::function::default(),
-			extensions: crate::function::extensions(),
+			functions: crate::function::default(&flags),
+			extensions: crate::function::extensions(&flags),
 
 			#[cfg(feature = "extensions")]
 			system: None,

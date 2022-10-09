@@ -1,3 +1,4 @@
+use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::Character;
 use crate::value::{Runnable, Text, TextSlice, Value};
@@ -96,11 +97,11 @@ impl Display for IllegalVariableName {
 	}
 }
 
-/// Maximum length a name can have when `verify-variable-names` is enabled.
+/// Maximum length a name can have when the flag `verify-variable-names` is enabled.
 pub const MAX_NAME_LEN: usize = 127;
 
-/// Check to see if `name` is a valid variable name. Unless `verify-variable-names` is enabled, this
-/// will always return `Ok(())`.
+/// Check to see if `name` is a valid variable name. Unless the flag `verify-variable-names` is
+/// enabled, this will always return `Ok(())`.
 fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
 	if MAX_NAME_LEN < name.len() {
 		return Err(IllegalVariableName::TooLong(name.len()));
@@ -119,8 +120,8 @@ fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableNam
 }
 
 impl<'e> Variable<'e> {
-	pub(crate) fn new(name: Text) -> std::result::Result<Self, IllegalVariableName> {
-		if cfg!(feature = "verify-variable-names") {
+	pub(crate) fn new(name: Text, flags: &Flags) -> std::result::Result<Self, IllegalVariableName> {
+		if flags.compliance.verify_variable_names {
 			validate_name(&name)?;
 		}
 

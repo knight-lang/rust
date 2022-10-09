@@ -24,10 +24,10 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
-#[cfg(feature = "strict-integers")]
+#[cfg(not(feature = "relaxed-integers"))]
 type Inner = i32;
 
-#[cfg(not(feature = "strict-integers"))]
+#[cfg(feature = "relaxed-integers")]
 type Inner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
@@ -112,13 +112,13 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn negate(self) -> Result<Self> {
-		if cfg!(feature = "checked-overflow") {
-			self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
-		} else {
-			Ok(Self(self.0.wrapping_neg()))
+		if cfg!(feature = "relaxed-integers") {
+			return Ok(Self(self.0.wrapping_neg()));
 		}
+
+		self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	fn binary_op<T>(
@@ -127,11 +127,11 @@ impl Integer {
 		checked: impl FnOnce(Inner, T) -> Option<Inner>,
 		wrapping: impl FnOnce(Inner, T) -> Inner,
 	) -> Result<Self> {
-		if cfg!(feature = "checked-overflow") {
-			(checked)(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
-		} else {
-			Ok(Self((wrapping)(self.0, rhs)))
+		if cfg!(feature = "relaxed-integers") {
+			return Ok(Self((wrapping)(self.0, rhs)));
 		}
+
+		(checked)(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Adds `self` to `augend`.
@@ -140,7 +140,7 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn add(self, augend: Self) -> Result<Self> {
 		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
 	}
@@ -150,7 +150,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
 		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
 	}
@@ -160,7 +160,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn multiply(self, multiplier: Self) -> Result<Self> {
 		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
 	}
@@ -172,7 +172,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-overflow"), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn divide(self, divisor: Self) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -190,13 +190,13 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(any(feature = "checked-overflow", feature = "strict-integers-overflow")), inline)]
+	#[cfg_attr(feature = "relaxed-integers", inline)]
 	pub fn remainder(self, base: Self) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		if cfg!(feature = "strict-integers") {
+		if cfg!(not(feature = "relaxed-integers")) {
 			if self.is_negative() {
 				return Err(Error::DomainError("remainder with a negative number"));
 			}
@@ -222,7 +222,7 @@ impl Integer {
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	pub fn power(self, mut exponent: Self) -> Result<Self> {
 		if exponent.is_negative() {
-			if cfg!(feature = "strict-integers") {
+			if cfg!(not(feature = "relaxed-integers")) {
 				return Err(Error::DomainError("negative exponent"));
 			}
 
@@ -243,10 +243,10 @@ impl Integer {
 		}
 
 		// FIXME: you could probably optimize this.
-		let exponent = if cfg!(feature = "checked-overflow") {
-			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
-		} else {
+		let exponent = if cfg!(feature = "relaxed-integers") {
 			exponent.0 as u32
+		} else {
+			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
 		};
 
 		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
@@ -270,7 +270,8 @@ impl rand::distributions::Distribution<Integer> for rand::distributions::Standar
 	fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Integer {
 		let mut rand = rng.gen::<Inner>().abs();
 
-		if cfg!(feature = "lax-compliance") {
+		// notably not lax integers
+		if cfg!(not(feature = "lax-compliance")) {
 			rand &= 0x7fff;
 		}
 

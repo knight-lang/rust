@@ -93,7 +93,7 @@ impl<'e> Environment<'e> {
 			return Ok(var.clone());
 		}
 
-		let variable = Variable::new(name.into())?;
+		let variable = Variable::new(name.into(), self.flags())?;
 		self.variables.insert(variable.clone());
 		Ok(variable)
 	}

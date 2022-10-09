@@ -32,11 +32,11 @@ impl Character {
 	#[inline]
 	#[must_use]
 	pub const fn new(chr: char) -> Option<Self> {
-		if cfg!(feature = "strict-charset") && !matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
+		if cfg!(feature = "unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
+			Some(Self(chr))
+		} else {
 			return None;
 		}
-
-		Some(Self(chr))
 	}
 
 	pub const unsafe fn new_unchecked(chr: char) -> Self {
@@ -50,39 +50,28 @@ impl Character {
 		self.0
 	}
 
-	pub fn is_whitespace(self) -> bool {
-		self.0 == ':'
-			|| if cfg!(feature = "strict-charset") {
-				"\r\n\t ".contains(self.0)
-			} else {
-				self.0.is_whitespace()
-			}
-	}
-
-	pub fn is_numeric(self) -> bool {
-		if cfg!(feature = "strict-charset") {
-			self.0.is_ascii_digit()
+	fn if_unicode(&self, uni: impl FnOnce(char) -> bool, not: impl FnOnce(&char) -> bool) -> bool {
+		if cfg!(feature = "unicode") {
+			uni(self.0)
 		} else {
-			self.0.is_numeric()
+			not(&self.0)
 		}
 	}
 
+	pub fn is_whitespace(self) -> bool {
+		self.0 == ':' || self.if_unicode(char::is_whitespace, |&c| "\r\n\t".contains(c))
+	}
+
+	pub fn is_numeric(self) -> bool {
+		self.if_unicode(char::is_numeric, char::is_ascii_digit)
+	}
+
 	pub fn is_lower(self) -> bool {
-		self.0 == '_'
-			|| if cfg!(feature = "strict-charset") {
-				self.0.is_ascii_lowercase()
-			} else {
-				self.0.is_lowercase()
-			}
+		self.0 == '_' || self.if_unicode(char::is_lowercase, char::is_ascii_lowercase)
 	}
 
 	pub fn is_upper(self) -> bool {
-		self.0 == '_'
-			|| if cfg!(feature = "strict-charset") {
-				self.0.is_ascii_uppercase()
-			} else {
-				self.0.is_uppercase()
-			}
+		self.0 == '_' || self.if_unicode(char::is_uppercase, char::is_ascii_uppercase)
 	}
 }
 

@@ -73,7 +73,7 @@ pub enum ErrorKind {
 
 	/// A variable name wasn't valid for some reason
 	///
-	/// This is only returned when `verify-variable-names` is enabled.
+	/// This is only returned when the `verify-variable-names` is enabled.
 	IllegalVariableName(IllegalVariableName),
 
 	/// The source file wasn't exactly one expression.

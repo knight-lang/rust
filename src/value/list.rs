@@ -113,7 +113,7 @@ impl<'e> List<'e> {
 			// OPTIMIZE: is there a way to not do `.clone()`?
 			1 => Ok(Self::boxed(slice[0].clone())),
 
-			#[cfg(feature = "container-length-limit")]
+			#[cfg(feature = "check-container-length")]
 			Self::MAX_LEN.. => Err(Error::DomainError("length of slice is out of bounds")),
 
 			_ => Ok(Self::_new(Inner::Slice(slice))),
@@ -176,7 +176,7 @@ impl<'e> List<'e> {
 			return Ok(self.clone());
 		}
 
-		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() + rhs.len() {
+		if cfg!(feature = "check-container-length") && Self::MAX_LEN < self.len() + rhs.len() {
 			return Err(Error::DomainError("length of concatenation is out of bounds"));
 		}
 
@@ -192,7 +192,7 @@ impl<'e> List<'e> {
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
 	pub fn repeat(&self, amount: usize) -> Result<Self> {
-		if cfg!(feature = "container-length-limit") && Self::MAX_LEN < self.len() * amount {
+		if cfg!(feature = "check-container-length") && Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
 

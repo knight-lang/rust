@@ -1,3 +1,4 @@
+use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::{Character, TextSlice};
 use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
@@ -78,15 +79,16 @@ impl<'e> Parsable<'_, 'e> for &'e Function {
 	}
 }
 
-pub(crate) fn default() -> HashMap<Character, &'static Function> {
+pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($(#[$meta:meta])* $name:ident)*) => {
-			$(
-				$(#[$meta])*
-				map.insert($name.short_form().unwrap(), &$name);
-			)*
+		($($(#[$meta:meta])* $(#$feature:ident)? $name:ident)*) => {
+			$($(#[$meta])*{
+				if true $(&& flags.fns.$feature)? {
+					map.insert($name.short_form().unwrap(), &$name);
+				}
+			})*
 		}
 	}
 
@@ -97,34 +99,35 @@ pub(crate) fn default() -> HashMap<Character, &'static Function> {
 			THEN ASSIGN WHILE
 		IF GET SET
 
-		#[cfg(feature = "value-function")] VALUE
-		#[cfg(feature = "eval-function")] EVAL
-		#[cfg(feature = "handle-function")] HANDLE
-		#[cfg(feature = "yeet-function")] YEET
-		#[cfg(feature = "use-function")] USE
-		#[cfg(feature = "system-function")] SYSTEM
+		#[cfg(feature = "extensions")] #value VALUE
+		#[cfg(feature = "extensions")] #eval EVAL
+		#[cfg(feature = "extensions")] #handle HANDLE
+		#[cfg(feature = "extensions")] #yeet YEET
+		#[cfg(feature = "extensions")] #r#use USE
+		#[cfg(feature = "extensions")] #system SYSTEM
 	}
 
 	map
 }
 
-pub(crate) fn extensions() -> HashMap<Text, &'static Function> {
+pub(crate) fn extensions(flags: &Flags) -> HashMap<Text, &'static Function> {
 	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($feature:literal $name:ident)*) => {
+		($($feature:ident $name:ident)*) => {
 			$(
-				#[cfg(feature=$feature)]
-				map.insert($name.name.try_into().unwrap(), &$name);
+				if flags.fns.$feature {
+					map.insert($name.name.try_into().unwrap(), &$name);
+				}
 			)*
 		}
 	}
 
 	insert! {
-		"xsrand-function" XSRAND
-		"xreverse-function" XREVERSE
-		"xrange-function" XRANGE
+		xsrand XSRAND
+		xreverse XREVERSE
+		xrange XRANGE
 	}
 
 	map
@@ -394,15 +397,15 @@ pub static SET: Function = function!("SET", env, |source, start, length, replace
 });
 
 /// **6.1** `VALUE`
-#[cfg(feature = "value-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "value-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static VALUE: Function = function!("VALUE", env, |arg| {
 	let name = arg.run(env)?.to_text(env)?;
 	env.lookup(&name)?.into()
 });
 
-#[cfg(feature = "handle-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "handle-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
@@ -421,8 +424,8 @@ pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 	}
 });
 
-#[cfg(feature = "yeet-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "yeet-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static YEET: Function = function!("YEET", env, |errmsg| {
 	return Err(Error::Custom(errmsg.run(env)?.to_text(env)?.to_string().into()));
 
@@ -431,8 +434,8 @@ pub static YEET: Function = function!("YEET", env, |errmsg| {
 });
 
 /// **6.3** `USE`
-#[cfg(feature = "use-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "use-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static USE: Function = function!("USE", env, |arg| {
 	let filename = arg.run(env)?.to_text(env)?;
 	let contents = env.read_file(&filename)?;
@@ -441,14 +444,16 @@ pub static USE: Function = function!("USE", env, |arg| {
 });
 
 /// **4.2.2** `EVAL`
-#[cfg(feature = "eval-function")]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static EVAL: Function = function!("EVAL", env, |val| {
 	let code = val.run(env)?.to_text(env)?;
 	env.play(&code)?
 });
 
-#[cfg(feature = "extensions")]
 /// **4.2.5** `` ` ``
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static SYSTEM: Function = function!("$", env, |cmd, stdin| {
 	let command = cmd.run(env)?.to_text(env)?;
 	let stdin = match stdin.run(env)? {
@@ -461,8 +466,8 @@ pub static SYSTEM: Function = function!("$", env, |cmd, stdin| {
 });
 
 /// **Compiler extension**: SRAND
-#[cfg(feature = "xsrand-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xsrand-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static XSRAND: Function = function!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer(env)?;
 	env.srand(seed);
@@ -470,8 +475,8 @@ pub static XSRAND: Function = function!("XSRAND", env, |arg| {
 });
 
 /// **Compiler extension**: REV
-#[cfg(feature = "xreverse-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xreverse-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
 	match arg.run(env)? {
 		Value::Text(text) => {
@@ -486,8 +491,8 @@ pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
 	}
 });
 
-#[cfg(feature = "xrange-function")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xrange-function")))]
+#[cfg(feature = "extensions")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
@@ -496,7 +501,7 @@ pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
 			match start <= stop {
 				true => List::try_from(
 					(i64::from(start)..i64::from(stop))
-						.map(|x| Value::from(Integer::try_from(x).unwrap()))
+						.map(|x| Value::from(crate::value::Integer::try_from(x).unwrap()))
 						.collect::<Vec<Value<'_>>>(),
 				)
 				.expect("todo: out of bounds error")
