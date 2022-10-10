@@ -289,7 +289,7 @@ impl<'e> Value<'e> {
 	pub fn ascii(&self, env: &mut Environment<'e>) -> Result<Self> {
 		let _ = env;
 		match self {
-			Self::Integer(integer) => Ok(integer.chr()?.into()),
+			Self::Integer(integer) => Ok(integer.chr(env.flags())?.into()),
 			Self::Text(text) => Ok(text.ord()?.into()),
 
 			#[cfg(feature = "custom-types")]
@@ -302,8 +302,8 @@ impl<'e> Value<'e> {
 	pub fn add(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.add(rhs.to_integer(env)?).map(Self::from),
-			Self::Text(string) => string.concat(&rhs.to_text(env)?).map(Self::from),
-			Self::List(list) => list.concat(&rhs.to_list(env)?).map(Self::from),
+			Self::Text(string) => Ok(string.concat(&rhs.to_text(env)?, env.flags())?.into()),
+			Self::List(list) => list.concat(&rhs.to_list(env)?, env.flags()).map(Self::from),
 
 			#[cfg(feature = "extensions")]
 			Self::Boolean(lhs) if env.flags().exts.tys.boolean => Ok((lhs | rhs.to_boolean(env)?).into()),
@@ -348,7 +348,7 @@ impl<'e> Value<'e> {
 					return Err(Error::DomainError("repetition is too large"));
 				}
 
-				Ok(lstr.repeat(amount).into())
+				Ok(lstr.repeat(amount, env.flags())?.into())
 			}
 
 			Self::List(list) => {
@@ -366,7 +366,7 @@ impl<'e> Value<'e> {
 				// No need to check for repetition length because `list.repeat` doesnt actually
 				// make a list.
 
-				list.repeat(amount).map(Self::from)
+				list.repeat(amount, env.flags()).map(Self::from)
 			}
 
 			#[cfg(feature = "extensions")]
@@ -613,11 +613,12 @@ impl<'e> Value<'e> {
 				// OPTIMIZE ME: cons?
 				let replacement = replacement.to_list(env)?;
 				let mut ret = Vec::new();
+
 				ret.extend(list.iter().take(start).cloned());
 				ret.extend(replacement.iter().cloned());
 				ret.extend(list.iter().skip((start) + len).cloned());
 
-				List::try_from(ret).map(Self::from)
+				List::new(ret, env.flags()).map(Self::from)
 			}
 			Self::Text(text) => {
 				let replacement = replacement.to_text(env)?;
@@ -627,7 +628,7 @@ impl<'e> Value<'e> {
 				builder.push(text.get(..start).unwrap());
 				builder.push(&replacement);
 				builder.push(text.get(start + len..).unwrap());
-				Ok(builder.finish().into())
+				Ok(builder.finish(env.flags())?.into())
 			}
 
 			#[cfg(feature = "custom-types")]

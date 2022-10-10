@@ -2,12 +2,12 @@ use knightrs::*;
 
 fn main() {
 	let mut env = Environment::default();
-	let arg = Text::try_from(std::env::args().nth(2).expect("no arg")).unwrap();
+	let arg = Text::new(std::env::args().nth(2).expect("no arg"), env.flags()).unwrap();
 
 	let arg = if std::env::args().nth(1).unwrap() == "-e" {
 		arg
 	} else {
-		std::fs::read_to_string(&**arg).unwrap().as_str().try_into().unwrap()
+		Text::new(std::fs::read_to_string(&**arg).unwrap(), env.flags()).unwrap()
 	};
 
 	match env.play(&arg) {

@@ -247,7 +247,7 @@ macro_rules! xfunction {
 
 /// **4.1.4**: `PROMPT`
 pub static PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	env.prompt().read_line()?.get(env)?.map(Value::from).unwrap_or_default()
+	env.read_line()?.map(Value::from).unwrap_or_default()
 });
 
 /// **4.1.5**: `RANDOM`
@@ -514,7 +514,7 @@ pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
 		Ok(value) => value,
 		Err(err) => {
 			// This is fallible, as the error string might have had something bad.
-			let errmsg = Text::try_from(err.to_string())?;
+			let errmsg = Text::new(err.to_string(), env.flags())?;
 
 			// Assign it to the error variable
 			env.lookup(ERR_VAR_NAME).unwrap().assign(errmsg.into());
@@ -580,13 +580,14 @@ pub static XSRAND: ExtensionFunction = xfunction!("XSRAND", env, |arg| {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static XREVERSE: ExtensionFunction = xfunction!("XREVERSE", env, |arg| {
 	match arg.run(env)? {
-		Value::Text(text) => {
-			text.chars().collect::<Vec<Character>>().into_iter().rev().collect::<Text>().into()
+		Value::Text(_text) => {
+			// text.chars().collect::<Vec<Character>>().into_iter().rev().collect::<Text>().into()
+			todo!()
 		}
 		Value::List(list) => {
 			let mut eles = list.iter().cloned().collect::<Vec<Value<'_>>>();
 			eles.reverse();
-			List::try_from(eles).unwrap().into()
+			List::new(eles, env.flags()).unwrap().into()
 		}
 		other => return Err(Error::TypeError(other.typename(), "XRANGE")),
 	}
@@ -600,10 +601,11 @@ pub static XRANGE: ExtensionFunction = xfunction!("XRANGE", env, |start, stop| {
 			let stop = stop.run(env)?.to_integer(env)?;
 
 			match start <= stop {
-				true => List::try_from(
+				true => List::new(
 					(i64::from(start)..i64::from(stop))
 						.map(|x| Value::from(crate::value::Integer::try_from(x).unwrap()))
 						.collect::<Vec<Value<'_>>>(),
+					env.flags(),
 				)
 				.expect("todo: out of bounds error")
 				.into(),

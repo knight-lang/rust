@@ -1,3 +1,4 @@
+use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::text::{Character, NewTextError, TextSlice};
 use std::fmt::{self, Debug, Display, Formatter};
@@ -37,26 +38,11 @@ impl std::ops::Deref for Text {
 	}
 }
 
-impl From<Box<TextSlice>> for Text {
-	#[inline]
-	fn from(text: Box<TextSlice>) -> Self {
-		Self(text.into())
-	}
-}
-
-impl TryFrom<String> for Text {
-	type Error = NewTextError;
-
-	fn try_from(inp: String) -> Result<Self, Self::Error> {
-		let boxed = Box::<TextSlice>::try_from(inp.into_boxed_str())?;
-
-		Ok(Self(boxed.into()))
-	}
-}
-
 impl From<Character> for Text {
 	fn from(inp: Character) -> Self {
-		Self::new(inp).unwrap()
+		// SAFETY: We know if we have a `Character` it's already valid, so we don't need to check for
+		// validity again.
+		unsafe { Self::new_unchecked(inp) }
 	}
 }
 
@@ -65,8 +51,12 @@ impl Text {
 		Default::default()
 	}
 
-	pub fn new(inp: impl ToString) -> Result<Self, NewTextError> {
-		inp.to_string().try_into()
+	pub fn new(inp: impl ToString, flags: &Flags) -> Result<Self, NewTextError> {
+		TextSlice::new_boxed(inp.to_string().into(), flags).map(|x| Self(x.into()))
+	}
+
+	pub unsafe fn new_unchecked(inp: impl ToString) -> Self {
+		Self(TextSlice::new_boxed_unchecked(inp.to_string().into()).into())
 	}
 }
 
@@ -78,24 +68,16 @@ impl std::borrow::Borrow<TextSlice> for Text {
 
 impl From<&TextSlice> for Text {
 	fn from(text: &TextSlice) -> Self {
-		Box::<TextSlice>::try_from(text.to_string().into_boxed_str()).unwrap().into()
+		// SAFETY: `text` is already valid.
+		unsafe { Self::new_unchecked(text) }
 	}
 }
 
-impl TryFrom<&str> for Text {
-	type Error = NewTextError;
-
-	#[inline]
-	fn try_from(inp: &str) -> Result<Self, Self::Error> {
-		<&TextSlice>::try_from(inp).map(From::from)
-	}
-}
-
-impl FromIterator<Character> for Text {
-	fn from_iter<T: IntoIterator<Item = Character>>(iter: T) -> Self {
-		iter.into_iter().map(char::from).collect::<String>().try_into().unwrap()
-	}
-}
+// impl FromIterator<Character> for Text {
+// 	fn from_iter<T: IntoIterator<Item = Character>>(iter: T) -> Self {
+// 		iter.into_iter().map(char::from).collect::<String>().try_into().unwrap()
+// 	}
+// }
 
 impl Parsable<'_> for Text {
 	type Output = Self;
@@ -107,7 +89,7 @@ impl Parsable<'_> for Text {
 		};
 
 		let starting_line = parser.line();
-		let body = parser.take_while(|chr| chr != quote).unwrap_or_default();
+		let body = parser.take_while(|chr, _| chr != quote).unwrap_or_default();
 
 		if parser.advance() != Some(quote) {
 			return Err(parse::ErrorKind::UnterminatedText { quote }.error(starting_line));

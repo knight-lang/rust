@@ -1,8 +1,8 @@
+#[cfg(feature = "extensions")]
+use crate::function::ExtensionFunction;
 use crate::parse::{ParseFn, Parser};
 use crate::value::Runnable;
-#[cfg(feature = "extensions")]
-use crate::{function::ExtensionFunction, value::Text};
-use crate::{Function, Integer, RefCount, Result, TextSlice, Value};
+use crate::{Function, Integer, RefCount, Result, Text, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::HashSet;
 
@@ -18,10 +18,11 @@ use prompt::Prompt;
 pub use variable::{IllegalVariableName, Variable};
 
 #[cfg(feature = "extensions")]
-type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e + Send + Sync;
+type System<'e> =
+	dyn FnMut(&TextSlice, Option<&TextSlice>, &Flags) -> Result<Text> + 'e + Send + Sync;
 
 #[cfg(feature = "extensions")]
-type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
+type ReadFile<'e> = dyn FnMut(&TextSlice, &Flags) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
@@ -96,6 +97,10 @@ impl<'e> Environment<'e> {
 		&mut self.prompt
 	}
 
+	pub fn read_line(&mut self) -> Result<Option<Text>> {
+		self.prompt.read_line(&self.flags)?.get(self)
+	}
+
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
 	#[must_use]
 	pub fn output(&mut self) -> &mut Output<'e> {
@@ -141,7 +146,7 @@ impl<'e> Environment<'e> {
 
 	/// Executes `command` as a shell command, returning its result.
 	pub fn run_command(&mut self, command: &TextSlice, stdin: Option<&TextSlice>) -> Result<Text> {
-		(self.system)(command, stdin)
+		(self.system)(command, stdin, &self.flags)
 	}
 
 	/// Adds `output` as the next value to return from the system command.
@@ -157,6 +162,6 @@ impl<'e> Environment<'e> {
 
 	/// Reads the file located at `filename`, returning its contents.
 	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
-		(self.read_file)(filename)
+		(self.read_file)(filename, &self.flags)
 	}
 }

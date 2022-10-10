@@ -122,17 +122,20 @@ impl<'e> Variable<'e> {
 	pub const MAX_NAME_LEN: usize = 127;
 
 	#[cfg(feature = "compliance")]
-	fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
+	fn validate_name(
+		name: &TextSlice,
+		flags: &Flags,
+	) -> std::result::Result<(), IllegalVariableName> {
 		if Self::MAX_NAME_LEN < name.len() {
 			return Err(IllegalVariableName::TooLong(name.len()));
 		}
 
 		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-		if !first.is_lower() {
+		if !first.is_lower(flags) {
 			return Err(IllegalVariableName::IllegalStartingChar(first));
 		}
 
-		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+		if let Some(bad) = name.chars().find(|&c| !c.is_lower(flags) && !c.is_numeric(flags)) {
 			return Err(IllegalVariableName::IllegalBodyChar(bad));
 		}
 
@@ -142,7 +145,7 @@ impl<'e> Variable<'e> {
 	pub(crate) fn new(name: Text, flags: &Flags) -> std::result::Result<Self, IllegalVariableName> {
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
-			Self::validate_name(&name)?;
+			Self::validate_name(&name, flags)?;
 		}
 
 		let _ = flags;
@@ -178,7 +181,7 @@ impl<'e> Parsable<'e> for Variable<'e> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
-		let Some(identifier) = parser.take_while(|chr| chr.is_lower() || chr.is_numeric()) else {
+		let Some(identifier) = parser.take_while(|chr, flags| chr.is_lower(flags) || chr.is_numeric(flags)) else {
 			return Ok(None);
 		};
 

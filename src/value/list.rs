@@ -1,11 +1,12 @@
+use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
-use crate::{Environment, Error, RefCount, Result, TextSlice};
+use crate::{Environment, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Range, RangeFrom};
 
 #[cfg(feature = "extensions")]
-use crate::value::Runnable;
+use crate::{value::Runnable, Error};
 
 /// The list type within Knight.
 ///
@@ -48,29 +49,29 @@ impl Debug for List<'_> {
 	}
 }
 
-impl<'e> TryFrom<Box<[Value<'e>]>> for List<'e> {
-	type Error = Error;
+// impl<'e> TryFrom<Box<[Value<'e>]>> for List<'e> {
+// 	type Error = Error;
 
-	#[inline]
-	fn try_from(list: Box<[Value<'e>]>) -> Result<Self> {
-		Self::new(list)
-	}
-}
+// 	#[inline]
+// 	fn try_from(list: Box<[Value<'e>]>) -> Result<Self> {
+// 		Self::new(list)
+// 	}
+// }
 
-impl<'e> TryFrom<Vec<Value<'e>>> for List<'e> {
-	type Error = Error;
+// impl<'e> TryFrom<Vec<Value<'e>>> for List<'e> {
+// 	type Error = Error;
 
-	#[inline]
-	fn try_from(list: Vec<Value<'e>>) -> Result<Self> {
-		list.into_boxed_slice().try_into()
-	}
-}
+// 	#[inline]
+// 	fn try_from(list: Vec<Value<'e>>) -> Result<Self> {
+// 		list.into_boxed_slice().try_into()
+// 	}
+// }
 
-impl<'e> FromIterator<Value<'e>> for Result<List<'e>> {
-	fn from_iter<T: IntoIterator<Item = Value<'e>>>(iter: T) -> Self {
-		iter.into_iter().collect::<Vec<Value<'e>>>().try_into()
-	}
-}
+// impl<'e> FromIterator<Value<'e>> for Result<List<'e>> {
+// 	fn from_iter<T: IntoIterator<Item = Value<'e>>>(iter: T) -> Self {
+// 		iter.into_iter().collect::<Vec<Value<'e>>>().try_into()
+// 	}
+// }
 
 impl NamedType for List<'_> {
 	const TYPENAME: &'static str = "List";
@@ -97,19 +98,26 @@ impl<'e> List<'e> {
 	/// If `container-length-limit` is enabled, and `slice.len()` is larger than [`List::MAX_LEN`],
 	/// then an [`Error::DomainError`] is returned. If `container-length-limit` is not enabled,
 	/// this function will always succeed.
-	pub fn new<T: Into<Box<[Value<'e>]>>>(slice: T) -> Result<Self> {
+	pub fn new<T: Into<Box<[Value<'e>]>>>(slice: T, #[allow(unused)] flags: &Flags) -> Result<Self> {
+		let slice = slice.into();
+
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_container_length && Self::MAX_LEN < slice.len() {
+			return Err(Error::DomainError("length of slice is out of bounds"));
+		}
+
+		Ok(unsafe { Self::new_unchecked(slice) })
+	}
+
+	/// Creates a new `list` from `slice`, without ensuring its length is correct.
+	pub unsafe fn new_unchecked<T: Into<Box<[Value<'e>]>>>(slice: T) -> Self {
 		let slice = slice.into();
 
 		match slice.len() {
-			0 => Ok(Self::default()),
-
+			0 => Self::default(),
 			// OPTIMIZE: is there a way to not do `.clone()`?
-			1 => Ok(Self::boxed(slice[0].clone())),
-
-			#[cfg(feature = "check-container-length")]
-			Self::MAX_LEN.. => Err(Error::DomainError("length of slice is out of bounds")),
-
-			_ => Ok(Self::_new(Inner::Slice(slice))),
+			1 => Self::boxed(slice[0].clone()),
+			_ => Self::_new(Inner::Slice(slice)),
 		}
 	}
 
@@ -160,7 +168,7 @@ impl<'e> List<'e> {
 	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
 	/// returned.
-	pub fn concat(&self, rhs: &Self) -> Result<Self> {
+	pub fn concat(&self, rhs: &Self, #[allow(unused)] flags: &Flags) -> Result<Self> {
 		if self.is_empty() {
 			return Ok(rhs.clone());
 		}
@@ -169,8 +177,8 @@ impl<'e> List<'e> {
 			return Ok(self.clone());
 		}
 
-		#[cfg(feature = "check-container-length")]
-		if Self::MAX_LEN < self.len() + rhs.len() {
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_container_length && Self::MAX_LEN < self.len() + rhs.len() {
 			return Err(Error::DomainError("length of concatenation is out of bounds"));
 		}
 
@@ -185,9 +193,9 @@ impl<'e> List<'e> {
 	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
-	pub fn repeat(&self, amount: usize) -> Result<Self> {
-		#[cfg(feature = "check-container-length")]
-		if Self::MAX_LEN < self.len() * amount {
+	pub fn repeat(&self, amount: usize, #[allow(unused)] flags: &Flags) -> Result<Self> {
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_container_length && Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
 
@@ -219,7 +227,7 @@ impl<'e> List<'e> {
 			joined.push(&ele.to_text(env)?);
 		}
 
-		Ok(joined.finish())
+		Ok(joined.finish(env.flags())?)
 	}
 
 	/// Returns an [`Iter`] instance, which iterates over borrowed references.
@@ -263,7 +271,7 @@ impl<'e> List<'e> {
 			}
 		}
 
-		Ok(list.try_into().unwrap())
+		Ok(unsafe { Self::new_unchecked(list) })
 	}
 
 	/// Returns a new list with element mapped to the return value of `block`.
@@ -276,14 +284,14 @@ impl<'e> List<'e> {
 		static UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
-		let mut mapping = Vec::with_capacity(self.len());
+		let mut list = Vec::with_capacity(self.len());
 
 		for ele in self {
 			arg.assign(ele.clone());
-			mapping.push(block.run(env)?);
+			list.push(block.run(env)?);
 		}
 
-		Ok(mapping.try_into().unwrap())
+		Ok(unsafe { Self::new_unchecked(list) })
 	}
 
 	/// Returns a new list where only elements for which `block` returns true are kept.
@@ -297,17 +305,17 @@ impl<'e> List<'e> {
 		static UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
-		let mut filtering = Vec::with_capacity(self.len() / 2); // an arbitrary capacity constant.
+		let mut list = Vec::with_capacity(self.len() / 2); // an arbitrary capacity constant.
 
 		for ele in self {
 			arg.assign(ele.clone());
 
 			if block.run(env)?.to_boolean(env)? {
-				filtering.push(ele.clone());
+				list.push(ele.clone());
 			}
 		}
 
-		Ok(filtering.try_into().unwrap())
+		Ok(unsafe { Self::new_unchecked(list) })
 	}
 
 	/// Returns a reduction of `self` to a single element, or [`Value::Null`] if `self` is empty.
@@ -419,16 +427,10 @@ impl<'e> ListFetch<'_, 'e> for Range<usize> {
 		}
 
 		// FIXME: use optimizations, including maybe a "sublist" variant?
-		Some(
-			list
-				.iter()
-				.skip(self.start)
-				.take(self.end - self.start)
-				.cloned()
-				.collect::<Vec<_>>()
-				.try_into()
-				.unwrap(),
-		)
+		let sublist =
+			list.iter().skip(self.start).take(self.end - self.start).cloned().collect::<Vec<_>>();
+
+		Some(unsafe { List::new_unchecked(sublist) })
 	}
 }
 
@@ -437,7 +439,9 @@ impl<'e> ListFetch<'_, 'e> for RangeFrom<usize> {
 
 	fn get(self, list: &List<'e>) -> Option<Self::Output> {
 		// FIXME: use optimizations
-		Some(list.iter().skip(self.start).cloned().collect::<Vec<_>>().try_into().unwrap())
+		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
+
+		Some(unsafe { List::new_unchecked(sublist) })
 	}
 }
 

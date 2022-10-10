@@ -17,7 +17,7 @@ impl Builder {
 		self.0.push_str(text);
 	}
 
-	pub fn finish(self) -> Text {
-		self.0.try_into().unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
+	pub fn finish(self, flags: &crate::env::Flags) -> Result<Text, super::NewTextError> {
+		Text::new(self.0, flags)
 	}
 }

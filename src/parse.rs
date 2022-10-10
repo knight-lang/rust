@@ -273,10 +273,13 @@ impl<'s, 'e> Parser<'s, 'e> {
 		self.advance_if(|_| true)
 	}
 
-	pub fn take_while<F: FnMut(Character) -> bool>(&mut self, mut func: F) -> Option<&'s TextSlice> {
+	pub fn take_while<F: FnMut(Character, &crate::env::Flags) -> bool>(
+		&mut self,
+		mut func: F,
+	) -> Option<&'s TextSlice> {
 		let start = self.source;
 
-		while self.peek().map_or(false, &mut func) {
+		while self.peek().map_or(false, |chr| func(chr, self.env.flags())) {
 			self.advance();
 		}
 
@@ -299,7 +302,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 			}
 
 			// eat a comment.
-			self.take_while(|chr| chr != '\n');
+			self.take_while(|chr, _| chr != '\n');
 			anything_stripped = true;
 		}
 	}
@@ -324,7 +327,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 	}
 
 	pub fn strip_function(&mut self) {
-		if self.peek().expect("strip function at eof").is_upper() {
+		if self.peek().expect("strip function at eof").is_upper(self.env.flags()) {
 			// If it's a keyword function, then take all keyword characters.
 			self.take_while(Character::is_upper);
 		} else {

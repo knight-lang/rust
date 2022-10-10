@@ -44,13 +44,15 @@ impl Write for Output<'_> {
 		#[cfg(feature = "extensions")]
 		if let Some(pipe) = self.pipe.as_ref() {
 			// The error case shouldn't happen if we call `write` from within Knight.
-			let text = String::from_utf8(bytes.to_vec())
-				.ok()
-				.and_then(|s| Text::try_from(s).ok())
-				.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "not utf8".to_string()))?;
+			let _ = pipe;
+			let _: Text = todo!();
+			// let text = String::from_utf8(bytes.to_vec())
+			// 	.ok()
+			// 	.and_then(|s| Text::try_from(s).ok())
+			// 	.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "not utf8".to_string()))?;
 
-			pipe.assign(text.into());
-			return Ok(bytes.len());
+			// pipe.assign(text.into());
+			// return Ok(bytes.len());
 		}
 
 		self.default.write(bytes)

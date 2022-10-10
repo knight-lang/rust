@@ -74,7 +74,7 @@ impl<'e> Builder<'e> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn system<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice, Option<&TextSlice>, &Flags) -> crate::Result<Text> + Send + Sync + 'e,
 	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
@@ -83,7 +83,7 @@ impl<'e> Builder<'e> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn read_file<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice, &Flags) -> crate::Result<Text> + Send + Sync + 'e,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
@@ -105,7 +105,7 @@ impl<'e> Builder<'e> {
 
 			#[cfg(feature = "extensions")]
 			system: self.system.unwrap_or_else(|| {
-				Box::new(|cmd, stdin| {
+				Box::new(|cmd, stdin, flags| {
 					use std::process::{Command, Stdio};
 
 					assert!(stdin.is_none(), "todo, system function with non-default stdin");
@@ -117,13 +117,13 @@ impl<'e> Builder<'e> {
 						.output()
 						.map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
 
-					Ok(Text::try_from(output)?)
+					Ok(Text::new(output, flags)?)
 				})
 			}),
 
 			#[cfg(feature = "extensions")]
 			read_file: self.read_file.unwrap_or_else(|| {
-				Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?))
+				Box::new(|filename, flags| Ok(Text::new(std::fs::read_to_string(&**filename)?, flags)?))
 			}),
 
 			#[cfg(feature = "extensions")]

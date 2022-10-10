@@ -1,6 +1,6 @@
 use super::{validate, Character, Chars, NewTextError, Text};
-use crate::value::{Integer, ToBoolean, ToInteger, ToList, ToText};
-use crate::Environment;
+use crate::env::{Environment, Flags};
+use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -44,21 +44,35 @@ impl TextSlice {
 	/// # Safety
 	/// - `inp` must be a valid `TextSlice`.
 	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
-		debug_assert!(validate(inp).is_ok());
-
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		&*(inp as *const str as *const Self)
 	}
 
-	pub const fn new(inp: &str) -> Result<&Self, NewTextError> {
-		match validate(inp) {
+	pub const fn new<'s>(inp: &'s str, flags: &Flags) -> Result<&'s Self, NewTextError> {
+		match validate(inp, flags) {
 			// SAFETY: we justverified it was valid
 			Ok(_) => Ok(unsafe { Self::new_unchecked(inp) }),
 
 			// Can't use `?` or `Result::map` in const functions
 			Err(err) => Err(err),
 		}
+	}
+
+	pub fn new_boxed(inp: Box<str>, flags: &Flags) -> Result<Box<Self>, NewTextError> {
+		validate(&inp, flags)?;
+
+		#[allow(unsafe_code)]
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
+		// safely transmute.
+		Ok(unsafe { Self::new_boxed_unchecked(inp) })
+	}
+
+	#[allow(unsafe_code)]
+	pub unsafe fn new_boxed_unchecked(inp: Box<str>) -> Box<Self> {
+		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
+		// safely transmute.
+		Box::from_raw(Box::into_raw(inp) as _)
 	}
 
 	pub const fn as_str(&self) -> &str {
@@ -76,37 +90,34 @@ impl TextSlice {
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self) -> crate::Result<Text> {
+	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text, NewTextError> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
 		builder.push(rhs);
 
-		// TODO: error if the length is too large
-		Ok(builder.finish())
+		builder.finish(flags)
 	}
 
-	pub fn repeat(&self, amount: usize) -> Text {
-		(**self)
-			.repeat(amount)
-			.try_into()
-			.unwrap_or_else(|_| unsafe { std::hint::unreachable_unchecked() })
+	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text, NewTextError> {
+		Ok(Text::new((**self).repeat(amount), flags)?)
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> crate::List<'e> {
+	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			crate::Value::from(self.to_owned()).to_list(env).unwrap()
-		} else {
-			(**self)
-				.split(&**sep)
-				.map(|x| Text::new(x).unwrap().into())
-				.collect::<Vec<_>>()
-				.try_into()
-				.unwrap()
+			return Value::from(self.to_owned()).to_list(env).unwrap();
 		}
+
+		let chars = (**self)
+			.split(&**sep)
+			.map(|x| Text::new(x, env.flags()).unwrap().into())
+			.collect::<Vec<_>>();
+
+		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
+		unsafe { List::new_unchecked(chars) }
 	}
 
 	pub fn ord(&self) -> crate::Result<Integer> {
@@ -135,32 +146,10 @@ impl TextSlice {
 	}
 }
 
-impl<'a> TryFrom<&'a str> for &'a TextSlice {
-	type Error = NewTextError;
-
-	#[inline]
-	fn try_from(inp: &'a str) -> Result<Self, Self::Error> {
-		TextSlice::new(inp)
-	}
-}
-
 impl<'a> From<&'a TextSlice> for &'a str {
 	#[inline]
 	fn from(text: &'a TextSlice) -> Self {
 		text
-	}
-}
-
-impl TryFrom<Box<str>> for Box<TextSlice> {
-	type Error = NewTextError;
-
-	fn try_from(inp: Box<str>) -> Result<Self, Self::Error> {
-		validate(&inp)?;
-
-		#[allow(unsafe_code)]
-		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
-		// safely transmute.
-		Ok(unsafe { Box::from_raw(Box::into_raw(inp) as _) })
 	}
 }
 
@@ -182,7 +171,7 @@ impl<'a> IntoIterator for &'a TextSlice {
 }
 
 impl<'e> ToBoolean<'e> for Text {
-	fn to_boolean(&self, _: &mut Environment<'e>) -> crate::Result<crate::Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
@@ -204,11 +193,10 @@ impl<'e> ToInteger<'e> for Text {
 }
 
 impl<'e> ToList<'e> for Text {
-	fn to_list(&self, _: &mut Environment<'e>) -> crate::Result<crate::value::List<'e>> {
-		self
-			.chars()
-			.map(|c| crate::Value::from(Self::try_from(c.to_string()).unwrap()))
-			.collect::<Vec<_>>()
-			.try_into()
+	fn to_list(&self, _: &mut Environment<'e>) -> crate::Result<List<'e>> {
+		let chars = self.chars().map(Value::from).collect::<Vec<_>>();
+
+		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
+		Ok(unsafe { List::new_unchecked(chars) })
 	}
 }

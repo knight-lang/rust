@@ -80,8 +80,12 @@ impl Integer {
 	}
 
 	/// Attempts to interpret `self` as a Unicode codepoint.
-	pub fn chr(self) -> Result<Character> {
-		self.try_into()
+	pub fn chr(self, flags: &crate::env::Flags) -> Result<Character> {
+		u32::try_from(self.0)
+			.ok()
+			.and_then(char::from_u32)
+			.and_then(|c| Character::new(c, flags))
+			.ok_or(Error::DomainError("number isn't a valid char"))
 	}
 
 	pub fn head(self) -> Self {
@@ -308,7 +312,9 @@ impl<'e> ToText<'e> for Integer {
 	/// Returns a string representation of `self`.
 	#[inline]
 	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
-		Ok(Text::new(*self).unwrap())
+		// SAFETY: Digits and `-` are both within knight encoding, and `Integer`s aren't 2.7 billion
+		// digits long.
+		Ok(unsafe { Text::new_unchecked(*self) })
 	}
 }
 
@@ -323,15 +329,15 @@ impl<'e> ToList<'e> for Integer {
 
 		let mut integer = self.0;
 
-		// FIXME: update the capacity and algorithm when `ilog` is dropped.
 		let mut digits = Vec::with_capacity(self.log10());
-
 		while integer != 0 {
 			digits.insert(0, Self(integer % 10).into());
 			integer /= 10;
 		}
 
-		Ok(digits.try_into().unwrap())
+		// The maximum amount of digits for an Integer is vastly smaller than `i32::MAX`, so
+		// there's no need to do a check.
+		Ok(unsafe { List::new_unchecked(digits) })
 	}
 }
 

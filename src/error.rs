@@ -40,11 +40,8 @@ pub enum Error {
 	IntegerOverflow,
 
 	/// An illegal character appeared in the source code.
-	#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
-	#[cfg_attr(
-		docsrs,
-		doc(cfg(any(feature = "check-container-length", feature = "knight-encoding")))
-	)]
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
 	NewTextError(NewTextError),
 
 	/// A variable name was illegal.
@@ -70,7 +67,7 @@ impl From<io::Error> for Error {
 impl From<NewTextError> for Error {
 	fn from(err: NewTextError) -> Self {
 		match err {
-			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+			#[cfg(feature = "compliance")]
 			err => Self::NewTextError(err),
 		}
 	}
@@ -97,7 +94,7 @@ impl std::error::Error for Error {
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
 
-			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+			#[cfg(feature = "compliance")]
 			Self::NewTextError(err) => Some(err),
 
 			#[cfg(feature = "compliance")]
@@ -127,7 +124,7 @@ impl Display for Error {
 				write!(f, "end index {index} is out of bounds for length {len}")
 			}
 
-			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+			#[cfg(feature = "compliance")]
 			Self::NewTextError(err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "compliance")]

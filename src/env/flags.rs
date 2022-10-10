@@ -59,6 +59,13 @@ pub struct ComplianceFlags {
 	/// return type.
 	pub check_equals_params: bool,
 
+	/// Ensures that the length of [`Text`](crate::value::Text)s and [`List`](crate::value::List)s
+	/// are no larger than `i32::MAX`.
+	pub check_container_length: bool,
+
+	/// Ensures [`Text`](crate::value::Text)s only contains bytes explicitly allowed by the specs.
+	pub knight_encoding_only: bool,
+
 	/// Ensures that [`%`](crate::function::REMAINDER) and [`^`](crate::function::POWER) are called
 	/// with valid arguments only.
 	///
@@ -80,6 +87,8 @@ impl Default for ComplianceFlags {
 			check_call_arg: STRICT_COMPLIANCE,
 			limit_rand_range: STRICT_COMPLIANCE,
 			check_equals_params: STRICT_COMPLIANCE,
+			check_container_length: STRICT_COMPLIANCE,
+			knight_encoding_only: STRICT_COMPLIANCE,
 			check_integer_function_bounds: STRICT_COMPLIANCE,
 		}
 	}
@@ -112,8 +121,6 @@ pub struct ExtensionFlags {
 
 #[cfg(feature = "extensions")]
 impl Default for ExtensionFlags {
-	/// Normally all extensions features are disabled. However, if `all-extensions` is enabled,
-	/// they all default to true.
 	fn default() -> Self {
 		const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
 
@@ -127,7 +134,10 @@ impl Default for ExtensionFlags {
 	}
 }
 
-/// Flags to enable builtin native functions.
+/// Flags to enable extension functions.
+///
+/// Normally, the flags default to `false`. However, if the `all-extensions` feature is enabled,
+/// all extension flags default to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
@@ -162,8 +172,6 @@ pub struct FunctionFlags {
 
 #[cfg(feature = "extensions")]
 impl Default for FunctionFlags {
-	/// Normally all function flags features are disabled. However, if `all-extensions` is enabled,
-	/// they all default to true.
 	fn default() -> Self {
 		const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
 

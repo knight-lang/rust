@@ -1,4 +1,4 @@
-use super::Environment;
+use super::{Environment, Flags};
 use crate::value::Text;
 use crate::Result;
 use std::io::{self, BufRead};
@@ -111,7 +111,7 @@ impl<'e> Prompt<'e> {
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
 	#[cfg_attr(not(feature = "extensions"), inline)]
-	pub fn read_line(&mut self) -> Result<Line<'e>> {
+	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e>> {
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
 			Some(PromptReplacement::Closed) => return Ok(Line(None)),
@@ -132,7 +132,7 @@ impl<'e> Prompt<'e> {
 		}
 
 		strip_ending(&mut line);
-		Ok(Line(Some(ReadLineResultInner::Text(Text::try_from(line)?))))
+		Ok(Line(Some(ReadLineResultInner::Text(Text::new(line, flags)?))))
 	}
 }
 
@@ -181,7 +181,7 @@ impl<'e> Prompt<'e> {
 		for line in (**new_lines).split('\n') {
 			let mut line = line.to_string();
 			strip_ending(&mut line);
-			lines.push_back(line.try_into().unwrap());
+			lines.push_back(unsafe { Text::new_unchecked(line) });
 		}
 	}
 }
