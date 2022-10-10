@@ -1,6 +1,7 @@
 //! Types relating to [`Value`]s.
 
 mod boolean;
+#[cfg(feature = "custom-types")]
 pub mod custom;
 mod integer;
 mod list;
@@ -9,7 +10,8 @@ pub mod text;
 mod value;
 
 pub use boolean::{Boolean, ToBoolean};
-pub use custom::Custom;
+#[cfg(feature = "custom-types")]
+pub use custom::{Custom, CustomType};
 pub use integer::{Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;

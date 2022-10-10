@@ -7,6 +7,8 @@ pub struct Builder<'e> {
 	prompt: Option<Prompt<'e>>,
 	stdout: Option<Box<Stdout<'e>>>,
 	functions: HashMap<Character, &'e Function>,
+
+	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
 
 	#[cfg(feature = "extensions")]
@@ -23,6 +25,8 @@ impl Default for Builder<'_> {
 			prompt: None,
 			stdout: None,
 			functions: crate::function::default(&flags),
+
+			#[cfg(feature = "extensions")]
 			extensions: crate::function::extensions(&flags),
 
 			#[cfg(feature = "extensions")]
@@ -49,6 +53,7 @@ impl<'e> Builder<'e> {
 		&mut self.functions
 	}
 
+	#[cfg(feature = "extensions")]
 	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
 		&mut self.extensions
 	}
@@ -75,6 +80,11 @@ impl<'e> Builder<'e> {
 			// stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
 			prompt: self.prompt.unwrap_or_default(),
 			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
+			#[cfg(feature = "extensions")]
+			extensions: self.extensions,
+
+			functions: self.functions,
+			rng: StdRng::from_entropy(),
 
 			#[cfg(feature = "extensions")]
 			system: self.system.unwrap_or_else(|| {
@@ -98,10 +108,6 @@ impl<'e> Builder<'e> {
 			read_file: self.read_file.unwrap_or_else(|| {
 				Box::new(|filename| Ok(std::fs::read_to_string(&**filename)?.try_into()?))
 			}),
-
-			extensions: self.extensions,
-			functions: self.functions,
-			rng: Box::new(StdRng::from_entropy()),
 
 			#[cfg(feature = "extensions")]
 			system_results: Default::default(),

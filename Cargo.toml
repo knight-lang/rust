@@ -16,9 +16,8 @@ multithreaded = [] # Enables multithreading support
 
 extensions = [] # stuff that's not part of base knight
 custom-types = ["extensions"] # Allows users to add custom types in
+compliance = []
 
-
-lax-compliance = [] # runs non-compliant code, but improves the speed.
 check-container-length = []
 unicode = [] # Allow all unicode, not just knight's strict charset
 relaxed-integers = [] # makes them 64 bit and does wrap arounds instead of hard errors.

@@ -1,17 +1,28 @@
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flags {
 	pub assign_to: AssignToFlags,
+
+	#[cfg(feature = "compliance")]
 	pub compliance: ComplianceFlags,
+
 	pub negative_indexing: bool,
+
+	#[cfg(feature = "extensions")]
 	pub exts: ExtensionFlags,
+
 	pub fns: FunctionFlags,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg(feature = "compliance")]
 pub struct ComplianceFlags {
 	pub check_quit_bounds: bool,
 	pub forbid_trailing_tokens: bool,
 	pub verify_variable_names: bool,
+	pub check_call_arg: bool,
+	pub limit_rand_range: bool,
+	pub check_equals_params: bool,
+	pub check_integer_function_bounds: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,12 +39,14 @@ pub struct FunctionFlags {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg(feature = "extensions")]
 pub struct ExtensionFlags {
 	pub ascii_on_lists: bool,
 	pub boolean: bool,
 	pub list: bool,
 	pub text: bool,
 	pub list_literal: bool,
+	pub negative_ranges: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

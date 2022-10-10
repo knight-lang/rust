@@ -219,6 +219,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 		let ret = self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
+		#[cfg(feature = "compliance")]
 		if self.env.flags().compliance.forbid_trailing_tokens
 			&& !matches!(self.parse_expression().map_err(|e| e.kind), Err(ErrorKind::EmptySource))
 		{

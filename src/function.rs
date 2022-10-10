@@ -1,7 +1,9 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::{Character, TextSlice};
-use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
+#[cfg(feature = "extensions")]
+use crate::value::Text;
+use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -49,6 +51,7 @@ impl Debug for Function {
 
 impl<'e> Parsable<'_, 'e> for &'e Function {
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		#[cfg(feature = "extensions")]
 		if parser.advance_if('X').is_some() {
 			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
 
@@ -107,11 +110,12 @@ pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 		#[cfg(feature = "extensions")] #system SYSTEM
 	}
 
+	let _ = flags;
 	map
 }
 
+#[cfg(feature = "extensions")]
 pub(crate) fn extensions(flags: &Flags) -> HashMap<Text, &'static Function> {
-	#[allow(unused_mut)]
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
@@ -182,14 +186,14 @@ pub static TAIL: Function = function!("]", env, |val| {
 });
 
 /// **4.2.3** `BLOCK`  
-pub static BLOCK: Function = function!("BLOCK", _env, |arg| {
+pub static BLOCK: Function = function!("BLOCK", env, |arg| {
 	// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
 	// Since this function normally just returns whatever it's argument is, it's impossible to
 	// distinguish an `Integer` returned from `BLOCK` and one simply given to `CALL`. As such, when
 	// the `strict-call-argument` feature is enabled. We ensure that we _only_ return `Ast`s
 	// from `BLOCK`, so `CALL` can verify them.
-	#[cfg(not(feature = "lax-compliance"))]
-	if !matches!(arg, Value::Ast(_)) {
+	#[cfg(feature = "compliance")]
+	if env.flags().compliance.check_call_arg && !matches!(arg, Value::Ast(_)) {
 		// The NOOP function literally just runs its argument.
 		static NOOP: Function = function!(":", env, |arg| {
 			debug_assert!(!matches!(arg, Value::Ast(_)));
@@ -200,29 +204,29 @@ pub static BLOCK: Function = function!("BLOCK", _env, |arg| {
 		return Ok(crate::Ast::new(&NOOP, vec![arg.clone()].into()).into());
 	}
 
+	let _ = env;
 	arg.clone()
 });
 
 /// **4.2.4** `CALL`  
 pub static CALL: Function = function!("CALL", env, |arg| {
-	let block = arg.run(env)?;
-
-	// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
-	// arguments are `Value::Ast`s.
-	#[cfg(not(feature = "lax-compliance"))]
-	if !matches!(block, Value::Ast(_)) {
-		return Err(Error::TypeError(block.typename(), "CALL"));
-	}
-
-	block.run(env)?
+	//
+	arg.run(env)?.call(env)?
 });
 
 /// **4.2.6** `QUIT`  
 pub static QUIT: Function = function!("QUIT", env, |arg| {
-	match i32::try_from(arg.run(env)?.to_integer(env)?) {
+	let status = arg.run(env)?.to_integer(env)?;
+
+	match i32::try_from(status) {
+		#[cfg(not(feature = "compliance"))]
+		Ok(status) => return Err(Error::Quit(status)),
+
+		#[cfg(feature = "compliance")]
 		Ok(status) if !env.flags().compliance.check_quit_bounds || (0..=127).contains(&status) => {
 			return Err(Error::Quit(status))
 		}
+
 		_ => return Err(Error::DomainError("exit code out of bounds")),
 	}
 
@@ -507,11 +511,14 @@ pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
 				.expect("todo: out of bounds error")
 				.into(),
 
-				#[cfg(feature = "negative-ranges")]
-				false => (stop..start).map(Value::from).rev().collect::<List>().into(),
-
-				#[cfg(not(feature = "negative-ranges"))]
-				false => return Err(Error::DomainError("start is greater than stop")),
+				false => {
+					if env.flags().exts.negative_ranges {
+						// (stop..start).map(Value::from).rev().collect::<List>().into()
+						todo!()
+					} else {
+						return Err(Error::DomainError("start is greater than stop"));
+					}
+				}
 			}
 		}
 

@@ -1,7 +1,9 @@
 use crate::value::text::Character;
 use crate::value::Runnable;
-use crate::{Function, Integer, Result, Text, TextSlice, Value};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+#[cfg(feature = "extensions")]
+use crate::value::Text;
+use crate::{Function, Integer, Result, TextSlice, Value};
+use rand::{rngs::StdRng, SeedableRng};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 
@@ -29,9 +31,11 @@ pub struct Environment<'e> {
 	variables: HashSet<Variable<'e>>,
 	prompt: Prompt<'e>,
 	stdout: Box<Stdout<'e>>,
-	rng: Box<StdRng>,
+	rng: StdRng,
 
 	functions: HashMap<Character, &'e Function>,
+
+	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
@@ -100,12 +104,13 @@ impl<'e> Environment<'e> {
 
 	/// Gets a random `Integer`.
 	pub fn random(&mut self) -> Integer {
-		self.rng.gen::<Integer>()
+		Integer::random(&mut self.rng, &self.flags)
 	}
 
 	/// Seeds the random number generator.
+	#[cfg(feature = "extensions")]
 	pub fn srand(&mut self, seed: Integer) {
-		*self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
+		self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
 	/// Executes `command` as a shell command, returning its result.
@@ -115,11 +120,13 @@ impl<'e> Environment<'e> {
 	}
 
 	/// Gets the list of known extension functions.
+	#[cfg(feature = "extensions")]
 	pub fn extensions(&self) -> &HashMap<Text, &'e Function> {
 		&self.extensions
 	}
 
 	/// Gets a mutable list of known extension functions, so you can add to them.
+	#[cfg(feature = "extensions")]
 	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'e Function> {
 		&mut self.extensions
 	}

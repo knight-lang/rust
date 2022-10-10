@@ -1,7 +1,14 @@
 use super::Environment;
-use crate::value::{Runnable, Text, ToText, Value};
-use crate::{Ast, Result};
-use std::collections::VecDeque;
+use crate::value::Text;
+use crate::Result;
+
+#[cfg(feature = "extensions")]
+use {
+	crate::value::{Runnable, ToText, Value},
+	crate::Ast,
+	std::collections::VecDeque,
+};
+
 use std::io::{self, BufRead};
 
 pub struct Prompt<'e> {
@@ -111,6 +118,8 @@ impl<'e> Prompt<'e> {
 		}
 
 		strip_ending(&mut line);
+
+		let _ = env;
 		Ok(Some(Text::try_from(line)?))
 	}
 }

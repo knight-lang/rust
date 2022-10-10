@@ -107,6 +107,19 @@ impl Integer {
 		log
 	}
 
+	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &crate::env::Flags) -> Self {
+		#[allow(unused_mut)]
+		let mut rand = rng.gen::<Inner>().abs();
+
+		#[cfg(feature = "compliance")]
+		if flags.compliance.limit_rand_range {
+			rand &= 0x7fff;
+		}
+
+		let _ = flags;
+		Self(rand)
+	}
+
 	/// Negates `self`.
 	///
 	/// # Errors
@@ -191,12 +204,13 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[cfg_attr(feature = "relaxed-integers", inline)]
-	pub fn remainder(self, base: Self) -> Result<Self> {
+	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		if cfg!(not(feature = "relaxed-integers")) {
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_integer_function_bounds {
 			if self.is_negative() {
 				return Err(Error::DomainError("remainder with a negative number"));
 			}
@@ -206,6 +220,7 @@ impl Integer {
 			}
 		}
 
+		let _ = flags;
 		self.binary_op(base.0, Inner::checked_rem, Inner::wrapping_rem)
 	}
 
@@ -220,13 +235,13 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn power(self, mut exponent: Self) -> Result<Self> {
+	pub fn power(self, mut exponent: Self, flags: &crate::env::Flags) -> Result<Self> {
 		if exponent.is_negative() {
-			if cfg!(not(feature = "relaxed-integers")) {
-				return Err(Error::DomainError("negative exponent"));
-			}
-
 			match self.0 {
+				#[cfg(feature = "compliance")]
+				_ if flags.compliance.check_integer_function_bounds => {
+					return Err(Error::DomainError("negative exponent"))
+				}
 				-1 => exponent = exponent.negate()?,
 				0 => return Err(Error::DivisionByZero),
 				1 => return Ok(Self::ONE),
@@ -243,12 +258,15 @@ impl Integer {
 		}
 
 		// FIXME: you could probably optimize this.
-		let exponent = if cfg!(feature = "relaxed-integers") {
-			exponent.0 as u32
-		} else {
-			u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
-		};
+		#[allow(unused_mut)]
+		let mut exponent = exponent.0 as u32;
 
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_integer_function_bounds {
+			exponent = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
+		}
+
+		let _ = flags;
 		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
 	}
 }
@@ -263,19 +281,6 @@ impl Parsable<'_, '_> for Integer {
 			.parse::<Self>()
 			.map(Some)
 			.map_err(|_| parser.error(parse::ErrorKind::IntegerLiteralOverflow))
-	}
-}
-
-impl rand::distributions::Distribution<Integer> for rand::distributions::Standard {
-	fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Integer {
-		let mut rand = rng.gen::<Inner>().abs();
-
-		// notably not lax integers
-		if cfg!(not(feature = "lax-compliance")) {
-			rand &= 0x7fff;
-		}
-
-		Integer(rand)
 	}
 }
 

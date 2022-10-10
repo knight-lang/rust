@@ -220,6 +220,17 @@ impl<'e> Runnable<'e> for Value<'e> {
 }
 
 impl<'e> Value<'e> {
+	pub fn call(&self, env: &mut Environment<'e>) -> Result<Self> {
+		// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
+		// arguments are `Value::Ast`s.
+		#[cfg(feature = "compliance")]
+		if env.flags().compliance.check_call_arg && !matches!(self, Value::Ast(_)) {
+			return Err(Error::TypeError(self.typename(), "CALL"));
+		}
+
+		self.run(env)
+	}
+
 	pub fn head(&self, _env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
@@ -376,7 +387,9 @@ impl<'e> Value<'e> {
 
 	pub fn remainder(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.remainder(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => {
+				integer.remainder(rhs.to_integer(env)?, env.flags()).map(Self::from)
+			}
 
 			// #[cfg(feature = "string-extensions")]
 			// Self::Text(lstr) => {
@@ -428,7 +441,7 @@ impl<'e> Value<'e> {
 	}
 	pub fn power(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.power(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => integer.power(rhs.to_integer(env)?, env.flags()).map(Self::from),
 			Self::List(list) => list.join(&rhs.to_text(env)?, env).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
@@ -463,8 +476,8 @@ impl<'e> Value<'e> {
 		}
 	}
 
-	pub fn equals(&self, rhs: &Self, _env: &mut Environment<'_>) -> Result<bool> {
-		#[cfg(not(feature = "lax-compliance"))]
+	pub fn equals(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<bool> {
+		#[cfg(feature = "compliance")]
 		{
 			fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
 				match value {
@@ -479,26 +492,29 @@ impl<'e> Value<'e> {
 				}
 			}
 
-			check_for_strict_compliance(self)?;
-			check_for_strict_compliance(rhs)?;
+			if env.flags().compliance.check_equals_params {
+				check_for_strict_compliance(self)?;
+				check_for_strict_compliance(rhs)?;
+			}
 		}
 
+		let _ = env;
 		Ok((self == rhs).into())
 	}
 
 	pub fn assign(&self, value: Self, env: &mut Environment<'e>) -> Result<()> {
+		if let Value::Variable(variable) = self {
+			variable.assign(value);
+			return Ok(());
+		}
+
+		#[cfg(feature = "extensions")]
 		match self {
-			Value::Variable(variable) => {
-				variable.assign(value);
-			}
+			Value::Variable(_) => unreachable!(),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.assign(value, env)?,
 
-			#[cfg(not(feature = "extensions"))]
-			other => return Err(Error::TypeError(other.typename(), "=")),
-
-			#[cfg(feature = "extensions")]
 			Value::Ast(ast)
 				if env.flags().assign_to.prompt && ast.function() == &crate::function::PROMPT =>
 			{
@@ -516,29 +532,33 @@ impl<'e> Value<'e> {
 					// `= PROMPT BLOCK ...` will compute the new ast each time
 					Value::Ast(ast) => env.prompt().set_ast(ast),
 
+					// any other type is an error. (todo: maybe allow variables and evaluate them?)
 					other => return Err(Error::TypeError(other.typename(), "=")),
 				}
+
+				return Ok(());
 			}
 
-			#[cfg(feature = "extensions")]
 			Value::Ast(ast)
 				if env.flags().assign_to.prompt && ast.function() == &crate::function::SYSTEM =>
 			{
 				let lines = value.to_text(env)?;
 				env.add_to_system(lines);
+				return Ok(());
 			}
 
-			#[cfg(feature = "extensions")]
 			other => match other.run(env)? {
 				Value::List(_list) if env.flags().assign_to.list => todo!(),
 				Value::Text(name) if env.flags().assign_to.text => {
 					env.lookup(&name)?.assign(value);
+					return Ok(());
 				}
-				other => return Err(Error::TypeError(other.typename(), "=")),
+				_ => { /* fallthrough */ }
 			},
 		}
 
-		Ok(())
+		let _ = env;
+		Err(Error::TypeError(self.typename(), "="))
 	}
 
 	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<'e>) -> Result<Self> {
@@ -607,9 +627,9 @@ impl<'e> Value<'e> {
 }
 
 fn fix_len<'e>(
-	container: &Value<'e>,
-	mut start: Integer,
-	env: &mut Environment<'e>,
+	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<'e>,
+	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer,
+	#[cfg_attr(not(feature = "extensions"), allow(unused))] env: &mut Environment<'e>,
 ) -> Result<usize> {
 	#[cfg(feature = "extensions")]
 	if env.flags().negative_indexing && start.is_negative() {
