@@ -24,6 +24,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		std::any::type_name::<Self>()
 	}
 
+	#[allow(clippy::should_implement_trait)]
 	fn eq(&self, rhs: &dyn CustomType<'e>) -> bool {
 		// std::ptr::eq(self as *const u8, rhs as *const u8)
 		let _ = rhs;
@@ -205,10 +206,6 @@ impl<'e> Runnable<'e> for Custom<'e> {
 impl<'e> Custom<'e> {
 	pub fn typename(&self) -> &'static str {
 		self.0.typename()
-	}
-
-	pub fn eq(&self, rhs: &dyn CustomType<'e>) -> bool {
-		self.0.eq(rhs)
 	}
 
 	pub fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {

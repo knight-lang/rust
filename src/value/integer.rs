@@ -261,15 +261,15 @@ impl Integer {
 
 		// FIXME: you could probably optimize this.
 		#[allow(unused_mut)]
-		let mut exponent = exponent.0 as u32;
+		let mut exp = exponent.0 as u32;
 
 		#[cfg(feature = "compliance")]
 		if flags.compliance.check_integer_function_bounds {
-			exponent = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
+			exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
 		}
 
 		let _ = flags;
-		self.binary_op(exponent, Inner::checked_pow, Inner::wrapping_pow)
+		self.binary_op(exp, Inner::checked_pow, Inner::wrapping_pow)
 	}
 }
 

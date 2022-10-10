@@ -178,7 +178,7 @@ impl<'e> Prompt<'e> {
 			}
 		};
 
-		for line in (&**new_lines).split('\n') {
+		for line in (**new_lines).split('\n') {
 			let mut line = line.to_string();
 			strip_ending(&mut line);
 			lines.push_back(line.try_into().unwrap());

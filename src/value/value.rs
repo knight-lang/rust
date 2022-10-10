@@ -346,7 +346,7 @@ impl<'e> Value<'e> {
 				// Multiplying by a block is invalid, so we can do this as an extension.
 				#[cfg(feature = "extensions")]
 				if env.flags().exts.list && matches!(rhs, Self::Ast(_)) {
-					return list.map(&rhs, env).map(Self::from);
+					return list.map(rhs, env).map(Self::from);
 				}
 
 				let amount = usize::try_from(rhs.to_integer(env)?)
@@ -376,7 +376,7 @@ impl<'e> Value<'e> {
 			Self::Text(text) if env.flags().exts.text => Ok(text.split(&rhs.to_text(env)?, env).into()),
 
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.flags().exts.list => Ok(list.reduce(&rhs, env)?.unwrap_or_default()),
+			Self::List(list) if env.flags().exts.list => Ok(list.reduce(rhs, env)?.unwrap_or_default()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.divide(rhs, env),
@@ -431,7 +431,7 @@ impl<'e> Value<'e> {
 			// 	Text::new(formatted).unwrap().into()
 			// }
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.flags().exts.list => list.filter(&rhs, env).map(Self::from),
+			Self::List(list) if env.flags().exts.list => list.filter(rhs, env).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.remainder(rhs, env),
@@ -483,7 +483,7 @@ impl<'e> Value<'e> {
 				match value {
 					Value::List(list) => {
 						for ele in list {
-							check_for_strict_compliance(&ele)?;
+							check_for_strict_compliance(ele)?;
 						}
 						Ok(())
 					}
@@ -499,7 +499,7 @@ impl<'e> Value<'e> {
 		}
 
 		let _ = env;
-		Ok((self == rhs).into())
+		Ok(self == rhs)
 	}
 
 	pub fn assign(&self, value: Self, env: &mut Environment<'e>) -> Result<()> {
@@ -569,12 +569,12 @@ impl<'e> Value<'e> {
 		match self {
 			Self::List(list) => list
 				.get(start..start + len)
-				.ok_or_else(|| Error::IndexOutOfBounds { len: list.len(), index: start + len })
+				.ok_or(Error::IndexOutOfBounds { len: list.len(), index: start + len })
 				.map(Self::from),
 
 			Self::Text(text) => text
 				.get(start..start + len)
-				.ok_or_else(|| Error::IndexOutOfBounds { len: text.len(), index: start + len })
+				.ok_or(Error::IndexOutOfBounds { len: text.len(), index: start + len })
 				.map(ToOwned::to_owned)
 				.map(Self::from),
 
