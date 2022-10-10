@@ -5,6 +5,7 @@ use crate::value::text::{Character, TextSlice};
 use crate::value::Text;
 use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
@@ -13,7 +14,6 @@ use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
 pub struct Function<'a> {
-	/// The code associated with this function
 	func: FnType,
 	full_name: &'a TextSlice,
 	short_name: Option<Character>,
@@ -49,7 +49,7 @@ impl Hash for &Function<'_> {
 	}
 }
 
-impl std::borrow::Borrow<Character> for &Function<'_> {
+impl Borrow<Character> for &Function<'_> {
 	fn borrow(&self) -> &Character {
 		self.short_name.as_ref().unwrap()
 	}
@@ -75,7 +75,7 @@ impl Hash for &ExtensionFunction<'_> {
 	}
 }
 
-impl std::borrow::Borrow<TextSlice> for &ExtensionFunction<'_> {
+impl Borrow<TextSlice> for &ExtensionFunction<'_> {
 	fn borrow(&self) -> &TextSlice {
 		&self.0.full_name
 	}
@@ -111,7 +111,14 @@ impl<'e> Parsable<'e> for &'e Function<'e> {
 impl<'a> Function<'a> {
 	#[must_use]
 	pub const fn new_const(full_name: &'a TextSlice, arity: usize, func: FnType) -> Self {
-		Self { full_name, arity, func, short_name: None }
+		Self {
+			full_name,
+			arity,
+			func,
+			short_name: Some(unsafe {
+				Character::new_unchecked(full_name.as_str().as_bytes()[0] as char)
+			}),
+		}
 	}
 
 	#[must_use]
@@ -124,6 +131,7 @@ impl<'a> Function<'a> {
 	{
 		Self { full_name, arity, func: FnType::Alloc(Box::new(func) as _), short_name: None }
 	}
+
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
