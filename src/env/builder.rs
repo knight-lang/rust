@@ -1,5 +1,4 @@
 use super::*;
-use std::collections::HashMap;
 
 /// A Builder for an [`Environment`], allowing its different options to be configured.
 #[must_use]
@@ -8,6 +7,7 @@ pub struct Builder<'e> {
 	prompt: Prompt<'e>,
 	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
+	parsers: Vec<Box<ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
@@ -32,6 +32,7 @@ impl<'e> Builder<'e> {
 			prompt: Prompt::default(),
 			output: Output::default(),
 			functions: crate::function::default(&flags),
+			parsers: crate::parse::default(&flags),
 
 			#[cfg(feature = "extensions")]
 			extensions: crate::function::extensions(&flags),
@@ -56,6 +57,34 @@ impl<'e> Builder<'e> {
 		&mut self.functions
 	}
 
+	pub fn parsers(&mut self) -> &mut Vec<Box<ParseFn<'e>>> {
+		&mut self.parsers
+	}
+
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
+		&mut self.extensions
+	}
+
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn system<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
+	{
+		self.system = Some(Box::new(func) as Box<_>);
+	}
+
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn read_file<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
+	{
+		self.read_file = Some(Box::new(func) as Box<_>);
+	}
+
 	pub fn build(self) -> Environment<'e> {
 		Environment {
 			flags: self.flags,
@@ -64,6 +93,7 @@ impl<'e> Builder<'e> {
 			prompt: self.prompt,
 			output: self.output,
 			functions: self.functions,
+			parsers: self.parsers,
 			rng: StdRng::from_entropy(),
 
 			#[cfg(feature = "extensions")]
@@ -95,26 +125,5 @@ impl<'e> Builder<'e> {
 			#[cfg(feature = "extensions")]
 			system_results: Default::default(),
 		}
-	}
-}
-
-#[cfg(feature = "extensions")]
-impl<'e> Builder<'e> {
-	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
-		&mut self.extensions
-	}
-
-	pub fn system<F>(&mut self, func: F)
-	where
-		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
-	{
-		self.system = Some(Box::new(func) as Box<_>);
-	}
-
-	pub fn read_file<F>(&mut self, func: F)
-	where
-		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
-	{
-		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 }

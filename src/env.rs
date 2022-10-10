@@ -1,3 +1,4 @@
+use crate::parse::Parser;
 use crate::value::text::Character;
 use crate::value::Runnable;
 #[cfg(feature = "extensions")]
@@ -23,6 +24,8 @@ type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e
 #[cfg(feature = "extensions")]
 type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 
+pub type ParseFn<'e> = dyn for<'s> FnMut(&mut Parser<'s, 'e>) -> Result<Option<Value<'e>>>;
+
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
 	flags: Flags,
@@ -33,6 +36,7 @@ pub struct Environment<'e> {
 	prompt: Prompt<'e>,
 	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
+	parsers: Vec<Box<ParseFn<'e>>>,
 	rng: StdRng,
 
 	#[cfg(feature = "extensions")]
@@ -65,7 +69,7 @@ impl<'e> Environment<'e> {
 
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
-		crate::Parser::new(source, self).parse_program()?.run(self)
+		Parser::new(source, self).parse_program()?.run(self)
 	}
 
 	pub fn flags(&self) -> &Flags {

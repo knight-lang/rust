@@ -22,6 +22,6 @@ pub use function::Function;
 pub use parse::{Error as ParseError, Parser};
 pub use value::*;
 
-pub fn play(input: &str) -> Result<Value<'_>> {
-	Environment::default().play(input.try_into()?)
+pub fn play(input: &str) -> Result<()> {
+	Environment::default().play(input.try_into()?).and(Ok(()))
 }

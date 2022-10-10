@@ -90,6 +90,7 @@ impl TextSlice {
 	}
 
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> crate::List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me

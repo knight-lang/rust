@@ -246,6 +246,7 @@ impl<'e> List<'e> {
 
 	/// Returns true if `self` contains `value`.
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn contains(&self, value: &Value<'e>) -> bool {
 		match self.inner() {
 			None => false,
@@ -258,6 +259,7 @@ impl<'e> List<'e> {
 
 	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn difference(&self, rhs: &Self) -> Result<Self> {
 		let mut list = Vec::with_capacity(self.len() - rhs.len());
 
@@ -277,6 +279,7 @@ impl<'e> List<'e> {
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn map(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
@@ -299,6 +302,7 @@ impl<'e> List<'e> {
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn filter(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
@@ -325,6 +329,7 @@ impl<'e> List<'e> {
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
 	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn reduce(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Option<Value<'e>>> {
 		const ACCUMULATE: &TextSlice = unsafe { TextSlice::new_unchecked("a") };
 		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };

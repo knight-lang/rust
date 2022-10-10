@@ -29,7 +29,7 @@ pub struct Function {
 impl Function {
 	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
 	pub fn short_form(&self) -> Option<Character> {
-		match self.name.chars().next() {
+		match self.name.head() {
 			Some(c) if c == 'X' => None,
 			other => other,
 		}
@@ -46,7 +46,15 @@ impl PartialEq for Function {
 
 impl Debug for Function {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		write!(f, "Function({})", self.name)
+		if f.alternate() {
+			f.debug_struct("Function")
+				.field("name", &self.name)
+				.field("arity", &self.arity)
+				.field("fnptr", &(self.func as usize as *const ()))
+				.finish()
+		} else {
+			f.debug_tuple("Function").field(&self.name).finish()
+		}
 	}
 }
 
@@ -83,13 +91,12 @@ pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {
-			$($(#[$meta])? {
-				if true $(&& flags.fns.$feature)? {
-					map.insert($name.short_form().unwrap(), &$name);
-				}
-			})*
-		}
+		($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
+			$(#[$meta])?
+			if true $(&& flags.fns.$feature)? {
+				map.insert($name.short_form().unwrap(), &$name);
+			}
+		)*}
 	}
 
 	insert! {
@@ -212,18 +219,25 @@ pub static QUIT: Function = function!("QUIT", env, |arg| {
 	let status = arg.run(env)?.to_integer(env)?;
 
 	match i32::try_from(status) {
-		#[cfg(not(feature = "compliance"))]
-		Ok(status) => return Err(Error::Quit(status)),
-
-		#[cfg(feature = "compliance")]
-		Ok(status) if !env.flags().compliance.check_quit_bounds || (0..=127).contains(&status) => {
+		Ok(status)
+			if {
+				#[cfg(feature = "compliance")]
+				{
+					!env.flags().compliance.check_quit_bounds
+				}
+				#[cfg(not(feature = "compliance"))]
+				{
+					true
+				}
+			} || (0..=127).contains(&status) =>
+		{
 			return Err(Error::Quit(status))
 		}
 
 		_ => return Err(Error::DomainError("exit code out of bounds")),
 	}
 
-	// The `function!` macro calls `.into()` on the return value of this block,
+	// The `function!` macro calls `Ok(...)` on the return value of this block,
 	// so we need _something_ here so it can typecheck correctly.
 	#[allow(unreachable_code)]
 	Value::Null

@@ -12,8 +12,13 @@ pub struct Parser<'s, 'e> {
 	line: usize,
 }
 
+/// A trait that indicates that something can be parsed.
 pub trait Parsable<'s, 'e>: Sized {
 	fn parse(parser: &mut Parser<'s, 'e>) -> Result<Option<Self>>;
+}
+
+pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Box<crate::env::ParseFn<'e>>> {
+	vec![]
 }
 
 /// A type that represents errors that happen during parsing.
