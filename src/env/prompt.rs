@@ -63,6 +63,10 @@ pub struct ReadLineResult<'e>(Option<ReadLineResultInner<'e>>);
 enum ReadLineResultInner<'e> {
 	Text(Text),
 
+	#[allow(unused)]
+	#[cfg(not(feature = "extensions"))]
+	_Never(std::marker::PhantomData<&'e ()>),
+
 	#[cfg(feature = "extensions")]
 	Ast(Ast<'e>),
 }
@@ -73,6 +77,9 @@ impl<'e> ReadLineResult<'e> {
 		match self.0 {
 			None => Ok(None),
 			Some(ReadLineResultInner::Text(text)) => Ok(Some(text)),
+
+			#[cfg(not(feature = "extensions"))]
+			Some(ReadLineResultInner::_Never(_)) => unreachable!(),
 
 			#[cfg(feature = "extensions")]
 			Some(ReadLineResultInner::Ast(ast)) => match ast.run(env)? {
