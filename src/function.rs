@@ -23,16 +23,12 @@ pub struct Function<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtensionFunction<'a>(pub Function<'a>);
 
+type AllocFn =
+	dyn for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static;
+
 pub enum FnType {
 	FnPtr(for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>),
-	Alloc(
-		Box<
-			dyn for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>
-				+ Send
-				+ Sync
-				+ 'static,
-		>,
-	),
+	Alloc(Box<AllocFn>),
 }
 
 impl Eq for Function<'_> {}
@@ -45,13 +41,13 @@ impl PartialEq for Function<'_> {
 
 impl Hash for &Function<'_> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.short_name.unwrap().hash(state)
+		self.short_name.expect("<invalid function>").hash(state)
 	}
 }
 
 impl Borrow<Character> for &Function<'_> {
 	fn borrow(&self) -> &Character {
-		self.short_name.as_ref().unwrap()
+		self.short_name.as_ref().expect("<invalid function>")
 	}
 }
 
@@ -77,7 +73,7 @@ impl Hash for &ExtensionFunction<'_> {
 
 impl Borrow<TextSlice> for &ExtensionFunction<'_> {
 	fn borrow(&self) -> &TextSlice {
-		&self.0.full_name
+		self.0.full_name
 	}
 }
 
@@ -102,9 +98,13 @@ impl<'e> Parsable<'e> for &'e Function<'e> {
 			return Ok(None);
 		};
 
+		let Some(&function) = parser.env().functions().get(&head) else {
+			return Ok(None);
+		};
+
 		parser.strip_function();
 
-		Ok(parser.env().functions().get(&head).copied())
+		Ok(Some(function))
 	}
 }
 
@@ -168,7 +168,7 @@ impl<'a> Function<'a> {
 		macro_rules! insert {
 			($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
 				$(#[$meta])?
-				if true $(&& flags.fns.$feature)? {
+				if true $(&& flags.exts.fns.$feature)? {
 					map.insert(&$name);
 				}
 			)*}
@@ -202,7 +202,7 @@ impl<'e> ExtensionFunction<'e> {
 		macro_rules! insert {
 			($($feature:ident $name:ident)*) => {
 				$(
-					if flags.fns.$feature {
+					if flags.exts.fns.$feature {
 						map.insert(&$name);
 					}
 				)*
@@ -508,7 +508,7 @@ pub static VALUE: Function = function!("VALUE", env, |arg| {
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static HANDLE: Function = function!("HANDLE", env, |block, iferr| {
-	const ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
+	static ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
 	match block.run(env) {
 		Ok(value) => value,
@@ -609,12 +609,8 @@ pub static XRANGE: ExtensionFunction = xfunction!("XRANGE", env, |start, stop| {
 				.into(),
 
 				false => {
-					if env.flags().exts.negative_ranges {
-						// (stop..start).map(Value::from).rev().collect::<List>().into()
-						todo!()
-					} else {
-						return Err(Error::DomainError("start is greater than stop"));
-					}
+					// (stop..start).map(Value::from).rev().collect::<List>().into()
+					todo!()
 				}
 			}
 		}

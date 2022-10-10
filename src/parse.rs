@@ -7,8 +7,12 @@ use std::fmt::{self, Display, Formatter};
 
 mod blank;
 mod grouped_expression;
+#[cfg(feature = "extensions")]
+mod list_literal;
 pub use blank::Blank;
 pub use grouped_expression::GroupedExpression;
+#[cfg(feature = "extensions")]
+pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
@@ -60,8 +64,8 @@ impl<'e, T: Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync
 // in case we want it for extensions later.)
 pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseFn<'e>>> {
 	macro_rules! parsers {
-		($($ty:ty),*) => {
-			vec![$(<$ty>::parse_fn()),*]
+		($($(#[$meta:meta])* $ty:ty),* $(,)?) => {
+			vec![$($(#[$meta])* <$ty>::parse_fn()),*]
 		};
 	}
 
@@ -74,7 +78,9 @@ pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseF
 		crate::value::Boolean,
 		crate::value::Null,
 		List,
-		Ast
+		Ast,
+		#[cfg(feature = "extensions")]
+		ListLiteral
 	]
 }
 

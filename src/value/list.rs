@@ -38,15 +38,7 @@ pub trait ToList<'e> {
 impl PartialEq for List<'_> {
 	/// Checks to see if two lists are equal.
 	fn eq(&self, rhs: &Self) -> bool {
-		if std::ptr::eq(self, rhs) {
-			return true;
-		}
-
-		if self.len() != rhs.len() {
-			return false;
-		}
-
-		self.iter().eq(rhs.iter())
+		std::ptr::eq(self, rhs) || self.len() == rhs.len() && self.iter().eq(rhs.iter())
 	}
 }
 
@@ -177,7 +169,8 @@ impl<'e> List<'e> {
 			return Ok(self.clone());
 		}
 
-		if cfg!(feature = "check-container-length") && Self::MAX_LEN < self.len() + rhs.len() {
+		#[cfg(feature = "check-container-length")]
+		if Self::MAX_LEN < self.len() + rhs.len() {
 			return Err(Error::DomainError("length of concatenation is out of bounds"));
 		}
 
@@ -193,7 +186,8 @@ impl<'e> List<'e> {
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
 	pub fn repeat(&self, amount: usize) -> Result<Self> {
-		if cfg!(feature = "check-container-length") && Self::MAX_LEN < self.len() * amount {
+		#[cfg(feature = "check-container-length")]
+		if Self::MAX_LEN < self.len() * amount {
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
 
@@ -243,10 +237,12 @@ impl<'e> List<'e> {
 			}
 		}
 	}
+}
 
+#[cfg(feature = "extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+impl<'e> List<'e> {
 	/// Returns true if `self` contains `value`.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn contains(&self, value: &Value<'e>) -> bool {
 		match self.inner() {
 			None => false,
@@ -258,8 +254,6 @@ impl<'e> List<'e> {
 	}
 
 	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn difference(&self, rhs: &Self) -> Result<Self> {
 		let mut list = Vec::with_capacity(self.len() - rhs.len());
 
@@ -278,10 +272,8 @@ impl<'e> List<'e> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn map(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
-		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		static UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 		let mut mapping = Vec::with_capacity(self.len());
@@ -301,10 +293,8 @@ impl<'e> List<'e> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn filter(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Self> {
-		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		static UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(UNDERSCORE).unwrap();
 		let mut filtering = Vec::with_capacity(self.len() / 2); // an arbitrary capacity constant.
@@ -328,11 +318,9 @@ impl<'e> List<'e> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn reduce(&self, block: &Value<'e>, env: &mut Environment<'e>) -> Result<Option<Value<'e>>> {
-		const ACCUMULATE: &TextSlice = unsafe { TextSlice::new_unchecked("a") };
-		const UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
+		static ACCUMULATE: &TextSlice = unsafe { TextSlice::new_unchecked("a") };
+		static UNDERSCORE: &TextSlice = unsafe { TextSlice::new_unchecked("_") };
 
 		let mut iter = self.iter();
 		let acc = env.lookup(ACCUMULATE).unwrap();
@@ -359,21 +347,6 @@ impl<'e> Parsable<'e> for List<'e> {
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('@').is_some() {
 			return Ok(Some(Self::default()));
-		};
-
-		#[cfg(feature = "extensions")]
-		if parser.env().flags().exts.list_literal && parser.advance_if('{').is_some() {
-			let mut list = Vec::new();
-			while {
-				parser.strip_whitespace_and_comments();
-				parser.advance_if('}').is_none()
-			} {
-				list.push(parser.parse_expression()?);
-			}
-			return list
-				.try_into()
-				.map(Some)
-				.map_err(|e| parser.error(parse::ErrorKind::Custom(Box::new(e))));
 		}
 
 		Ok(None)
@@ -407,7 +380,7 @@ impl<'e> ToInteger<'e> for List<'e> {
 impl<'e> ToText<'e> for List<'e> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
-		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
+		static NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
 
 		self.join(NEWLINE, env)
 	}

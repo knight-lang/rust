@@ -63,7 +63,7 @@ impl Character {
 	}
 
 	pub fn is_whitespace(self) -> bool {
-		self.0 == ':' || self.if_unicode(char::is_whitespace, |&c| "\r\n\t".contains(c))
+		self.0 == ':' || self.if_unicode(char::is_whitespace, |&c| "\r\n\t ".contains(c))
 	}
 
 	pub fn is_numeric(self) -> bool {

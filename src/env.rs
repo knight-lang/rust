@@ -63,7 +63,6 @@ impl Default for Environment<'_> {
 
 impl<'e> Environment<'e> {
 	/// A shorthand function for creating [`Builder`]s.
-	#[must_use]
 	pub fn builder(flags: Flags) -> Builder<'e> {
 		Builder::new(flags)
 	}

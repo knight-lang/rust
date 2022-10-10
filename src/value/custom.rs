@@ -31,7 +31,8 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		todo!();
 	}
 
-	fn run(&self, this: &Custom<'e>, _env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn run(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+		let _ = env;
 		Ok(this.clone().into())
 	}
 
