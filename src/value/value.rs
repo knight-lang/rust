@@ -129,7 +129,7 @@ impl<'e> Value<'e> {
 		match self {
 			Self::Null => Null::TYPENAME,
 			Self::Boolean(_) => Boolean::TYPENAME,
-			Self::Integer(_) => Integer::TYPENAME,
+			Self::Integer(_) => Integer::<i32>::TYPENAME,
 			Self::Text(_) => Text::TYPENAME,
 			Self::List(_) => List::TYPENAME,
 			Self::Ast(_) => Ast::TYPENAME,
@@ -170,7 +170,7 @@ impl<'e> ToInteger<'e> for Value<'e> {
 			#[cfg(feature = "custom-types")]
 			Self::Custom(ref custom) => custom.to_integer(env),
 
-			_ => Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: Integer::<i32>::TYPENAME, from: self.typename() }),
 		}
 	}
 }

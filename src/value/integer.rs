@@ -22,7 +22,41 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Integer(Inner);
+pub struct Integer<I: IntType = Inner>(I);
+
+pub trait IntType:
+	Default + Copy + Eq + Ord + Debug + Display + std::hash::Hash + From<i32>
+{
+	const ZERO: Self;
+
+	fn negate(self) -> Result<Self>;
+	fn add(self, rhs: Self) -> Result<Self>;
+	fn subtract(self, rhs: Self) -> Result<Self>;
+	fn multiply(self, rhs: Self) -> Result<Self>;
+	fn divide(self, rhs: Self) -> Result<Self>;
+}
+
+#[rustfmt::skip]
+impl IntType for i64 {
+	const ZERO: Self = 0;
+
+	fn negate(self) -> Result<Self> { Ok(-self) }
+	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
+	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
+	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
+	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
+}
+
+#[rustfmt::skip]
+impl IntType for i32 {
+	const ZERO: Self = 0;
+
+	fn negate(self) -> Result<Self> { Ok(-self) }
+	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
+	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
+	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
+	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
+}
 
 cfg_if! {
 	if #[cfg(feature = "small-integers")] {
@@ -38,28 +72,60 @@ pub trait ToInteger<'e> {
 	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer>;
 }
 
-impl Debug for Integer {
+impl<I: IntType> Debug for Integer<I> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
 
-impl Display for Integer {
+impl<I: IntType> Display for Integer<I> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl NamedType for Integer {
+impl<I: IntType> NamedType for Integer<I> {
 	const TYPENAME: &'static str = "Integer";
 }
 
-impl Integer {
-	/// The number zero.
-	pub const ZERO: Self = Self(0);
+impl<I: IntType> Integer<I> {
+	pub const ZERO: Self = Self(I::ZERO);
 
+	pub const fn new(int: I) -> Self {
+		Self(int)
+	}
+
+	/// Returns whether `self` is zero.
+	pub fn is_zero(self) -> bool {
+		self.0 == I::ZERO
+	}
+
+	/// Returns whether `self` is negative.
+	pub fn is_negative(self) -> bool {
+		self.0 < I::ZERO
+	}
+
+	pub fn negate_(self) -> Result<Self> {
+		self.0.negate().map(Self)
+	}
+
+	pub fn add_(self, rhs: Self) -> Result<Self> {
+		self.0.add(rhs.0).map(Self)
+	}
+	pub fn subtract_(self, rhs: Self) -> Result<Self> {
+		self.0.subtract(rhs.0).map(Self)
+	}
+	pub fn multiply_(self, rhs: Self) -> Result<Self> {
+		self.0.multiply(rhs.0).map(Self)
+	}
+	pub fn divide_(self, rhs: Self) -> Result<Self> {
+		self.0.divide(rhs.0).map(Self)
+	}
+}
+
+impl Integer {
 	/// The number one.
 	pub const ONE: Self = Self(1);
 
@@ -68,16 +134,6 @@ impl Integer {
 
 	/// The minimum value for `Integer`s.
 	pub const MIN: Self = Self(Inner::MIN);
-
-	/// Returns whether `self` is zero.
-	pub const fn is_zero(self) -> bool {
-		self.0 == 0
-	}
-
-	/// Returns whether `self` is negative.
-	pub const fn is_negative(self) -> bool {
-		self.0.is_negative()
-	}
 
 	/// Attempts to interpret `self` as a Unicode codepoint.
 	pub fn chr(self, flags: &crate::env::Flags) -> Result<Character> {
@@ -300,7 +356,7 @@ impl<'e> ToInteger<'e> for Integer {
 	}
 }
 
-impl<'e> ToBoolean<'e> for Integer {
+impl<'e, I: IntType> ToBoolean<'e> for Integer<I> {
 	/// Returns whether `self` is nonzero.
 	#[inline]
 	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Boolean> {
@@ -308,7 +364,7 @@ impl<'e> ToBoolean<'e> for Integer {
 	}
 }
 
-impl<'e> ToText<'e> for Integer {
+impl<'e, I: IntType> ToText<'e> for Integer<I> {
 	/// Returns a string representation of `self`.
 	#[inline]
 	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
@@ -341,29 +397,29 @@ impl<'e> ToList<'e> for Integer {
 	}
 }
 
-impl std::str::FromStr for Integer {
+impl<I: IntType> std::str::FromStr for Integer<I> {
 	type Err = Error;
 
 	fn from_str(inp: &str) -> Result<Self> {
-		const TEN: Integer = Integer(10);
+		let ten = Self::new(10.into());
 
 		let mut bytes = inp.trim_start().bytes();
-		let mut number = Integer::ZERO;
+		let mut number = Self::ZERO;
 		let mut is_negative = false;
 
 		match bytes.next() {
 			Some(b'+') => {}
 			Some(b'-') => is_negative = true,
-			Some(digit @ b'0'..=b'9') => number = Integer::from(digit - b'0'),
-			_ => return Ok(Integer::ZERO),
+			Some(digit @ b'0'..=b'9') => number = Self::new(((digit - b'0') as i32).into()),
+			_ => return Ok(Self::ZERO),
 		};
 
 		while let Some(digit @ b'0'..=b'9') = bytes.next() {
-			number = number.multiply(TEN)?.add((digit - b'0').into())?;
+			number = number.multiply_(ten)?.add_(Self::new(((digit - b'0') as i32).into()))?;
 		}
 
 		if is_negative {
-			number = number.negate()?;
+			number = number.negate_()?;
 		}
 
 		Ok(number)
