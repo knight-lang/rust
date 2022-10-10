@@ -34,9 +34,7 @@ pub trait Parsable<'e>: Sized {
 
 pub type ParseFn<'e> = dyn Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>>;
 
-pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
-	let _ = flags;
-
+pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
 	macro_rules! parsers {
 		($($ty:ty),*) => {
 			vec![$(<$ty>::parse_fn()),*]
@@ -244,18 +242,20 @@ impl<'s, 'e> Parser<'s, 'e> {
 		Some(start.get(..start.len() - self.source.len()).unwrap())
 	}
 
-	pub fn strip_whitespace_and_comments(&mut self) {
+	pub fn strip_whitespace_and_comments(&mut self) -> bool {
+		let mut anything_stripped = false;
 		loop {
 			// strip all leading whitespace, if any.
-			self.take_while(Character::is_whitespace);
+			anything_stripped |= self.take_while(Character::is_whitespace).is_some();
 
 			// If we're not at the start of a comment, break out
 			if self.advance_if('#').is_none() {
-				break;
+				return anything_stripped;
 			}
 
 			// eat a comment.
 			self.take_while(|chr| chr != '\n');
+			anything_stripped = true;
 		}
 	}
 
