@@ -12,7 +12,7 @@ mod value;
 pub use boolean::{Boolean, ToBoolean};
 #[cfg(feature = "custom-types")]
 pub use custom::{Custom, CustomType};
-pub use integer::{Integer, ToInteger};
+pub use integer::{IntType, Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;
 pub use text::*;

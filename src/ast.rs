@@ -8,7 +8,7 @@ pub struct Ast<'e>(RefCount<Inner<'e>>);
 
 #[derive(Debug)]
 struct Inner<'e> {
-	function: &'e Function<'e>,
+	function: Function<'e>,
 	args: Box<[Value<'e>]>,
 }
 
@@ -31,7 +31,7 @@ impl<'e> Ast<'e> {
 	/// Panics if `args.len()` isn't equal to `function.arity`.
 	#[must_use]
 	#[inline]
-	pub fn new(function: &'e Function<'e>, args: Box<[Value<'e>]>) -> Self {
+	pub fn new(function: Function<'e>, args: Box<[Value<'e>]>) -> Self {
 		assert_eq!(args.len(), function.arity());
 
 		Self(Inner { function, args }.into())
@@ -40,8 +40,8 @@ impl<'e> Ast<'e> {
 	/// Gets the function associated with the ast.
 	#[must_use]
 	#[inline]
-	pub fn function(&self) -> &'e Function<'e> {
-		self.0.function
+	pub fn function(&self) -> &Function<'e> {
+		&self.0.function
 	}
 
 	/// Gets the args associated with the ast.
@@ -65,7 +65,7 @@ impl<'e> Parsable<'e> for Ast<'e> {
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		use parse::{Error, ErrorKind};
 
-		let Some(function) = <&Function>::parse(parser)? else {
+		let Some(function) = Function::parse(parser)? else {
 			return Ok(None);
 		};
 

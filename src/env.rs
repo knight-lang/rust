@@ -30,7 +30,7 @@ pub struct Environment<'e> {
 	variables: HashSet<Variable<'e>>,
 	prompt: Prompt<'e>,
 	output: Output<'e>,
-	functions: HashSet<&'e Function<'e>>,
+	functions: HashSet<Function<'e>>,
 	rng: StdRng,
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
@@ -39,7 +39,7 @@ pub struct Environment<'e> {
 
 	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<&'e ExtensionFunction<'e>>,
+	extensions: HashSet<ExtensionFunction<'e>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -81,7 +81,7 @@ impl<'e> Environment<'e> {
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
-	pub fn functions(&self) -> &HashSet<&'e Function<'e>> {
+	pub fn functions(&self) -> &HashSet<Function<'e>> {
 		&self.functions
 	}
 
@@ -135,7 +135,7 @@ impl<'e> Environment<'e> {
 impl<'e> Environment<'e> {
 	/// Gets the list of known extension functions.
 	#[must_use]
-	pub fn extensions(&self) -> &HashSet<&'e ExtensionFunction<'e>> {
+	pub fn extensions(&self) -> &HashSet<ExtensionFunction<'e>> {
 		&self.extensions
 	}
 

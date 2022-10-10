@@ -17,7 +17,7 @@ impl<'e> Parsable<'e> for ListLiteral {
 			parser.advance_if('}').is_none()
 		} {
 			expansion = Value::Ast(crate::Ast::new(
-				&crate::function::ADD,
+				crate::function::ADD(),
 				vec![expansion, parser.parse_expression()?].into(),
 			));
 		}

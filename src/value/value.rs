@@ -529,7 +529,7 @@ impl<'e> Value<'e> {
 			Self::Custom(custom) => custom.assign(value, env)?,
 
 			Value::Ast(ast)
-				if env.flags().exts.assign_to.prompt && ast.function() == &crate::function::PROMPT =>
+				if env.flags().exts.assign_to.prompt && ast.function().full_name() == "PROMPT" =>
 			{
 				match value {
 					// `= PROMPT NULL` or `= PROMPT FALSE` makes it always return nothing.
@@ -553,7 +553,7 @@ impl<'e> Value<'e> {
 			}
 
 			Value::Ast(ast)
-				if env.flags().exts.assign_to.prompt && ast.function() == &crate::function::SYSTEM =>
+				if env.flags().exts.assign_to.prompt && ast.function().full_name() == "$" =>
 			{
 				let lines = value.to_text(env)?;
 				env.add_to_system(lines);

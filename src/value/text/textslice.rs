@@ -22,6 +22,12 @@ impl Display for TextSlice {
 	}
 }
 
+impl PartialEq<str> for TextSlice {
+	fn eq(&self, rhs: &str) -> bool {
+		&self.0 == rhs
+	}
+}
+
 impl Deref for TextSlice {
 	type Target = str;
 
