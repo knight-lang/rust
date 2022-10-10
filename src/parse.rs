@@ -53,7 +53,7 @@ pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
 		crate::value::Null,
 		List,
 		Ast
-	];
+	]
 }
 
 /// A type that represents errors that happen during parsing.
