@@ -27,18 +27,19 @@ type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
 	flags: Flags,
-
-	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
-	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable<'e>>,
 	prompt: Prompt<'e>,
 	output: Output<'e>,
-	functions: HashMap<Character, &'e Function>,
+	functions: HashMap<Character, &'e Function<'e>>,
 	rng: StdRng,
+
+	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
+	// set of parsers is loaded up.
 	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
 
+	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashMap<Text, &'e Function>,
+	extensions: HashSet<&'e Function<'e>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -74,7 +75,7 @@ impl<'e> Environment<'e> {
 		&self.flags
 	}
 
-	pub fn functions(&self) -> &HashMap<Character, &'e Function> {
+	pub fn functions(&self) -> &HashMap<Character, &'e Function<'e>> {
 		&self.functions
 	}
 
@@ -125,7 +126,7 @@ impl<'e> Environment<'e> {
 
 	/// Gets the list of known extension functions.
 	#[cfg(feature = "extensions")]
-	pub fn extensions(&self) -> &HashMap<Text, &'e Function> {
+	pub fn extensions(&self) -> &HashSet<&'e Function<'e>> {
 		&self.extensions
 	}
 

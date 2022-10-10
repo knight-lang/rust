@@ -6,11 +6,11 @@ pub struct Builder<'e> {
 	flags: Flags,
 	prompt: Prompt<'e>,
 	output: Output<'e>,
-	functions: HashMap<Character, &'e Function>,
+	functions: HashMap<Character, &'e Function<'e>>,
 	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashMap<Text, &'e Function>,
+	extensions: HashSet<&'e Function<'e>>,
 
 	#[cfg(feature = "extensions")]
 	system: Option<Box<System<'e>>>,
@@ -66,7 +66,7 @@ impl<'e> Builder<'e> {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
+	pub fn extensions(&mut self) -> &mut HashSet<&'e Function> {
 		&mut self.extensions
 	}
 

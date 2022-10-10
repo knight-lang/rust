@@ -8,12 +8,13 @@ pub struct Ast<'e>(RefCount<Inner<'e>>);
 
 #[derive(Debug)]
 struct Inner<'e> {
-	function: &'e Function,
+	function: &'e Function<'e>,
 	args: Box<[Value<'e>]>,
 }
 
 impl Eq for Ast<'_> {}
 impl PartialEq for Ast<'_> {
+	/// Two `Ast`s are equal only if they point to the exact same data.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -39,7 +40,7 @@ impl<'e> Ast<'e> {
 	/// Gets the function associated with the ast.
 	#[must_use]
 	#[inline]
-	pub fn function(&self) -> &'e Function {
+	pub fn function(&self) -> &'e Function<'e> {
 		self.0.function
 	}
 

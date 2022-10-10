@@ -7,26 +7,26 @@ use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::io::Write;
-
 use std::fmt::{self, Debug, Formatter};
+use std::hash::{Hash, Hasher};
+use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
 #[derive(Clone, Copy)]
-pub struct Function {
+pub struct Function<'q> {
 	/// The code associated with this function
 	pub func: for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>,
 
 	/// The long-hand name of this function.
 	///
 	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'static TextSlice,
+	pub name: &'q TextSlice,
 
 	/// The arity of the function, i.e. how many arguments it takes.
 	pub arity: usize,
 }
 
-impl Function {
+impl Function<'_> {
 	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
 	pub fn short_form(&self) -> Option<Character> {
 		match self.name.head() {
@@ -36,15 +36,27 @@ impl Function {
 	}
 }
 
-impl Eq for Function {}
-impl PartialEq for Function {
+impl Eq for Function<'_> {}
+impl PartialEq for Function<'_> {
 	/// Functions are only equal if they're identical.
 	fn eq(&self, rhs: &Self) -> bool {
 		std::ptr::eq(self, rhs)
 	}
 }
 
-impl Debug for Function {
+impl Hash for &Function<'_> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.name.hash(state)
+	}
+}
+
+impl std::borrow::Borrow<TextSlice> for &Function<'_> {
+	fn borrow(&self) -> &TextSlice {
+		&self.name
+	}
+}
+
+impl Debug for Function<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Function")
@@ -58,12 +70,12 @@ impl Debug for Function {
 	}
 }
 
-impl<'e> Parsable<'e> for &'e Function {
+impl<'e> Parsable<'e> for &'e Function<'e> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		#[cfg(feature = "extensions")]
-		if parser.advance_if('X').is_some() {
+		if parser.peek().map_or(false, |chr| chr == 'X') {
 			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
 
 			return parser
@@ -79,17 +91,13 @@ impl<'e> Parsable<'e> for &'e Function {
 			return Ok(None);
 		};
 
-		if head.is_upper() {
-			parser.take_while(Character::is_upper);
-		} else {
-			parser.advance();
-		}
+		parser.strip_function();
 
 		Ok(parser.env().functions().get(&head).copied())
 	}
 }
 
-pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
+pub(crate) fn default<'e>(flags: &Flags) -> HashMap<Character, &'e Function<'e>> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
@@ -121,14 +129,14 @@ pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 }
 
 #[cfg(feature = "extensions")]
-pub(crate) fn extensions(flags: &Flags) -> HashMap<Text, &'static Function> {
-	let mut map = HashMap::new();
+pub(crate) fn extensions<'e>(flags: &Flags) -> std::collections::HashSet<&'e Function<'e>> {
+	let mut map = std::collections::HashSet::new();
 
 	macro_rules! insert {
 		($($feature:ident $name:ident)*) => {
 			$(
 				if flags.fns.$feature {
-					map.insert($name.name.try_into().unwrap(), &$name);
+					map.insert(&$name);
 				}
 			)*
 		}

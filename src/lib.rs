@@ -1,4 +1,5 @@
 #![allow(clippy::module_inception)]
+#![feature(trace_macros)]
 #![feature(let_else)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 extern crate static_assertions as sa;

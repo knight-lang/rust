@@ -120,9 +120,6 @@ pub enum ErrorKind {
 	/// A number literal was too large.
 	IntegerLiteralOverflow,
 
-	/// An unknown extension name was encountered.
-	UnknownExtensionFunction(Text),
-
 	/// A variable name wasn't valid for some reason
 	///
 	/// This is only returned when the `verify-variable-names` is enabled.
@@ -131,8 +128,17 @@ pub enum ErrorKind {
 	/// The source file wasn't exactly one expression.
 	///
 	/// This is only returned when `forbid-trailing-tokens` is enabled.
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
 	TrailingTokens,
 
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	/// An unknown extension name was encountered.
+	UnknownExtensionFunction(Text),
+
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	Custom(Box<dyn std::error::Error>), // TODO: make this be the `cause`
 }
 
@@ -160,8 +166,13 @@ impl Display for ErrorKind {
 			Self::UnmatchedRightParen => write!(f, "an unmatched `)` was encountered"),
 			Self::DoesntEncloseExpression => write!(f, "parens dont enclose an expression"),
 
-			Self::UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
+			#[cfg(feature = "compliance")]
 			Self::TrailingTokens => write!(f, "trailing tokens encountered"),
+
+			#[cfg(feature = "extensions")]
+			Self::UnknownExtensionFunction(ref name) => write!(f, "unknown extension {name}"),
+
+			#[cfg(feature = "extensions")]
 			Self::Custom(err) => Display::fmt(err, f),
 		}
 	}
@@ -295,22 +306,6 @@ impl<'s, 'e> Parser<'s, 'e> {
 		} else {
 			// otherwise, only take that character.
 			self.advance();
-		}
-	}
-
-	fn parse_grouped_expression(&mut self) -> Result<Value<'e>> {
-		use ErrorKind::*;
-
-		let start = self.line;
-
-		match self.parse_expression() {
-			Ok(val) => {
-				self.strip_whitespace_and_comments();
-				self.advance_if(')').and(Some(val)).ok_or_else(|| UnmatchedLeftParen.error(start))
-			}
-			Err(Error { kind: EmptySource, .. }) => Err(UnmatchedLeftParen.error(start)),
-			Err(Error { kind: UnmatchedRightParen, .. }) => Err(DoesntEncloseExpression.error(start)),
-			Err(err) => Err(err),
 		}
 	}
 
