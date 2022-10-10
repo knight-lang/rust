@@ -1,9 +1,9 @@
+use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::{IllegalVariableName, Variable};
 use crate::text::{Character, Text, TextSlice};
 use crate::value::{Integer, List, Value};
 use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
-use std::rc::Rc;
 
 mod blank;
 mod grouped_expression;
@@ -24,17 +24,27 @@ pub trait Parsable<'e>: Sized {
 
 	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>>;
 
-	fn parse_fn() -> Rc<ParseFn<'e>>
+	fn parse_fn() -> RefCount<dyn ParseFn<'e>>
 	where
 		Value<'e>: From<Self::Output>,
 	{
-		Rc::new(|parser: &mut Parser<'_, 'e>| Ok(Self::parse(parser)?.map(Value::from))) as _
+		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e>| {
+			Ok(Self::parse(parser)?.map(Value::from))
+		}) as Box<_>)
 	}
 }
 
-pub type ParseFn<'e> = dyn Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>>;
+pub trait ParseFn<'e>:
+	Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync
+{
+}
 
-pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
+impl<'e, T: Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync> ParseFn<'e>
+	for T
+{
+}
+
+pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseFn<'e>>> {
 	macro_rules! parsers {
 		($($ty:ty),*) => {
 			vec![$(<$ty>::parse_fn()),*]

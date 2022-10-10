@@ -7,9 +7,7 @@ pub struct Builder<'e> {
 	prompt: Prompt<'e>,
 	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
-
-	#[cfg(feature = "extensions")]
-	parsers: Vec<Rc<ParseFn<'e>>>,
+	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
@@ -34,8 +32,6 @@ impl<'e> Builder<'e> {
 			prompt: Prompt::default(),
 			output: Output::default(),
 			functions: crate::function::default(&flags),
-
-			#[cfg(feature = "extensions")]
 			parsers: crate::parse::default(&flags),
 
 			#[cfg(feature = "extensions")]
@@ -61,8 +57,10 @@ impl<'e> Builder<'e> {
 		&mut self.functions
 	}
 
+	// We only allow access to the parsers when extensions are enabled.
 	#[cfg(feature = "extensions")]
-	pub fn parsers(&mut self) -> &mut Vec<Rc<ParseFn<'e>>> {
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e>>> {
 		&mut self.parsers
 	}
 
@@ -98,8 +96,6 @@ impl<'e> Builder<'e> {
 			prompt: self.prompt,
 			output: self.output,
 			functions: self.functions,
-
-			#[cfg(feature = "extensions")]
 			parsers: self.parsers,
 
 			rng: StdRng::from_entropy(),

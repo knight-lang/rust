@@ -1,11 +1,11 @@
 use crate::parse::{ParseFn, Parser};
 use crate::value::text::Character;
 use crate::value::Runnable;
-use crate::{Function, Integer, Result, TextSlice, Value};
+#[cfg(feature = "extensions")]
+use crate::value::Text;
+use crate::{Function, Integer, RefCount, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "extensions")]
-use {crate::value::Text, std::rc::Rc};
 
 mod builder;
 pub mod flags;
@@ -35,9 +35,7 @@ pub struct Environment<'e> {
 	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
 	rng: StdRng,
-
-	#[cfg(feature = "extensions")]
-	parsers: Vec<Rc<ParseFn<'e>>>,
+	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
@@ -54,7 +52,7 @@ pub struct Environment<'e> {
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Environment: Send, Sync);
+sa::assert_impl_all!(Environment<'_>: Send, Sync);
 
 impl Default for Environment<'_> {
 	fn default() -> Self {
@@ -80,8 +78,7 @@ impl<'e> Environment<'e> {
 		&self.functions
 	}
 
-	#[cfg(feature = "extensions")]
-	pub fn parsers(&self) -> &[Rc<ParseFn<'e>>] {
+	pub fn parsers(&self) -> &[RefCount<dyn ParseFn<'e>>] {
 		&self.parsers
 	}
 
