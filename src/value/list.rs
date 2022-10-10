@@ -377,10 +377,10 @@ impl<'e> ToBoolean<'e> for List<'e> {
 	}
 }
 
-impl<'e> ToInteger<'e> for List<'e> {
+impl<'e, I: crate::value::IntType> ToInteger<'e, I> for List<'e> {
 	/// Returns `self`'s length.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer<I>> {
 		self.len().try_into()
 	}
 }

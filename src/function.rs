@@ -331,7 +331,8 @@ pub fn CALL<'e>() -> Function<'e> {
 /// **4.2.6** `QUIT`  
 pub fn QUIT<'e>() -> Function<'e> {
 	function!("QUIT", env, |arg| {
-		let status = arg.run(env)?.to_integer(env)?;
+		// let status = arg.run(env)?.to_integer(env)?;
+		let status = ToInteger::<i64>::to_integer(&arg.run(env)?, env)?;
 
 		match i32::try_from(status) {
 			Ok(status)

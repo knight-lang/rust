@@ -37,11 +37,15 @@ impl<'e> ToBoolean<'e> for Boolean {
 	}
 }
 
-impl<'e> ToInteger<'e> for Boolean {
+impl<'e, I: crate::value::IntType> ToInteger<'e, I> for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer> {
-		Ok((*self).into())
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer<I>> {
+		if *self {
+			Ok(Integer::ONE)
+		} else {
+			Ok(Integer::ZERO)
+		}
 	}
 }
 

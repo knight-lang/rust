@@ -1,4 +1,5 @@
 use crate::env::Environment;
+use crate::value::integer::IntType;
 use crate::value::text::Character;
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
@@ -158,19 +159,19 @@ impl<'e> ToBoolean<'e> for Value<'e> {
 	}
 }
 
-impl<'e> ToInteger<'e> for Value<'e> {
-	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer> {
+impl<'e, I: IntType> ToInteger<'e, I> for Value<'e> {
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>> {
 		match *self {
 			Self::Null => Null.to_integer(env),
 			Self::Boolean(boolean) => boolean.to_integer(env),
-			Self::Integer(integer) => integer.to_integer(env),
+			// Self::Integer(integer) => integer.to_integer(env),
 			Self::Text(ref text) => text.to_integer(env),
 			Self::List(ref list) => list.to_integer(env),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(ref custom) => custom.to_integer(env),
 
-			_ => Err(Error::NoConversion { to: Integer::<i32>::TYPENAME, from: self.typename() }),
+			_ => Err(Error::NoConversion { to: Integer::<i64>::TYPENAME, from: self.typename() }),
 		}
 	}
 }
@@ -341,7 +342,8 @@ impl<'e> Value<'e> {
 			Self::Integer(integer) => integer.multiply(rhs.to_integer(env)?).map(Self::from),
 
 			Self::Text(lstr) => {
-				let amount = usize::try_from(rhs.to_integer(env)?)
+				// let amount = usize::try_from(rhs.to_integer(env)?)
+				let amount = usize::try_from(ToInteger::<i64>::to_integer(rhs, env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
 				if isize::MAX as usize <= amount * lstr.len() {
@@ -360,7 +362,8 @@ impl<'e> Value<'e> {
 					return list.map(rhs, env).map(Self::from);
 				}
 
-				let amount = usize::try_from(rhs.to_integer(env)?)
+				// let amount = usize::try_from(rhs.to_integer(env)?)
+				let amount = usize::try_from(ToInteger::<i64>::to_integer(rhs, env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
 				// No need to check for repetition length because `list.repeat` doesnt actually
@@ -575,8 +578,9 @@ impl<'e> Value<'e> {
 
 	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		let start = fix_len(self, start.to_integer(env)?, env)?;
-		let len =
-			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
+		let len = usize::try_from(ToInteger::<i64>::to_integer(len, env)?)
+			.or(Err(Error::DomainError("negative length")))?;
+		// usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
 
 		match self {
 			Self::List(list) => list
@@ -605,8 +609,9 @@ impl<'e> Value<'e> {
 		env: &mut Environment<'e>,
 	) -> Result<Self> {
 		let start = fix_len(self, start.to_integer(env)?, env)?;
-		let len =
-			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
+		let len = usize::try_from(ToInteger::<i64>::to_integer(len, env)?)
+			.or(Err(Error::DomainError("negative length")))?;
+		// usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
 
 		match self {
 			Self::List(list) => {

@@ -43,10 +43,10 @@ impl<'e> ToBoolean<'e> for Null {
 	}
 }
 
-impl<'e> ToInteger<'e> for Null {
+impl<'e, I: crate::value::IntType> ToInteger<'e, I> for Null {
 	/// Simple returns zero.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer<I>> {
 		Ok(Integer::default())
 	}
 }

@@ -180,8 +180,8 @@ impl<'e> ToText<'e> for Custom<'e> {
 	}
 }
 
-impl<'e> ToInteger<'e> for Custom<'e> {
-	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer> {
+impl<'e, I: crate::value::integer::IntType> ToInteger<'e, I> for Custom<'e> {
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>> {
 		self.0.to_integer(self, env)
 	}
 }

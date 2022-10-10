@@ -192,8 +192,8 @@ impl crate::value::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<'e> ToInteger<'e> for Text {
-	fn to_integer(&self, _: &mut Environment<'e>) -> crate::Result<Integer> {
+impl<'e, I: crate::value::integer::IntType> ToInteger<'e, I> for Text {
+	fn to_integer(&self, _: &mut Environment<'e>) -> crate::Result<Integer<I>> {
 		self.parse()
 	}
 }

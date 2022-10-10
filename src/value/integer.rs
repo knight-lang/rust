@@ -25,9 +25,21 @@ use std::fmt::{self, Debug, Display, Formatter};
 pub struct Integer<I: IntType = Inner>(I);
 
 pub trait IntType:
-	Default + Copy + Eq + Ord + Debug + Display + std::hash::Hash + From<i32>
+	Default
+	+ Copy
+	+ Eq
+	+ Ord
+	+ Debug
+	+ Display
+	+ std::hash::Hash
+	+ From<i32>
+	+ Into<i64>
+	+ TryInto<i32>
+	+ TryFrom<i64>
+	+ TryFrom<usize>
 {
 	const ZERO: Self;
+	const ONE: Self;
 
 	fn negate(self) -> Result<Self>;
 	fn add(self, rhs: Self) -> Result<Self>;
@@ -39,6 +51,7 @@ pub trait IntType:
 #[rustfmt::skip]
 impl IntType for i64 {
 	const ZERO: Self = 0;
+	const ONE: Self = 1;
 
 	fn negate(self) -> Result<Self> { Ok(-self) }
 	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
@@ -50,6 +63,7 @@ impl IntType for i64 {
 #[rustfmt::skip]
 impl IntType for i32 {
 	const ZERO: Self = 0;
+	const ONE: Self = 1;
 
 	fn negate(self) -> Result<Self> { Ok(-self) }
 	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
@@ -67,9 +81,9 @@ cfg_if! {
 }
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger<'e> {
+pub trait ToInteger<'e, I: IntType> {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer>;
+	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>>;
 }
 
 impl<I: IntType> Debug for Integer<I> {
@@ -92,6 +106,7 @@ impl<I: IntType> NamedType for Integer<I> {
 
 impl<I: IntType> Integer<I> {
 	pub const ZERO: Self = Self(I::ZERO);
+	pub const ONE: Self = Self(I::ONE);
 
 	pub const fn new(int: I) -> Self {
 		Self(int)
@@ -126,9 +141,6 @@ impl<I: IntType> Integer<I> {
 }
 
 impl Integer {
-	/// The number one.
-	pub const ONE: Self = Self(1);
-
 	/// The maximum value for `Integer`s.
 	pub const MAX: Self = Self(Inner::MAX);
 
@@ -333,7 +345,7 @@ impl Integer {
 	}
 }
 
-impl Parsable<'_> for Integer {
+impl<I: IntType> Parsable<'_> for Integer<I> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
@@ -348,7 +360,7 @@ impl Parsable<'_> for Integer {
 	}
 }
 
-impl<'e> ToInteger<'e> for Integer {
+impl<'e, I: IntType> ToInteger<'e, I> for Integer<I> {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Self> {
@@ -428,18 +440,18 @@ impl<I: IntType> std::str::FromStr for Integer<I> {
 
 macro_rules! impl_integer_from {
 	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl From<$smaller> for Integer {
+		$(impl<I: IntType> From<$smaller> for Integer<I> {
 			#[inline]
 			fn from(num: $smaller) -> Self {
-				Self(num as Inner)
+				Self(I::from(num as i32))
 			}
 		})*
-		$(impl TryFrom<$larger> for Integer {
+		$(impl<I: IntType> TryFrom<$larger> for Integer<I> {
 			type Error = Error;
 
 			#[inline]
 			fn try_from(num: $larger) -> Result<Self> {
-				num.try_into().map(Self).or(Err(Error::IntegerOverflow))
+				i64::try_from(num).ok().and_then(|x| I::try_from(x).ok()).map(Self).ok_or(Error::IntegerOverflow)
 			}
 		})*
 	};
@@ -447,18 +459,18 @@ macro_rules! impl_integer_from {
 
 macro_rules! impl_from_integer {
 	($($smaller:ident)* ; $($larger:ident)*) => {
-		$(impl From<Integer> for $larger {
+		$(impl<I: IntType> From<Integer<I>> for $larger {
 			#[inline]
-			fn from(int: Integer) -> Self {
-				int.0.into()
+			fn from(int: Integer<I>) -> Self {
+				int.0.into() as _
 			}
 		})*
-		$(impl TryFrom<Integer> for $smaller {
+		$(impl<I: IntType> TryFrom<Integer<I>> for $smaller {
 			type Error = Error;
 
 			#[inline]
-			fn try_from(int: Integer) -> Result<Self> {
-				int.0.try_into().or(Err(Error::IntegerOverflow))
+			fn try_from(int: Integer<I>) -> Result<Self> {
+				int.0.try_into().ok().and_then(|x| x.try_into().ok()).ok_or(Error::IntegerOverflow)
 			}
 		})*
 	};
