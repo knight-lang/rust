@@ -6,11 +6,11 @@ pub struct Builder<'e> {
 	flags: Flags,
 	prompt: Prompt<'e>,
 	output: Output<'e>,
-	functions: HashMap<Character, &'e Function<'e>>,
+	functions: HashSet<&'e Function<'e>>,
 	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<&'e Function<'e>>,
+	extensions: HashSet<&'e ExtensionFunction<'e>>,
 
 	#[cfg(feature = "extensions")]
 	system: Option<Box<System<'e>>>,
@@ -31,11 +31,11 @@ impl<'e> Builder<'e> {
 			flags,
 			prompt: Prompt::default(),
 			output: Output::default(),
-			functions: crate::function::default(&flags),
+			functions: Function::default_set(&flags),
 			parsers: crate::parse::default(&flags),
 
 			#[cfg(feature = "extensions")]
-			extensions: crate::function::extensions(&flags),
+			extensions: ExtensionFunction::default_set(&flags),
 
 			#[cfg(feature = "extensions")]
 			system: None,
@@ -53,7 +53,7 @@ impl<'e> Builder<'e> {
 		self.output.set_stdout(stdout);
 	}
 
-	pub fn functions(&mut self) -> &mut HashMap<Character, &'e Function> {
+	pub fn functions(&mut self) -> &mut HashSet<&'e Function> {
 		&mut self.functions
 	}
 
@@ -66,7 +66,7 @@ impl<'e> Builder<'e> {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashSet<&'e Function> {
+	pub fn extensions(&mut self) -> &mut HashSet<&'e ExtensionFunction> {
 		&mut self.extensions
 	}
 

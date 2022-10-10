@@ -6,34 +6,33 @@ use crate::value::Text;
 use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
-pub struct Function<'q> {
+pub struct Function<'a> {
 	/// The code associated with this function
 	func: FnType,
-	full_name: &'q TextSlice,
+	full_name: &'a TextSlice,
 	short_name: Option<Character>,
 	arity: usize,
 }
 
-pub trait FnAllocType:
-	for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static
-{
-}
-
-impl<
-		F: for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static,
-	> FnAllocType for F
-{
-}
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExtensionFunction<'a>(pub Function<'a>);
 
 pub enum FnType {
 	FnPtr(for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>),
-	Alloc(Box<dyn FnAllocType>),
+	Alloc(
+		Box<
+			dyn for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>
+				+ Send
+				+ Sync
+				+ 'static,
+		>,
+	),
 }
 
 impl Eq for Function<'_> {}
@@ -46,13 +45,13 @@ impl PartialEq for Function<'_> {
 
 impl Hash for &Function<'_> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.full_name.hash(state)
+		self.short_name.unwrap().hash(state)
 	}
 }
 
-impl std::borrow::Borrow<TextSlice> for &Function<'_> {
-	fn borrow(&self) -> &TextSlice {
-		&self.full_name
+impl std::borrow::Borrow<Character> for &Function<'_> {
+	fn borrow(&self) -> &Character {
+		self.short_name.as_ref().unwrap()
 	}
 }
 
@@ -70,12 +69,59 @@ impl Debug for Function<'_> {
 	}
 }
 
+impl Hash for &ExtensionFunction<'_> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.0.full_name.hash(state)
+	}
+}
+
+impl std::borrow::Borrow<TextSlice> for &ExtensionFunction<'_> {
+	fn borrow(&self) -> &TextSlice {
+		&self.0.full_name
+	}
+}
+
+impl<'e> Parsable<'e> for &'e Function<'e> {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+		#[cfg(feature = "extensions")]
+		if parser.peek().map_or(false, |chr| chr == 'X') {
+			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
+
+			return parser
+				.env()
+				.extensions()
+				.get(name)
+				.copied()
+				.map(|e| Some(&e.0))
+				.ok_or_else(|| parser.error(parse::ErrorKind::UnknownExtensionFunction(name.into())));
+		}
+
+		let Some(head) = parser.peek() else {
+			return Ok(None);
+		};
+
+		parser.strip_function();
+
+		Ok(parser.env().functions().get(&head).copied())
+	}
+}
+
 impl<'a> Function<'a> {
+	#[must_use]
 	pub const fn new_const(full_name: &'a TextSlice, arity: usize, func: FnType) -> Self {
 		Self { full_name, arity, func, short_name: None }
 	}
 
-	pub fn new<F: FnAllocType>(full_name: &'a TextSlice, arity: usize, func: F) -> Self {
+	#[must_use]
+	pub fn new<F>(full_name: &'a TextSlice, arity: usize, func: F) -> Self
+	where
+		F: for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>
+			+ Send
+			+ Sync
+			+ 'static,
+	{
 		Self { full_name, arity, func: FnType::Alloc(Box::new(func) as _), short_name: None }
 	}
 	/// The long-hand name of this function.
@@ -107,87 +153,62 @@ impl<'a> Function<'a> {
 			FnType::Alloc(ref alloc) => alloc(args, env),
 		}
 	}
-}
 
-impl<'e> Parsable<'e> for &'e Function<'e> {
-	type Output = Self;
+	pub(crate) fn default_set(flags: &Flags) -> HashSet<&'a Function<'a>> {
+		let mut map = HashSet::new();
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
-		#[cfg(feature = "extensions")]
-		if parser.peek().map_or(false, |chr| chr == 'X') {
-			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
-
-			return parser
-				.env()
-				.extensions()
-				.get(name)
-				.copied()
-				.map(Some)
-				.ok_or_else(|| parser.error(parse::ErrorKind::UnknownExtensionFunction(name.into())));
+		macro_rules! insert {
+			($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
+				$(#[$meta])?
+				if true $(&& flags.fns.$feature)? {
+					map.insert(&$name);
+				}
+			)*}
 		}
 
-		let Some(head) = parser.peek() else {
-			return Ok(None);
-		};
+		insert! {
+			PROMPT RANDOM
+			BLOCK CALL QUIT NOT NEG LENGTH DUMP OUTPUT ASCII BOX HEAD TAIL
+			ADD SUBTRACT MULTIPLY DIVIDE REMAINDER POWER EQUALS LESS_THAN GREATER_THAN AND OR
+				THEN ASSIGN WHILE
+			IF GET SET
 
-		parser.strip_function();
+			#[cfg(feature = "extensions")] value VALUE
+			#[cfg(feature = "extensions")] eval EVAL
+			#[cfg(feature = "extensions")] handle HANDLE
+			#[cfg(feature = "extensions")] yeet YEET
+			#[cfg(feature = "extensions")] r#use USE
+			#[cfg(feature = "extensions")] system SYSTEM
+		}
 
-		Ok(parser.env().functions().get(&head).copied())
+		let _ = flags;
+		map
 	}
-}
-
-pub(crate) fn default<'e>(flags: &Flags) -> HashMap<Character, &'e Function<'e>> {
-	let mut map = HashMap::new();
-
-	macro_rules! insert {
-		($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
-			$(#[$meta])?
-			if true $(&& flags.fns.$feature)? {
-				map.insert($name.short_name().unwrap(), &$name);
-			}
-		)*}
-	}
-
-	insert! {
-		PROMPT RANDOM
-		BLOCK CALL QUIT NOT NEG LENGTH DUMP OUTPUT ASCII BOX HEAD TAIL
-		ADD SUBTRACT MULTIPLY DIVIDE REMAINDER POWER EQUALS LESS_THAN GREATER_THAN AND OR
-			THEN ASSIGN WHILE
-		IF GET SET
-
-		#[cfg(feature = "extensions")] value VALUE
-		#[cfg(feature = "extensions")] eval EVAL
-		#[cfg(feature = "extensions")] handle HANDLE
-		#[cfg(feature = "extensions")] yeet YEET
-		#[cfg(feature = "extensions")] r#use USE
-		#[cfg(feature = "extensions")] system SYSTEM
-	}
-
-	let _ = flags;
-	map
 }
 
 #[cfg(feature = "extensions")]
-pub(crate) fn extensions<'e>(flags: &Flags) -> std::collections::HashSet<&'e Function<'e>> {
-	let mut map = std::collections::HashSet::new();
+impl<'e> ExtensionFunction<'e> {
+	pub(crate) fn default_set(flags: &Flags) -> HashSet<&'e ExtensionFunction<'e>> {
+		let mut map = HashSet::new();
 
-	macro_rules! insert {
-		($($feature:ident $name:ident)*) => {
-			$(
-				if flags.fns.$feature {
-					map.insert(&$name);
-				}
-			)*
+		macro_rules! insert {
+			($($feature:ident $name:ident)*) => {
+				$(
+					if flags.fns.$feature {
+						map.insert(&$name);
+					}
+				)*
+			}
 		}
-	}
 
-	insert! {
-		xsrand XSRAND
-		xreverse XREVERSE
-		xrange XRANGE
-	}
+		insert! {
+			xsrand XSRAND
+			xreverse XREVERSE
+			xrange XRANGE
+		}
 
-	map
+		map
+	}
 }
 
 macro_rules! arity {
@@ -207,6 +228,12 @@ macro_rules! function {
 			})
 		}
 	};
+}
+
+macro_rules! xfunction {
+	($($tt:tt)*) => {
+		ExtensionFunction(function!($($tt)*))
+	}
 }
 
 /// **4.1.4**: `PROMPT`
@@ -533,7 +560,7 @@ pub static SYSTEM: Function = function!("$", env, |cmd, stdin| {
 /// **Compiler extension**: SRAND
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub static XSRAND: Function = function!("XSRAND", env, |arg| {
+pub static XSRAND: ExtensionFunction = xfunction!("XSRAND", env, |arg| {
 	let seed = arg.run(env)?.to_integer(env)?;
 	env.srand(seed);
 	Value::Null
@@ -542,7 +569,7 @@ pub static XSRAND: Function = function!("XSRAND", env, |arg| {
 /// **Compiler extension**: REV
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
+pub static XREVERSE: ExtensionFunction = xfunction!("XREVERSE", env, |arg| {
 	match arg.run(env)? {
 		Value::Text(text) => {
 			text.chars().collect::<Vec<Character>>().into_iter().rev().collect::<Text>().into()
@@ -558,7 +585,7 @@ pub static XREVERSE: Function = function!("XREVERSE", env, |arg| {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub static XRANGE: Function = function!("XRANGE", env, |start, stop| {
+pub static XRANGE: ExtensionFunction = xfunction!("XRANGE", env, |start, stop| {
 	match start.run(env)? {
 		Value::Integer(start) => {
 			let stop = stop.run(env)?.to_integer(env)?;
