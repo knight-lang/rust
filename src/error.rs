@@ -45,12 +45,15 @@ pub enum Error {
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
 	IntegerOverflow,
 
-	Custom(Box<dyn std::error::Error>),
-
 	IndexOutOfBounds {
 		len: usize,
 		index: usize,
 	},
+
+	/// An error that doesn't fall into one of the other categories.
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	Custom(Box<dyn std::error::Error>),
 }
 
 /// A type alias for `Result<T, Error>`.
@@ -87,7 +90,10 @@ impl std::error::Error for Error {
 			Self::IoError(err) => Some(err),
 			Self::IllegalVariableName(err) => Some(err),
 			Self::NewTextError(err) => Some(err),
+
+			#[cfg(feature = "extensions")]
 			Self::Custom(err) => Some(&**err),
+
 			_ => None,
 		}
 	}
@@ -108,11 +114,12 @@ impl Display for Error {
 			Self::NewTextError(err) => Display::fmt(&err, f),
 
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
-			Self::Custom(err) => Display::fmt(&err, f),
-
 			Self::IndexOutOfBounds { len, index } => {
 				write!(f, "end index {index} is out of bounds for length {len}")
 			}
+
+			#[cfg(feature = "extensions")]
+			Self::Custom(err) => Display::fmt(&err, f),
 		}
 	}
 }

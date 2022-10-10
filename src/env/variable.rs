@@ -1,6 +1,5 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
-use crate::value::text::Character;
 use crate::value::{Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
@@ -68,64 +67,82 @@ impl crate::value::NamedType for Variable<'_> {
 
 /// Indicates that a a variable name was illegal.
 ///
-/// This is only ever returned if the `verify_variable_names` feature is enabled.
+/// While the enum itself is not feature gated, every one of its variants requires `compliance` to
+/// be enabled. This means that if `compliance` isn't enabled, then it's impossible to ever
+/// construct this type.
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IllegalVariableName {
 	/// The name was empty.
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
 	Empty,
 
 	/// The name was too long.
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
 	TooLong(usize),
 
 	/// The name had an illegal character at the beginning.
-	IllegalStartingChar(Character),
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
+	IllegalStartingChar(crate::value::text::Character),
 
 	/// The name had an illegal character in the middle.
-	IllegalBodyChar(Character),
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
+	IllegalBodyChar(crate::value::text::Character),
 }
 
 impl std::error::Error for IllegalVariableName {}
 
 impl Display for IllegalVariableName {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		match self {
+	fn fmt(&self, #[allow(unused)] f: &mut Formatter) -> fmt::Result {
+		match *self {
+			#[cfg(feature = "compliance")]
 			Self::Empty => write!(f, "empty variable name supplied"),
-			Self::TooLong(count) => write!(f, "variable name was too long ({count} > {MAX_NAME_LEN})"),
+
+			#[cfg(feature = "compliance")]
+			Self::TooLong(count) => {
+				write!(f, "variable name was too long ({count} > {})", Variable::MAX_NAME_LEN)
+			}
+
+			#[cfg(feature = "compliance")]
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
+
+			#[cfg(feature = "compliance")]
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
 	}
 }
 
-/// Maximum length a name can have when the flag `verify-variable-names` is enabled.
-pub const MAX_NAME_LEN: usize = 127;
-
-/// Check to see if `name` is a valid variable name. Unless the flag `verify-variable-names` is
-/// enabled, this will always return `Ok(())`.
-#[cfg(feature = "compliance")]
-fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
-	if MAX_NAME_LEN < name.len() {
-		return Err(IllegalVariableName::TooLong(name.len()));
-	}
-
-	let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-	if !first.is_lower() {
-		return Err(IllegalVariableName::IllegalStartingChar(first));
-	}
-
-	if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
-		return Err(IllegalVariableName::IllegalBodyChar(bad));
-	}
-
-	Ok(())
-}
-
 impl<'e> Variable<'e> {
+	/// Maximum length a name can have when [`verify_variable_names`](
+	/// crate::env::flags::ComplianceFlags::verify_variable_names) is enabled.
+	pub const MAX_NAME_LEN: usize = 127;
+
+	#[cfg(feature = "compliance")]
+	fn validate_name(name: &TextSlice) -> std::result::Result<(), IllegalVariableName> {
+		if Self::MAX_NAME_LEN < name.len() {
+			return Err(IllegalVariableName::TooLong(name.len()));
+		}
+
+		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
+		if !first.is_lower() {
+			return Err(IllegalVariableName::IllegalStartingChar(first));
+		}
+
+		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+			return Err(IllegalVariableName::IllegalBodyChar(bad));
+		}
+
+		Ok(())
+	}
+
 	pub(crate) fn new(name: Text, flags: &Flags) -> std::result::Result<Self, IllegalVariableName> {
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
-			validate_name(&name)?;
+			Self::validate_name(&name)?;
 		}
 
 		let _ = flags;

@@ -7,6 +7,7 @@ use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::io::Write;
 
 use std::fmt::{self, Debug, Formatter};
 
@@ -243,22 +244,22 @@ pub static LENGTH: Function = function!("LENGTH", env, |arg| {
 /// **4.2.9** `DUMP`  
 pub static DUMP: Function = function!("DUMP", env, |arg| {
 	let value = arg.run(env)?;
-	write!(env.stdout(), "{value:?}")?;
+	write!(env.output(), "{value:?}")?;
 	value
 });
 
 /// **4.2.10** `OUTPUT`  
 pub static OUTPUT: Function = function!("OUTPUT", env, |arg| {
 	let text = arg.run(env)?.to_text(env)?;
-	let stdout = env.stdout();
+	let output = env.output();
 
 	if let Some(stripped) = text.strip_suffix('\\') {
-		write!(stdout, "{stripped}")?
+		write!(output, "{stripped}")?
 	} else {
-		writeln!(stdout, "{text}")?;
+		writeln!(output, "{text}")?;
 	}
 
-	stdout.flush()?;
+	output.flush()?;
 
 	Value::Null
 });
@@ -392,7 +393,10 @@ pub static SET: Function = function!("SET", env, |source, start, length, replace
 	source.run(env)?.set(&start.run(env)?, &length.run(env)?, &replacement.run(env)?, env)?
 });
 
-/// **6.1** `VALUE`
+/// The `VALUE` extension function.
+///
+/// This takes a single argument, converts it to a [`Text`](crate::value::Text) and interprets it
+/// as a variable name. Then, it looks up the last assigned value to that variable.
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub static VALUE: Function = function!("VALUE", env, |arg| {

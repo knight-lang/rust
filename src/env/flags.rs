@@ -1,4 +1,4 @@
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flags {
 	pub assign_to: AssignToFlags,
 
@@ -13,7 +13,7 @@ pub struct Flags {
 	pub fns: FunctionFlags,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "compliance")]
 pub struct ComplianceFlags {
 	pub check_quit_bounds: bool,
@@ -25,7 +25,7 @@ pub struct ComplianceFlags {
 	pub check_integer_function_bounds: bool,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FunctionFlags {
 	pub value: bool,
 	pub eval: bool,
@@ -38,7 +38,7 @@ pub struct FunctionFlags {
 	pub xrange: bool,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 pub struct ExtensionFlags {
 	pub ascii_on_lists: bool,
@@ -49,7 +49,7 @@ pub struct ExtensionFlags {
 	pub negative_ranges: bool,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssignToFlags {
 	pub prompt: bool,
 	pub system: bool,

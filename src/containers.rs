@@ -1,5 +1,15 @@
 use std::ops::{Deref, DerefMut};
 
+cfg_if! {
+	if #[cfg(feature = "multithreaded")] {
+		pub trait MaybeSendSync: Send + Sync {}
+		impl<T: Send + Sync> MaybeSendSync for T {}
+	} else {
+		pub trait MaybeSendSync {}
+		impl<T> MaybeSendSync for T {}
+	}
+}
+
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RefCount<T: ?Sized>(
 	#[cfg(feature = "multithreaded")] std::sync::Arc<T>,

@@ -1,8 +1,7 @@
 use crate::value::{
 	Boolean, Integer, List, NamedType, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
-use crate::{Environment, Error, RefCount, Result, Value};
-
+use crate::{containers::MaybeSendSync, Environment, Error, RefCount, Result, Value};
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
@@ -20,7 +19,7 @@ impl<'a> Custom<'a> {
 	}
 }
 
-pub trait CustomType<'e>: std::fmt::Debug {
+pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 	fn typename(&self) -> &'static str {
 		std::any::type_name::<Self>()
 	}

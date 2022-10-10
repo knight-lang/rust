@@ -1,11 +1,12 @@
 use super::*;
 use std::collections::HashMap;
-use std::io;
 
-/// The environment hosts all relevant information for knight programs.
+/// A Builder for an [`Environment`], allowing its different options to be configured.
+#[must_use]
 pub struct Builder<'e> {
-	prompt: Option<Prompt<'e>>,
-	stdout: Option<Box<Stdout<'e>>>,
+	flags: Flags,
+	prompt: Prompt<'e>,
+	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
 
 	#[cfg(feature = "extensions")]
@@ -20,10 +21,16 @@ pub struct Builder<'e> {
 
 impl Default for Builder<'_> {
 	fn default() -> Self {
-		let flags = super::Flags::default();
+		Self::new(Flags::default())
+	}
+}
+
+impl<'e> Builder<'e> {
+	pub fn new(flags: Flags) -> Self {
 		Self {
-			prompt: None,
-			stdout: None,
+			flags,
+			prompt: Prompt::default(),
+			output: Output::default(),
 			functions: crate::function::default(&flags),
 
 			#[cfg(feature = "extensions")]
@@ -36,55 +43,31 @@ impl Default for Builder<'_> {
 			read_file: None,
 		}
 	}
-}
 
-impl<'e> Builder<'e> {
-	pub fn stdin<S: BufRead + Send + Sync + 'e>(&mut self, stdin: S) {
-		// self.prompt.unwrap_or_default().default = Some(Box::new(stdin) as Box<_>);
-		let _ = stdin;
-		todo!();
+	pub fn stdin<S: super::prompt::Stdin + 'e>(&mut self, stdin: S) {
+		self.prompt.set_stdin(stdin);
 	}
 
-	pub fn stdout<S: Write + Send + Sync + 'e>(&mut self, stdout: S) {
-		self.stdout = Some(Box::new(stdout) as Box<_>);
+	pub fn stdout<S: super::output::Stdout + 'e>(&mut self, stdout: S) {
+		self.output.set_stdout(stdout);
 	}
 
 	pub fn functions(&mut self) -> &mut HashMap<Character, &'e Function> {
 		&mut self.functions
 	}
 
-	#[cfg(feature = "extensions")]
-	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
-		&mut self.extensions
-	}
-
-	#[cfg(feature = "extensions")]
-	pub fn system<F>(&mut self, func: F)
-	where
-		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
-	{
-		self.system = Some(Box::new(func) as Box<_>);
-	}
-
-	#[cfg(feature = "extensions")]
-	pub fn read_file<F>(&mut self, func: F)
-	where
-		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
-	{
-		self.read_file = Some(Box::new(func) as Box<_>);
-	}
-
 	pub fn build(self) -> Environment<'e> {
 		Environment {
-			variables: HashSet::default(),
-			// stdin: self.stdin.unwrap_or_else(|| Box::new(io::BufReader::new(io::stdin()))),
-			prompt: self.prompt.unwrap_or_default(),
-			stdout: self.stdout.unwrap_or_else(|| Box::new(io::stdout())),
-			#[cfg(feature = "extensions")]
-			extensions: self.extensions,
+			flags: self.flags,
 
+			variables: HashSet::default(),
+			prompt: self.prompt,
+			output: self.output,
 			functions: self.functions,
 			rng: StdRng::from_entropy(),
+
+			#[cfg(feature = "extensions")]
+			extensions: self.extensions,
 
 			#[cfg(feature = "extensions")]
 			system: self.system.unwrap_or_else(|| {
@@ -111,8 +94,27 @@ impl<'e> Builder<'e> {
 
 			#[cfg(feature = "extensions")]
 			system_results: Default::default(),
-
-			flags: Default::default(),
 		}
+	}
+}
+
+#[cfg(feature = "extensions")]
+impl<'e> Builder<'e> {
+	pub fn extensions(&mut self) -> &mut HashMap<Text, &'e Function> {
+		&mut self.extensions
+	}
+
+	pub fn system<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice, Option<&TextSlice>) -> crate::Result<Text> + Send + Sync + 'e,
+	{
+		self.system = Some(Box::new(func) as Box<_>);
+	}
+
+	pub fn read_file<F>(&mut self, func: F)
+	where
+		F: FnMut(&TextSlice) -> crate::Result<Text> + Send + Sync + 'e,
+	{
+		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 }

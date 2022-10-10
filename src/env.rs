@@ -5,18 +5,17 @@ use crate::value::Text;
 use crate::{Function, Integer, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, Write};
 
 mod builder;
-mod flags;
-mod prompt;
+pub mod flags;
+pub mod output;
+pub mod prompt;
 mod variable;
 pub use builder::Builder;
 pub use flags::Flags;
-pub use prompt::Prompt;
+use output::Output;
+use prompt::Prompt;
 pub use variable::{IllegalVariableName, Variable};
-
-type Stdout<'e> = dyn Write + 'e + Send + Sync;
 
 #[cfg(feature = "extensions")]
 type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e + Send + Sync;
@@ -26,14 +25,15 @@ type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
+	flags: Flags,
+
 	// We use a `HashSet` because we want the variable to own its name, which a `HashMap`
 	// wouldn't allow for. (or would have redundant allocations.)
 	variables: HashSet<Variable<'e>>,
 	prompt: Prompt<'e>,
-	stdout: Box<Stdout<'e>>,
-	rng: StdRng,
-
+	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
+	rng: StdRng,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
@@ -47,8 +47,6 @@ pub struct Environment<'e> {
 
 	#[cfg(feature = "extensions")]
 	read_file: Box<ReadFile<'e>>,
-
-	flags: Flags,
 }
 
 #[cfg(feature = "multithreaded")]
@@ -82,8 +80,8 @@ impl<'e> Environment<'e> {
 		&mut self.prompt
 	}
 
-	pub fn stdout(&mut self) -> &mut dyn Write {
-		&mut self.stdout
+	pub fn output(&mut self) -> &mut Output<'e> {
+		&mut self.output
 	}
 
 	/// Fetches the variable corresponding to `name` in the environment, creating one if it's the
@@ -142,7 +140,7 @@ impl<'e> Environment<'e> {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn read_file(&mut self, filename: &TextSlice) -> crate::Result<Text> {
+	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
 		(self.read_file)(filename)
 	}
 }
