@@ -10,10 +10,7 @@ use std::io;
 #[non_exhaustive]
 pub enum Error {
 	/// Indicates that a conversion does not exist
-	NoConversion {
-		from: &'static str,
-		to: &'static str,
-	},
+	NoConversion { from: &'static str, to: &'static str },
 
 	/// An undefined variable was accessed.
 	UndefinedVariable(Text),
@@ -36,19 +33,24 @@ pub enum Error {
 	/// The `QUIT` command was run.
 	Quit(i32),
 
-	/// A variable name was illegal.
-	IllegalVariableName(IllegalVariableName),
-
-	/// An illegal character appeared in the source code.
-	NewTextError(NewTextError),
+	/// Indicates that either `GET` or `SET` were given an index that was out of bounds.
+	IndexOutOfBounds { len: usize, index: usize },
 
 	/// An integer operation overflowed. Only used when the `checked-overflow` feature is enabled.
 	IntegerOverflow,
 
-	IndexOutOfBounds {
-		len: usize,
-		index: usize,
-	},
+	/// An illegal character appeared in the source code.
+	#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+	#[cfg_attr(
+		docsrs,
+		doc(cfg(any(feature = "check-container-length", feature = "knight-encoding")))
+	)]
+	NewTextError(NewTextError),
+
+	/// A variable name was illegal.
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
+	IllegalVariableName(IllegalVariableName),
 
 	/// An error that doesn't fall into one of the other categories.
 	#[cfg(feature = "extensions")]
@@ -67,7 +69,10 @@ impl From<io::Error> for Error {
 
 impl From<NewTextError> for Error {
 	fn from(err: NewTextError) -> Self {
-		Self::NewTextError(err)
+		match err {
+			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+			err => Self::NewTextError(err),
+		}
 	}
 }
 
@@ -79,7 +84,10 @@ impl From<ParseError> for Error {
 
 impl From<IllegalVariableName> for Error {
 	fn from(err: IllegalVariableName) -> Self {
-		Self::IllegalVariableName(err)
+		match err {
+			#[cfg(feature = "compliance")]
+			err => Self::IllegalVariableName(err),
+		}
 	}
 }
 
@@ -88,8 +96,12 @@ impl std::error::Error for Error {
 		match self {
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
-			Self::IllegalVariableName(err) => Some(err),
+
+			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
 			Self::NewTextError(err) => Some(err),
+
+			#[cfg(feature = "compliance")]
+			Self::IllegalVariableName(err) => Some(err),
 
 			#[cfg(feature = "extensions")]
 			Self::Custom(err) => Some(&**err),
@@ -110,13 +122,16 @@ impl Display for Error {
 			Self::DivisionByZero => write!(f, "division/modulo by zero"),
 			Self::ParseError(err) => Display::fmt(&err, f),
 			Self::Quit(status) => write!(f, "quitting with status code {status}"),
-			Self::IllegalVariableName(err) => Display::fmt(&err, f),
-			Self::NewTextError(err) => Display::fmt(&err, f),
-
 			Self::IntegerOverflow => write!(f, "integer under/overflow"),
 			Self::IndexOutOfBounds { len, index } => {
 				write!(f, "end index {index} is out of bounds for length {len}")
 			}
+
+			#[cfg(any(feature = "check-container-length", feature = "knight-encoding"))]
+			Self::NewTextError(err) => Display::fmt(&err, f),
+
+			#[cfg(feature = "compliance")]
+			Self::IllegalVariableName(err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "extensions")]
 			Self::Custom(err) => Display::fmt(&err, f),

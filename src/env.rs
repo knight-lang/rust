@@ -63,6 +63,7 @@ impl Default for Environment<'_> {
 
 impl<'e> Environment<'e> {
 	/// A shorthand function for creating [`Builder`]s.
+	#[must_use]
 	pub fn builder(flags: Flags) -> Builder<'e> {
 		Builder::new(flags)
 	}
@@ -91,11 +92,13 @@ impl<'e> Environment<'e> {
 	}
 
 	/// Gets the [`Prompt`] type, which handles reading lines from stdin.
+	#[must_use]
 	pub fn prompt(&mut self) -> &mut Prompt<'e> {
 		&mut self.prompt
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
+	#[must_use]
 	pub fn output(&mut self) -> &mut Output<'e> {
 		&mut self.output
 	}
@@ -116,7 +119,7 @@ impl<'e> Environment<'e> {
 		Ok(variable)
 	}
 
-	/// Gets a random `Integer`.
+	/// Gets a random [`Integer`].
 	#[must_use]
 	pub fn random(&mut self) -> Integer {
 		Integer::random(&mut self.rng, &self.flags)
@@ -142,15 +145,18 @@ impl<'e> Environment<'e> {
 		(self.system)(command, stdin)
 	}
 
+	/// Adds `output` as the next value to return from the system command.
 	pub fn add_to_system(&mut self, output: Text) {
 		self.system_results.push_back(output);
 	}
 
+	/// Gets the next result from within system.
 	#[must_use]
 	pub fn get_next_system_result(&mut self) -> Option<Text> {
 		self.system_results.pop_front()
 	}
 
+	/// Reads the file located at `filename`, returning its contents.
 	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
 		(self.read_file)(filename)
 	}

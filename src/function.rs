@@ -238,6 +238,7 @@ macro_rules! function {
 	};
 }
 
+#[cfg_attr(not(feature = "extensions"), allow(unused_macros))]
 macro_rules! xfunction {
 	($($tt:tt)*) => {
 		ExtensionFunction(function!($($tt)*))

@@ -182,10 +182,13 @@ impl<'e> Parsable<'e> for Variable<'e> {
 			return Ok(None);
 		};
 
-		parser
-			.env()
-			.lookup(identifier)
-			.map(Some)
-			.map_err(|err| parser.error(parse::ErrorKind::IllegalVariableName(err)))
+		match parser.env().lookup(identifier) {
+			Ok(value) => Ok(Some(value)),
+			Err(err) => match err {
+				// When there's no extensions, there'll be nothing to match.
+				#[cfg(feature = "extensions")]
+				err => Err(parser.error(parse::ErrorKind::IllegalVariableName(err))),
+			},
+		}
 	}
 }

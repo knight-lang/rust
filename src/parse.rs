@@ -1,5 +1,5 @@
 use crate::containers::{MaybeSendSync, RefCount};
-use crate::env::{IllegalVariableName, Variable};
+use crate::env::Variable;
 use crate::text::{Character, Text, TextSlice};
 use crate::value::{Integer, List, Value};
 use crate::{Ast, Environment};
@@ -20,10 +20,21 @@ pub struct Parser<'s, 'e> {
 
 /// A trait that indicates that something can be parsed.
 pub trait Parsable<'e>: Sized {
+	/// The type that's being parsed.
 	type Output;
 
+	/// Attempt to parse an `Output` from the `parser`.
+	///
+	/// - If an `Output` was successfully parsed, then return `Ok(Some(...))`.
+	/// - If there's nothing applicable to parse from `parser`, then `Ok(None)` should be returned.
+	/// - If parsing should be restarted from the top (e.g. the [`Blank`] parser removing
+	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
+	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
+	///   returned.
 	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>>;
 
+	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
+	/// crate::env::Builder::parsers).
 	fn parse_fn() -> RefCount<dyn ParseFn<'e>>
 	where
 		Value<'e>: From<Self::Output>,
@@ -34,6 +45,7 @@ pub trait Parsable<'e>: Sized {
 	}
 }
 
+/// A Trait that indicates something is able to be parsed.
 pub trait ParseFn<'e>:
 	Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync
 {
@@ -44,6 +56,8 @@ impl<'e, T: Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync
 {
 }
 
+// Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
+// in case we want it for extensions later.)
 pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseFn<'e>>> {
 	macro_rules! parsers {
 		($($ty:ty),*) => {
@@ -123,7 +137,9 @@ pub enum ErrorKind {
 	/// A variable name wasn't valid for some reason
 	///
 	/// This is only returned when the `verify-variable-names` is enabled.
-	IllegalVariableName(IllegalVariableName),
+	#[cfg(feature = "compliance")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
+	IllegalVariableName(crate::env::IllegalVariableName),
 
 	/// The source file wasn't exactly one expression.
 	///
@@ -160,11 +176,13 @@ impl Display for ErrorKind {
 				write!(f, "missing argument {index} for function {name:?}")
 			}
 			Self::IntegerLiteralOverflow => write!(f, "integer literal overflowed max size"),
-			Self::IllegalVariableName(ref err) => Display::fmt(&err, f),
 
 			Self::UnmatchedLeftParen => write!(f, "an unmatched `(` was encountered"),
 			Self::UnmatchedRightParen => write!(f, "an unmatched `)` was encountered"),
 			Self::DoesntEncloseExpression => write!(f, "parens dont enclose an expression"),
+
+			#[cfg(feature = "compliance")]
+			Self::IllegalVariableName(ref err) => Display::fmt(&err, f),
 
 			#[cfg(feature = "compliance")]
 			Self::TrailingTokens => write!(f, "trailing tokens encountered"),

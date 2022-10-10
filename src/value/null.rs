@@ -11,6 +11,7 @@ use std::fmt::{self, Debug, Formatter};
 pub struct Null;
 
 impl Debug for Null {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.write_str("null")
 	}

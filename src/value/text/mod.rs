@@ -29,10 +29,14 @@ impl Iterator for Chars<'_> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NewTextError {
+	#[cfg(feature = "check-container-length")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "check-container-length")))]
 	/// Indicates a Knight string was too long.
 	LengthTooLong(usize),
 
 	/// Indicates a character within a Knight string wasn't valid.
+	#[cfg(feature = "knight-encoding")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "knight-encoding")))]
 	IllegalChar {
 		/// The char that was invalid.
 		chr: char,
@@ -43,11 +47,13 @@ pub enum NewTextError {
 }
 
 impl std::fmt::Display for NewTextError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
+	fn fmt(&self, #[allow(unused)] f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match *self {
+			#[cfg(feature = "check-container-length")]
 			Self::LengthTooLong(len) => {
-				write!(f, "length {len } longer than max {}", TextSlice::MAX_LEN)
+				write!(f, "length {len} longer than max {}", TextSlice::MAX_LEN)
 			}
+			#[cfg(feature = "knight-encoding")]
 			Self::IllegalChar { chr, index } => {
 				write!(f, "illegal char {chr:?} found at index {index}")
 			}
@@ -58,30 +64,30 @@ impl std::fmt::Display for NewTextError {
 impl std::error::Error for NewTextError {}
 
 pub const fn validate(data: &str) -> Result<(), NewTextError> {
-	if cfg!(feature = "check-container-length") && TextSlice::MAX_LEN < data.len() {
+	#[cfg(feature = "check-container-length")]
+	if TextSlice::MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
 	}
 
-	// All valid `str`s are valid TextSlice when no length limit and no char requirements are set.
-	if !cfg!(feature = "knight-encoding") {
-		return Ok(());
-	}
+	#[cfg(feature = "knight-encoding")]
+	{
+		// We're in const context, so we must use `while` with bytes.
+		// Since we're not using unicode, everything's just a byte anyways.
+		let bytes = data.as_bytes();
+		let mut index = 0;
 
-	// We're in const context, so we must use `while` with bytes.
-	// Since we're not using unicode, everything's just a byte anyways.
-	let bytes = data.as_bytes();
-	let mut index = 0;
+		while index < bytes.len() {
+			let chr = bytes[index] as char;
 
-	while index < bytes.len() {
-		let chr = bytes[index] as char;
+			if Character::new(chr).is_none() {
+				// Since everything's a byte, the byte index is the same as the char index.
+				return Err(NewTextError::IllegalChar { chr, index });
+			}
 
-		if Character::new(chr).is_none() {
-			// Since everything's a byte, the byte index is the same as the char index.
-			return Err(NewTextError::IllegalChar { chr, index });
+			index += 1;
 		}
-
-		index += 1;
 	}
 
+	let _ = data;
 	Ok(())
 }
