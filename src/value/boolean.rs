@@ -1,5 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
+use crate::value::{text::TextSlice, Integer, List, NamedType, Text, ToInteger, ToList, ToText};
 use crate::{Environment, Result};
 
 /// The boolean type within Knight.
@@ -57,8 +57,6 @@ impl<'e> ToList<'e> for Boolean {
 impl<'e> ToText<'e> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
-		use crate::text::TextSlice;
-
 		const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
 		const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
 

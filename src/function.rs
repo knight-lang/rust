@@ -68,17 +68,13 @@ impl<'e> Parsable<'_, 'e> for &'e Function {
 			return Ok(None);
 		};
 
-		let Some(&function) = parser.env().functions().get(&head) else {
-			return Ok(None);
-		};
-
 		if head.is_upper() {
 			parser.take_while(Character::is_upper);
 		} else {
 			parser.advance();
 		}
 
-		Ok(Some(function))
+		Ok(parser.env().functions().get(&head).copied())
 	}
 }
 
@@ -86,8 +82,8 @@ pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 	let mut map = HashMap::new();
 
 	macro_rules! insert {
-		($($(#[$meta:meta])* $(#$feature:ident)? $name:ident)*) => {
-			$($(#[$meta])*{
+		($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {
+			$($(#[$meta])? {
 				if true $(&& flags.fns.$feature)? {
 					map.insert($name.short_form().unwrap(), &$name);
 				}
@@ -102,12 +98,12 @@ pub(crate) fn default(flags: &Flags) -> HashMap<Character, &'static Function> {
 			THEN ASSIGN WHILE
 		IF GET SET
 
-		#[cfg(feature = "extensions")] #value VALUE
-		#[cfg(feature = "extensions")] #eval EVAL
-		#[cfg(feature = "extensions")] #handle HANDLE
-		#[cfg(feature = "extensions")] #yeet YEET
-		#[cfg(feature = "extensions")] #r#use USE
-		#[cfg(feature = "extensions")] #system SYSTEM
+		#[cfg(feature = "extensions")] value VALUE
+		#[cfg(feature = "extensions")] eval EVAL
+		#[cfg(feature = "extensions")] handle HANDLE
+		#[cfg(feature = "extensions")] yeet YEET
+		#[cfg(feature = "extensions")] r#use USE
+		#[cfg(feature = "extensions")] system SYSTEM
 	}
 
 	let _ = flags;
@@ -156,11 +152,7 @@ macro_rules! function {
 
 /// **4.1.4**: `PROMPT`
 pub static PROMPT: Function = function!("PROMPT", env, |/* comment for rustfmt */| {
-	// env.prompt().read_line(env)?.map(Value::from).unwrap_or_default()
-	let _ = env;
-	todo!();
-	#[allow(unreachable_code)]
-	Value::Null
+	env.prompt().read_line()?.get(env)?.map(Value::from).unwrap_or_default()
 });
 
 /// **4.1.5**: `RANDOM`

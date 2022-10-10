@@ -59,24 +59,44 @@ fn strip_ending(line: &mut String) {
 	}
 }
 
-impl<'e> Prompt<'e> {
+pub struct ReadLineResult<'e>(Option<ReadLineResultInner<'e>>);
+enum ReadLineResultInner<'e> {
+	Text(Text),
+
 	#[cfg(feature = "extensions")]
+	Ast(Ast<'e>),
+}
+
+impl<'e> ReadLineResult<'e> {
+	#[inline]
+	pub fn get(self, env: &mut Environment<'e>) -> Result<Option<Text>> {
+		match self.0 {
+			None => Ok(None),
+			Some(ReadLineResultInner::Text(text)) => Ok(Some(text)),
+
+			#[cfg(feature = "extensions")]
+			Some(ReadLineResultInner::Ast(ast)) => match ast.run(env)? {
+				Value::Null => Ok(None),
+				other => other.to_text(env).map(Some),
+			},
+		}
+	}
+}
+#[cfg(feature = "extensions")]
+impl<'e> Prompt<'e> {
 	pub fn close(&mut self) {
 		self.replacement = Some(PromptReplacement::Closed);
 	}
 
 	// ie, set the thing that does the computation
-	#[cfg(feature = "extensions")]
 	pub fn set_ast(&mut self, ast: Ast<'e>) {
 		self.replacement = Some(PromptReplacement::Computed(ast));
 	}
 
-	#[cfg(feature = "extensions")]
 	pub fn reset_replacement(&mut self) {
 		self.replacement = None;
 	}
 
-	#[cfg(feature = "extensions")]
 	pub fn add_lines(&mut self, new_lines: &crate::value::text::TextSlice) {
 		let lines = match self.replacement {
 			Some(PromptReplacement::Buffered(ref mut lines)) => lines,
@@ -95,31 +115,31 @@ impl<'e> Prompt<'e> {
 			lines.push_back(line.try_into().unwrap());
 		}
 	}
+}
 
-	pub fn read_line(&mut self, env: &mut Environment<'e>) -> Result<Option<Text>> {
+impl<'e> Prompt<'e> {
+	#[cfg_attr(not(feature = "extensions"), inline)]
+	pub fn read_line(&mut self) -> Result<ReadLineResult<'e>> {
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
-			None => {}
-			Some(PromptReplacement::Closed) => return Ok(None),
-			Some(PromptReplacement::Buffered(queue)) => return Ok(queue.pop_front()),
-			Some(PromptReplacement::Computed(ast)) => {
-				return match ast.run(env)? {
-					Value::Null => Ok(None),
-					other => Ok(Some(other.to_text(env)?)),
-				}
+			Some(PromptReplacement::Closed) => return Ok(ReadLineResult(None)),
+			Some(PromptReplacement::Buffered(queue)) => {
+				return Ok(ReadLineResult(queue.pop_front().map(ReadLineResultInner::Text)))
 			}
+			Some(PromptReplacement::Computed(ast)) => {
+				return Ok(ReadLineResult(Some(ReadLineResultInner::Ast(ast.clone()))))
+			}
+			None => {}
 		}
 
 		let mut line = String::new();
 
 		// If we read an empty line, return null.
 		if self.default.read_line(&mut line)? == 0 {
-			return Ok(None);
+			return Ok(ReadLineResult(None));
 		}
 
 		strip_ending(&mut line);
-
-		let _ = env;
-		Ok(Some(Text::try_from(line)?))
+		Ok(ReadLineResult(Some(ReadLineResultInner::Text(Text::try_from(line)?))))
 	}
 }
