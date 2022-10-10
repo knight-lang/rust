@@ -353,7 +353,9 @@ impl<'e> List<'e> {
 	}
 }
 
-impl<'e> Parsable<'_, 'e> for List<'e> {
+impl<'e> Parsable<'e> for List<'e> {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('@').is_some() {
 			return Ok(Some(Self::default()));

@@ -5,6 +5,11 @@ use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
 use std::rc::Rc;
 
+mod blank;
+mod grouped_expression;
+pub use blank::Blank;
+pub use grouped_expression::GroupedExpression;
+
 /// A type that handles parsing source code.
 #[must_use]
 pub struct Parser<'s, 'e> {
@@ -14,16 +19,17 @@ pub struct Parser<'s, 'e> {
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<'s, 'e>: Sized {
-	fn parse(parser: &mut Parser<'s, 'e>) -> Result<Option<Self>>;
+pub trait Parsable<'e>: Sized {
+	type Output;
 
-	// fn parse_fn() -> Rc<ParseFn<'e>>
-	// where
-	// 	Value<'e>: From<Self>,
-	// 	'e: 's,
-	// {
-	// 	Rc::new(|parser: &mut Parser<'_, 'e>| Ok(Self::parse(parser)?.map(Value::from))) as _
-	// }
+	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>>;
+
+	fn parse_fn() -> Rc<ParseFn<'e>>
+	where
+		Value<'e>: From<Self::Output>,
+	{
+		Rc::new(|parser: &mut Parser<'_, 'e>| Ok(Self::parse(parser)?.map(Value::from))) as _
+	}
 }
 
 pub type ParseFn<'e> = dyn Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>>;
@@ -31,32 +37,23 @@ pub type ParseFn<'e> = dyn Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>>;
 pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
 	let _ = flags;
 
-	let mut parsers = Vec::<Rc<ParseFn>>::new();
-
-	parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| {
-		parser.strip_whitespace_and_comments();
-		Ok(None)
-	}));
-
-	parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| {
-		if parser.advance_if('(').is_some() {
-			parser.parse_grouped_expression().map(Some)
-		} else if parser.advance_if(')').is_some() {
-			Err(parser.error(ErrorKind::UnmatchedRightParen))
-		} else {
-			Ok(None)
-		}
-	}));
-
 	macro_rules! parsers {
 		($($ty:ty),*) => {
-			$(parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| Ok(<$ty>::parse(parser)?.map(Value::from))) as _);)*
+			vec![$(<$ty>::parse_fn()),*]
 		};
 	}
 
-	parsers!(Integer, Text, Variable, crate::value::Boolean, crate::value::Null, List, Ast);
-
-	parsers
+	parsers![
+		Blank,
+		GroupedExpression,
+		Integer,
+		Text,
+		Variable,
+		crate::value::Boolean,
+		crate::value::Null,
+		List,
+		Ast
+	];
 }
 
 /// A type that represents errors that happen during parsing.
@@ -78,6 +75,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[non_exhaustive]
 #[must_use]
 pub enum ErrorKind {
+	/// Indicates that while something was parsed, parsing should be restarted regardless.
+	/// Used within whitespace and comments.
+	RestartParsing,
+
 	/// End of stream was reached before a token could be parsed.
 	EmptySource,
 
@@ -137,6 +138,7 @@ impl ErrorKind {
 impl Display for ErrorKind {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {
+			Self::RestartParsing => write!(f, "<restart parsing>"),
 			Self::EmptySource => write!(f, "an empty source string was encountered"),
 			Self::UnknownTokenStart(chr) => write!(f, "unknown token start {chr:?}"),
 			Self::UnterminatedText { quote } => write!(f, "unterminated `{quote}` text"),
@@ -298,17 +300,19 @@ impl<'s, 'e> Parser<'s, 'e> {
 			}
 			Err(Error { kind: EmptySource, .. }) => Err(UnmatchedLeftParen.error(start)),
 			Err(Error { kind: UnmatchedRightParen, .. }) => Err(DoesntEncloseExpression.error(start)),
-			Err(other) => Err(other),
+			Err(err) => Err(err),
 		}
 	}
 
 	pub fn parse_expression(&mut self) -> Result<Value<'e>> {
 		let mut i = 0;
 		while i < self.env.parsers().len() {
-			if let Some(tmp) = self.env.parsers()[i].clone()(self)? {
-				return Ok(tmp);
+			match self.env.parsers()[i].clone()(self) {
+				Err(Error { kind: ErrorKind::RestartParsing, .. }) => i = 0,
+				Err(err) => return Err(err),
+				Ok(Some(tmp)) => return Ok(tmp),
+				Ok(None) => i += 1,
 			}
-			i += 1;
 		}
 
 		Err(

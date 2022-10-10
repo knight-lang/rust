@@ -97,7 +97,9 @@ impl FromIterator<Character> for Text {
 	}
 }
 
-impl Parsable<'_, '_> for Text {
+impl Parsable<'_> for Text {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		// since `.advance()` returns a `Character`, we can't match on it.
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {

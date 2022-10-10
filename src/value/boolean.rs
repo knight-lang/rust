@@ -15,7 +15,9 @@ impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 
-impl Parsable<'_, '_> for Boolean {
+impl Parsable<'_> for Boolean {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		let Some(which) = parser.advance_if(|chr| chr == 'T' || chr == 'F') else {
 			return Ok(None);

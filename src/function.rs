@@ -58,7 +58,9 @@ impl Debug for Function {
 	}
 }
 
-impl<'e> Parsable<'_, 'e> for &'e Function {
+impl<'e> Parsable<'e> for &'e Function {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		#[cfg(feature = "extensions")]
 		if parser.advance_if('X').is_some() {

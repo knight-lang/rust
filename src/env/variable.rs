@@ -174,7 +174,9 @@ impl<'e> Runnable<'e> for Variable<'e> {
 	}
 }
 
-impl<'e> Parsable<'_, 'e> for Variable<'e> {
+impl<'e> Parsable<'e> for Variable<'e> {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		let Some(identifier) = parser.take_while(|chr| chr.is_lower() || chr.is_numeric()) else {
 			return Ok(None);

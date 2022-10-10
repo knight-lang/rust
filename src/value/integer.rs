@@ -273,7 +273,9 @@ impl Integer {
 	}
 }
 
-impl Parsable<'_, '_> for Integer {
+impl Parsable<'_> for Integer {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		let Some(source) = parser.take_while(Character::is_numeric) else {
 			return Ok(None);

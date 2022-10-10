@@ -20,7 +20,9 @@ impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
 }
 
-impl Parsable<'_, '_> for Null {
+impl Parsable<'_> for Null {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);

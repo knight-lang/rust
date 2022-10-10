@@ -58,7 +58,9 @@ impl<'e> Runnable<'e> for Ast<'e> {
 	}
 }
 
-impl<'e> Parsable<'_, 'e> for Ast<'e> {
+impl<'e> Parsable<'e> for Ast<'e> {
+	type Output = Self;
+
 	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
 		use parse::{Error, ErrorKind};
 
