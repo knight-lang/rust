@@ -10,10 +10,14 @@ use std::hash::{Hash, Hasher};
 ///
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
 // FIXME: You can memory leak via `= a (B a)` (and also `= a (B + a 1)`, etc.)
-#[derive(Clone)]
-pub struct Variable<'e, I: IntType>(RefCount<Inner<'e, I>>);
+pub struct Variable<'e, I>(RefCount<Inner<'e, I>>);
+impl<I> Clone for Variable<'_, I> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
 
-struct Inner<'e, I: IntType> {
+struct Inner<'e, I> {
 	name: Text,
 	value: Mutable<Option<Value<'e, I>>>,
 }
@@ -21,12 +25,12 @@ struct Inner<'e, I: IntType> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
-impl<I: IntType> Debug for Variable<'_, I> {
+impl<I: Debug> Debug for Variable<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
 				.field("name", &self.name())
-				.field("value", &self.fetch())
+				.field("value", &self.0.value)
 				.finish()
 		} else {
 			write!(f, "Variable({})", self.name())
@@ -34,8 +38,8 @@ impl<I: IntType> Debug for Variable<'_, I> {
 	}
 }
 
-impl<I: IntType> Eq for Variable<'_, I> {}
-impl<I: IntType> PartialEq for Variable<'_, I> {
+impl<I> Eq for Variable<'_, I> {}
+impl<I> PartialEq for Variable<'_, I> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This checks to see if the two variables are pointing to the _exact same object_.
@@ -45,7 +49,7 @@ impl<I: IntType> PartialEq for Variable<'_, I> {
 	}
 }
 
-impl<I: IntType> Borrow<TextSlice> for Variable<'_, I> {
+impl<I> Borrow<TextSlice> for Variable<'_, I> {
 	/// Borrows the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn borrow(&self) -> &TextSlice {
@@ -53,7 +57,7 @@ impl<I: IntType> Borrow<TextSlice> for Variable<'_, I> {
 	}
 }
 
-impl<I: IntType> Hash for Variable<'_, I> {
+impl<I> Hash for Variable<'_, I> {
 	/// Hashes the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
@@ -61,7 +65,7 @@ impl<I: IntType> Hash for Variable<'_, I> {
 	}
 }
 
-impl<I: IntType> crate::value::NamedType for Variable<'_, I> {
+impl<I> crate::value::NamedType for Variable<'_, I> {
 	const TYPENAME: &'static str = "Variable";
 }
 
@@ -116,7 +120,7 @@ impl Display for IllegalVariableName {
 	}
 }
 
-impl<'e, I: IntType> Variable<'e, I> {
+impl<'e, I> Variable<'e, I> {
 	/// Maximum length a name can have when [`verify_variable_names`](
 	/// crate::env::flags::ComplianceFlags::verify_variable_names) is enabled.
 	pub const MAX_NAME_LEN: usize = 127;
@@ -166,12 +170,15 @@ impl<'e, I: IntType> Variable<'e, I> {
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value<'e, I>> {
+	pub fn fetch(&self) -> Option<Value<'e, I>>
+	where
+		I: Clone,
+	{
 		(self.0).value.read().clone()
 	}
 }
 
-impl<'e, I: IntType> Runnable<'e, I> for Variable<'e, I> {
+impl<'e, I: Clone> Runnable<'e, I> for Variable<'e, I> {
 	fn run(&self, _env: &mut Environment<'e, I>) -> Result<Value<'e, I>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
 	}

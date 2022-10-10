@@ -7,7 +7,7 @@ use crate::{Environment, Result};
 pub type Boolean = bool;
 
 /// Represents the ability to be converted to a [`Boolean`].
-pub trait ToBoolean<'e, I: IntType> {
+pub trait ToBoolean<'e, I> {
 	/// Converts `self` to a [`Boolean`].
 	fn to_boolean(&self, env: &mut Environment<'e, I>) -> Result<Boolean>;
 }
@@ -30,7 +30,7 @@ impl<I: IntType> Parsable<'_, I> for Boolean {
 	}
 }
 
-impl<'e, I: IntType> ToBoolean<'e, I> for Boolean {
+impl<'e, I> ToBoolean<'e, I> for Boolean {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Self> {
@@ -50,7 +50,7 @@ impl<'e, I: IntType> ToInteger<'e, I> for Boolean {
 	}
 }
 
-impl<'e, I: IntType> ToList<'e, I> for Boolean {
+impl<'e, I> ToList<'e, I> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
 		if *self {
@@ -61,7 +61,7 @@ impl<'e, I: IntType> ToList<'e, I> for Boolean {
 	}
 }
 
-impl<'e, I: IntType> ToText<'e, I> for Boolean {
+impl<'e, I> ToText<'e, I> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	fn to_text(&self, _: &mut Environment<'e, I>) -> Result<Text> {
 		static TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };

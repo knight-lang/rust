@@ -36,7 +36,7 @@ impl<I: IntType> Parsable<'_, I> for Null {
 	}
 }
 
-impl<'e, I: IntType> ToBoolean<'e, I> for Null {
+impl<'e, I> ToBoolean<'e, I> for Null {
 	/// Simple returns `false`.
 	#[inline]
 	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Boolean> {
@@ -44,7 +44,7 @@ impl<'e, I: IntType> ToBoolean<'e, I> for Null {
 	}
 }
 
-impl<'e, I: IntType> ToInteger<'e, I> for Null {
+impl<'e, I: Default> ToInteger<'e, I> for Null {
 	/// Simple returns zero.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Integer<I>> {
@@ -52,7 +52,7 @@ impl<'e, I: IntType> ToInteger<'e, I> for Null {
 	}
 }
 
-impl<'e, I: IntType> ToList<'e, I> for Null {
+impl<'e, I> ToList<'e, I> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
 	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
@@ -60,7 +60,7 @@ impl<'e, I: IntType> ToList<'e, I> for Null {
 	}
 }
 
-impl<'e, I: IntType> ToText<'e, I> for Null {
+impl<'e, I> ToText<'e, I> for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
 	fn to_text(&self, _: &mut Environment<'e, I>) -> Result<Text> {

@@ -8,7 +8,7 @@ use crate::{env::Variable, value::Text};
 pub trait Stdout: Write + MaybeSendSync {}
 impl<T: Write + MaybeSendSync> Stdout for T {}
 
-pub struct Output<'e, I: IntType> {
+pub struct Output<'e, I> {
 	default: Box<dyn Stdout + 'e>,
 
 	_pd: std::marker::PhantomData<I>,

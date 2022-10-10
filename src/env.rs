@@ -26,7 +26,7 @@ type System<'e> =
 type ReadFile<'e> = dyn FnMut(&TextSlice, &Flags) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment<'e, I: IntType> {
+pub struct Environment<'e, I> {
 	flags: Flags,
 	variables: HashSet<Variable<'e, I>>,
 	prompt: Prompt<'e, I>,
@@ -73,7 +73,8 @@ impl<'e, I: IntType> Environment<'e, I> {
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e, I>> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
-
+}
+impl<'e, I> Environment<'e, I> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
 	pub fn flags(&self) -> &Flags {
@@ -97,7 +98,9 @@ impl<'e, I: IntType> Environment<'e, I> {
 	pub fn prompt(&mut self) -> &mut Prompt<'e, I> {
 		&mut self.prompt
 	}
+}
 
+impl<'e, I: IntType> Environment<'e, I> {
 	pub fn read_line(&mut self) -> Result<Option<Text>> {
 		self.prompt.read_line(&self.flags)?.get(self)
 	}

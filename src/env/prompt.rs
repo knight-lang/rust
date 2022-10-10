@@ -14,7 +14,7 @@ use {
 pub trait Stdin: BufRead + crate::containers::MaybeSendSync {}
 impl<T: BufRead + crate::containers::MaybeSendSync> Stdin for T {}
 
-pub struct Prompt<'e, I: IntType> {
+pub struct Prompt<'e, I> {
 	default: Box<dyn Stdin + 'e>,
 	_pd: std::marker::PhantomData<I>,
 
@@ -35,7 +35,7 @@ impl<I: IntType> Default for Prompt<'_, I> {
 }
 
 #[cfg(feature = "extensions")]
-enum PromptReplacement<'e, I: IntType> {
+enum PromptReplacement<'e, I> {
 	Closed,
 	Buffered(VecDeque<Text>),
 	Computed(Ast<'e, I>),

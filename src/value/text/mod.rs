@@ -3,7 +3,7 @@ mod character;
 mod text;
 mod textslice;
 
-pub trait ToText<'e, I: crate::value::IntType> {
+pub trait ToText<'e, I> {
 	fn to_text(&self, env: &mut crate::Environment<'e, I>) -> crate::Result<Text>;
 }
 

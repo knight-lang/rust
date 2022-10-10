@@ -177,13 +177,13 @@ impl<'a> IntoIterator for &'a TextSlice {
 	}
 }
 
-impl<'e, I: IntType> ToBoolean<'e, I> for Text {
+impl<'e, I> ToBoolean<'e, I> for Text {
 	fn to_boolean(&self, _: &mut Environment<'e, I>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<'e, I: IntType> ToText<'e, I> for Text {
+impl<'e, I> ToText<'e, I> for Text {
 	fn to_text(&self, _: &mut Environment<'e, I>) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
@@ -199,7 +199,7 @@ impl<'e, I: IntType> ToInteger<'e, I> for Text {
 	}
 }
 
-impl<'e, I: crate::value::integer::IntType> ToList<'e, I> for Text {
+impl<'e, I> ToList<'e, I> for Text {
 	fn to_list(&self, _: &mut Environment<'e, I>) -> crate::Result<List<'e, I>> {
 		let chars = self.chars().map(Value::from).collect::<Vec<_>>();
 

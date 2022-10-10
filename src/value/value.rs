@@ -6,11 +6,11 @@ use crate::value::{
 };
 use crate::{Ast, Error, Result, Variable};
 use std::cmp::Ordering;
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// A Value within Knight.
 #[derive(Default, Clone, PartialEq)]
-pub enum Value<'e, I: IntType> {
+pub enum Value<'e, I> {
 	#[default]
 	/// Represents the `NULL` value.
 	Null,
@@ -42,7 +42,7 @@ pub enum Value<'e, I: IntType> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_>: Send, Sync);
 
-impl<I: IntType> Debug for Value<'_, I> {
+impl<I: Debug> Debug for Value<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Null => Debug::fmt(&Null, f),
@@ -59,56 +59,56 @@ impl<I: IntType> Debug for Value<'_, I> {
 	}
 }
 
-impl<I: IntType> From<Null> for Value<'_, I> {
+impl<I> From<Null> for Value<'_, I> {
 	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl<I: IntType> From<Boolean> for Value<'_, I> {
+impl<I> From<Boolean> for Value<'_, I> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl<I: IntType> From<Integer<I>> for Value<'_, I> {
+impl<I> From<Integer<I>> for Value<'_, I> {
 	#[inline]
 	fn from(integer: Integer<I>) -> Self {
 		Self::Integer(integer)
 	}
 }
 
-impl<I: IntType> From<Text> for Value<'_, I> {
+impl<I> From<Text> for Value<'_, I> {
 	#[inline]
 	fn from(text: Text) -> Self {
 		Self::Text(text)
 	}
 }
 
-impl<I: IntType> From<Character> for Value<'_, I> {
+impl<I> From<Character> for Value<'_, I> {
 	#[inline]
 	fn from(character: Character) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
 
-impl<'e, I: IntType> From<Variable<'e, I>> for Value<'e, I> {
+impl<'e, I> From<Variable<'e, I>> for Value<'e, I> {
 	#[inline]
 	fn from(variable: Variable<'e, I>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl<'e, I: IntType> From<Ast<'e, I>> for Value<'e, I> {
+impl<'e, I> From<Ast<'e, I>> for Value<'e, I> {
 	#[inline]
 	fn from(inp: Ast<'e, I>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl<'e, I: IntType> From<List<'e, I>> for Value<'e, I> {
+impl<'e, I> From<List<'e, I>> for Value<'e, I> {
 	#[inline]
 	fn from(list: List<'e, I>) -> Self {
 		Self::List(list)
@@ -116,14 +116,14 @@ impl<'e, I: IntType> From<List<'e, I>> for Value<'e, I> {
 }
 
 #[cfg(feature = "custom-types")]
-impl<'e, I: IntType> From<crate::value::Custom<'e>> for Value<'e, I> {
+impl<'e, I> From<crate::value::Custom<'e>> for Value<'e, I> {
 	#[inline]
 	fn from(custom: crate::value::Custom<'e>) -> Self {
 		Self::Custom(custom)
 	}
 }
 
-impl<I: IntType> Value<'_, I> {
+impl<I> Value<'_, I> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub fn typename(&self) -> &'static str {
@@ -175,12 +175,12 @@ impl<'e, I: IntType> ToInteger<'e, I> for Value<'e, I> {
 	}
 }
 
-impl<'e, I: IntType> ToText<'e, I> for Value<'e, I> {
+impl<'e, I: Display> ToText<'e, I> for Value<'e, I> {
 	fn to_text(&self, env: &mut Environment<'e, I>) -> Result<Text> {
 		match *self {
 			Self::Null => Null.to_text(env),
 			Self::Boolean(boolean) => boolean.to_text(env),
-			Self::Integer(integer) => integer.to_text(env),
+			Self::Integer(ref integer) => integer.to_text(env),
 			Self::Text(ref text) => text.to_text(env),
 			Self::List(ref list) => list.to_text(env),
 

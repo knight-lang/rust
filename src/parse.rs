@@ -16,7 +16,7 @@ pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'e, I: IntType> {
+pub struct Parser<'s, 'e, I> {
 	source: &'s TextSlice,
 	env: &'s mut Environment<'e, I>,
 	line: usize,

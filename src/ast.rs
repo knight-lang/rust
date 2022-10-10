@@ -3,24 +3,29 @@ use crate::value::{integer::IntType, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 
 /// [`Ast`]s represent functions and their arguments.
-#[derive(Debug, Clone)]
-pub struct Ast<'e, I: IntType>(RefCount<Inner<'e, I>>);
+#[derive(Debug)]
+pub struct Ast<'e, I>(RefCount<Inner<'e, I>>);
+impl<I> Clone for Ast<'_, I> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
 
 #[derive(Debug)]
-struct Inner<'e, I: IntType> {
+struct Inner<'e, I> {
 	function: Function<'e, I>,
 	args: Box<[Value<'e, I>]>,
 }
 
-impl<I: IntType> Eq for Ast<'_, I> {}
-impl<I: IntType> PartialEq for Ast<'_, I> {
+impl<I> Eq for Ast<'_, I> {}
+impl<I> PartialEq for Ast<'_, I> {
 	/// Two `Ast`s are equal only if they point to the exact same data.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I: IntType> crate::value::NamedType for Ast<'_, I> {
+impl<I> crate::value::NamedType for Ast<'_, I> {
 	const TYPENAME: &'static str = "Ast";
 }
 

@@ -15,50 +15,51 @@ use std::hash::{Hash, Hasher};
 use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
-#[derive(Clone)]
-pub struct Function<'a, I: IntType>(RefCount<Inner<'a, I>>);
+pub struct Function<'a, I>(RefCount<Inner<'a, I>>);
+impl<I> Clone for Function<'_, I> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
 
-struct Inner<'a, I: IntType> {
+struct Inner<'a, I> {
 	func: FnType<I>,
 	full_name: &'a TextSlice,
 	short_name: Option<Character>,
 	arity: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtensionFunction<'a, I: IntType>(pub Function<'a, I>);
-
 type AllocFn<I> = dyn for<'e> Fn(&[Value<'e, I>], &mut Environment<'e, I>) -> Result<Value<'e, I>>
 	+ Send
 	+ Sync
 	+ 'static;
 
-pub enum FnType<I: IntType> {
+pub enum FnType<I> {
 	FnPtr(for<'e> fn(&[Value<'e, I>], &mut Environment<'e, I>) -> Result<Value<'e, I>>),
 	Alloc(Box<AllocFn<I>>),
 }
 
-impl<I: IntType> Eq for Function<'_, I> {}
-impl<I: IntType> PartialEq for Function<'_, I> {
+impl<I> Eq for Function<'_, I> {}
+impl<I> PartialEq for Function<'_, I> {
 	/// Functions are only equal if they're identical.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I: IntType> Hash for Function<'_, I> {
+impl<I> Hash for Function<'_, I> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.short_name().expect("<invalid function>").hash(state)
 	}
 }
 
-impl<I: IntType> Borrow<Character> for Function<'_, I> {
+impl<I> Borrow<Character> for Function<'_, I> {
 	fn borrow(&self) -> &Character {
 		self.0.short_name.as_ref().expect("<invalid function>")
 	}
 }
 
-impl<I: IntType> Debug for Function<'_, I> {
+impl<I> Debug for Function<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Function")
@@ -68,6 +69,33 @@ impl<I: IntType> Debug for Function<'_, I> {
 				.finish()
 		} else {
 			f.debug_tuple("Function").field(&self.full_name()).finish()
+		}
+	}
+}
+
+pub struct ExtensionFunction<'a, I>(pub Function<'a, I>);
+impl<I> Clone for ExtensionFunction<'_, I> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
+
+impl<I> Eq for ExtensionFunction<'_, I> {}
+impl<I> PartialEq for ExtensionFunction<'_, I> {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.0 == rhs.0
+	}
+}
+impl<I: IntType> Debug for ExtensionFunction<'_, I> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		if f.alternate() {
+			f.debug_struct("ExtensionFunction")
+				.field("name", &self.0.full_name())
+				.field("arity", &self.0.arity())
+				// .field("fnptr", &(self.func.0 as usize as *const ()))
+				.finish()
+		} else {
+			f.debug_tuple("ExtensionFunction").field(&self.0.full_name()).finish()
 		}
 	}
 }
@@ -115,7 +143,7 @@ impl<'e, I: IntType> Parsable<'e, I> for Function<'e, I> {
 	}
 }
 
-impl<'a, I: IntType> Function<'a, I> {
+impl<'a, I> Function<'a, I> {
 	// #[must_use]
 	// pub const fn new_const(full_name: &'a TextSlice, arity: usize, func: FnType) -> Self {
 	// 	Self {
@@ -165,7 +193,9 @@ impl<'a, I: IntType> Function<'a, I> {
 	pub fn arity(&self) -> usize {
 		self.0.arity
 	}
+}
 
+impl<'a, I: IntType> Function<'a, I> {
 	/// Executes this function
 	pub fn run<'e>(
 		&self,

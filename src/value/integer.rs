@@ -23,7 +23,7 @@ use std::str::FromStr;
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Integer<I: IntType>(I);
+pub struct Integer<I>(I);
 
 pub trait IntType:
 	Default
@@ -106,26 +106,26 @@ impl IntType for i32 {
 }
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger<'e, I: IntType> {
+pub trait ToInteger<'e, I> {
 	/// Converts `self` to an [`Integer`].
 	fn to_integer(&self, env: &mut Environment<'e, I>) -> Result<Integer<I>>;
 }
 
-impl<I: IntType> Debug for Integer<I> {
+impl<I: Debug> Debug for Integer<I> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
 
-impl<I: IntType> Display for Integer<I> {
+impl<I: Display> Display for Integer<I> {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl<I: IntType> NamedType for Integer<I> {
+impl<I> NamedType for Integer<I> {
 	const TYPENAME: &'static str = "Integer";
 }
 
@@ -443,7 +443,7 @@ impl<I: IntType> Parsable<'_, I> for Integer<I> {
 	}
 }
 
-impl<'e, I: IntType> ToInteger<'e, I> for Integer<I> {
+impl<'e, I: Clone> ToInteger<'e, I> for Integer<I> {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Self> {
@@ -459,7 +459,7 @@ impl<'e, I: IntType> ToBoolean<'e, I> for Integer<I> {
 	}
 }
 
-impl<'e, I: IntType> ToText<'e, I> for Integer<I> {
+impl<'e, I: Display> ToText<'e, I> for Integer<I> {
 	/// Returns a string representation of `self`.
 	#[inline]
 	fn to_text(&self, env: &mut Environment<'e, I>) -> Result<Text> {
