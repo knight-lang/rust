@@ -45,6 +45,7 @@ pub struct ExtensionFlags {
 	pub boolean: bool,
 	pub list: bool,
 	pub text: bool,
+	pub integer: bool,
 	pub list_literal: bool,
 	pub negative_ranges: bool,
 }

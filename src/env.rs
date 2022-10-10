@@ -1,11 +1,11 @@
-use crate::parse::Parser;
+use crate::parse::{ParseFn, Parser};
 use crate::value::text::Character;
 use crate::value::Runnable;
-#[cfg(feature = "extensions")]
-use crate::value::Text;
 use crate::{Function, Integer, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::{HashMap, HashSet};
+#[cfg(feature = "extensions")]
+use {crate::value::Text, std::rc::Rc};
 
 mod builder;
 pub mod flags;
@@ -24,8 +24,6 @@ type System<'e> = dyn FnMut(&TextSlice, Option<&TextSlice>) -> Result<Text> + 'e
 #[cfg(feature = "extensions")]
 type ReadFile<'e> = dyn FnMut(&TextSlice) -> Result<Text> + 'e + Send + Sync;
 
-pub type ParseFn<'e> = dyn for<'s> FnMut(&mut Parser<'s, 'e>) -> Result<Option<Value<'e>>>;
-
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e> {
 	flags: Flags,
@@ -36,8 +34,10 @@ pub struct Environment<'e> {
 	prompt: Prompt<'e>,
 	output: Output<'e>,
 	functions: HashMap<Character, &'e Function>,
-	parsers: Vec<Box<ParseFn<'e>>>,
 	rng: StdRng,
+
+	#[cfg(feature = "extensions")]
+	parsers: Vec<Rc<ParseFn<'e>>>,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashMap<Text, &'e Function>,
@@ -78,6 +78,11 @@ impl<'e> Environment<'e> {
 
 	pub fn functions(&self) -> &HashMap<Character, &'e Function> {
 		&self.functions
+	}
+
+	#[cfg(feature = "extensions")]
+	pub fn parsers(&self) -> &[Rc<ParseFn<'e>>] {
+		&self.parsers
 	}
 
 	pub fn prompt(&mut self) -> &mut Prompt<'e> {
@@ -125,12 +130,6 @@ impl<'e> Environment<'e> {
 	#[cfg(feature = "extensions")]
 	pub fn extensions(&self) -> &HashMap<Text, &'e Function> {
 		&self.extensions
-	}
-
-	/// Gets a mutable list of known extension functions, so you can add to them.
-	#[cfg(feature = "extensions")]
-	pub fn extensions_mut(&mut self) -> &mut HashMap<Text, &'e Function> {
-		&mut self.extensions
 	}
 
 	#[cfg(feature = "extensions")]

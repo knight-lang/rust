@@ -3,6 +3,7 @@ use crate::text::{Character, Text, TextSlice};
 use crate::value::{Integer, List, Value};
 use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
+use std::rc::Rc;
 
 /// A type that handles parsing source code.
 #[must_use]
@@ -15,10 +16,47 @@ pub struct Parser<'s, 'e> {
 /// A trait that indicates that something can be parsed.
 pub trait Parsable<'s, 'e>: Sized {
 	fn parse(parser: &mut Parser<'s, 'e>) -> Result<Option<Self>>;
+
+	// fn parse_fn() -> Rc<ParseFn<'e>>
+	// where
+	// 	Value<'e>: From<Self>,
+	// 	'e: 's,
+	// {
+	// 	Rc::new(|parser: &mut Parser<'_, 'e>| Ok(Self::parse(parser)?.map(Value::from))) as _
+	// }
 }
 
-pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Box<crate::env::ParseFn<'e>>> {
-	vec![]
+pub type ParseFn<'e> = dyn Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>>;
+
+pub(crate) fn default<'e>(flags: &crate::env::Flags) -> Vec<Rc<ParseFn<'e>>> {
+	let _ = flags;
+
+	let mut parsers = Vec::<Rc<ParseFn>>::new();
+
+	parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| {
+		parser.strip_whitespace_and_comments();
+		Ok(None)
+	}));
+
+	parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| {
+		if parser.advance_if('(').is_some() {
+			parser.parse_grouped_expression().map(Some)
+		} else if parser.advance_if(')').is_some() {
+			Err(parser.error(ErrorKind::UnmatchedRightParen))
+		} else {
+			Ok(None)
+		}
+	}));
+
+	macro_rules! parsers {
+		($($ty:ty),*) => {
+			$(parsers.push(Rc::new(|parser: &mut Parser<'_, 'e>| Ok(<$ty>::parse(parser)?.map(Value::from))) as _);)*
+		};
+	}
+
+	parsers!(Integer, Text, Variable, crate::value::Boolean, crate::value::Null, List, Ast);
+
+	parsers
 }
 
 /// A type that represents errors that happen during parsing.
@@ -265,25 +303,13 @@ impl<'s, 'e> Parser<'s, 'e> {
 	}
 
 	pub fn parse_expression(&mut self) -> Result<Value<'e>> {
-		self.strip_whitespace_and_comments();
-
-		if self.advance_if('(').is_some() {
-			return self.parse_grouped_expression();
+		let mut i = 0;
+		while i < self.env.parsers().len() {
+			if let Some(tmp) = self.env.parsers()[i].clone()(self)? {
+				return Ok(tmp);
+			}
+			i += 1;
 		}
-
-		if self.advance_if(')').is_some() {
-			return Err(self.error(ErrorKind::UnmatchedRightParen));
-		}
-
-		macro_rules! try_parse {
-			($($ty:ty),*) => {
-				$(if let Some(tmp) = <$ty>::parse(self)? {
-					return Ok(tmp.into());
-				})*
-			};
-		}
-
-		try_parse!(Integer, Text, Variable, crate::value::Boolean, crate::value::Null, List, Ast);
 
 		Err(
 			self

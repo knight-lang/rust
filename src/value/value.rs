@@ -237,7 +237,7 @@ impl<'e> Value<'e> {
 			Self::Text(text) => text.head().ok_or(Error::DomainError("empty text")).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Integer(integer) => Ok(integer.head().into()),
+			Self::Integer(integer) if _env.flags().exts.integer => Ok(integer.head().into()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.head(_env),
@@ -252,7 +252,7 @@ impl<'e> Value<'e> {
 			Self::Text(text) => text.tail().ok_or(Error::DomainError("empty text")).map(Self::from),
 
 			#[cfg(feature = "extensions")]
-			Self::Integer(integer) => Ok(integer.tail().into()),
+			Self::Integer(integer) if _env.flags().exts.integer => Ok(integer.tail().into()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.tail(_env),
