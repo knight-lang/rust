@@ -31,46 +31,46 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		todo!();
 	}
 
-	fn run(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn run(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		let _ = env;
 		Ok(this.clone().into())
 	}
 
-	fn to_text(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Text> {
+	fn to_text(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Text> {
 		let _ = (this, env);
 		Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() })
 	}
 
-	fn to_integer(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Integer> {
+	fn to_integer(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Integer> {
 		let _ = (this, env);
 		Err(Error::NoConversion { to: Integer::TYPENAME, from: self.typename() })
 	}
 
-	fn to_boolean(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Boolean> {
+	fn to_boolean(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Boolean> {
 		let _ = (this, env);
 		Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() })
 	}
 
-	fn to_list(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<List<'e>> {
+	fn to_list(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<List<'e>> {
 		let _ = (this, env);
 		Err(Error::NoConversion { to: List::TYPENAME, from: self.typename() })
 	}
 
-	fn head(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn head(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "["))
 	}
 
-	fn tail(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn tail(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "]"))
 	}
 
-	fn length(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn length(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		Integer::try_from(self.to_list(this, env)?.len()).map(Value::from)
 	}
 
-	fn ascii(&self, this: &Custom<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn ascii(&self, this: &Custom<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		let _ = (this, env);
 		Err(Error::TypeError(self.typename(), "ASCII"))
 	}
@@ -79,7 +79,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "+"))
@@ -89,7 +89,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "-"))
@@ -99,7 +99,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "*"))
@@ -109,7 +109,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "/"))
@@ -119,7 +119,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "%"))
@@ -129,7 +129,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "^"))
@@ -139,13 +139,13 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		&self,
 		this: &Custom<'e>,
 		rhs: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Ordering> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "<cmp>"))
 	}
 
-	fn assign(&self, this: &Custom<'e>, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
+	fn assign(&self, this: &Custom<'e>, rhs: Value<'e>, env: &mut Environment<'e, I>) -> Result<()> {
 		let _ = (this, rhs, env);
 		Err(Error::TypeError(self.typename(), "ASSIGN"))
 	}
@@ -155,7 +155,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		this: &Custom<'e>,
 		start: usize,
 		len: usize,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, start, len, env);
 		Err(Error::TypeError(self.typename(), "GET"))
@@ -167,7 +167,7 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 		start: usize,
 		len: usize,
 		replacement: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		let _ = (this, start, len, replacement, env);
 		Err(Error::TypeError(self.typename(), "GET"))
@@ -175,31 +175,31 @@ pub trait CustomType<'e>: std::fmt::Debug + MaybeSendSync {
 }
 
 impl<'e> ToText<'e> for Custom<'e> {
-	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
+	fn to_text(&self, env: &mut Environment<'e, I>) -> Result<Text> {
 		self.0.to_text(self, env)
 	}
 }
 
 impl<'e, I: crate::value::integer::IntType> ToInteger<'e, I> for Custom<'e> {
-	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>> {
+	fn to_integer(&self, env: &mut Environment<'e, I>) -> Result<Integer<I>> {
 		self.0.to_integer(self, env)
 	}
 }
 
 impl<'e> ToBoolean<'e> for Custom<'e> {
-	fn to_boolean(&self, env: &mut Environment<'e>) -> Result<Boolean> {
+	fn to_boolean(&self, env: &mut Environment<'e, I>) -> Result<Boolean> {
 		self.0.to_boolean(self, env)
 	}
 }
 
 impl<'e> ToList<'e> for Custom<'e> {
-	fn to_list(&self, env: &mut Environment<'e>) -> Result<List<'e>> {
+	fn to_list(&self, env: &mut Environment<'e, I>) -> Result<List<'e>> {
 		self.0.to_list(self, env)
 	}
 }
 
 impl<'e> Runnable<'e> for Custom<'e> {
-	fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn run(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.run(self, env)
 	}
 }
@@ -209,59 +209,59 @@ impl<'e> Custom<'e> {
 		self.0.typename()
 	}
 
-	pub fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn run(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.run(self, env)
 	}
 
-	pub fn head(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn head(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.head(self, env)
 	}
 
-	pub fn tail(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn tail(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.tail(self, env)
 	}
 
-	pub fn length(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn length(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.length(self, env)
 	}
 
-	pub fn ascii(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn ascii(&self, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.ascii(self, env)
 	}
 
-	pub fn add(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn add(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.add(self, rhs, env)
 	}
 
-	pub fn subtract(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn subtract(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.subtract(self, rhs, env)
 	}
 
-	pub fn multiply(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn multiply(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.multiply(self, rhs, env)
 	}
 
-	pub fn divide(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn divide(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.divide(self, rhs, env)
 	}
 
-	pub fn remainder(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn remainder(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.remainder(self, rhs, env)
 	}
 
-	pub fn power(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn power(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.power(self, rhs, env)
 	}
 
-	pub fn compare(&self, rhs: &Value<'e>, env: &mut Environment<'e>) -> Result<Ordering> {
+	pub fn compare(&self, rhs: &Value<'e>, env: &mut Environment<'e, I>) -> Result<Ordering> {
 		self.0.compare(self, rhs, env)
 	}
 
-	pub fn assign(&self, rhs: Value<'e>, env: &mut Environment<'e>) -> Result<()> {
+	pub fn assign(&self, rhs: Value<'e>, env: &mut Environment<'e, I>) -> Result<()> {
 		self.0.assign(self, rhs, env)
 	}
 
-	pub fn get(&self, start: usize, len: usize, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn get(&self, start: usize, len: usize, env: &mut Environment<'e, I>) -> Result<Value<'e>> {
 		self.0.get(self, start, len, env)
 	}
 
@@ -270,7 +270,7 @@ impl<'e> Custom<'e> {
 		start: usize,
 		len: usize,
 		replacement: &Value<'e>,
-		env: &mut Environment<'e>,
+		env: &mut Environment<'e, I>,
 	) -> Result<Value<'e>> {
 		self.0.set(self, start, len, replacement, env)
 	}

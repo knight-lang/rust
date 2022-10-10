@@ -3,6 +3,7 @@ use crate::value::text::Character;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Environment, Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
+use std::str::FromStr;
 
 /// The integer type within Knight.
 ///
@@ -22,7 +23,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
 /// an operation would overflow.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Integer<I: IntType = Inner>(I);
+pub struct Integer<I: IntType>(I);
 
 pub trait IntType:
 	Default
@@ -34,18 +35,23 @@ pub trait IntType:
 	+ std::hash::Hash
 	+ From<i32>
 	+ Into<i64>
+	+ FromStr
 	+ TryInto<i32>
 	+ TryFrom<i64>
 	+ TryFrom<usize>
+	+ 'static
 {
 	const ZERO: Self;
 	const ONE: Self;
 
+	fn log10(self) -> usize;
 	fn negate(self) -> Result<Self>;
 	fn add(self, rhs: Self) -> Result<Self>;
 	fn subtract(self, rhs: Self) -> Result<Self>;
 	fn multiply(self, rhs: Self) -> Result<Self>;
 	fn divide(self, rhs: Self) -> Result<Self>;
+	fn remainder(self, rhs: Self) -> Result<Self>;
+	fn power(self, rhs: u32) -> Result<Self>;
 }
 
 #[rustfmt::skip]
@@ -53,11 +59,25 @@ impl IntType for i64 {
 	const ZERO: Self = 0;
 	const ONE: Self = 1;
 
+	fn log10(mut self) -> usize {
+		// TODO: integer base10 when that comes out.
+		let mut log = 0;
+		while self != 0 {
+			log += 1;
+			self /= 10;
+		}
+
+		log
+	}
+
 	fn negate(self) -> Result<Self> { Ok(-self) }
 	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
 	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
 	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
 	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
+	fn remainder(self, rhs: Self) -> Result<Self> { Ok(self % rhs) }
+	fn power(self, rhs: u32) -> Result<Self> { Ok(self.wrapping_pow(rhs)) }
+
 }
 
 #[rustfmt::skip]
@@ -65,25 +85,30 @@ impl IntType for i32 {
 	const ZERO: Self = 0;
 	const ONE: Self = 1;
 
+	fn log10(mut self) -> usize {
+		// TODO: integer base10 when that comes out.
+		let mut log = 0;
+		while self != 0 {
+			log += 1;
+			self /= 10;
+		}
+
+		log
+	}
+
 	fn negate(self) -> Result<Self> { Ok(-self) }
 	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
 	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
 	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
 	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
-}
-
-cfg_if! {
-	if #[cfg(feature = "small-integers")] {
-		type Inner = i32;
-	} else {
-		type Inner = i64;
-	}
+	fn remainder(self, rhs: Self) -> Result<Self> { Ok(self % rhs) }
+	fn power(self, rhs: u32) -> Result<Self> { Ok(self.wrapping_pow(rhs)) }
 }
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger<'e, I: IntType> {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>>;
+	fn to_integer(&self, env: &mut Environment<'e, I>) -> Result<Integer<I>>;
 }
 
 impl<I: IntType> Debug for Integer<I> {
@@ -105,12 +130,12 @@ impl<I: IntType> NamedType for Integer<I> {
 }
 
 impl<I: IntType> Integer<I> {
-	pub const ZERO: Self = Self(I::ZERO);
-	pub const ONE: Self = Self(I::ONE);
-
 	pub const fn new(int: I) -> Self {
 		Self(int)
 	}
+
+	pub const ZERO: Self = Self(I::ZERO);
+	pub const ONE: Self = Self(I::ONE);
 
 	/// Returns whether `self` is zero.
 	pub fn is_zero(self) -> bool {
@@ -122,34 +147,87 @@ impl<I: IntType> Integer<I> {
 		self.0 < I::ZERO
 	}
 
-	pub fn negate_(self) -> Result<Self> {
+	pub fn negate(self) -> Result<Self> {
 		self.0.negate().map(Self)
 	}
 
-	pub fn add_(self, rhs: Self) -> Result<Self> {
+	pub fn add(self, rhs: Self) -> Result<Self> {
 		self.0.add(rhs.0).map(Self)
 	}
-	pub fn subtract_(self, rhs: Self) -> Result<Self> {
+	pub fn subtract(self, rhs: Self) -> Result<Self> {
 		self.0.subtract(rhs.0).map(Self)
 	}
-	pub fn multiply_(self, rhs: Self) -> Result<Self> {
+	pub fn multiply(self, rhs: Self) -> Result<Self> {
 		self.0.multiply(rhs.0).map(Self)
 	}
-	pub fn divide_(self, rhs: Self) -> Result<Self> {
+	pub fn divide(self, rhs: Self) -> Result<Self> {
+		if rhs.is_zero() {
+			return Err(Error::DivisionByZero);
+		}
+
 		self.0.divide(rhs.0).map(Self)
 	}
-}
 
-impl Integer {
-	/// The maximum value for `Integer`s.
-	pub const MAX: Self = Self(Inner::MAX);
+	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
+		if base.is_zero() {
+			return Err(Error::DivisionByZero);
+		}
 
-	/// The minimum value for `Integer`s.
-	pub const MIN: Self = Self(Inner::MIN);
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_integer_function_bounds {
+			if self.is_negative() {
+				return Err(Error::DomainError("remainder with a negative number"));
+			}
+
+			if base.is_negative() {
+				return Err(Error::DomainError("remainder by a negative base"));
+			}
+		}
+
+		let _ = flags;
+		self.0.remainder(base.0).map(Self)
+	}
+	pub fn power(self, mut exponent: Self, flags: &crate::env::Flags) -> Result<Self> {
+		if exponent.is_negative() {
+			match self.0.into() {
+				#[cfg(feature = "compliance")]
+				_ if flags.compliance.check_integer_function_bounds => {
+					return Err(Error::DomainError("negative exponent"))
+				}
+				-1 => exponent = exponent.negate()?,
+				0 => return Err(Error::DivisionByZero),
+				1 => return Ok(Self::ONE),
+				_ => return Ok(Self::ZERO),
+			}
+		}
+
+		if exponent.is_zero() {
+			return Ok(Self::ONE);
+		}
+
+		if self.is_zero() || self == Self::ONE {
+			return Ok(self);
+		}
+
+		// FIXME: you could probably optimize this.
+		#[allow(unused_mut)]
+		let mut exp = exponent.0.into() as u32;
+
+		#[cfg(feature = "compliance")]
+		if flags.compliance.check_integer_function_bounds {
+			exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
+		}
+
+		let _ = flags;
+		self.0.power(exp).map(Self)
+	}
+	pub fn log10(self) -> usize {
+		self.0.log10()
+	}
 
 	/// Attempts to interpret `self` as a Unicode codepoint.
 	pub fn chr(self, flags: &crate::env::Flags) -> Result<Character> {
-		u32::try_from(self.0)
+		u32::try_from(self.0.into())
 			.ok()
 			.and_then(char::from_u32)
 			.and_then(|c| Character::new(c, flags))
@@ -157,42 +235,47 @@ impl Integer {
 	}
 
 	pub fn head(self) -> Self {
-		let mut n = self.0;
-		while 10 <= n.abs() {
-			n /= 10;
-		}
-		Self(n)
+		todo!()
+
+		// let mut n = self.0;
+		// while 10 <= n.abs() {
+		// 	n /= 10;
+		// }
+		// Self(n)
 	}
 
 	pub fn tail(self) -> Self {
-		Self(self.0 % 10)
-	}
-
-	pub fn log10(self) -> usize {
-		// TODO: integer base10 when that comes out.
-		let mut log = 0;
-		let mut n = self.0;
-
-		while n != 0 {
-			log += 1;
-			n /= 10;
-		}
-
-		log
+		// Self(self.0 % 10)
+		todo!()
 	}
 
 	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &crate::env::Flags) -> Self {
 		#[allow(unused_mut)]
-		let mut rand = rng.gen::<Inner>().abs();
+		let mut rand = rng.gen::<i64>().abs();
 
 		#[cfg(feature = "compliance")]
 		if flags.compliance.limit_rand_range {
 			rand &= 0x7fff;
 		}
 
-		let _ = flags;
-		Self(rand)
+		// jank and needs to be fixed
+		Self(rand.try_into().unwrap_or_else(|_| {
+			let mut x = I::from(rand as i32);
+			if x < I::ZERO {
+				x = x.negate().unwrap_or_default();
+			}
+			x
+		}))
 	}
+}
+
+#[cfg(any())]
+impl Integer {
+	// /// The maximum value for `Integer`s.
+	// pub const MAX: Self = Self(Inner::MAX);
+
+	// /// The minimum value for `Integer`s.
+	// pub const MIN: Self = Self(Inner::MIN);
 
 	/// Negates `self`.
 	///
@@ -345,10 +428,10 @@ impl Integer {
 	}
 }
 
-impl<I: IntType> Parsable<'_> for Integer<I> {
+impl<I: IntType> Parsable<'_, I> for Integer<I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		let Some(source) = parser.take_while(Character::is_numeric) else {
 			return Ok(None);
 		};
@@ -363,43 +446,41 @@ impl<I: IntType> Parsable<'_> for Integer<I> {
 impl<'e, I: IntType> ToInteger<'e, I> for Integer<I> {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Self> {
-		Ok(*self)
+	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Self> {
+		Ok(self.clone())
 	}
 }
 
-impl<'e, I: IntType> ToBoolean<'e> for Integer<I> {
+impl<'e, I: IntType> ToBoolean<'e, I> for Integer<I> {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
 }
 
-impl<'e, I: IntType> ToText<'e> for Integer<I> {
+impl<'e, I: IntType> ToText<'e, I> for Integer<I> {
 	/// Returns a string representation of `self`.
 	#[inline]
-	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
-		// SAFETY: Digits and `-` are both within knight encoding, and `Integer`s aren't 2.7 billion
-		// digits long.
-		Ok(unsafe { Text::new_unchecked(*self) })
+	fn to_text(&self, env: &mut Environment<'e, I>) -> Result<Text> {
+		Ok(Text::new(self, env.flags()).expect("`to_text for Integer failed?`"))
 	}
 }
 
-impl<'e> ToList<'e> for Integer {
+impl<'e, I: IntType> ToList<'e, I> for Integer<I> {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self, _: &mut Environment<'e>) -> Result<List<'e>> {
+	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
 		if self.is_zero() {
-			return Ok(List::boxed((*self).into()));
+			return Ok(List::boxed(self.clone().into()));
 		}
 
-		let mut integer = self.0;
-
+		let mut integer: i64 = self.0.into();
 		let mut digits = Vec::with_capacity(self.log10());
+
 		while integer != 0 {
-			digits.insert(0, Self(integer % 10).into());
+			digits.insert(0, Self(I::from((integer % 10) as i32)).into());
 			integer /= 10;
 		}
 
@@ -409,32 +490,30 @@ impl<'e> ToList<'e> for Integer {
 	}
 }
 
-impl<I: IntType> std::str::FromStr for Integer<I> {
+impl<I: IntType> FromStr for Integer<I> {
 	type Err = Error;
 
-	fn from_str(inp: &str) -> Result<Self> {
-		let ten = Self::new(10.into());
+	fn from_str(source: &str) -> Result<Self> {
+		let source = source.trim_start();
 
-		let mut bytes = inp.trim_start().bytes();
-		let mut number = Self::ZERO;
-		let mut is_negative = false;
-
-		match bytes.next() {
-			Some(b'+') => {}
-			Some(b'-') => is_negative = true,
-			Some(digit @ b'0'..=b'9') => number = Self::new(((digit - b'0') as i32).into()),
-			_ => return Ok(Self::ZERO),
-		};
-
-		while let Some(digit @ b'0'..=b'9') = bytes.next() {
-			number = number.multiply_(ten)?.add_(Self::new(((digit - b'0') as i32).into()))?;
+		if source.is_empty() {
+			return Ok(Self::default());
 		}
 
-		if is_negative {
-			number = number.negate_()?;
+		let mut start = source;
+		if "+-".contains(source.as_bytes()[0] as char) {
+			let mut c = start.chars();
+			c.next();
+			start = c.as_str();
 		}
 
-		Ok(number)
+		if let Some(bad) = start.find(|c: char| !c.is_ascii_digit()) {
+			start = &source[..bad + (start != source) as usize];
+		} else if start != source {
+			start = source;
+		}
+
+		Ok(Self(I::from_str(start).unwrap_or_default()))
 	}
 }
 
@@ -479,7 +558,7 @@ macro_rules! impl_from_integer {
 impl_integer_from!(bool u8 u16 i8 i16 i32 ; u32 u64 u128 usize i64 i128 isize );
 impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
 
-impl TryFrom<char> for Integer {
+impl<I: IntType> TryFrom<char> for Integer<I> {
 	type Error = Error;
 
 	#[inline]
@@ -488,10 +567,10 @@ impl TryFrom<char> for Integer {
 	}
 }
 
-impl TryFrom<Integer> for char {
+impl<I: IntType> TryFrom<Integer<I>> for char {
 	type Error = Error;
 
-	fn try_from(int: Integer) -> Result<Self> {
+	fn try_from(int: Integer<I>) -> Result<Self> {
 		char::from_u32(u32::try_from(int)?).ok_or(Error::DomainError("integer isn't a char"))
 	}
 }

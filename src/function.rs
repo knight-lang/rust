@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
+use crate::value::integer::IntType;
 use crate::value::text::{Character, TextSlice};
 #[cfg(feature = "extensions")]
 use crate::value::Text;
@@ -15,47 +16,49 @@ use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
 #[derive(Clone)]
-pub struct Function<'a>(RefCount<Inner<'a>>);
+pub struct Function<'a, I: IntType>(RefCount<Inner<'a, I>>);
 
-struct Inner<'a> {
-	func: FnType,
+struct Inner<'a, I: IntType> {
+	func: FnType<I>,
 	full_name: &'a TextSlice,
 	short_name: Option<Character>,
 	arity: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtensionFunction<'a>(pub Function<'a>);
+pub struct ExtensionFunction<'a, I: IntType>(pub Function<'a, I>);
 
-type AllocFn =
-	dyn for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static;
+type AllocFn<I> = dyn for<'e> Fn(&[Value<'e, I>], &mut Environment<'e, I>) -> Result<Value<'e, I>>
+	+ Send
+	+ Sync
+	+ 'static;
 
-pub enum FnType {
-	FnPtr(for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>),
-	Alloc(Box<AllocFn>),
+pub enum FnType<I: IntType> {
+	FnPtr(for<'e> fn(&[Value<'e, I>], &mut Environment<'e, I>) -> Result<Value<'e, I>>),
+	Alloc(Box<AllocFn<I>>),
 }
 
-impl Eq for Function<'_> {}
-impl PartialEq for Function<'_> {
+impl<I: IntType> Eq for Function<'_, I> {}
+impl<I: IntType> PartialEq for Function<'_, I> {
 	/// Functions are only equal if they're identical.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl Hash for Function<'_> {
+impl<I: IntType> Hash for Function<'_, I> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.short_name().expect("<invalid function>").hash(state)
 	}
 }
 
-impl Borrow<Character> for Function<'_> {
+impl<I: IntType> Borrow<Character> for Function<'_, I> {
 	fn borrow(&self) -> &Character {
 		self.0.short_name.as_ref().expect("<invalid function>")
 	}
 }
 
-impl Debug for Function<'_> {
+impl<I: IntType> Debug for Function<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Function")
@@ -69,22 +72,22 @@ impl Debug for Function<'_> {
 	}
 }
 
-impl Hash for ExtensionFunction<'_> {
+impl<I: IntType> Hash for ExtensionFunction<'_, I> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.0 .0.full_name.hash(state)
 	}
 }
 
-impl Borrow<TextSlice> for ExtensionFunction<'_> {
+impl<I: IntType> Borrow<TextSlice> for ExtensionFunction<'_, I> {
 	fn borrow(&self) -> &TextSlice {
 		self.0 .0.full_name
 	}
 }
 
-impl<'e> Parsable<'e> for Function<'e> {
+impl<'e, I: IntType> Parsable<'e, I> for Function<'e, I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> parse::Result<Option<Self>> {
 		#[cfg(feature = "extensions")]
 		if parser.peek().map_or(false, |chr| chr == 'X') {
 			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
@@ -112,7 +115,7 @@ impl<'e> Parsable<'e> for Function<'e> {
 	}
 }
 
-impl<'a> Function<'a> {
+impl<'a, I: IntType> Function<'a, I> {
 	// #[must_use]
 	// pub const fn new_const(full_name: &'a TextSlice, arity: usize, func: FnType) -> Self {
 	// 	Self {
@@ -128,7 +131,7 @@ impl<'a> Function<'a> {
 	#[must_use]
 	pub fn new<F>(full_name: &'a TextSlice, arity: usize, func: F) -> Self
 	where
-		F: for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>
+		F: for<'e> Fn(&[Value<'e, I>], &mut Environment<'e, I>) -> Result<Value<'e, I>>
 			+ Send
 			+ Sync
 			+ 'static,
@@ -164,7 +167,11 @@ impl<'a> Function<'a> {
 	}
 
 	/// Executes this function
-	pub fn run<'e>(&self, args: &[Value<'e>], env: &mut Environment<'e>) -> Result<Value<'e>> {
+	pub fn run<'e>(
+		&self,
+		args: &[Value<'e, I>],
+		env: &mut Environment<'e, I>,
+	) -> Result<Value<'e, I>> {
 		debug_assert_eq!(args.len(), self.arity());
 
 		match self.0.func {
@@ -173,7 +180,7 @@ impl<'a> Function<'a> {
 		}
 	}
 
-	pub(crate) fn default_set(flags: &Flags) -> HashSet<Function<'a>> {
+	pub(crate) fn default_set(flags: &Flags) -> HashSet<Self> {
 		let mut map = HashSet::new();
 
 		macro_rules! insert {
@@ -206,8 +213,8 @@ impl<'a> Function<'a> {
 }
 
 #[cfg(feature = "extensions")]
-impl<'e> ExtensionFunction<'e> {
-	pub(crate) fn default_set(flags: &Flags) -> HashSet<ExtensionFunction<'e>> {
+impl<'e, I: IntType> ExtensionFunction<'e, I> {
+	pub(crate) fn default_set(flags: &Flags) -> HashSet<Self> {
 		let mut map = HashSet::new();
 
 		macro_rules! insert {
@@ -242,7 +249,7 @@ macro_rules! function {
 			short_name:
 			Some(unsafe { Character::new_unchecked(TextSlice::new_unchecked($name).as_str().as_bytes()[0] as char) }),
 			func: FnType::FnPtr(|args, $env| {
-				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
+				let [$($args,)*]: &[Value::<'_, I>; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body)
 			})
 		}))
@@ -257,14 +264,14 @@ macro_rules! xfunction {
 }
 
 /// **4.1.4**: `PROMPT`
-pub fn PROMPT<'e>() -> Function<'e> {
+pub fn PROMPT<'e, I: IntType>() -> Function<'e, I> {
 	function!("PROMPT", env, |/* comment for rustfmt */| {
 	env.read_line()?.map(Value::from).unwrap_or_default()
 })
 }
 
 /// **4.1.5**: `RANDOM`
-pub fn RANDOM<'e>() -> Function<'e> {
+pub fn RANDOM<'e, I: IntType>() -> Function<'e, I> {
 	function!("RANDOM", env, |/* comment for rustfmt */| {
 	// note that `env.random()` is seedable with `XSRAND`
 	env.random().into()
@@ -272,21 +279,21 @@ pub fn RANDOM<'e>() -> Function<'e> {
 }
 
 /// **4.2.2** `BOX`
-pub fn BOX<'e>() -> Function<'e> {
+pub fn BOX<'e, I: IntType>() -> Function<'e, I> {
 	function!(",", env, |val| {
 		// `boxed` is optimized over `vec![val.run(env)]`
 		List::boxed(val.run(env)?).into()
 	})
 }
 
-pub fn HEAD<'e>() -> Function<'e> {
+pub fn HEAD<'e, I: IntType>() -> Function<'e, I> {
 	function!("[", env, |val| {
 		// <comment for a single line>
 		val.run(env)?.head(env)?
 	})
 }
 
-pub fn TAIL<'e>() -> Function<'e> {
+pub fn TAIL<'e, I: IntType>() -> Function<'e, I> {
 	function!("]", env, |val| {
 		// <comment for a single line>
 		val.run(env)?.tail(env)?
@@ -294,7 +301,7 @@ pub fn TAIL<'e>() -> Function<'e> {
 }
 
 /// **4.2.3** `BLOCK`  
-pub fn BLOCK<'e>() -> Function<'e> {
+pub fn BLOCK<'e, I: IntType>() -> Function<'e, I> {
 	function!("BLOCK", env, |arg| {
 		// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
 		// Since this function normally just returns whatever it's argument is, it's impossible to
@@ -304,7 +311,7 @@ pub fn BLOCK<'e>() -> Function<'e> {
 		#[cfg(feature = "compliance")]
 		if env.flags().compliance.check_call_arg && !matches!(arg, Value::Ast(_)) {
 			// The NOOP function literally just runs its argument.
-			fn NOOP<'e>() -> Function<'e> {
+			fn NOOP<'e, I: IntType>() -> Function<'e, I> {
 				function!(":", env, |arg| {
 					debug_assert!(!matches!(arg, Value::Ast(_)));
 
@@ -321,7 +328,7 @@ pub fn BLOCK<'e>() -> Function<'e> {
 }
 
 /// **4.2.4** `CALL`  
-pub fn CALL<'e>() -> Function<'e> {
+pub fn CALL<'e, I: IntType>() -> Function<'e, I> {
 	function!("CALL", env, |arg| {
 		//
 		arg.run(env)?.call(env)?
@@ -329,10 +336,9 @@ pub fn CALL<'e>() -> Function<'e> {
 }
 
 /// **4.2.6** `QUIT`  
-pub fn QUIT<'e>() -> Function<'e> {
+pub fn QUIT<'e, I: IntType>() -> Function<'e, I> {
 	function!("QUIT", env, |arg| {
-		// let status = arg.run(env)?.to_integer(env)?;
-		let status = ToInteger::<i64>::to_integer(&arg.run(env)?, env)?;
+		let status = arg.run(env)?.to_integer(env)?;
 
 		match i32::try_from(status) {
 			Ok(status)
@@ -361,7 +367,7 @@ pub fn QUIT<'e>() -> Function<'e> {
 }
 
 /// **4.2.7** `!`  
-pub fn NOT<'e>() -> Function<'e> {
+pub fn NOT<'e, I: IntType>() -> Function<'e, I> {
 	function!("!", env, |arg| {
 		// <blank line so rustfmt doesnt wrap onto the prev line>
 		(!arg.run(env)?.to_boolean(env)?).into()
@@ -369,7 +375,7 @@ pub fn NOT<'e>() -> Function<'e> {
 }
 
 /// **4.2.8** `LENGTH`  
-pub fn LENGTH<'e>() -> Function<'e> {
+pub fn LENGTH<'e, I: IntType>() -> Function<'e, I> {
 	function!("LENGTH", env, |arg| {
 		//
 		arg.run(env)?.length(env)?
@@ -377,7 +383,7 @@ pub fn LENGTH<'e>() -> Function<'e> {
 }
 
 /// **4.2.9** `DUMP`  
-pub fn DUMP<'e>() -> Function<'e> {
+pub fn DUMP<'e, I: IntType>() -> Function<'e, I> {
 	function!("DUMP", env, |arg| {
 		let value = arg.run(env)?;
 		write!(env.output(), "{value:?}")?;
@@ -386,7 +392,7 @@ pub fn DUMP<'e>() -> Function<'e> {
 }
 
 /// **4.2.10** `OUTPUT`  
-pub fn OUTPUT<'e>() -> Function<'e> {
+pub fn OUTPUT<'e, I: IntType>() -> Function<'e, I> {
 	function!("OUTPUT", env, |arg| {
 		let text = arg.run(env)?.to_text(env)?;
 		let output = env.output();
@@ -404,7 +410,7 @@ pub fn OUTPUT<'e>() -> Function<'e> {
 }
 
 /// **4.2.11** `ASCII`  
-pub fn ASCII<'e>() -> Function<'e> {
+pub fn ASCII<'e, I: IntType>() -> Function<'e, I> {
 	function!("ASCII", env, |arg| {
 		//
 		arg.run(env)?.ascii(env)?
@@ -412,7 +418,7 @@ pub fn ASCII<'e>() -> Function<'e> {
 }
 
 /// **4.2.12** `~`  
-pub fn NEG<'e>() -> Function<'e> {
+pub fn NEG<'e, I: IntType>() -> Function<'e, I> {
 	function!("~", env, |arg| {
 		// comment so it wont make it one line
 		arg.run(env)?.to_integer(env)?.negate()?.into()
@@ -420,7 +426,7 @@ pub fn NEG<'e>() -> Function<'e> {
 }
 
 /// **4.3.1** `+`  
-pub fn ADD<'e>() -> Function<'e> {
+pub fn ADD<'e, I: IntType>() -> Function<'e, I> {
 	function!("+", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.add(&rhs.run(env)?, env)?
@@ -428,7 +434,7 @@ pub fn ADD<'e>() -> Function<'e> {
 }
 
 /// **4.3.2** `-`  
-pub fn SUBTRACT<'e>() -> Function<'e> {
+pub fn SUBTRACT<'e, I: IntType>() -> Function<'e, I> {
 	function!("-", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.subtract(&rhs.run(env)?, env)?
@@ -436,7 +442,7 @@ pub fn SUBTRACT<'e>() -> Function<'e> {
 }
 
 /// **4.3.3** `*`  
-pub fn MULTIPLY<'e>() -> Function<'e> {
+pub fn MULTIPLY<'e, I: IntType>() -> Function<'e, I> {
 	function!("*", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.multiply(&rhs.run(env)?, env)?
@@ -444,7 +450,7 @@ pub fn MULTIPLY<'e>() -> Function<'e> {
 }
 
 /// **4.3.4** `/`  
-pub fn DIVIDE<'e>() -> Function<'e> {
+pub fn DIVIDE<'e, I: IntType>() -> Function<'e, I> {
 	function!("/", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.divide(&rhs.run(env)?, env)?
@@ -452,7 +458,7 @@ pub fn DIVIDE<'e>() -> Function<'e> {
 }
 
 /// **4.3.5** `%`  
-pub fn REMAINDER<'e>() -> Function<'e> {
+pub fn REMAINDER<'e, I: IntType>() -> Function<'e, I> {
 	function!("%", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.remainder(&rhs.run(env)?, env)?
@@ -460,7 +466,7 @@ pub fn REMAINDER<'e>() -> Function<'e> {
 }
 
 /// **4.3.6** `^`  
-pub fn POWER<'e>() -> Function<'e> {
+pub fn POWER<'e, I: IntType>() -> Function<'e, I> {
 	function!("^", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.power(&rhs.run(env)?, env)?
@@ -468,21 +474,21 @@ pub fn POWER<'e>() -> Function<'e> {
 }
 
 /// **4.3.7** `<`  
-pub fn LESS_THAN<'e>() -> Function<'e> {
+pub fn LESS_THAN<'e, I: IntType>() -> Function<'e, I> {
 	function!("<", env, |lhs, rhs| {
 		(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Less).into()
 	})
 }
 
 /// **4.3.8** `>`  
-pub fn GREATER_THAN<'e>() -> Function<'e> {
+pub fn GREATER_THAN<'e, I: IntType>() -> Function<'e, I> {
 	function!(">", env, |lhs, rhs| {
 		(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Greater).into()
 	})
 }
 
 /// **4.3.9** `?`  
-pub fn EQUALS<'e>() -> Function<'e> {
+pub fn EQUALS<'e, I: IntType>() -> Function<'e, I> {
 	function!("?", env, |lhs, rhs| {
 		//
 		lhs.run(env)?.equals(&rhs.run(env)?, env)?.into()
@@ -490,7 +496,7 @@ pub fn EQUALS<'e>() -> Function<'e> {
 }
 
 /// **4.3.10** `&`  
-pub fn AND<'e>() -> Function<'e> {
+pub fn AND<'e, I: IntType>() -> Function<'e, I> {
 	function!("&", env, |lhs, rhs| {
 		let condition = lhs.run(env)?;
 
@@ -503,7 +509,7 @@ pub fn AND<'e>() -> Function<'e> {
 }
 
 /// **4.3.11** `|`  
-pub fn OR<'e>() -> Function<'e> {
+pub fn OR<'e, I: IntType>() -> Function<'e, I> {
 	function!("|", env, |lhs, rhs| {
 		let condition = lhs.run(env)?;
 
@@ -516,7 +522,7 @@ pub fn OR<'e>() -> Function<'e> {
 }
 
 /// **4.3.12** `;`  
-pub fn THEN<'e>() -> Function<'e> {
+pub fn THEN<'e, I: IntType>() -> Function<'e, I> {
 	function!(";", env, |lhs, rhs| {
 		lhs.run(env)?;
 		rhs.run(env)?
@@ -524,7 +530,7 @@ pub fn THEN<'e>() -> Function<'e> {
 }
 
 /// **4.3.13** `=`  
-pub fn ASSIGN<'e>() -> Function<'e> {
+pub fn ASSIGN<'e, I: IntType>() -> Function<'e, I> {
 	function!("=", env, |variable, value| {
 		let ran = value.run(env)?;
 		variable.assign(ran.clone(), env)?;
@@ -533,7 +539,7 @@ pub fn ASSIGN<'e>() -> Function<'e> {
 }
 
 /// **4.3.14** `WHILE`  
-pub fn WHILE<'e>() -> Function<'e> {
+pub fn WHILE<'e, I: IntType>() -> Function<'e, I> {
 	function!("WHILE", env, |condition, body| {
 		while condition.run(env)?.to_boolean(env)? {
 			body.run(env)?;
@@ -544,7 +550,7 @@ pub fn WHILE<'e>() -> Function<'e> {
 }
 
 /// **4.4.1** `IF`  
-pub fn IF<'e>() -> Function<'e> {
+pub fn IF<'e, I: IntType>() -> Function<'e, I> {
 	function!("IF", env, |condition, iftrue, iffalse| {
 		if condition.run(env)?.to_boolean(env)? {
 			iftrue.run(env)?
@@ -555,7 +561,7 @@ pub fn IF<'e>() -> Function<'e> {
 }
 
 /// **4.4.2** `GET`  
-pub fn GET<'e>() -> Function<'e> {
+pub fn GET<'e, I: IntType>() -> Function<'e, I> {
 	function!("GET", env, |source, start, length| {
 		//
 		source.run(env)?.get(&start.run(env)?, &length.run(env)?, env)?
@@ -563,7 +569,7 @@ pub fn GET<'e>() -> Function<'e> {
 }
 
 /// **4.5.1** `SET`  
-pub fn SET<'e>() -> Function<'e> {
+pub fn SET<'e, I: IntType>() -> Function<'e, I> {
 	function!("SET", env, |source, start, length, replacement| {
 		//
 		source.run(env)?.set(&start.run(env)?, &length.run(env)?, &replacement.run(env)?, env)?
@@ -576,7 +582,7 @@ pub fn SET<'e>() -> Function<'e> {
 /// as a variable name. Then, it looks up the last assigned value to that variable.
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn VALUE<'e>() -> Function<'e> {
+pub fn VALUE<'e, I: IntType>() -> Function<'e, I> {
 	function!("VALUE", env, |arg| {
 		let name = arg.run(env)?.to_text(env)?;
 		env.lookup(&name)?.into()
@@ -585,7 +591,7 @@ pub fn VALUE<'e>() -> Function<'e> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn HANDLE<'e>() -> Function<'e> {
+pub fn HANDLE<'e, I: IntType>() -> Function<'e, I> {
 	function!("HANDLE", env, |block, iferr| {
 		static ERR_VAR_NAME: &crate::TextSlice = unsafe { crate::TextSlice::new_unchecked("_") };
 
@@ -607,7 +613,7 @@ pub fn HANDLE<'e>() -> Function<'e> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn YEET<'e>() -> Function<'e> {
+pub fn YEET<'e, I: IntType>() -> Function<'e, I> {
 	function!("YEET", env, |errmsg| {
 		return Err(Error::Custom(errmsg.run(env)?.to_text(env)?.to_string().into()));
 
@@ -619,7 +625,7 @@ pub fn YEET<'e>() -> Function<'e> {
 /// **6.3** `USE`
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn USE<'e>() -> Function<'e> {
+pub fn USE<'e, I: IntType>() -> Function<'e, I> {
 	function!("USE", env, |arg| {
 		let filename = arg.run(env)?.to_text(env)?;
 		let contents = env.read_file(&filename)?;
@@ -631,7 +637,7 @@ pub fn USE<'e>() -> Function<'e> {
 /// **4.2.2** `EVAL`
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn EVAL<'e>() -> Function<'e> {
+pub fn EVAL<'e, I: IntType>() -> Function<'e, I> {
 	function!("EVAL", env, |val| {
 		let code = val.run(env)?.to_text(env)?;
 		env.play(&code)?
@@ -641,7 +647,7 @@ pub fn EVAL<'e>() -> Function<'e> {
 /// **4.2.5** `` ` ``
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn SYSTEM<'e>() -> Function<'e> {
+pub fn SYSTEM<'e, I: IntType>() -> Function<'e, I> {
 	function!("$", env, |cmd, stdin| {
 		let command = cmd.run(env)?.to_text(env)?;
 		let stdin = match stdin.run(env)? {
@@ -657,7 +663,7 @@ pub fn SYSTEM<'e>() -> Function<'e> {
 /// **Compiler extension**: SRAND
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn XSRAND<'e>() -> ExtensionFunction<'e> {
+pub fn XSRAND<'e, I: IntType>() -> ExtensionFunction<'e, I> {
 	xfunction!("XSRAND", env, |arg| {
 		let seed = arg.run(env)?.to_integer(env)?;
 		env.srand(seed);
@@ -668,7 +674,7 @@ pub fn XSRAND<'e>() -> ExtensionFunction<'e> {
 /// **Compiler extension**: REV
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn XREVERSE<'e>() -> ExtensionFunction<'e> {
+pub fn XREVERSE<'e, I: IntType>() -> ExtensionFunction<'e, I> {
 	xfunction!("XREVERSE", env, |arg| {
 		match arg.run(env)? {
 			Value::Text(_text) => {
@@ -676,7 +682,7 @@ pub fn XREVERSE<'e>() -> ExtensionFunction<'e> {
 				todo!()
 			}
 			Value::List(list) => {
-				let mut eles = list.iter().cloned().collect::<Vec<Value<'_>>>();
+				let mut eles = list.iter().cloned().collect::<Vec<Value<'_, I>>>();
 				eles.reverse();
 				List::new(eles, env.flags()).unwrap().into()
 			}
@@ -687,7 +693,7 @@ pub fn XREVERSE<'e>() -> ExtensionFunction<'e> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-pub fn XRANGE<'e>() -> ExtensionFunction<'e> {
+pub fn XRANGE<'e, I: IntType>() -> ExtensionFunction<'e, I> {
 	xfunction!("XRANGE", env, |start, stop| {
 		match start.run(env)? {
 			Value::Integer(start) => {
@@ -697,7 +703,7 @@ pub fn XRANGE<'e>() -> ExtensionFunction<'e> {
 					true => List::new(
 						(i64::from(start)..i64::from(stop))
 							.map(|x| Value::from(crate::value::Integer::try_from(x).unwrap()))
-							.collect::<Vec<Value<'_>>>(),
+							.collect::<Vec<Value<'_, I>>>(),
 						env.flags(),
 					)
 					.expect("todo: out of bounds error")

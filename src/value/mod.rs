@@ -3,7 +3,7 @@
 mod boolean;
 #[cfg(feature = "custom-types")]
 pub mod custom;
-mod integer;
+pub mod integer;
 mod list;
 mod null;
 pub mod text;
@@ -25,7 +25,7 @@ pub trait NamedType {
 }
 
 /// A trait indicating a type can be run.
-pub trait Runnable<'e> {
+pub trait Runnable<'e, I: IntType> {
 	/// Runs `self`.
-	fn run(&self, env: &mut crate::Environment<'e>) -> crate::Result<Value<'e>>;
+	fn run(&self, env: &mut crate::Environment<'e, I>) -> crate::Result<Value<'e, I>>;
 }

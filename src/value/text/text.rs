@@ -79,10 +79,10 @@ impl From<&TextSlice> for Text {
 // 	}
 // }
 
-impl Parsable<'_> for Text {
+impl<I: crate::value::IntType> Parsable<'_, I> for Text {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		// since `.advance()` returns a `Character`, we can't match on it.
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
 			return Ok(None);

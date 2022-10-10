@@ -2,15 +2,15 @@ use super::*;
 
 /// A Builder for an [`Environment`], allowing its different options to be configured.
 #[must_use]
-pub struct Builder<'e> {
+pub struct Builder<'e, I: IntType> {
 	flags: Flags,
-	prompt: Prompt<'e>,
-	output: Output<'e>,
-	functions: HashSet<Function<'e>>,
-	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
+	prompt: Prompt<'e, I>,
+	output: Output<'e, I>,
+	functions: HashSet<Function<'e, I>>,
+	parsers: Vec<RefCount<dyn ParseFn<'e, I>>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<'e>>,
+	extensions: HashSet<ExtensionFunction<'e, I>>,
 
 	#[cfg(feature = "extensions")]
 	system: Option<Box<System<'e>>>,
@@ -19,13 +19,13 @@ pub struct Builder<'e> {
 	read_file: Option<Box<ReadFile<'e>>>,
 }
 
-impl Default for Builder<'_> {
+impl<I: IntType> Default for Builder<'_, I> {
 	fn default() -> Self {
 		Self::new(Flags::default())
 	}
 }
 
-impl<'e> Builder<'e> {
+impl<'e, I: IntType> Builder<'e, I> {
 	pub fn new(flags: Flags) -> Self {
 		Self {
 			flags,
@@ -53,20 +53,20 @@ impl<'e> Builder<'e> {
 		self.output.set_stdout(stdout);
 	}
 
-	pub fn functions(&mut self) -> &mut HashSet<Function<'e>> {
+	pub fn functions(&mut self) -> &mut HashSet<Function<'e, I>> {
 		&mut self.functions
 	}
 
 	// We only allow access to the parsers when extensions are enabled.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e>>> {
+	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e, I>>> {
 		&mut self.parsers
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<'e>> {
+	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<'e, I>> {
 		&mut self.extensions
 	}
 
@@ -88,7 +88,7 @@ impl<'e> Builder<'e> {
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 
-	pub fn build(self) -> Environment<'e> {
+	pub fn build(self) -> Environment<'e, I> {
 		Environment {
 			flags: self.flags,
 

@@ -5,16 +5,16 @@ pub struct Blank;
 
 pub enum Never {}
 
-impl From<Never> for Value<'_> {
+impl<I: super::IntType> From<Never> for Value<'_, I> {
 	fn from(never: Never) -> Self {
 		match never {}
 	}
 }
 
-impl<'e> Parsable<'e> for Blank {
+impl<'e, I: IntType> Parsable<'e, I> for Blank {
 	type Output = Never;
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> Result<Option<Self::Output>> {
 		if parser.strip_whitespace_and_comments() {
 			Err(parser.error(ErrorKind::RestartParsing))
 		} else {

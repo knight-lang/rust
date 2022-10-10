@@ -1,4 +1,5 @@
 use crate::containers::MaybeSendSync;
+use crate::value::integer::IntType;
 use std::io::{self, Write};
 
 #[cfg(feature = "extensions")]
@@ -7,17 +8,21 @@ use crate::{env::Variable, value::Text};
 pub trait Stdout: Write + MaybeSendSync {}
 impl<T: Write + MaybeSendSync> Stdout for T {}
 
-pub struct Output<'e> {
+pub struct Output<'e, I: IntType> {
 	default: Box<dyn Stdout + 'e>,
 
+	_pd: std::marker::PhantomData<I>,
+
 	#[cfg(feature = "extensions")]
-	pipe: Option<Variable<'e>>,
+	pipe: Option<Variable<'e, I>>,
 }
 
-impl Default for Output<'_> {
+impl<I: IntType> Default for Output<'_, I> {
 	fn default() -> Self {
 		Self {
 			default: Box::new(io::stdout()),
+
+			_pd: std::marker::PhantomData,
 
 			#[cfg(feature = "extensions")]
 			pipe: None,
@@ -25,7 +30,7 @@ impl Default for Output<'_> {
 	}
 }
 
-impl<'e> Output<'e> {
+impl<'e, I: IntType> Output<'e, I> {
 	/// Sets the default stdout.
 	///
 	/// This doesn't affect any pipes which are enabled.
@@ -34,12 +39,12 @@ impl<'e> Output<'e> {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn set_pipe(&mut self, variable: Variable<'e>) {
+	pub fn set_pipe(&mut self, variable: Variable<'e, I>) {
 		self.pipe = Some(variable)
 	}
 }
 
-impl Write for Output<'_> {
+impl<I: IntType> Write for Output<'_, I> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
 		if let Some(pipe) = self.pipe.as_ref() {

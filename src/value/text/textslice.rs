@@ -1,5 +1,6 @@
 use super::{validate, Character, Chars, NewTextError, Text};
 use crate::env::{Environment, Flags};
+use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -111,10 +112,10 @@ impl TextSlice {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> List<'e> {
+	pub fn split<'e, I: IntType>(&self, sep: &Self, env: &mut Environment<'e, I>) -> List<'e, I> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			return Value::<i64>::from(self.to_owned()).to_list(env).unwrap();
+			return Value::<I>::from(self.to_owned()).to_list(env).unwrap();
 		}
 
 		let chars = (**self)
@@ -126,7 +127,7 @@ impl TextSlice {
 		unsafe { List::new_unchecked(chars) }
 	}
 
-	pub fn ord(&self) -> crate::Result<Integer> {
+	pub fn ord<I: IntType>(&self) -> crate::Result<Integer<I>> {
 		Integer::try_from(
 			self.chars().next().ok_or(crate::Error::DomainError("empty string"))?.inner(),
 		)
@@ -176,14 +177,14 @@ impl<'a> IntoIterator for &'a TextSlice {
 	}
 }
 
-impl<'e> ToBoolean<'e> for Text {
-	fn to_boolean(&self, _: &mut Environment<'e>) -> crate::Result<Boolean> {
+impl<'e, I: IntType> ToBoolean<'e, I> for Text {
+	fn to_boolean(&self, _: &mut Environment<'e, I>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<'e> ToText<'e> for Text {
-	fn to_text(&self, _: &mut Environment<'e>) -> crate::Result<Self> {
+impl<'e, I: IntType> ToText<'e, I> for Text {
+	fn to_text(&self, _: &mut Environment<'e, I>) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -192,14 +193,14 @@ impl crate::value::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<'e, I: crate::value::integer::IntType> ToInteger<'e, I> for Text {
-	fn to_integer(&self, _: &mut Environment<'e>) -> crate::Result<Integer<I>> {
+impl<'e, I: IntType> ToInteger<'e, I> for Text {
+	fn to_integer(&self, _: &mut Environment<'e, I>) -> crate::Result<Integer<I>> {
 		self.parse()
 	}
 }
 
-impl<'e> ToList<'e> for Text {
-	fn to_list(&self, _: &mut Environment<'e>) -> crate::Result<List<'e>> {
+impl<'e, I: crate::value::integer::IntType> ToList<'e, I> for Text {
+	fn to_list(&self, _: &mut Environment<'e, I>) -> crate::Result<List<'e, I>> {
 		let chars = self.chars().map(Value::from).collect::<Vec<_>>();
 
 		// SAFETY: If `self` is within the container bounds, so is the length of its chars.

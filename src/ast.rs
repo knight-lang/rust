@@ -1,37 +1,37 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::{Runnable, Value};
+use crate::value::{integer::IntType, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 
 /// [`Ast`]s represent functions and their arguments.
 #[derive(Debug, Clone)]
-pub struct Ast<'e>(RefCount<Inner<'e>>);
+pub struct Ast<'e, I: IntType>(RefCount<Inner<'e, I>>);
 
 #[derive(Debug)]
-struct Inner<'e> {
-	function: Function<'e>,
-	args: Box<[Value<'e>]>,
+struct Inner<'e, I: IntType> {
+	function: Function<'e, I>,
+	args: Box<[Value<'e, I>]>,
 }
 
-impl Eq for Ast<'_> {}
-impl PartialEq for Ast<'_> {
+impl<I: IntType> Eq for Ast<'_, I> {}
+impl<I: IntType> PartialEq for Ast<'_, I> {
 	/// Two `Ast`s are equal only if they point to the exact same data.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl crate::value::NamedType for Ast<'_> {
+impl<I: IntType> crate::value::NamedType for Ast<'_, I> {
 	const TYPENAME: &'static str = "Ast";
 }
 
-impl<'e> Ast<'e> {
+impl<'e, I: IntType> Ast<'e, I> {
 	/// Creates a new `Ast` from the given arguments.
 	///
 	/// # Panics
 	/// Panics if `args.len()` isn't equal to `function.arity`.
 	#[must_use]
 	#[inline]
-	pub fn new(function: Function<'e>, args: Box<[Value<'e>]>) -> Self {
+	pub fn new(function: Function<'e, I>, args: Box<[Value<'e, I>]>) -> Self {
 		assert_eq!(args.len(), function.arity());
 
 		Self(Inner { function, args }.into())
@@ -40,29 +40,29 @@ impl<'e> Ast<'e> {
 	/// Gets the function associated with the ast.
 	#[must_use]
 	#[inline]
-	pub fn function(&self) -> &Function<'e> {
+	pub fn function(&self) -> &Function<'e, I> {
 		&self.0.function
 	}
 
 	/// Gets the args associated with the ast.
 	#[must_use]
 	#[inline]
-	pub fn args(&self) -> &[Value<'e>] {
+	pub fn args(&self) -> &[Value<'e, I>] {
 		&self.0.args
 	}
 }
 
-impl<'e> Runnable<'e> for Ast<'e> {
+impl<'e, I: IntType> Runnable<'e, I> for Ast<'e, I> {
 	#[inline]
-	fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
+	fn run(&self, env: &mut Environment<'e, I>) -> Result<Value<'e, I>> {
 		self.function().run(self.args(), env)
 	}
 }
 
-impl<'e> Parsable<'e> for Ast<'e> {
+impl<'e, I: IntType> Parsable<'e, I> for Ast<'e, I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> parse::Result<Option<Self>> {
 		use parse::{Error, ErrorKind};
 
 		let Some(function) = Function::parse(parser)? else {

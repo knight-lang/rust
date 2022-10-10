@@ -1,6 +1,7 @@
 #[cfg(feature = "extensions")]
 use crate::function::ExtensionFunction;
 use crate::parse::{ParseFn, Parser};
+use crate::value::integer::IntType;
 use crate::value::Runnable;
 use crate::{Function, Integer, RefCount, Result, Text, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
@@ -25,21 +26,21 @@ type System<'e> =
 type ReadFile<'e> = dyn FnMut(&TextSlice, &Flags) -> Result<Text> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
-pub struct Environment<'e> {
+pub struct Environment<'e, I: IntType> {
 	flags: Flags,
-	variables: HashSet<Variable<'e>>,
-	prompt: Prompt<'e>,
-	output: Output<'e>,
-	functions: HashSet<Function<'e>>,
+	variables: HashSet<Variable<'e, I>>,
+	prompt: Prompt<'e, I>,
+	output: Output<'e, I>,
+	functions: HashSet<Function<'e, I>>,
 	rng: StdRng,
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
 	// set of parsers is loaded up.
-	parsers: Vec<RefCount<dyn ParseFn<'e>>>,
+	parsers: Vec<RefCount<dyn ParseFn<'e, I>>>,
 
 	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<'e>>,
+	extensions: HashSet<ExtensionFunction<'e, I>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -53,23 +54,23 @@ pub struct Environment<'e> {
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Environment<'_>: Send, Sync);
+sa::assert_impl_all!(Environment<'_, I>: Send, Sync);
 
-impl Default for Environment<'_> {
+impl<I: IntType> Default for Environment<'_, I> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
 	fn default() -> Self {
 		Self::builder(Flags::default()).build()
 	}
 }
 
-impl<'e> Environment<'e> {
+impl<'e, I: IntType> Environment<'e, I> {
 	/// A shorthand function for creating [`Builder`]s.
-	pub fn builder(flags: Flags) -> Builder<'e> {
+	pub fn builder(flags: Flags) -> Builder<'e, I> {
 		Builder::new(flags)
 	}
 
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e>> {
+	pub fn play(&mut self, source: &TextSlice) -> Result<Value<'e, I>> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
 
@@ -81,19 +82,19 @@ impl<'e> Environment<'e> {
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
-	pub fn functions(&self) -> &HashSet<Function<'e>> {
+	pub fn functions(&self) -> &HashSet<Function<'e, I>> {
 		&self.functions
 	}
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
-	pub fn parsers(&self) -> &[RefCount<dyn ParseFn<'e>>] {
+	pub fn parsers(&self) -> &[RefCount<dyn ParseFn<'e, I>>] {
 		&self.parsers
 	}
 
 	/// Gets the [`Prompt`] type, which handles reading lines from stdin.
 	#[must_use]
-	pub fn prompt(&mut self) -> &mut Prompt<'e> {
+	pub fn prompt(&mut self) -> &mut Prompt<'e, I> {
 		&mut self.prompt
 	}
 
@@ -103,7 +104,7 @@ impl<'e> Environment<'e> {
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
 	#[must_use]
-	pub fn output(&mut self) -> &mut Output<'e> {
+	pub fn output(&mut self) -> &mut Output<'e, I> {
 		&mut self.output
 	}
 
@@ -112,7 +113,7 @@ impl<'e> Environment<'e> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice,
-	) -> std::result::Result<Variable<'e>, IllegalVariableName> {
+	) -> std::result::Result<Variable<'e, I>, IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -125,22 +126,22 @@ impl<'e> Environment<'e> {
 
 	/// Gets a random [`Integer`].
 	#[must_use]
-	pub fn random(&mut self) -> Integer {
+	pub fn random(&mut self) -> Integer<I> {
 		Integer::random(&mut self.rng, &self.flags)
 	}
 }
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<'e> Environment<'e> {
+impl<'e, I: IntType> Environment<'e, I> {
 	/// Gets the list of known extension functions.
 	#[must_use]
-	pub fn extensions(&self) -> &HashSet<ExtensionFunction<'e>> {
+	pub fn extensions(&self) -> &HashSet<ExtensionFunction<'e, I>> {
 		&self.extensions
 	}
 
 	/// Seeds the random number generator.
-	pub fn srand(&mut self, seed: Integer) {
+	pub fn srand(&mut self, seed: Integer<I>) {
 		self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 

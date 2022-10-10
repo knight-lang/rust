@@ -1,12 +1,12 @@
 use super::*;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ListLiteral;
+pub struct ListLiteral<'e, I: IntType>(std::marker::PhantomData<&'e I>);
 
-impl<'e> Parsable<'e> for ListLiteral {
-	type Output = Value<'e>;
+impl<'e, I: IntType> Parsable<'e, I> for ListLiteral<'e, I> {
+	type Output = Value<'e, I>;
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> Result<Option<Self::Output>> {
 		if !parser.env().flags().exts.list_literal || parser.advance_if('{').is_none() {
 			return Ok(None);
 		}

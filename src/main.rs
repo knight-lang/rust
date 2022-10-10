@@ -1,7 +1,7 @@
 use knightrs::*;
 
 fn main() {
-	let mut env = Environment::default();
+	let mut env = Environment::<'_, i32>::default();
 	let arg = Text::new(std::env::args().nth(2).expect("no arg"), env.flags()).unwrap();
 
 	let arg = if std::env::args().nth(1).unwrap() == "-e" {

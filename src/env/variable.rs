@@ -1,6 +1,6 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
-use crate::value::{Runnable, Text, TextSlice, Value};
+use crate::value::{integer::IntType, Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -11,17 +11,17 @@ use std::hash::{Hash, Hasher};
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
 // FIXME: You can memory leak via `= a (B a)` (and also `= a (B + a 1)`, etc.)
 #[derive(Clone)]
-pub struct Variable<'e>(RefCount<Inner<'e>>);
+pub struct Variable<'e, I: IntType>(RefCount<Inner<'e, I>>);
 
-struct Inner<'e> {
+struct Inner<'e, I: IntType> {
 	name: Text,
-	value: Mutable<Option<Value<'e>>>,
+	value: Mutable<Option<Value<'e, I>>>,
 }
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
-impl Debug for Variable<'_> {
+impl<I: IntType> Debug for Variable<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -34,8 +34,8 @@ impl Debug for Variable<'_> {
 	}
 }
 
-impl Eq for Variable<'_> {}
-impl PartialEq for Variable<'_> {
+impl<I: IntType> Eq for Variable<'_, I> {}
+impl<I: IntType> PartialEq for Variable<'_, I> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This checks to see if the two variables are pointing to the _exact same object_.
@@ -45,7 +45,7 @@ impl PartialEq for Variable<'_> {
 	}
 }
 
-impl Borrow<TextSlice> for Variable<'_> {
+impl<I: IntType> Borrow<TextSlice> for Variable<'_, I> {
 	/// Borrows the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn borrow(&self) -> &TextSlice {
@@ -53,7 +53,7 @@ impl Borrow<TextSlice> for Variable<'_> {
 	}
 }
 
-impl Hash for Variable<'_> {
+impl<I: IntType> Hash for Variable<'_, I> {
 	/// Hashes the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
@@ -61,7 +61,7 @@ impl Hash for Variable<'_> {
 	}
 }
 
-impl crate::value::NamedType for Variable<'_> {
+impl<I: IntType> crate::value::NamedType for Variable<'_, I> {
 	const TYPENAME: &'static str = "Variable";
 }
 
@@ -104,7 +104,7 @@ impl Display for IllegalVariableName {
 
 			#[cfg(feature = "compliance")]
 			Self::TooLong(count) => {
-				write!(f, "variable name was too long ({count} > {})", Variable::MAX_NAME_LEN)
+				write!(f, "variable name was too long ({count} > {})", Variable::<i64>::MAX_NAME_LEN)
 			}
 
 			#[cfg(feature = "compliance")]
@@ -116,7 +116,7 @@ impl Display for IllegalVariableName {
 	}
 }
 
-impl<'e> Variable<'e> {
+impl<'e, I: IntType> Variable<'e, I> {
 	/// Maximum length a name can have when [`verify_variable_names`](
 	/// crate::env::flags::ComplianceFlags::verify_variable_names) is enabled.
 	pub const MAX_NAME_LEN: usize = 127;
@@ -160,27 +160,27 @@ impl<'e> Variable<'e> {
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&self, new: Value<'e>) -> Option<Value<'e>> {
+	pub fn assign(&self, new: Value<'e, I>) -> Option<Value<'e, I>> {
 		(self.0).value.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value<'e>> {
+	pub fn fetch(&self) -> Option<Value<'e, I>> {
 		(self.0).value.read().clone()
 	}
 }
 
-impl<'e> Runnable<'e> for Variable<'e> {
-	fn run(&self, _env: &mut Environment) -> Result<Value<'e>> {
+impl<'e, I: IntType> Runnable<'e, I> for Variable<'e, I> {
+	fn run(&self, _env: &mut Environment<'e, I>) -> Result<Value<'e, I>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
 	}
 }
 
-impl<'e> Parsable<'e> for Variable<'e> {
+impl<'e, I: IntType> Parsable<'e, I> for Variable<'e, I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, 'e>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> parse::Result<Option<Self>> {
 		let Some(identifier) = parser.take_while(|chr, flags| chr.is_lower(flags) || chr.is_numeric(flags)) else {
 			return Ok(None);
 		};
@@ -188,8 +188,8 @@ impl<'e> Parsable<'e> for Variable<'e> {
 		match parser.env().lookup(identifier) {
 			Ok(value) => Ok(Some(value)),
 			Err(err) => match err {
-				// When there's no extensions, there'll be nothing to match.
-				#[cfg(feature = "extensions")]
+				// When there's no compliance issues, there'll be nothing to match.
+				#[cfg(feature = "compliance")]
 				err => Err(parser.error(parse::ErrorKind::IllegalVariableName(err))),
 			},
 		}

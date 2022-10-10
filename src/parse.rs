@@ -1,7 +1,7 @@
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::Variable;
 use crate::text::{Character, Text, TextSlice};
-use crate::value::{Integer, List, Value};
+use crate::value::{integer::IntType, Integer, List, Value};
 use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
 
@@ -16,14 +16,14 @@ pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'e> {
+pub struct Parser<'s, 'e, I: IntType> {
 	source: &'s TextSlice,
-	env: &'s mut Environment<'e>,
+	env: &'s mut Environment<'e, I>,
 	line: usize,
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<'e>: Sized {
+pub trait Parsable<'e, I: IntType>: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -35,34 +35,38 @@ pub trait Parsable<'e>: Sized {
 	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
 	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
 	///   returned.
-	fn parse(parser: &mut Parser<'_, 'e>) -> Result<Option<Self::Output>>;
+	fn parse(parser: &mut Parser<'_, 'e, I>) -> Result<Option<Self::Output>>;
 
 	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
 	/// crate::env::Builder::parsers).
-	fn parse_fn() -> RefCount<dyn ParseFn<'e>>
+	fn parse_fn() -> RefCount<dyn ParseFn<'e, I>>
 	where
-		Value<'e>: From<Self::Output>,
+		Value<'e, I>: From<Self::Output>,
 	{
-		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e>| {
+		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e, I>| {
 			Ok(Self::parse(parser)?.map(Value::from))
 		}) as Box<_>)
 	}
 }
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn<'e>:
-	Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync
+pub trait ParseFn<'e, I: IntType>:
+	Fn(&mut Parser<'_, 'e, I>) -> Result<Option<Value<'e, I>>> + MaybeSendSync
 {
 }
 
-impl<'e, T: Fn(&mut Parser<'_, 'e>) -> Result<Option<Value<'e>>> + MaybeSendSync> ParseFn<'e>
-	for T
+impl<'e, I, T> ParseFn<'e, I> for T
+where
+	I: IntType,
+	T: Fn(&mut Parser<'_, 'e, I>) -> Result<Option<Value<'e, I>>> + MaybeSendSync,
 {
 }
 
 // Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
 // in case we want it for extensions later.)
-pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseFn<'e>>> {
+pub(crate) fn default<'e, I: IntType + 'e>(
+	_flags: &crate::env::Flags,
+) -> Vec<RefCount<dyn ParseFn<'e, I>>> {
 	macro_rules! parsers {
 		($($(#[$meta:meta])* $ty:ty),* $(,)?) => {
 			vec![$($(#[$meta])* <$ty>::parse_fn()),*]
@@ -72,15 +76,15 @@ pub(crate) fn default<'e>(_flags: &crate::env::Flags) -> Vec<RefCount<dyn ParseF
 	parsers![
 		Blank,
 		GroupedExpression,
-		Integer,
+		Integer<I>,
 		Text,
-		Variable,
+		Variable<'e, I>,
 		crate::value::Boolean,
 		crate::value::Null,
-		List,
-		Ast,
+		List<'e, I>,
+		Ast<'e, I>,
 		#[cfg(feature = "extensions")]
-		ListLiteral
+		ListLiteral<'e, I>
 	]
 }
 
@@ -231,9 +235,9 @@ impl AdvanceIfCondition for char {
 	}
 }
 
-impl<'s, 'e> Parser<'s, 'e> {
+impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 	/// Create a new `Parser` from the given source.
-	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e>) -> Self {
+	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e, I>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -241,7 +245,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 		self.line
 	}
 
-	pub fn env(&mut self) -> &mut Environment<'e> {
+	pub fn env(&mut self) -> &mut Environment<'e, I> {
 		self.env
 	}
 
@@ -308,7 +312,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
-	pub fn parse_program(mut self) -> Result<Value<'e>> {
+	pub fn parse_program(mut self) -> Result<Value<'e, I>> {
 		let ret = self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -336,7 +340,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 		}
 	}
 
-	pub fn parse_expression(&mut self) -> Result<Value<'e>> {
+	pub fn parse_expression(&mut self) -> Result<Value<'e, I>> {
 		let mut i = 0;
 		while i < self.env.parsers().len() {
 			match self.env.parsers()[i].clone()(self) {

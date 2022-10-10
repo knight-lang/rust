@@ -1,4 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
+use crate::value::integer::IntType;
 use crate::value::{text::TextSlice, Integer, List, NamedType, Text, ToInteger, ToList, ToText};
 use crate::{Environment, Result};
 
@@ -6,19 +7,19 @@ use crate::{Environment, Result};
 pub type Boolean = bool;
 
 /// Represents the ability to be converted to a [`Boolean`].
-pub trait ToBoolean<'e> {
+pub trait ToBoolean<'e, I: IntType> {
 	/// Converts `self` to a [`Boolean`].
-	fn to_boolean(&self, env: &mut Environment<'e>) -> Result<Boolean>;
+	fn to_boolean(&self, env: &mut Environment<'e, I>) -> Result<Boolean>;
 }
 
 impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 
-impl Parsable<'_> for Boolean {
+impl<I: IntType> Parsable<'_, I> for Boolean {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		let Some(which) = parser.advance_if(|chr| chr == 'T' || chr == 'F') else {
 			return Ok(None);
 		};
@@ -29,18 +30,18 @@ impl Parsable<'_> for Boolean {
 	}
 }
 
-impl<'e> ToBoolean<'e> for Boolean {
+impl<'e, I: IntType> ToBoolean<'e, I> for Boolean {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment<'e>) -> Result<Self> {
+	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Self> {
 		Ok(*self)
 	}
 }
 
-impl<'e, I: crate::value::IntType> ToInteger<'e, I> for Boolean {
+impl<'e, I: IntType> ToInteger<'e, I> for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer<I>> {
+	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Integer<I>> {
 		if *self {
 			Ok(Integer::ONE)
 		} else {
@@ -49,9 +50,9 @@ impl<'e, I: crate::value::IntType> ToInteger<'e, I> for Boolean {
 	}
 }
 
-impl<'e> ToList<'e> for Boolean {
+impl<'e, I: IntType> ToList<'e, I> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
-	fn to_list(&self, _: &mut Environment<'e>) -> Result<List<'e>> {
+	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {
@@ -60,9 +61,9 @@ impl<'e> ToList<'e> for Boolean {
 	}
 }
 
-impl<'e> ToText<'e> for Boolean {
+impl<'e, I: IntType> ToText<'e, I> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
-	fn to_text(&self, _: &mut Environment<'e>) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment<'e, I>) -> Result<Text> {
 		static TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
 		static FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
 
