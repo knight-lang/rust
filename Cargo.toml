@@ -41,7 +41,9 @@ static_assertions = "1.1"
 cfg-if = "1.0"
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "doc_cfg"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+# to test locally: RUSTDOCFLAGS="--cfg docsrs" cargo doc
 
 [[bin]]
 name = "knight"

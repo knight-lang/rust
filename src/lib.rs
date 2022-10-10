@@ -1,7 +1,6 @@
-#![feature(let_else)]
 #![allow(clippy::module_inception)]
-#![cfg_attr(doc_cfg, feature(doc_cfg))]
-
+#![feature(let_else)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 extern crate static_assertions as sa;
 
 #[macro_use]

@@ -138,7 +138,7 @@ macro_rules! arity {
 	($_pat:ident $($rest:ident)*) => (1+arity!($($rest)*))
 }
 macro_rules! function {
-	($name:literal, $env:pat, |$($args:ident),*| $body:expr) => {
+	($name:literal, $env:pat, |$($args:ident),*| $body:block) => {
 		Function {
 			name: unsafe { TextSlice::new_unchecked($name) },
 			arity: arity!($($args)*),
@@ -332,21 +332,21 @@ pub static AND: Function = function!("&", env, |lhs, rhs| {
 	let condition = lhs.run(env)?;
 
 	if condition.to_boolean(env)? {
-		return rhs.run(env);
+		rhs.run(env)?
+	} else {
+		condition
 	}
-
-	condition
 });
 
 /// **4.3.11** `|`  
 pub static OR: Function = function!("|", env, |lhs, rhs| {
 	let condition = lhs.run(env)?;
 
-	if !condition.to_boolean(env)? {
-		return rhs.run(env);
+	if condition.to_boolean(env)? {
+		condition
+	} else {
+		rhs.run(env)?
 	}
-
-	condition
 });
 
 /// **4.3.12** `;`  

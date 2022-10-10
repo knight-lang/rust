@@ -68,8 +68,9 @@ impl crate::value::NamedType for Variable<'_> {
 
 /// Indicates that a a variable name was illegal.
 ///
-/// This is only ever returned if the `verify-variable-names` feature is is enabled.
+/// This is only ever returned if the `verify_variable_names` feature is enabled.
 #[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IllegalVariableName {
 	/// The name was empty.
 	Empty,
