@@ -63,7 +63,7 @@ pub const fn validate(data: &str) -> Result<(), NewTextError> {
 	}
 
 	// All valid `str`s are valid TextSlice when no length limit and no char requirements are set.
-	if cfg!(feature = "unicode") {
+	if !cfg!(feature = "knight-encoding") {
 		return Ok(());
 	}
 

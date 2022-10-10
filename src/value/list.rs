@@ -234,7 +234,7 @@ impl<'e> List<'e> {
 			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
 			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
-				// `list.len() * *amount` won't fail with strict-compliance because we know
+				// `list.len() * *amount` won't fail with checked length because we know
 				// it's smaller than `i32::MAX`, which (unless we're on 16 bit platforms) is always
 				// smaller than `usize::MAX`.
 				Iter::Repeat(Box::new(list.iter()).cycle(), list.len() * *amount)

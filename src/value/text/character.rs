@@ -32,10 +32,10 @@ impl Character {
 	#[inline]
 	#[must_use]
 	pub const fn new(chr: char) -> Option<Self> {
-		if cfg!(feature = "unicode") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
+		if !cfg!(feature = "knight-encoding") || matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
 			Some(Self(chr))
 		} else {
-			return None;
+			None
 		}
 	}
 
@@ -50,11 +50,15 @@ impl Character {
 		self.0
 	}
 
-	fn if_unicode(&self, uni: impl FnOnce(char) -> bool, not: impl FnOnce(&char) -> bool) -> bool {
-		if cfg!(feature = "unicode") {
-			uni(self.0)
+	fn if_unicode(
+		&self,
+		unicode: impl FnOnce(char) -> bool,
+		knight_encoding: impl FnOnce(&char) -> bool,
+	) -> bool {
+		if cfg!(feature = "knight-encoding") {
+			knight_encoding(&self.0)
 		} else {
-			not(&self.0)
+			unicode(self.0)
 		}
 	}
 

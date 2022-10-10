@@ -24,11 +24,13 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(Inner);
 
-#[cfg(not(feature = "relaxed-integers"))]
-type Inner = i32;
-
-#[cfg(feature = "relaxed-integers")]
-type Inner = i64;
+cfg_if! {
+	if #[cfg(feature = "small-integers")] {
+		type Inner = i32;
+	} else {
+		type Inner = i64;
+	}
+}
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger<'e> {
@@ -125,9 +127,9 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn negate(self) -> Result<Self> {
-		if cfg!(feature = "relaxed-integers") {
+		if cfg!(feature = "checked-math-ops") {
 			return Ok(Self(self.0.wrapping_neg()));
 		}
 
@@ -140,11 +142,11 @@ impl Integer {
 		checked: impl FnOnce(Inner, T) -> Option<Inner>,
 		wrapping: impl FnOnce(Inner, T) -> Inner,
 	) -> Result<Self> {
-		if cfg!(feature = "relaxed-integers") {
-			return Ok(Self((wrapping)(self.0, rhs)));
+		if cfg!(feature = "checked-math-ops") {
+			return Ok(Self(wrapping(self.0, rhs)));
 		}
 
-		(checked)(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
+		checked(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Adds `self` to `augend`.
@@ -153,7 +155,7 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn add(self, augend: Self) -> Result<Self> {
 		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
 	}
@@ -163,7 +165,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
 		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
 	}
@@ -173,7 +175,7 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn multiply(self, multiplier: Self) -> Result<Self> {
 		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
 	}
@@ -185,7 +187,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn divide(self, divisor: Self) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -203,7 +205,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(feature = "relaxed-integers", inline)]
+	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);

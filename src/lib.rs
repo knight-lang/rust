@@ -4,6 +4,9 @@
 
 extern crate static_assertions as sa;
 
+#[macro_use]
+extern crate cfg_if;
+
 pub mod ast;
 mod containers;
 pub mod env;

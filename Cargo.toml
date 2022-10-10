@@ -11,17 +11,25 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions", "custom-types"]
-multithreaded = [] # Enables multithreading support
+default = ["extensions", "compliance"]
 
+multithreaded = [] # Enables multithreading support
 extensions = [] # stuff that's not part of base knight
 custom-types = ["extensions"] # Allows users to add custom types in
-compliance = []
 
-check-container-length = []
-unicode = [] # Allow all unicode, not just knight's strict charset
-relaxed-integers = [] # makes them 64 bit and does wrap arounds instead of hard errors.
+compliance = [] # Compiles in the ability to toggle compliance checks for most things.
+check-container-length = [] # Ensure containers don't grow larger than i32::MAX
+knight-encoding = [] # Restricts strings to only use the knight encoding.
+small-integers = [] # Uses 32 bit integers instead of the default 64.
+checked-math-ops = [] # checks each integer op for overflow.
+strict-integer = ["small-integers", "checked-math-ops"] # Integers behave only with spec compliance
 
+strict-compliance = [
+	"compliance",
+	"knight-encoding",
+	"strict-integer",
+	"check-container-length",
+]
 
 [dependencies]
 rand = "0.8"
@@ -29,6 +37,7 @@ once_cell = "1.7"
 lazy_static = "1.4"
 clap = { version = "2.33", optional = true }
 static_assertions = "1.1"
+cfg-if = "1.0"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "doc_cfg"]
