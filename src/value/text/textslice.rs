@@ -61,6 +61,10 @@ impl TextSlice {
 		}
 	}
 
+	pub const fn as_str(&self) -> &str {
+		&self.0
+	}
+
 	pub fn chars(&self) -> Chars<'_> {
 		Chars(self.0.chars())
 	}

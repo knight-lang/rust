@@ -31,8 +31,8 @@ impl<'e> Ast<'e> {
 	/// Panics if `args.len()` isn't equal to `function.arity`.
 	#[must_use]
 	#[inline]
-	pub fn new(function: &'e Function, args: Box<[Value<'e>]>) -> Self {
-		assert_eq!(args.len(), function.arity);
+	pub fn new(function: &'e Function<'e>, args: Box<[Value<'e>]>) -> Self {
+		assert_eq!(args.len(), function.arity());
 
 		Self(Inner { function, args }.into())
 	}
@@ -55,7 +55,7 @@ impl<'e> Ast<'e> {
 impl<'e> Runnable<'e> for Ast<'e> {
 	#[inline]
 	fn run(&self, env: &mut Environment<'e>) -> Result<Value<'e>> {
-		(self.function().func)(self.args(), env)
+		self.function().run(self.args(), env)
 	}
 }
 
@@ -72,14 +72,14 @@ impl<'e> Parsable<'e> for Ast<'e> {
 		// `MissingArgument` errors have their `line` field set to the beginning of the function
 		// parsing.
 		let start_line = parser.line();
-		let mut args = Vec::with_capacity(function.arity);
+		let mut args = Vec::with_capacity(function.arity());
 
-		for index in 0..function.arity {
+		for index in 0..function.arity() {
 			match parser.parse_expression() {
 				Ok(arg) => args.push(arg),
 				Err(Error { kind: ErrorKind::EmptySource, .. }) => {
 					return Err(
-						ErrorKind::MissingArgument { name: function.name.to_owned(), index }
+						ErrorKind::MissingArgument { name: function.full_name().to_owned(), index }
 							.error(start_line),
 					)
 				}

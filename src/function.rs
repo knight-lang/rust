@@ -12,28 +12,28 @@ use std::hash::{Hash, Hasher};
 use std::io::Write;
 
 /// A runnable function in Knight, e.g. `+`.
-#[derive(Clone, Copy)]
 pub struct Function<'q> {
 	/// The code associated with this function
-	pub func: for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>,
-
-	/// The long-hand name of this function.
-	///
-	/// For extension functions that start with `X`, this should also start with it.
-	pub name: &'q TextSlice,
-
-	/// The arity of the function, i.e. how many arguments it takes.
-	pub arity: usize,
+	func: FnType,
+	full_name: &'q TextSlice,
+	short_name: Option<Character>,
+	arity: usize,
 }
 
-impl Function<'_> {
-	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
-	pub fn short_form(&self) -> Option<Character> {
-		match self.name.head() {
-			Some(c) if c == 'X' => None,
-			other => other,
-		}
-	}
+pub trait FnAllocType:
+	for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static
+{
+}
+
+impl<
+		F: for<'e> Fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>> + Send + Sync + 'static,
+	> FnAllocType for F
+{
+}
+
+pub enum FnType {
+	FnPtr(for<'e> fn(&[Value<'e>], &mut Environment<'e>) -> Result<Value<'e>>),
+	Alloc(Box<dyn FnAllocType>),
 }
 
 impl Eq for Function<'_> {}
@@ -46,13 +46,13 @@ impl PartialEq for Function<'_> {
 
 impl Hash for &Function<'_> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.name.hash(state)
+		self.full_name.hash(state)
 	}
 }
 
 impl std::borrow::Borrow<TextSlice> for &Function<'_> {
 	fn borrow(&self) -> &TextSlice {
-		&self.name
+		&self.full_name
 	}
 }
 
@@ -60,12 +60,51 @@ impl Debug for Function<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Function")
-				.field("name", &self.name)
+				.field("name", &self.full_name)
 				.field("arity", &self.arity)
-				.field("fnptr", &(self.func as usize as *const ()))
+				// .field("fnptr", &(self.func.0 as usize as *const ()))
 				.finish()
 		} else {
-			f.debug_tuple("Function").field(&self.name).finish()
+			f.debug_tuple("Function").field(&self.full_name).finish()
+		}
+	}
+}
+
+impl<'a> Function<'a> {
+	pub const fn new_const(full_name: &'a TextSlice, arity: usize, func: FnType) -> Self {
+		Self { full_name, arity, func, short_name: None }
+	}
+
+	pub fn new<F: FnAllocType>(full_name: &'a TextSlice, arity: usize, func: F) -> Self {
+		Self { full_name, arity, func: FnType::Alloc(Box::new(func) as _), short_name: None }
+	}
+	/// The long-hand name of this function.
+	///
+	/// For extension functions that start with `X`, this should also start with it.
+	#[must_use]
+	pub const fn full_name(&self) -> &'a TextSlice {
+		self.full_name
+	}
+
+	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
+	#[must_use]
+	pub const fn short_name(&self) -> Option<Character> {
+		self.short_name
+	}
+
+	/// The arity of the function, i.e. how many arguments it takes.
+	#[must_use]
+	pub const fn arity(&self) -> usize {
+		self.arity
+	}
+
+	/// Executes this function
+	pub fn run<'e>(&self, args: &[Value<'e>], env: &mut Environment<'e>) -> Result<Value<'e>> {
+		debug_assert_eq!(args.len(), self.arity());
+
+		match self.func {
+			FnType::FnPtr(fnptr) => fnptr(args, env),
+			FnType::Alloc(ref alloc) => alloc(args, env),
 		}
 	}
 }
@@ -104,7 +143,7 @@ pub(crate) fn default<'e>(flags: &Flags) -> HashMap<Character, &'e Function<'e>>
 		($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
 			$(#[$meta])?
 			if true $(&& flags.fns.$feature)? {
-				map.insert($name.short_form().unwrap(), &$name);
+				map.insert($name.short_name().unwrap(), &$name);
 			}
 		)*}
 	}
@@ -158,12 +197,14 @@ macro_rules! arity {
 macro_rules! function {
 	($name:literal, $env:pat, |$($args:ident),*| $body:block) => {
 		Function {
-			name: unsafe { TextSlice::new_unchecked($name) },
+			full_name: unsafe { TextSlice::new_unchecked($name) },
 			arity: arity!($($args)*),
-			func: |args, $env| {
+			short_name:
+			Some(unsafe { Character::new_unchecked(TextSlice::new_unchecked($name).as_str().as_bytes()[0] as char) }),
+			func: FnType::FnPtr(|args, $env| {
 				let [$($args,)*]: &[Value; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body)
-			}
+			})
 		}
 	};
 }
