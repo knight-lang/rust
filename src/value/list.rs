@@ -1,5 +1,6 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
+use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
@@ -21,13 +22,13 @@ use crate::{value::Runnable, Error};
 /// However, since this can be a fairly significant performance penalty, this checking is disabled
 /// by default. To enable it, you should enable the `container-length-limit` feature.
 #[derive(Clone, Default)]
-pub struct List<'e>(Option<RefCount<Inner<'e>>>);
+pub struct List<'e, I: IntType = i64>(Option<RefCount<Inner<'e, I>>>);
 
-enum Inner<'e> {
-	Boxed(Value<'e>),
-	Slice(Box<[Value<'e>]>),  // nonempty slice
-	Cons(List<'e>, List<'e>), // neither list is empty
-	Repeat(List<'e>, usize),  // the usize is >= 2
+enum Inner<'e, I: IntType> {
+	Boxed(Value<'e, I>),
+	Slice(Box<[Value<'e, I>]>),     // nonempty slice
+	Cons(List<'e, I>, List<'e, I>), // neither list is empty
+	Repeat(List<'e, I>, usize),     // the usize is >= 2
 }
 
 /// Represents the ability to be converted to a [`List`].
@@ -77,20 +78,22 @@ impl NamedType for List<'_> {
 	const TYPENAME: &'static str = "List";
 }
 
+impl<'e, I: IntType> List<'e, I> {
+	fn _new(inner: Inner<'e, I>) -> Self {
+		Self(Some(inner.into()))
+	}
+
+	fn inner(&self) -> Option<&Inner<'e, I>> {
+		self.0.as_deref()
+	}
+}
+
 impl<'e> List<'e> {
 	/// An empty [`List`].
 	pub const EMPTY: Self = Self(None);
 
 	/// The maximum length for [`List`]s. Only used when `container-length-limit` is enabled.
 	pub const MAX_LEN: usize = i32::MAX as usize;
-
-	fn _new(inner: Inner<'e>) -> Self {
-		Self(Some(inner.into()))
-	}
-
-	fn inner(&self) -> Option<&Inner<'e>> {
-		self.0.as_deref()
-	}
 
 	/// Creates a new `list` from `slice`.
 	///
@@ -377,7 +380,7 @@ impl<'e> ToBoolean<'e> for List<'e> {
 	}
 }
 
-impl<'e, I: crate::value::IntType> ToInteger<'e, I> for List<'e> {
+impl<'e, I: IntType> ToInteger<'e, I> for List<'e> {
 	/// Returns `self`'s length.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment<'e>) -> Result<Integer<I>> {

@@ -114,7 +114,7 @@ impl TextSlice {
 	pub fn split<'e>(&self, sep: &Self, env: &mut Environment<'e>) -> List<'e> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			return Value::from(self.to_owned()).to_list(env).unwrap();
+			return Value::<i64>::from(self.to_owned()).to_list(env).unwrap();
 		}
 
 		let chars = (**self)

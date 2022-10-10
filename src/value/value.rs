@@ -10,7 +10,7 @@ use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
 #[derive(Default, Clone, PartialEq)]
-pub enum Value<'e> {
+pub enum Value<'e, I: IntType = i64> {
 	#[default]
 	/// Represents the `NULL` value.
 	Null,
@@ -19,7 +19,7 @@ pub enum Value<'e> {
 	Boolean(Boolean),
 
 	/// Represents integers.
-	Integer(Integer),
+	Integer(Integer<I>),
 
 	/// Represents a string.
 	Text(Text),
@@ -42,7 +42,7 @@ pub enum Value<'e> {
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_>: Send, Sync);
 
-impl Debug for Value<'_> {
+impl<I: IntType> Debug for Value<'_, I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Null => Debug::fmt(&Null, f),
@@ -59,56 +59,56 @@ impl Debug for Value<'_> {
 	}
 }
 
-impl From<Null> for Value<'_> {
+impl<I: IntType> From<Null> for Value<'_, I> {
 	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl From<Boolean> for Value<'_> {
+impl<I: IntType> From<Boolean> for Value<'_, I> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl From<Integer> for Value<'_> {
+impl<I: IntType> From<Integer<I>> for Value<'_, I> {
 	#[inline]
-	fn from(integer: Integer) -> Self {
+	fn from(integer: Integer<I>) -> Self {
 		Self::Integer(integer)
 	}
 }
 
-impl From<Text> for Value<'_> {
+impl<I: IntType> From<Text> for Value<'_, I> {
 	#[inline]
 	fn from(text: Text) -> Self {
 		Self::Text(text)
 	}
 }
 
-impl From<Character> for Value<'_> {
+impl<I: IntType> From<Character> for Value<'_, I> {
 	#[inline]
 	fn from(character: Character) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
 
-impl<'e> From<Variable<'e>> for Value<'e> {
+impl<'e, I: IntType> From<Variable<'e>> for Value<'e, I> {
 	#[inline]
 	fn from(variable: Variable<'e>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl<'e> From<Ast<'e>> for Value<'e> {
+impl<'e, I: IntType> From<Ast<'e>> for Value<'e, I> {
 	#[inline]
 	fn from(inp: Ast<'e>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl<'e> From<List<'e>> for Value<'e> {
+impl<'e, I: IntType> From<List<'e>> for Value<'e, I> {
 	#[inline]
 	fn from(list: List<'e>) -> Self {
 		Self::List(list)
@@ -116,14 +116,14 @@ impl<'e> From<List<'e>> for Value<'e> {
 }
 
 #[cfg(feature = "custom-types")]
-impl<'e> From<crate::value::Custom<'e>> for Value<'e> {
+impl<'e, I: IntType> From<crate::value::Custom<'e>> for Value<'e, I> {
 	#[inline]
 	fn from(custom: crate::value::Custom<'e>) -> Self {
 		Self::Custom(custom)
 	}
 }
 
-impl<'e> Value<'e> {
+impl<I: IntType> Value<'_, I> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub fn typename(&self) -> &'static str {
@@ -142,7 +142,7 @@ impl<'e> Value<'e> {
 	}
 }
 
-impl<'e> ToBoolean<'e> for Value<'e> {
+impl<'e, I: IntType> ToBoolean<'e> for Value<'e, I> {
 	fn to_boolean(&self, env: &mut Environment<'e>) -> Result<Boolean> {
 		match *self {
 			Self::Null => Null.to_boolean(env),
@@ -159,12 +159,12 @@ impl<'e> ToBoolean<'e> for Value<'e> {
 	}
 }
 
-impl<'e, I: IntType> ToInteger<'e, I> for Value<'e> {
+impl<'e, I: IntType> ToInteger<'e, I> for Value<'e, I> {
 	fn to_integer(&self, env: &mut Environment<'e>) -> Result<Integer<I>> {
 		match *self {
 			Self::Null => Null.to_integer(env),
 			Self::Boolean(boolean) => boolean.to_integer(env),
-			// Self::Integer(integer) => integer.to_integer(env),
+			Self::Integer(integer) => integer.to_integer(env),
 			Self::Text(ref text) => text.to_integer(env),
 			Self::List(ref list) => list.to_integer(env),
 
@@ -176,7 +176,7 @@ impl<'e, I: IntType> ToInteger<'e, I> for Value<'e> {
 	}
 }
 
-impl<'e> ToText<'e> for Value<'e> {
+impl<'e, I: IntType> ToText<'e> for Value<'e, I> {
 	fn to_text(&self, env: &mut Environment<'e>) -> Result<Text> {
 		match *self {
 			Self::Null => Null.to_text(env),
@@ -193,12 +193,13 @@ impl<'e> ToText<'e> for Value<'e> {
 	}
 }
 
-impl<'e> ToList<'e> for Value<'e> {
+impl<'e, I: IntType> ToList<'e> for Value<'e, I> {
 	fn to_list(&self, env: &mut Environment<'e>) -> Result<List<'e>> {
 		match *self {
 			Self::Null => Null.to_list(env),
 			Self::Boolean(boolean) => boolean.to_list(env),
-			Self::Integer(integer) => integer.to_list(env),
+			// Self::Integer(integer) => integer.to_list(env),
+			Self::Integer(_integer) => todo!(),
 			Self::Text(ref text) => text.to_list(env),
 			Self::List(ref list) => list.to_list(env),
 
@@ -453,6 +454,7 @@ impl<'e> Value<'e> {
 			other => Err(Error::TypeError(other.typename(), "%")),
 		}
 	}
+
 	pub fn power(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.power(rhs.to_integer(env)?, env.flags()).map(Self::from),
@@ -464,7 +466,9 @@ impl<'e> Value<'e> {
 			other => Err(Error::TypeError(other.typename(), "^")),
 		}
 	}
+}
 
+impl<'e, I: IntType> Value<'e, I> {
 	pub fn compare(&self, rhs: &Self, env: &mut Environment<'e>) -> Result<Ordering> {
 		match self {
 			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),
@@ -493,7 +497,7 @@ impl<'e> Value<'e> {
 	pub fn equals(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<bool> {
 		#[cfg(feature = "compliance")]
 		{
-			fn check_for_strict_compliance(value: &Value<'_>) -> Result<()> {
+			fn check_for_strict_compliance<I: IntType>(value: &Value<'_, I>) -> Result<()> {
 				match value {
 					Value::List(list) => {
 						for ele in list {
@@ -515,7 +519,9 @@ impl<'e> Value<'e> {
 		let _ = env;
 		Ok(self == rhs)
 	}
+}
 
+impl<'e> Value<'e> {
 	pub fn assign(&self, value: Self, env: &mut Environment<'e>) -> Result<()> {
 		let _ = env;
 
@@ -644,9 +650,9 @@ impl<'e> Value<'e> {
 	}
 }
 
-fn fix_len<'e>(
-	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<'e>,
-	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer,
+fn fix_len<'e, I: IntType>(
+	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<'e, I>,
+	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer<I>,
 	#[cfg_attr(not(feature = "extensions"), allow(unused))] env: &mut Environment<'e>,
 ) -> Result<usize> {
 	#[cfg(feature = "extensions")]
@@ -661,7 +667,7 @@ fn fix_len<'e>(
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};
 
-		start = start.add(len.try_into()?)?;
+		start = start.add_(len.try_into()?)?;
 	}
 
 	usize::try_from(start).or(Err(Error::DomainError("negative start position")))
