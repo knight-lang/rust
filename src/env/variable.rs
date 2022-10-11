@@ -24,7 +24,7 @@ struct Inner<'e, I, E> {
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Variable<'_>: Send, Sync);
+sa::assert_impl_all!(Variable<'_, (), ()>: Send, Sync);
 
 impl<I: Debug, E> Debug for Variable<'_, I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {

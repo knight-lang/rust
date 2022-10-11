@@ -231,6 +231,8 @@ impl<I: IntType> Integer<I> {
 			rand &= 0x7fff;
 		}
 
+		let _ = flags;
+
 		// jank and needs to be fixed
 		Self(rand.try_into().unwrap_or_else(|_| {
 			let mut x = I::from(rand as i32);

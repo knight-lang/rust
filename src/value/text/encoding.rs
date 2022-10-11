@@ -1,4 +1,6 @@
-pub trait Encoding: 'static + Default + Clone + PartialEq {
+pub trait Encoding:
+	'static + Default + Clone + PartialEq + crate::containers::MaybeSendSync
+{
 	fn is_valid(chr: char) -> bool;
 	fn is_whitespace(chr: char) -> bool;
 	fn is_numeric(chr: char) -> bool;

@@ -36,7 +36,7 @@ impl<E> Hash for Text<E> {
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Text: Send, Sync);
+sa::assert_impl_all!(Text<()>: Send, Sync);
 
 impl<E> Debug for Text<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {

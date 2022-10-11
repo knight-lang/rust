@@ -52,7 +52,7 @@ pub enum Error {
 	/// An error that doesn't fall into one of the other categories.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	Custom(Box<dyn std::error::Error>),
+	Custom(Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// A type alias for `Result<T, Error>`.

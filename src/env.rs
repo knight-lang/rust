@@ -186,3 +186,13 @@ impl<'e, I, E> Environment<'e, I, E> {
 		(self.read_file)(filename, &self.flags)
 	}
 }
+
+impl<I, E> Drop for Environment<'_, I, E> {
+	fn drop(&mut self) {
+		// You can assign a variable to itself, which means that it'll end up leaking memory. So,
+		// we have to manually ensure that no variables reference others.
+		for var in self.variables.iter() {
+			var.assign(Value::Null);
+		}
+	}
+}

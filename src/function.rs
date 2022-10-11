@@ -14,6 +14,9 @@ use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 
+#[cfg(all(feature = "extensions", feature = "multithreaded"))]
+mod fork;
+
 /// A runnable function in Knight, e.g. `+`.
 pub struct Function<'a, I, E>(RefCount<Inner<'a, I, E>>);
 impl<I, E> Clone for Function<'_, I, E> {
@@ -642,7 +645,9 @@ pub fn HANDLE<'e, I: IntType, E: Encoding>() -> Function<'e, I, E> {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub fn YEET<'e, I: IntType, E: Encoding>() -> Function<'e, I, E> {
 	function!("YEET", env, |errmsg| {
-		return Err(Error::Custom(errmsg.run(env)?.to_text(env)?.to_string().into()));
+		let errmsg = errmsg.run(env)?.to_text(env)?.to_string();
+
+		return Err(Error::Custom(errmsg.into()));
 
 		#[allow(unreachable_code)]
 		Value::Null

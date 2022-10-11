@@ -16,6 +16,7 @@ pub trait IntType:
 	+ TryInto<i32>
 	+ TryFrom<i64>
 	+ TryFrom<usize>
+	+ crate::containers::MaybeSendSync
 	+ 'static
 {
 	const ZERO: Self;

@@ -168,7 +168,7 @@ pub enum ErrorKind {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	Custom(Box<dyn std::error::Error>), // TODO: make this be the `cause`
+	Custom(Box<dyn std::error::Error + Send + Sync>), // TODO: make this be the `cause`
 }
 
 impl ErrorKind {
