@@ -28,7 +28,7 @@ type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>, &Flags) -> Result<Text<E>> + 'e 
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e, I, E> {
-	flags: Flags,
+	flags: &'e Flags,
 	variables: HashSet<Variable<'e, I, E>>,
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
@@ -40,7 +40,6 @@ pub struct Environment<'e, I, E> {
 	parsers: Vec<RefCount<dyn ParseFn<'e, I, E>>>,
 
 	// A List of extension functions.
-	#[cfg(feature = "extensions")]
 	extensions: HashSet<ExtensionFunction<'e, I, E>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
@@ -60,13 +59,18 @@ sa::assert_impl_all!(Environment<'_, (), ()>: Send, Sync);
 impl<I: IntType, E: Encoding> Default for Environment<'_, I, E> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
 	fn default() -> Self {
-		Self::builder(Flags::default()).build()
+		Self::builder(&flags::DEFAULT).build()
 	}
 }
 
 impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
+	/// Creates a new [`Environment`] with the default configuration.
+	pub fn new() -> Self {
+		Self::default()
+	}
+
 	/// A shorthand function for creating [`Builder`]s.
-	pub fn builder(flags: Flags) -> Builder<'e, I, E> {
+	pub fn builder(flags: &'e Flags) -> Builder<'e, I, E> {
 		Builder::new(flags)
 	}
 
@@ -79,8 +83,8 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 impl<'e, I, E> Environment<'e, I, E> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
-	pub fn flags(&self) -> &Flags {
-		&self.flags
+	pub fn flags(&self) -> &'e Flags {
+		self.flags
 	}
 
 	/// Gets the list of currently defined functions for `self`.
@@ -101,12 +105,15 @@ impl<'e, I, E> Environment<'e, I, E> {
 		&mut self.prompt
 	}
 
+	/// Read a line from the [`prompt`](Self::prompt).
+	///
+	/// This exits because you need to pass a reference to `self.flags`
 	pub fn read_line(&mut self) -> Result<Option<Text<E>>>
 	where
 		I: IntType,
 		E: Encoding,
 	{
-		self.prompt.read_line(&self.flags)?.get(self)
+		self.prompt.read_line(self.flags)?.get(self)
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
@@ -140,7 +147,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 	where
 		I: IntType,
 	{
-		Integer::random(&mut self.rng, &self.flags)
+		Integer::random(&mut self.rng, self.flags)
 	}
 }
 
@@ -167,7 +174,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 		command: &TextSlice<E>,
 		stdin: Option<&TextSlice<E>>,
 	) -> Result<Text<E>> {
-		(self.system)(command, stdin, &self.flags)
+		(self.system)(command, stdin, self.flags)
 	}
 
 	/// Adds `output` as the next value to return from the system command.
@@ -183,7 +190,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 	/// Reads the file located at `filename`, returning its contents.
 	pub fn read_file(&mut self, filename: &TextSlice<E>) -> Result<Text<E>> {
-		(self.read_file)(filename, &self.flags)
+		(self.read_file)(filename, self.flags)
 	}
 }
 

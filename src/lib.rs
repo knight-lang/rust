@@ -27,7 +27,7 @@ pub fn play(
 	inttype: &str,
 	overflow: &str,
 	src: &str,
-	flags: env::Flags,
+	flags: &env::Flags,
 ) -> Result<()> {
 	macro_rules! play {
 		(E; "ascii") => (crate::value::text::Ascii);
@@ -41,7 +41,7 @@ pub fn play(
 			match (encoding, inttype, overflow) {
 				$(($e, $i, $c) => {
 					let mut env = Environment::<'_, play![C; $c $i], play![E; $e]>::builder(flags).build();
-					env.play(TextSlice::new(src, &flags)?).and(Ok(()))
+					env.play(TextSlice::new(src, flags)?).and(Ok(()))
 				})*
 				_ => panic!("bad options: encoding: {encoding:?}, inttype: {inttype:?}, overflow: {overflow:?}")
 			}

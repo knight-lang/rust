@@ -19,11 +19,7 @@ extensions = [] # stuff that's not part of base knight
 custom-types = ["extensions"] # Allows users to add custom types in
 
 # If this is enabled, ensures that all extensions default to true.
-all-extensions = [
-	"extensions",
-	"multithreaded",
-	"custom-types"
-]
+all-extensions = ["extensions", "multithreaded", "custom-types"]
 
 compliance = [] # Compiles in the ability to toggle compliance checks for most things.
 # Enables all compliance-related flags, _and_ defaults all interpreter compliance options to true.

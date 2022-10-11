@@ -3,7 +3,7 @@ use super::*;
 /// A Builder for an [`Environment`], allowing its different options to be configured.
 #[must_use]
 pub struct Builder<'e, I, E> {
-	flags: Flags,
+	flags: &'e Flags,
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
 	functions: HashSet<Function<'e, I, E>>,
@@ -21,12 +21,12 @@ pub struct Builder<'e, I, E> {
 
 impl<I: IntType, E: Encoding> Default for Builder<'_, I, E> {
 	fn default() -> Self {
-		Self::new(Flags::default())
+		Self::new(&crate::env::flags::DEFAULT)
 	}
 }
 
 impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
-	pub fn new(flags: Flags) -> Self {
+	pub fn new(flags: &'e Flags) -> Self {
 		Self {
 			flags,
 			prompt: Prompt::default(),

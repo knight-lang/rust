@@ -1,5 +1,9 @@
 /// A set of flags that can be toggled to change how the interpreter runs.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// Normally, all flags default to `false`. However, if `strict-compliance` is enabled, then the
+/// compliance flags will default to `true`. Likewise, is `all-extensions` is enabled, the extension
+/// flags will default to `true`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flags {
 	/// Knight specification conformity flags.
 	#[cfg(feature = "compliance")]
@@ -11,6 +15,61 @@ pub struct Flags {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub exts: ExtensionFlags,
 }
+
+impl Default for Flags {
+	fn default() -> Self {
+		DEFAULT
+	}
+}
+
+#[cfg(feature = "compliance")]
+const STRICT_COMPLIANCE: bool = cfg!(feature = "strict-compliance");
+
+#[cfg(feature = "extensions")]
+const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
+
+pub(crate) static DEFAULT: Flags = Flags {
+	#[cfg(feature = "compliance")]
+	compliance: ComplianceFlags {
+		check_quit_bounds: STRICT_COMPLIANCE,
+		forbid_trailing_tokens: STRICT_COMPLIANCE,
+		verify_variable_names: STRICT_COMPLIANCE,
+		check_call_arg: STRICT_COMPLIANCE,
+		limit_rand_range: STRICT_COMPLIANCE,
+		check_equals_params: STRICT_COMPLIANCE,
+		check_container_length: STRICT_COMPLIANCE,
+		knight_encoding_only: STRICT_COMPLIANCE,
+		check_integer_function_bounds: STRICT_COMPLIANCE,
+	},
+	#[cfg(feature = "extensions")]
+	exts: ExtensionFlags {
+		assign_to: AssignToFlags {
+			prompt: ALL_EXTENSIONS,
+			system: ALL_EXTENSIONS,
+			list: ALL_EXTENSIONS,
+			text: ALL_EXTENSIONS,
+		},
+		fns: FunctionFlags {
+			value: ALL_EXTENSIONS,
+			eval: ALL_EXTENSIONS,
+			handle: ALL_EXTENSIONS,
+			yeet: ALL_EXTENSIONS,
+			r#use: ALL_EXTENSIONS,
+			system: ALL_EXTENSIONS,
+			xsrand: ALL_EXTENSIONS,
+			xreverse: ALL_EXTENSIONS,
+			xrange: ALL_EXTENSIONS,
+		},
+		tys: TypeFlags {
+			boolean: ALL_EXTENSIONS,
+			list: ALL_EXTENSIONS,
+			text: ALL_EXTENSIONS,
+			integer: ALL_EXTENSIONS,
+		},
+		negative_indexing: ALL_EXTENSIONS,
+		list_literal: ALL_EXTENSIONS,
+	},
+};
 
 /// Flags related to catching undefined behaviour in Knight programs.
 ///
@@ -75,29 +134,7 @@ pub struct ComplianceFlags {
 	pub check_integer_function_bounds: bool,
 }
 
-#[cfg(feature = "compliance")]
-impl Default for ComplianceFlags {
-	fn default() -> Self {
-		const STRICT_COMPLIANCE: bool = cfg!(feature = "strict-compliance");
-
-		Self {
-			check_quit_bounds: STRICT_COMPLIANCE,
-			forbid_trailing_tokens: STRICT_COMPLIANCE,
-			verify_variable_names: STRICT_COMPLIANCE,
-			check_call_arg: STRICT_COMPLIANCE,
-			limit_rand_range: STRICT_COMPLIANCE,
-			check_equals_params: STRICT_COMPLIANCE,
-			check_container_length: STRICT_COMPLIANCE,
-			knight_encoding_only: STRICT_COMPLIANCE,
-			check_integer_function_bounds: STRICT_COMPLIANCE,
-		}
-	}
-}
-
 /// Flags for extensions to the Knight interpreter.
-///
-/// Normally, the flags default to `false`. However, if the `all-extensions` feature is enabled,
-/// all extension flags default to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
@@ -119,25 +156,7 @@ pub struct ExtensionFlags {
 	pub list_literal: bool,
 }
 
-#[cfg(feature = "extensions")]
-impl Default for ExtensionFlags {
-	fn default() -> Self {
-		const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
-
-		Self {
-			assign_to: AssignToFlags::default(),
-			fns: FunctionFlags::default(),
-			tys: TypeFlags::default(),
-			negative_indexing: ALL_EXTENSIONS,
-			list_literal: ALL_EXTENSIONS,
-		}
-	}
-}
-
 /// Flags to enable extension functions.
-///
-/// Normally, the flags default to `false`. However, if the `all-extensions` feature is enabled,
-/// all extension flags default to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
@@ -168,25 +187,6 @@ pub struct FunctionFlags {
 
 	/// Enables the [`XRANGE`](crate::function::XRANGE) function.
 	pub xrange: bool,
-}
-
-#[cfg(feature = "extensions")]
-impl Default for FunctionFlags {
-	fn default() -> Self {
-		const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
-
-		Self {
-			value: ALL_EXTENSIONS,
-			eval: ALL_EXTENSIONS,
-			handle: ALL_EXTENSIONS,
-			yeet: ALL_EXTENSIONS,
-			r#use: ALL_EXTENSIONS,
-			system: ALL_EXTENSIONS,
-			xsrand: ALL_EXTENSIONS,
-			xreverse: ALL_EXTENSIONS,
-			xrange: ALL_EXTENSIONS,
-		}
-	}
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
