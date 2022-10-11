@@ -25,7 +25,7 @@ pub trait NamedType {
 }
 
 /// A trait indicating a type can be run.
-pub trait Runnable<'e, I> {
+pub trait Runnable<'e, I, E> {
 	/// Runs `self`.
-	fn run(&self, env: &mut crate::Environment<'e, I>) -> crate::Result<Value<'e, I>>;
+	fn run(&self, env: &mut crate::Environment<'e, I, E>) -> crate::Result<Value<'e, I, E>>;
 }

@@ -1,5 +1,6 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
+use crate::value::text::Encoding;
 use crate::value::{integer::IntType, Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
@@ -10,22 +11,22 @@ use std::hash::{Hash, Hasher};
 ///
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
 // FIXME: You can memory leak via `= a (B a)` (and also `= a (B + a 1)`, etc.)
-pub struct Variable<'e, I>(RefCount<Inner<'e, I>>);
-impl<I> Clone for Variable<'_, I> {
+pub struct Variable<'e, I, E>(RefCount<Inner<'e, I, E>>);
+impl<I, E> Clone for Variable<'_, I, E> {
 	fn clone(&self) -> Self {
 		Self(self.0.clone())
 	}
 }
 
-struct Inner<'e, I> {
-	name: Text,
-	value: Mutable<Option<Value<'e, I>>>,
+struct Inner<'e, I, E> {
+	name: Text<E>,
+	value: Mutable<Option<Value<'e, I, E>>>,
 }
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Variable<'_>: Send, Sync);
 
-impl<I: Debug> Debug for Variable<'_, I> {
+impl<I: Debug, E> Debug for Variable<'_, I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -38,8 +39,8 @@ impl<I: Debug> Debug for Variable<'_, I> {
 	}
 }
 
-impl<I> Eq for Variable<'_, I> {}
-impl<I> PartialEq for Variable<'_, I> {
+impl<I, E> Eq for Variable<'_, I, E> {}
+impl<I, E> PartialEq for Variable<'_, I, E> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This checks to see if the two variables are pointing to the _exact same object_.
@@ -49,15 +50,15 @@ impl<I> PartialEq for Variable<'_, I> {
 	}
 }
 
-impl<I> Borrow<TextSlice> for Variable<'_, I> {
+impl<I, E> Borrow<TextSlice<E>> for Variable<'_, I, E> {
 	/// Borrows the [`name`](Variable::name) of the variable.
 	#[inline]
-	fn borrow(&self) -> &TextSlice {
+	fn borrow(&self) -> &TextSlice<E> {
 		self.name()
 	}
 }
 
-impl<I> Hash for Variable<'_, I> {
+impl<I, E> Hash for Variable<'_, I, E> {
 	/// Hashes the [`name`](Variable::name) of the variable.
 	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
@@ -65,7 +66,7 @@ impl<I> Hash for Variable<'_, I> {
 	}
 }
 
-impl<I> crate::value::NamedType for Variable<'_, I> {
+impl<I, E> crate::value::NamedType for Variable<'_, I, E> {
 	const TYPENAME: &'static str = "Variable";
 }
 
@@ -90,12 +91,12 @@ pub enum IllegalVariableName {
 	/// The name had an illegal character at the beginning.
 	#[cfg(feature = "compliance")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
-	IllegalStartingChar(crate::value::text::Character),
+	IllegalStartingChar(char),
 
 	/// The name had an illegal character in the middle.
 	#[cfg(feature = "compliance")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
-	IllegalBodyChar(crate::value::text::Character),
+	IllegalBodyChar(char),
 }
 
 impl std::error::Error for IllegalVariableName {}
@@ -108,7 +109,7 @@ impl Display for IllegalVariableName {
 
 			#[cfg(feature = "compliance")]
 			Self::TooLong(count) => {
-				write!(f, "variable name was too long ({count} > {})", Variable::<i64>::MAX_NAME_LEN)
+				write!(f, "variable name was too long ({count} > {})", Variable::<(), ()>::MAX_NAME_LEN)
 			}
 
 			#[cfg(feature = "compliance")]
@@ -120,36 +121,39 @@ impl Display for IllegalVariableName {
 	}
 }
 
-impl<'e, I> Variable<'e, I> {
+impl<'e, I, E> Variable<'e, I, E> {
 	/// Maximum length a name can have when [`verify_variable_names`](
 	/// crate::env::flags::ComplianceFlags::verify_variable_names) is enabled.
 	pub const MAX_NAME_LEN: usize = 127;
 
 	#[cfg(feature = "compliance")]
-	fn validate_name(
-		name: &TextSlice,
-		flags: &Flags,
-	) -> std::result::Result<(), IllegalVariableName> {
+	fn validate_name(name: &TextSlice<E>) -> std::result::Result<(), IllegalVariableName>
+	where
+		E: Encoding,
+	{
 		if Self::MAX_NAME_LEN < name.len() {
 			return Err(IllegalVariableName::TooLong(name.len()));
 		}
 
 		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-		if !first.is_lower(flags) {
-			return Err(IllegalVariableName::IllegalStartingChar(first));
+		if !first.is_lower() {
+			return Err(IllegalVariableName::IllegalStartingChar(first.inner()));
 		}
 
-		if let Some(bad) = name.chars().find(|&c| !c.is_lower(flags) && !c.is_numeric(flags)) {
-			return Err(IllegalVariableName::IllegalBodyChar(bad));
+		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
+			return Err(IllegalVariableName::IllegalBodyChar(bad.inner()));
 		}
 
 		Ok(())
 	}
 
-	pub(crate) fn new(name: Text, flags: &Flags) -> std::result::Result<Self, IllegalVariableName> {
+	pub(crate) fn new(name: Text<E>, flags: &Flags) -> std::result::Result<Self, IllegalVariableName>
+	where
+		E: Encoding,
+	{
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
-			Self::validate_name(&name, flags)?;
+			Self::validate_name(&name)?;
 		}
 
 		let _ = flags;
@@ -159,36 +163,37 @@ impl<'e, I> Variable<'e, I> {
 	/// Fetches the name of the variable.
 	#[must_use]
 	#[inline]
-	pub fn name(&self) -> &Text {
+	pub fn name(&self) -> &Text<E> {
 		&self.0.name
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&self, new: Value<'e, I>) -> Option<Value<'e, I>> {
+	pub fn assign(&self, new: Value<'e, I, E>) -> Option<Value<'e, I, E>> {
 		(self.0).value.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value<'e, I>>
+	pub fn fetch(&self) -> Option<Value<'e, I, E>>
 	where
 		I: Clone,
+		E: Clone,
 	{
 		(self.0).value.read().clone()
 	}
 }
 
-impl<'e, I: Clone> Runnable<'e, I> for Variable<'e, I> {
-	fn run(&self, _env: &mut Environment<'e, I>) -> Result<Value<'e, I>> {
-		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().clone()))
+impl<'e, I: Clone, E: Clone> Runnable<'e, I, E> for Variable<'e, I, E> {
+	fn run(&self, _env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>> {
+		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
 	}
 }
 
-impl<'e, I: IntType> Parsable<'e, I> for Variable<'e, I> {
+impl<'e, I: IntType, E: crate::value::text::Encoding> Parsable<'e, I, E> for Variable<'e, I, E> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, 'e, I>) -> parse::Result<Option<Self>> {
-		let Some(identifier) = parser.take_while(|chr, flags| chr.is_lower(flags) || chr.is_numeric(flags)) else {
+	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> parse::Result<Option<Self>> {
+		let Some(identifier) = parser.take_while(|chr| chr.is_lower() || chr.is_numeric()) else {
 			return Ok(None);
 		};
 

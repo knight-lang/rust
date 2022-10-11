@@ -1,30 +1,31 @@
 mod builder;
 mod character;
+mod encoding;
 mod text;
 mod textslice;
-
-pub trait ToText<'e, I> {
-	fn to_text(&self, env: &mut crate::Environment<'e, I>) -> crate::Result<Text>;
+pub trait ToText<'e, I, E> {
+	fn to_text(&self, env: &mut crate::Environment<'e, I, E>) -> crate::Result<Text<E>>;
 }
 
 use crate::env::Flags;
 pub use builder::Builder;
 pub use character::Character;
+pub use encoding::*;
 pub use text::*;
 pub use textslice::*;
 
-pub struct Chars<'a>(std::str::Chars<'a>);
-impl<'a> Chars<'a> {
-	pub fn as_text(&self) -> &'a TextSlice {
-		unsafe { TextSlice::new_unchecked(self.0.as_str()) }
+pub struct Chars<'a, E>(std::marker::PhantomData<E>, std::str::Chars<'a>);
+impl<'a, E> Chars<'a, E> {
+	pub fn as_text(&self) -> &'a TextSlice<E> {
+		unsafe { TextSlice::new_unchecked(self.1.as_str()) }
 	}
 }
 
-impl Iterator for Chars<'_> {
-	type Item = Character;
+impl<E> Iterator for Chars<'_, E> {
+	type Item = Character<E>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.0.next().map(|chr| unsafe { Character::new_unchecked(chr) })
+		self.1.next().map(|chr| unsafe { Character::new_unchecked(chr) })
 	}
 }
 
@@ -52,7 +53,7 @@ impl std::fmt::Display for NewTextError {
 		match *self {
 			#[cfg(feature = "compliance")]
 			Self::LengthTooLong(len) => {
-				write!(f, "length {len} longer than max {}", TextSlice::MAX_LEN)
+				write!(f, "length {len} longer than max {}", TextSlice::<()>::MAX_LEN)
 			}
 			#[cfg(feature = "compliance")]
 			Self::IllegalChar { chr, index } => {
@@ -64,13 +65,13 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-pub const fn validate(
+pub fn validate<E: Encoding>(
 	#[allow(unused)] data: &str,
 	#[allow(unused)] flags: &Flags,
 ) -> Result<(), NewTextError> {
 	#[cfg(feature = "compliance")]
 	{
-		if flags.compliance.check_container_length && TextSlice::MAX_LEN < data.len() {
+		if flags.compliance.check_container_length && TextSlice::<E>::MAX_LEN < data.len() {
 			return Err(NewTextError::LengthTooLong(data.len()));
 		}
 
@@ -83,7 +84,7 @@ pub const fn validate(
 			while index < bytes.len() {
 				let chr = bytes[index] as char;
 
-				if Character::new(chr, flags).is_none() {
+				if Character::<E>::new(chr).is_none() {
 					// Since everything's a byte, the byte index is the same as the char index.
 					return Err(NewTextError::IllegalChar { chr, index });
 				}

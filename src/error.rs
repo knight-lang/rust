@@ -1,6 +1,6 @@
 use crate::env::IllegalVariableName;
 use crate::parse::Error as ParseError;
-use crate::value::text::{NewTextError, Text};
+use crate::value::text::NewTextError;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 
@@ -13,7 +13,7 @@ pub enum Error {
 	NoConversion { from: &'static str, to: &'static str },
 
 	/// An undefined variable was accessed.
-	UndefinedVariable(Text),
+	UndefinedVariable(String),
 
 	/// There was a problem with I/O.
 	IoError(io::Error),

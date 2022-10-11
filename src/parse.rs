@@ -1,6 +1,6 @@
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::Variable;
-use crate::text::{Character, Text, TextSlice};
+use crate::text::{Character, Encoding, Text, TextSlice};
 use crate::value::{integer::IntType, Integer, List, Value};
 use crate::{Ast, Environment};
 use std::fmt::{self, Display, Formatter};
@@ -16,14 +16,14 @@ pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'e, I> {
-	source: &'s TextSlice,
-	env: &'s mut Environment<'e, I>,
+pub struct Parser<'s, 'e, I, E> {
+	source: &'s TextSlice<E>,
+	env: &'s mut Environment<'e, I, E>,
 	line: usize,
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<'e, I: IntType>: Sized {
+pub trait Parsable<'e, I: IntType, E: Encoding>: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -35,38 +35,39 @@ pub trait Parsable<'e, I: IntType>: Sized {
 	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
 	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
 	///   returned.
-	fn parse(parser: &mut Parser<'_, 'e, I>) -> Result<Option<Self::Output>>;
+	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> Result<Option<Self::Output>>;
 
 	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
 	/// crate::env::Builder::parsers).
-	fn parse_fn() -> RefCount<dyn ParseFn<'e, I>>
+	fn parse_fn() -> RefCount<dyn ParseFn<'e, I, E>>
 	where
-		Value<'e, I>: From<Self::Output>,
+		Value<'e, I, E>: From<Self::Output>,
 	{
-		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e, I>| {
+		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e, I, E>| {
 			Ok(Self::parse(parser)?.map(Value::from))
 		}) as Box<_>)
 	}
 }
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn<'e, I: IntType>:
-	Fn(&mut Parser<'_, 'e, I>) -> Result<Option<Value<'e, I>>> + MaybeSendSync
+pub trait ParseFn<'e, I: IntType, E: Encoding>:
+	Fn(&mut Parser<'_, 'e, I, E>) -> Result<Option<Value<'e, I, E>>> + MaybeSendSync
 {
 }
 
-impl<'e, I, T> ParseFn<'e, I> for T
+impl<'e, T, I, E> ParseFn<'e, I, E> for T
 where
 	I: IntType,
-	T: Fn(&mut Parser<'_, 'e, I>) -> Result<Option<Value<'e, I>>> + MaybeSendSync,
+	E: Encoding,
+	T: Fn(&mut Parser<'_, 'e, I, E>) -> Result<Option<Value<'e, I, E>>> + MaybeSendSync,
 {
 }
 
 // Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
 // in case we want it for extensions later.)
-pub(crate) fn default<'e, I: IntType + 'e>(
+pub(crate) fn default<'e, I: IntType + 'e, E: Encoding + 'e>(
 	_flags: &crate::env::Flags,
-) -> Vec<RefCount<dyn ParseFn<'e, I>>> {
+) -> Vec<RefCount<dyn ParseFn<'e, I, E>>> {
 	macro_rules! parsers {
 		($($(#[$meta:meta])* $ty:ty),* $(,)?) => {
 			vec![$($(#[$meta])* <$ty>::parse_fn()),*]
@@ -77,14 +78,14 @@ pub(crate) fn default<'e, I: IntType + 'e>(
 		Blank,
 		GroupedExpression,
 		Integer<I>,
-		Text,
-		Variable<'e, I>,
+		Text<E>,
+		Variable<'e, I, E>,
 		crate::value::Boolean,
 		crate::value::Null,
-		List<'e, I>,
-		Ast<'e, I>,
+		List<'e, I, E>,
+		Ast<'e, I, E>,
 		#[cfg(feature = "extensions")]
-		ListLiteral<'e, I>
+		ListLiteral<'e, I, E>
 	]
 }
 
@@ -115,18 +116,18 @@ pub enum ErrorKind {
 	EmptySource,
 
 	/// An unrecognized character was encountered.
-	UnknownTokenStart(Character),
+	UnknownTokenStart(char),
 
 	/// A starting quote was found without an associated ending quote.
 	UnterminatedText {
 		/// The starting character of the quote (ie either `'` or `"`)
-		quote: Character,
+		quote: char,
 	},
 
 	/// A function name was parsed, but an argument of its was missing.
 	MissingArgument {
 		/// The name of the function whose argument is missing.
-		name: Text,
+		name: String,
 
 		/// The argument number.
 		index: usize,
@@ -161,7 +162,7 @@ pub enum ErrorKind {
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	/// An unknown extension name was encountered.
-	UnknownExtensionFunction(Text),
+	UnknownExtensionFunction(String),
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
@@ -214,30 +215,30 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-pub trait AdvanceIfCondition {
-	fn should_advance(self, chr: Character) -> bool;
+pub trait AdvanceIfCondition<E> {
+	fn should_advance(self, chr: Character<E>) -> bool;
 }
-impl<T: FnOnce(Character) -> bool> AdvanceIfCondition for T {
-	fn should_advance(self, chr: Character) -> bool {
+impl<E, T: FnOnce(Character<E>) -> bool> AdvanceIfCondition<E> for T {
+	fn should_advance(self, chr: Character<E>) -> bool {
 		self(chr)
 	}
 }
 
-impl AdvanceIfCondition for Character {
-	fn should_advance(self, chr: Character) -> bool {
+impl<E> AdvanceIfCondition<E> for Character<E> {
+	fn should_advance(self, chr: Character<E>) -> bool {
+		self == chr
+	}
+}
+
+impl<E> AdvanceIfCondition<E> for char {
+	fn should_advance(self, chr: Character<E>) -> bool {
 		chr == self
 	}
 }
 
-impl AdvanceIfCondition for char {
-	fn should_advance(self, chr: Character) -> bool {
-		chr == self
-	}
-}
-
-impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
+impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
 	/// Create a new `Parser` from the given source.
-	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e, I>) -> Self {
+	pub fn new(source: &'s TextSlice<E>, env: &'s mut Environment<'e, I, E>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -245,7 +246,7 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		self.line
 	}
 
-	pub fn env(&mut self) -> &mut Environment<'e, I> {
+	pub fn env(&mut self) -> &mut Environment<'e, I, E> {
 		self.env
 	}
 
@@ -253,11 +254,11 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		kind.error(self.line)
 	}
 
-	pub fn peek(&self) -> Option<Character> {
+	pub fn peek(&self) -> Option<Character<E>> {
 		self.source.head()
 	}
 
-	pub fn advance_if<F: AdvanceIfCondition>(&mut self, cond: F) -> Option<Character> {
+	pub fn advance_if<F: AdvanceIfCondition<E>>(&mut self, cond: F) -> Option<Character<E>> {
 		let mut chars = self.source.chars();
 
 		let head = chars.next()?;
@@ -273,17 +274,17 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		Some(head)
 	}
 
-	pub fn advance(&mut self) -> Option<Character> {
+	pub fn advance(&mut self) -> Option<Character<E>> {
 		self.advance_if(|_| true)
 	}
 
-	pub fn take_while<F: FnMut(Character, &crate::env::Flags) -> bool>(
+	pub fn take_while<F: FnMut(Character<E>) -> bool>(
 		&mut self,
 		mut func: F,
-	) -> Option<&'s TextSlice> {
+	) -> Option<&'s TextSlice<E>> {
 		let start = self.source;
 
-		while self.peek().map_or(false, |chr| func(chr, self.env.flags())) {
+		while self.peek().map_or(false, &mut func) {
 			self.advance();
 		}
 
@@ -298,7 +299,7 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		let mut anything_stripped = false;
 		loop {
 			// strip all leading whitespace, if any.
-			anything_stripped |= self.take_while(Character::is_whitespace).is_some();
+			anything_stripped |= self.take_while(|c| c.is_whitespace() || c == ':').is_some();
 
 			// If we're not at the start of a comment, break out
 			if self.advance_if('#').is_none() {
@@ -306,13 +307,13 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 			}
 
 			// eat a comment.
-			self.take_while(|chr, _| chr != '\n');
+			self.take_while(|chr| chr != '\n');
 			anything_stripped = true;
 		}
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
-	pub fn parse_program(mut self) -> Result<Value<'e, I>> {
+	pub fn parse_program(mut self) -> Result<Value<'e, I, E>> {
 		let ret = self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -331,7 +332,7 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 	}
 
 	pub fn strip_function(&mut self) {
-		if self.peek().expect("strip function at eof").is_upper(self.env.flags()) {
+		if self.peek().expect("strip function at eof").is_upper() {
 			// If it's a keyword function, then take all keyword characters.
 			self.take_while(Character::is_upper);
 		} else {
@@ -340,7 +341,7 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		}
 	}
 
-	pub fn parse_expression(&mut self) -> Result<Value<'e, I>> {
+	pub fn parse_expression(&mut self) -> Result<Value<'e, I, E>> {
 		let mut i = 0;
 		while i < self.env.parsers().len() {
 			match self.env.parsers()[i].clone()(self) {
@@ -352,8 +353,13 @@ impl<'s, 'e, I: IntType> Parser<'s, 'e, I> {
 		}
 
 		Err(
-			self
-				.error(self.peek().map(ErrorKind::UnknownTokenStart).unwrap_or(ErrorKind::EmptySource)),
+			self.error(
+				self
+					.peek()
+					.map(char::from)
+					.map(ErrorKind::UnknownTokenStart)
+					.unwrap_or(ErrorKind::EmptySource),
+			),
 		)
 	}
 }

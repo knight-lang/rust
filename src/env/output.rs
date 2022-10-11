@@ -8,16 +8,16 @@ use crate::{env::Variable, value::Text};
 pub trait Stdout: Write + MaybeSendSync {}
 impl<T: Write + MaybeSendSync> Stdout for T {}
 
-pub struct Output<'e, I> {
+pub struct Output<'e, I, E> {
 	default: Box<dyn Stdout + 'e>,
 
-	_pd: std::marker::PhantomData<I>,
+	_pd: std::marker::PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
-	pipe: Option<Variable<'e, I>>,
+	pipe: Option<Variable<'e, I, E>>,
 }
 
-impl<I: IntType> Default for Output<'_, I> {
+impl<I, E> Default for Output<'_, I, E> {
 	fn default() -> Self {
 		Self {
 			default: Box::new(io::stdout()),
@@ -30,7 +30,7 @@ impl<I: IntType> Default for Output<'_, I> {
 	}
 }
 
-impl<'e, I: IntType> Output<'e, I> {
+impl<'e, I: IntType, E: crate::value::text::Encoding> Output<'e, I, E> {
 	/// Sets the default stdout.
 	///
 	/// This doesn't affect any pipes which are enabled.
@@ -39,18 +39,18 @@ impl<'e, I: IntType> Output<'e, I> {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn set_pipe(&mut self, variable: Variable<'e, I>) {
+	pub fn set_pipe(&mut self, variable: Variable<'e, I, E>) {
 		self.pipe = Some(variable)
 	}
 }
 
-impl<I: IntType> Write for Output<'_, I> {
+impl<I: IntType, E: super::Encoding> Write for Output<'_, I, E> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
 		if let Some(pipe) = self.pipe.as_ref() {
 			// The error case shouldn't happen if we call `write` from within Knight.
 			let _ = pipe;
-			let _: Text = todo!();
+			let _: Text<E> = todo!();
 			// let text = String::from_utf8(bytes.to_vec())
 			// 	.ok()
 			// 	.and_then(|s| Text::try_from(s).ok())

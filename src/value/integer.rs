@@ -1,5 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::text::Character;
+use crate::value::text::{Character, Encoding};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Environment, Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
@@ -77,7 +77,6 @@ impl IntType for i64 {
 	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
 	fn remainder(self, rhs: Self) -> Result<Self> { Ok(self % rhs) }
 	fn power(self, rhs: u32) -> Result<Self> { Ok(self.wrapping_pow(rhs)) }
-
 }
 
 #[rustfmt::skip]
@@ -106,9 +105,9 @@ impl IntType for i32 {
 }
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger<'e, I> {
+pub trait ToInteger<'e, I, E> {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment<'e, I>) -> Result<Integer<I>>;
+	fn to_integer(&self, env: &mut Environment<'e, I, E>) -> Result<Integer<I>>;
 }
 
 impl<I: Debug> Debug for Integer<I> {
@@ -226,11 +225,11 @@ impl<I: IntType> Integer<I> {
 	}
 
 	/// Attempts to interpret `self` as a Unicode codepoint.
-	pub fn chr(self, flags: &crate::env::Flags) -> Result<Character> {
+	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		u32::try_from(self.0.into())
 			.ok()
 			.and_then(char::from_u32)
-			.and_then(|c| Character::new(c, flags))
+			.and_then(Character::new)
 			.ok_or(Error::DomainError("number isn't a valid char"))
 	}
 
@@ -428,10 +427,10 @@ impl Integer {
 	}
 }
 
-impl<I: IntType> Parsable<'_, I> for Integer<I> {
+impl<I: IntType, E: Encoding> Parsable<'_, I, E> for Integer<I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
 		let Some(source) = parser.take_while(Character::is_numeric) else {
 			return Ok(None);
 		};
@@ -443,35 +442,35 @@ impl<I: IntType> Parsable<'_, I> for Integer<I> {
 	}
 }
 
-impl<'e, I: Clone> ToInteger<'e, I> for Integer<I> {
+impl<'e, I: Clone, E> ToInteger<'e, I, E> for Integer<I> {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Self> {
+	fn to_integer(&self, _: &mut Environment<'e, I, E>) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl<'e, I: IntType> ToBoolean<'e, I> for Integer<I> {
+impl<'e, I: IntType, E> ToBoolean<'e, I, E> for Integer<I> {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e, I, E>) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
 }
 
-impl<'e, I: Display> ToText<'e, I> for Integer<I> {
+impl<'e, I: Display, E: Encoding> ToText<'e, I, E> for Integer<I> {
 	/// Returns a string representation of `self`.
 	#[inline]
-	fn to_text(&self, env: &mut Environment<'e, I>) -> Result<Text> {
+	fn to_text(&self, env: &mut Environment<'e, I, E>) -> Result<Text<E>> {
 		Ok(Text::new(self, env.flags()).expect("`to_text for Integer failed?`"))
 	}
 }
 
-impl<'e, I: IntType> ToList<'e, I> for Integer<I> {
+impl<'e, I: IntType, E> ToList<'e, I, E> for Integer<I> {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
+	fn to_list(&self, _: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>> {
 		if self.is_zero() {
 			return Ok(List::boxed(self.clone().into()));
 		}

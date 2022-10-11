@@ -22,10 +22,10 @@ impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
 }
 
-impl<I: IntType> Parsable<'_, I> for Null {
+impl<I: IntType, E: crate::value::text::Encoding> Parsable<'_, I, E> for Null {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);
 		}
@@ -36,34 +36,34 @@ impl<I: IntType> Parsable<'_, I> for Null {
 	}
 }
 
-impl<'e, I> ToBoolean<'e, I> for Null {
+impl<'e, I, E> ToBoolean<'e, I, E> for Null {
 	/// Simple returns `false`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment<'e, I>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'e, I, E>) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
 
-impl<'e, I: Default> ToInteger<'e, I> for Null {
+impl<'e, I: Default, E> ToInteger<'e, I, E> for Null {
 	/// Simple returns zero.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment<'e, I>) -> Result<Integer<I>> {
+	fn to_integer(&self, _: &mut Environment<'e, I, E>) -> Result<Integer<I>> {
 		Ok(Integer::default())
 	}
 }
 
-impl<'e, I> ToList<'e, I> for Null {
+impl<'e, I, E> ToList<'e, I, E> for Null {
 	/// Simple returns an empty [`List`].
 	#[inline]
-	fn to_list(&self, _: &mut Environment<'e, I>) -> Result<List<'e, I>> {
+	fn to_list(&self, _: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>> {
 		Ok(List::default())
 	}
 }
 
-impl<'e, I> ToText<'e, I> for Null {
+impl<'e, I, E> ToText<'e, I, E> for Null {
 	/// Simple returns an empty [`Text`].
 	#[inline]
-	fn to_text(&self, _: &mut Environment<'e, I>) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment<'e, I, E>) -> Result<Text<E>> {
 		Ok(Text::default())
 	}
 }

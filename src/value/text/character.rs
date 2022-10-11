@@ -1,75 +1,107 @@
-use crate::env::Flags;
-use std::fmt::{self, Display, Formatter};
+use super::Encoding;
+use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Character(char);
+/// A single character of a specific encoding.
+pub struct Character<E>(char, PhantomData<E>);
 
-impl Display for Character {
+impl<E> Copy for Character<E> {}
+impl<E> Clone for Character<E> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+
+impl<E> Debug for Character<E> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
+}
+impl<E> Display for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl PartialEq<char> for Character {
+impl<E> Eq for Character<E> {}
+impl<E> PartialEq for Character<E> {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.0 == rhs.0
+	}
+}
+impl<E> PartialEq<char> for Character<E> {
 	fn eq(&self, rhs: &char) -> bool {
 		self.0 == *rhs
 	}
 }
-
-impl Character {
-	#[inline]
-	#[must_use]
-	pub const fn new(chr: char, #[allow(unused)] flags: &Flags) -> Option<Self> {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.knight_encoding_only && !matches!(chr, '\r' | '\n' | '\t' | ' '..='~') {
-			return None;
-		}
-
-		Some(Self(chr))
+impl<E> PartialOrd for Character<E> {
+	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+		self.0.partial_cmp(&rhs.0)
 	}
-
-	pub const unsafe fn new_unchecked(chr: char) -> Self {
-		Self(chr)
+}
+impl<E> Ord for Character<E> {
+	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+		self.0.cmp(&rhs.0)
 	}
-
-	pub const fn inner(self) -> char {
-		self.0
-	}
-
-	#[allow(unused)]
-	fn if_unicode(
-		&self,
-		flags: &Flags,
-		unicode: impl FnOnce(char) -> bool,
-		knight_encoding: impl FnOnce(&char) -> bool,
-	) -> bool {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.knight_encoding_only {
-			return knight_encoding(&self.0);
-		}
-
-		unicode(self.0)
-	}
-
-	pub fn is_whitespace(self, flags: &Flags) -> bool {
-		self.0 == ':' || self.if_unicode(flags, char::is_whitespace, |&c| "\r\n\t ".contains(c))
-	}
-
-	pub fn is_numeric(self, flags: &Flags) -> bool {
-		self.if_unicode(flags, char::is_numeric, char::is_ascii_digit)
-	}
-
-	pub fn is_lower(self, flags: &Flags) -> bool {
-		self.0 == '_' || self.if_unicode(flags, char::is_lowercase, char::is_ascii_lowercase)
-	}
-
-	pub fn is_upper(self, flags: &Flags) -> bool {
-		self.0 == '_' || self.if_unicode(flags, char::is_uppercase, char::is_ascii_uppercase)
+}
+impl<E> Hash for Character<E> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.0.hash(state)
 	}
 }
 
-impl From<Character> for char {
-	fn from(character: Character) -> Self {
+impl<E> Character<E> {
+	/// Creates a new [`Character`] without ensuring that it's a valid `E`.
+	///
+	/// # Safety
+	/// Callers must ensure that `chr` is actually a valid character for the encoding `E`.
+	#[must_use]
+	pub const unsafe fn new_unchecked(chr: char) -> Self {
+		Self(chr, PhantomData)
+	}
+
+	/// Gets the wrapped `char`.
+	#[must_use]
+	pub const fn inner(self) -> char {
+		self.0
+	}
+}
+
+impl<E: Encoding> Character<E> {
+	/// Creates a new [`Character`], returning `None` if `chr` is not valid for the encoding.
+	#[must_use]
+	pub fn new(chr: char) -> Option<Self> {
+		E::is_valid(chr).then_some(Self(chr, PhantomData))
+	}
+
+	/// Checks to see if `self` is a whitespace character.
+	#[must_use]
+	pub fn is_whitespace(self) -> bool {
+		E::is_whitespace(self.0)
+	}
+
+	/// Checks to see if `self` is a numeric character.
+	#[must_use]
+	pub fn is_numeric(self) -> bool {
+		E::is_numeric(self.0)
+	}
+
+	/// Checks to see if `self` is a lowercase or `_` character.
+	#[must_use]
+	pub fn is_lower(self) -> bool {
+		self.0 == '_' || E::is_lower(self.0)
+	}
+
+	/// Checks to see if `self` is an uppercase or `_` character.
+	#[must_use]
+	pub fn is_upper(self) -> bool {
+		self.0 == '_' || E::is_upper(self.0)
+	}
+}
+
+impl<E> From<Character<E>> for char {
+	fn from(character: Character<E>) -> Self {
 		character.0
 	}
 }

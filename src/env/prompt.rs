@@ -14,15 +14,15 @@ use {
 pub trait Stdin: BufRead + crate::containers::MaybeSendSync {}
 impl<T: BufRead + crate::containers::MaybeSendSync> Stdin for T {}
 
-pub struct Prompt<'e, I> {
+pub struct Prompt<'e, I, E> {
 	default: Box<dyn Stdin + 'e>,
-	_pd: std::marker::PhantomData<I>,
+	_pd: std::marker::PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
-	replacement: Option<PromptReplacement<'e, I>>,
+	replacement: Option<PromptReplacement<'e, I, E>>,
 }
 
-impl<I: IntType> Default for Prompt<'_, I> {
+impl<I, E> Default for Prompt<'_, I, E> {
 	fn default() -> Self {
 		Self {
 			default: Box::new(io::BufReader::new(io::stdin())),
@@ -35,10 +35,10 @@ impl<I: IntType> Default for Prompt<'_, I> {
 }
 
 #[cfg(feature = "extensions")]
-enum PromptReplacement<'e, I> {
+enum PromptReplacement<'e, I, E> {
 	Closed,
-	Buffered(VecDeque<Text>),
-	Computed(Ast<'e, I>),
+	Buffered(VecDeque<Text<E>>),
+	Computed(Ast<'e, I, E>),
 }
 
 fn strip_ending(line: &mut String) {
@@ -64,21 +64,21 @@ fn strip_ending(line: &mut String) {
 	}
 }
 
-pub struct Line<'e, I: IntType>(Option<ReadLineResultInner<'e, I>>);
-enum ReadLineResultInner<'e, I: IntType> {
-	Text(Text),
+pub struct Line<'e, I, E>(Option<ReadLineResultInner<'e, I, E>>);
+enum ReadLineResultInner<'e, I, E> {
+	Text(Text<E>),
 
 	#[allow(unused)]
 	#[cfg(not(feature = "extensions"))]
-	_Never(std::marker::PhantomData<(I, &'e ())>),
+	_Never(std::marker::PhantomData<(I, E, &'e ())>),
 
 	#[cfg(feature = "extensions")]
-	Ast(Ast<'e, I>),
+	Ast(Ast<'e, I, E>),
 }
 
-impl<'e, I: IntType> Line<'e, I> {
+impl<'e, I: IntType, E: crate::value::text::Encoding> Line<'e, I, E> {
 	#[inline]
-	pub fn get(self, env: &mut Environment<'e, I>) -> Result<Option<Text>> {
+	pub fn get(self, env: &mut Environment<'e, I, E>) -> Result<Option<Text<E>>> {
 		match self.0 {
 			None => Ok(None),
 			Some(ReadLineResultInner::Text(text)) => Ok(Some(text)),
@@ -98,7 +98,7 @@ impl<'e, I: IntType> Line<'e, I> {
 	}
 }
 
-impl<'e, I: IntType> Prompt<'e, I> {
+impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
 	/// Sets the default stdin.
 	///
 	/// This doesn't affect any replacements that may be enabled.
@@ -114,7 +114,7 @@ impl<'e, I: IntType> Prompt<'e, I> {
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
 	#[cfg_attr(not(feature = "extensions"), inline)]
-	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e, I>> {
+	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e, I, E>> {
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
 			Some(PromptReplacement::Closed) => return Ok(Line(None)),
@@ -144,7 +144,7 @@ impl<'e, I: IntType> Prompt<'e, I> {
 /// If
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<'e, I: IntType> Prompt<'e, I> {
+impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
 	/// Clears the currently set replacement, if any.
 	pub fn reset_replacement(&mut self) {
 		self.replacement = None;
@@ -160,7 +160,7 @@ impl<'e, I: IntType> Prompt<'e, I> {
 	/// Calling `PROMPT` will actually run `ast` and convert its return value to a [`Text`].
 	///
 	/// This clears any previous replacement.
-	pub fn set_ast(&mut self, ast: Ast<'e, I>) {
+	pub fn set_ast(&mut self, ast: Ast<'e, I, E>) {
 		self.replacement = Some(PromptReplacement::Computed(ast));
 	}
 
@@ -169,7 +169,7 @@ impl<'e, I: IntType> Prompt<'e, I> {
 	/// This will clear any previous [`close()`](Self::close) and [`set_ast()`](Self::set_ast)
 	/// replacements. However, it will _not_ clear previous `add_lines` replacements, and instead
 	/// will simply add `new_lines` to the end.
-	pub fn add_lines(&mut self, new_lines: &TextSlice) {
+	pub fn add_lines(&mut self, new_lines: &TextSlice<E>) {
 		let lines = match self.replacement {
 			Some(PromptReplacement::Buffered(ref mut lines)) => lines,
 			_ => {

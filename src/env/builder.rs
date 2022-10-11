@@ -2,30 +2,30 @@ use super::*;
 
 /// A Builder for an [`Environment`], allowing its different options to be configured.
 #[must_use]
-pub struct Builder<'e, I: IntType> {
+pub struct Builder<'e, I, E> {
 	flags: Flags,
-	prompt: Prompt<'e, I>,
-	output: Output<'e, I>,
-	functions: HashSet<Function<'e, I>>,
-	parsers: Vec<RefCount<dyn ParseFn<'e, I>>>,
+	prompt: Prompt<'e, I, E>,
+	output: Output<'e, I, E>,
+	functions: HashSet<Function<'e, I, E>>,
+	parsers: Vec<RefCount<dyn ParseFn<'e, I, E>>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<'e, I>>,
+	extensions: HashSet<ExtensionFunction<'e, I, E>>,
 
 	#[cfg(feature = "extensions")]
-	system: Option<Box<System<'e>>>,
+	system: Option<Box<System<'e, E>>>,
 
 	#[cfg(feature = "extensions")]
-	read_file: Option<Box<ReadFile<'e>>>,
+	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<I: IntType> Default for Builder<'_, I> {
+impl<I: IntType, E: Encoding> Default for Builder<'_, I, E> {
 	fn default() -> Self {
 		Self::new(Flags::default())
 	}
 }
 
-impl<'e, I: IntType> Builder<'e, I> {
+impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 	pub fn new(flags: Flags) -> Self {
 		Self {
 			flags,
@@ -53,20 +53,20 @@ impl<'e, I: IntType> Builder<'e, I> {
 		self.output.set_stdout(stdout);
 	}
 
-	pub fn functions(&mut self) -> &mut HashSet<Function<'e, I>> {
+	pub fn functions(&mut self) -> &mut HashSet<Function<'e, I, E>> {
 		&mut self.functions
 	}
 
 	// We only allow access to the parsers when extensions are enabled.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e, I>>> {
+	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e, I, E>>> {
 		&mut self.parsers
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<'e, I>> {
+	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<'e, I, E>> {
 		&mut self.extensions
 	}
 
@@ -74,7 +74,10 @@ impl<'e, I: IntType> Builder<'e, I> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn system<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice, Option<&TextSlice>, &Flags) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> crate::Result<Text<E>>
+			+ Send
+			+ Sync
+			+ 'e,
 	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
@@ -83,12 +86,15 @@ impl<'e, I: IntType> Builder<'e, I> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn read_file<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice, &Flags) -> crate::Result<Text> + Send + Sync + 'e,
+		F: FnMut(&TextSlice<E>, &Flags) -> crate::Result<Text<E>> + Send + Sync + 'e,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 
-	pub fn build(self) -> Environment<'e, I> {
+	pub fn build(self) -> Environment<'e, I, E>
+	where
+		E: Encoding,
+	{
 		Environment {
 			flags: self.flags,
 

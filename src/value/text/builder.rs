@@ -1,23 +1,27 @@
 use super::{Text, TextSlice};
+use std::marker::PhantomData;
 
 #[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
-pub struct Builder(String);
+pub struct Builder<E>(PhantomData<E>, String);
 
-impl Builder {
+impl<E> Builder<E> {
 	pub const fn new() -> Self {
-		Self(String::new())
+		Self(PhantomData, String::new())
 	}
 
 	pub fn with_capacity(cap: usize) -> Self {
-		Self(String::with_capacity(cap))
+		Self(PhantomData, String::with_capacity(cap))
 	}
 
-	pub fn push(&mut self, text: &TextSlice) {
-		self.0.push_str(text);
+	pub fn push(&mut self, text: &TextSlice<E>) {
+		self.1.push_str(text);
 	}
 
-	pub fn finish(self, flags: &crate::env::Flags) -> Result<Text, super::NewTextError> {
-		Text::new(self.0, flags)
+	pub fn finish(self, flags: &crate::env::Flags) -> Result<Text<E>, super::NewTextError>
+	where
+		E: super::Encoding,
+	{
+		Text::new(self.1, flags)
 	}
 }
