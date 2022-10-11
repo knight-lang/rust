@@ -55,7 +55,7 @@ pub struct Environment<'e, I, E> {
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Environment<'_, I, E>: Send, Sync);
+sa::assert_impl_all!(Environment<'_, (), ()>: Send, Sync);
 
 impl<I: IntType, E: Encoding> Default for Environment<'_, I, E> {
 	/// Creates a new [`Environment`] with all the default configuration flags.

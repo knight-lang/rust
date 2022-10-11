@@ -156,9 +156,9 @@ impl<'e, I, E> From<List<'e, I, E>> for Value<'e, I, E> {
 }
 
 #[cfg(feature = "custom-types")]
-impl<'e, I, E> From<crate::value::Custom<'e>> for Value<'e, I, E> {
+impl<'e, I, E> From<crate::value::Custom<'e, I, E>> for Value<'e, I, E> {
 	#[inline]
-	fn from(custom: crate::value::Custom<'e>) -> Self {
+	fn from(custom: crate::value::Custom<'e, I, E>) -> Self {
 		Self::Custom(custom)
 	}
 }
