@@ -7,7 +7,7 @@ pub struct Builder<'e, I, E> {
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
 	functions: HashSet<Function<'e, I, E>>,
-	parsers: Vec<RefCount<dyn ParseFn<'e, I, E>>>,
+	parsers: Vec<ParseFn<'e, I, E>>,
 
 	#[cfg(feature = "extensions")]
 	extensions: HashSet<ExtensionFunction<'e, I, E>>,
@@ -60,7 +60,7 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 	// We only allow access to the parsers when extensions are enabled.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parsers(&mut self) -> &mut Vec<RefCount<dyn ParseFn<'e, I, E>>> {
+	pub fn parsers(&mut self) -> &mut Vec<ParseFn<'e, I, E>> {
 		&mut self.parsers
 	}
 

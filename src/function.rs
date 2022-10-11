@@ -137,7 +137,11 @@ impl<'e, I: IntType, E: Encoding> Parsable<'e, I, E> for Function<'e, I, E> {
 			return Ok(None);
 		};
 
-		parser.strip_function();
+		if head.is_upper() {
+			parser.strip_keyword_function();
+		} else {
+			parser.advance();
+		}
 
 		Ok(Some(function))
 	}
@@ -296,7 +300,9 @@ macro_rules! xfunction {
 /// **4.1.4**: `PROMPT`
 pub fn PROMPT<'e, I: IntType, E: Encoding>() -> Function<'e, I, E> {
 	function!("PROMPT", env, |/* comment for rustfmt */| {
-	env.read_line()?.map(Value::from).unwrap_or_default()
+
+	let flags = env.flags();
+	env.prompt().read_line(flags)?.get(env)?.map(Value::from).unwrap_or_default()
 })
 }
 

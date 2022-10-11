@@ -4,7 +4,7 @@ use crate::parse::{ParseFn, Parser};
 use crate::value::integer::IntType;
 use crate::value::text::Encoding;
 use crate::value::Runnable;
-use crate::{Function, Integer, RefCount, Result, Text, TextSlice, Value};
+use crate::{Function, Integer, Result, Text, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::HashSet;
 
@@ -37,7 +37,7 @@ pub struct Environment<'e, I, E> {
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
 	// set of parsers is loaded up.
-	parsers: Vec<RefCount<dyn ParseFn<'e, I, E>>>,
+	parsers: Vec<ParseFn<'e, I, E>>,
 
 	// A List of extension functions.
 	extensions: HashSet<ExtensionFunction<'e, I, E>>,
@@ -55,6 +55,16 @@ pub struct Environment<'e, I, E> {
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Environment<'_, (), ()>: Send, Sync);
+
+impl<I, E> Drop for Environment<'_, I, E> {
+	fn drop(&mut self) {
+		// You can assign a variable to itself, which means that it'll end up leaking memory. So,
+		// we have to manually ensure that no variables reference others.
+		for var in self.variables.iter() {
+			var.assign(Value::Null);
+		}
+	}
+}
 
 impl<I: IntType, E: Encoding> Default for Environment<'_, I, E> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
@@ -95,7 +105,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
-	pub fn parsers(&self) -> &[RefCount<dyn ParseFn<'e, I, E>>] {
+	pub fn parsers(&self) -> &[ParseFn<'e, I, E>] {
 		&self.parsers
 	}
 
@@ -103,17 +113,6 @@ impl<'e, I, E> Environment<'e, I, E> {
 	#[must_use]
 	pub fn prompt(&mut self) -> &mut Prompt<'e, I, E> {
 		&mut self.prompt
-	}
-
-	/// Read a line from the [`prompt`](Self::prompt).
-	///
-	/// This exits because you need to pass a reference to `self.flags`
-	pub fn read_line(&mut self) -> Result<Option<Text<E>>>
-	where
-		I: IntType,
-		E: Encoding,
-	{
-		self.prompt.read_line(self.flags)?.get(self)
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
@@ -191,15 +190,5 @@ impl<'e, I, E> Environment<'e, I, E> {
 	/// Reads the file located at `filename`, returning its contents.
 	pub fn read_file(&mut self, filename: &TextSlice<E>) -> Result<Text<E>> {
 		(self.read_file)(filename, self.flags)
-	}
-}
-
-impl<I, E> Drop for Environment<'_, I, E> {
-	fn drop(&mut self) {
-		// You can assign a variable to itself, which means that it'll end up leaking memory. So,
-		// we have to manually ensure that no variables reference others.
-		for var in self.variables.iter() {
-			var.assign(Value::Null);
-		}
 	}
 }
