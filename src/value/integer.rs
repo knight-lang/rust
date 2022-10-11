@@ -5,6 +5,9 @@ use crate::{Environment, Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
+mod inttype;
+pub use inttype::{Checked, IntType, Wrapping};
+
 /// The integer type within Knight.
 ///
 /// # Bit Size
@@ -24,35 +27,6 @@ use std::str::FromStr;
 /// an operation would overflow.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer<I>(I);
-
-pub trait IntType:
-	Default
-	+ Copy
-	+ Eq
-	+ Ord
-	+ Debug
-	+ Display
-	+ std::hash::Hash
-	+ From<i32>
-	+ Into<i64>
-	+ FromStr
-	+ TryInto<i32>
-	+ TryFrom<i64>
-	+ TryFrom<usize>
-	+ 'static
-{
-	const ZERO: Self;
-	const ONE: Self;
-
-	fn log10(self) -> usize;
-	fn negate(self) -> Result<Self>;
-	fn add(self, rhs: Self) -> Result<Self>;
-	fn subtract(self, rhs: Self) -> Result<Self>;
-	fn multiply(self, rhs: Self) -> Result<Self>;
-	fn divide(self, rhs: Self) -> Result<Self>;
-	fn remainder(self, rhs: Self) -> Result<Self>;
-	fn power(self, rhs: u32) -> Result<Self>;
-}
 
 #[rustfmt::skip]
 impl IntType for i64 {
