@@ -1,8 +1,9 @@
 use super::{Environment, Flags};
 use crate::value::integer::IntType;
-use crate::value::Text;
+use crate::value::text::{Encoding, Text};
 use crate::Result;
 use std::io::{self, BufRead};
+use std::marker::PhantomData;
 
 #[cfg(feature = "extensions")]
 use {
@@ -16,7 +17,7 @@ impl<T: BufRead + crate::containers::MaybeSendSync> Stdin for T {}
 
 pub struct Prompt<'e, I, E> {
 	default: Box<dyn Stdin + 'e>,
-	_pd: std::marker::PhantomData<(I, E)>,
+	_pd: PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
 	replacement: Option<PromptReplacement<'e, I, E>>,
@@ -26,7 +27,7 @@ impl<I, E> Default for Prompt<'_, I, E> {
 	fn default() -> Self {
 		Self {
 			default: Box::new(io::BufReader::new(io::stdin())),
-			_pd: std::marker::PhantomData,
+			_pd: PhantomData,
 
 			#[cfg(feature = "extensions")]
 			replacement: None,
@@ -43,8 +44,7 @@ enum PromptReplacement<'e, I, E> {
 
 fn strip_ending(line: &mut String) {
 	match line.pop() {
-		Some('\n') => {}
-		Some('\r') => {}
+		Some('\n' | '\r') => {}
 		Some(other) => {
 			line.push(other);
 			return;
@@ -68,16 +68,15 @@ pub struct Line<'e, I, E>(Option<ReadLineResultInner<'e, I, E>>);
 enum ReadLineResultInner<'e, I, E> {
 	Text(Text<E>),
 
-	#[allow(unused)]
+	#[allow(dead_code)]
 	#[cfg(not(feature = "extensions"))]
-	_Never(std::marker::PhantomData<(I, E, &'e ())>),
+	_Never(PhantomData<(I, E, &'e ())>),
 
 	#[cfg(feature = "extensions")]
 	Ast(Ast<'e, I, E>),
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Line<'e, I, E> {
-	#[inline]
+impl<'e, I: IntType, E: Encoding> Line<'e, I, E> {
 	pub fn get(self, env: &mut Environment<'e, I, E>) -> Result<Option<Text<E>>> {
 		match self.0 {
 			None => Ok(None),
@@ -98,7 +97,7 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Line<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
+impl<'e, I, E> Prompt<'e, I, E> {
 	/// Sets the default stdin.
 	///
 	/// This doesn't affect any replacements that may be enabled.
@@ -114,7 +113,10 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
 	#[cfg_attr(not(feature = "extensions"), inline)]
-	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e, I, E>> {
+	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e, I, E>>
+	where
+		E: Encoding,
+	{
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
 			Some(PromptReplacement::Closed) => return Ok(Line(None)),

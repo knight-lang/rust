@@ -25,15 +25,8 @@ all-extensions = [
 ]
 
 compliance = [] # Compiles in the ability to toggle compliance checks for most things.
-small-integers = [] # Uses 32 bit integers instead of the default 64.
-checked-math-ops = [] # checks each integer op for overflow.
-strict-integer = ["small-integers", "checked-math-ops"] # Integers behave only with spec compliance
-
 # Enables all compliance-related flags, _and_ defaults all interpreter compliance options to true.
-strict-compliance = [
-	"compliance",
-	"strict-integer",
-]
+strict-compliance = ["compliance"]
 
 [dependencies]
 rand = "0.8"

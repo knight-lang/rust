@@ -1,5 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::integer::IntType;
+use crate::value::text::Encoding;
 use crate::value::{Boolean, Integer, List, NamedType, Text, ToBoolean, ToInteger, ToList, ToText};
 use crate::{Environment, Result};
 use std::fmt::{self, Debug, Formatter};
@@ -22,7 +22,7 @@ impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
 }
 
-impl<I: IntType, E: crate::value::text::Encoding> Parsable<'_, I, E> for Null {
+impl<I, E: Encoding> Parsable<'_, I, E> for Null {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

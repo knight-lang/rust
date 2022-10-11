@@ -1,6 +1,7 @@
 use crate::parse::{self, Parsable, Parser};
 use crate::value::integer::IntType;
-use crate::value::{text::TextSlice, Integer, List, NamedType, Text, ToInteger, ToList, ToText};
+use crate::value::text::{Encoding, TextSlice};
+use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
 use crate::{Environment, Result};
 
 /// The boolean type within Knight.
@@ -16,7 +17,7 @@ impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 
-impl<I: IntType, E: crate::value::text::Encoding> Parsable<'_, I, E> for Boolean {
+impl<I, E: Encoding> Parsable<'_, I, E> for Boolean {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

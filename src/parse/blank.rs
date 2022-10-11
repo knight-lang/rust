@@ -5,13 +5,13 @@ pub struct Blank;
 
 pub enum Never {}
 
-impl<I: super::IntType, E> From<Never> for Value<'_, I, E> {
+impl<I, E> From<Never> for Value<'_, I, E> {
 	fn from(never: Never) -> Self {
 		match never {}
 	}
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Parsable<'e, I, E> for Blank {
+impl<'e, I, E: Encoding> Parsable<'e, I, E> for Blank {
 	type Output = Never;
 
 	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> Result<Option<Self::Output>> {

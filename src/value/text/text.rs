@@ -114,7 +114,7 @@ impl<E> From<&TextSlice<E>> for Text<E> {
 // 	}
 // }
 
-impl<I: crate::value::IntType, E: Encoding> Parsable<'_, I, E> for Text<E> {
+impl<I, E> Parsable<'_, I, E> for Text<E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

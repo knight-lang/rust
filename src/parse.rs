@@ -23,7 +23,7 @@ pub struct Parser<'s, 'e, I, E> {
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<'e, I: IntType, E: Encoding>: Sized {
+pub trait Parsable<'e, I, E>: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -42,6 +42,8 @@ pub trait Parsable<'e, I: IntType, E: Encoding>: Sized {
 	fn parse_fn() -> RefCount<dyn ParseFn<'e, I, E>>
 	where
 		Value<'e, I, E>: From<Self::Output>,
+		E: Encoding,
+		I: IntType,
 	{
 		RefCount::from(Box::new(|parser: &mut Parser<'_, 'e, I, E>| {
 			Ok(Self::parse(parser)?.map(Value::from))
@@ -236,24 +238,29 @@ impl<E> AdvanceIfCondition<E> for char {
 	}
 }
 
-impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
+impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	/// Create a new `Parser` from the given source.
+	#[must_use]
 	pub fn new(source: &'s TextSlice<E>, env: &'s mut Environment<'e, I, E>) -> Self {
 		Self { source, line: 1, env }
 	}
 
+	#[must_use]
 	pub fn line(&self) -> usize {
 		self.line
 	}
 
+	#[must_use]
 	pub fn env(&mut self) -> &mut Environment<'e, I, E> {
 		self.env
 	}
 
+	#[must_use]
 	pub fn error(&self, kind: ErrorKind) -> Error {
 		kind.error(self.line)
 	}
 
+	#[must_use = "peeking doesn't advance the parser"]
 	pub fn peek(&self) -> Option<Character<E>> {
 		self.source.head()
 	}
@@ -294,7 +301,9 @@ impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
 
 		Some(start.get(..start.len() - self.source.len()).unwrap())
 	}
+}
 
+impl<'s, 'e, I, E: Encoding> Parser<'s, 'e, I, E> {
 	pub fn strip_whitespace_and_comments(&mut self) -> bool {
 		let mut anything_stripped = false;
 		loop {
@@ -312,6 +321,22 @@ impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
 		}
 	}
 
+	pub fn strip_keyword_function(&mut self) {
+		self.take_while(Character::is_upper);
+	}
+
+	pub fn strip_function(&mut self) {
+		if self.peek().expect("strip function at eof").is_upper() {
+			// If it's a keyword function, then take all keyword characters.
+			self.take_while(Character::is_upper);
+		} else {
+			// otherwise, only take that character.
+			self.advance();
+		}
+	}
+}
+
+impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
 	pub fn parse_program(mut self) -> Result<Value<'e, I, E>> {
 		let ret = self.parse_expression()?;
@@ -325,20 +350,6 @@ impl<'s, 'e, I: IntType, E: Encoding> Parser<'s, 'e, I, E> {
 		}
 
 		Ok(ret)
-	}
-
-	pub fn strip_keyword_function(&mut self) {
-		self.take_while(Character::is_upper);
-	}
-
-	pub fn strip_function(&mut self) {
-		if self.peek().expect("strip function at eof").is_upper() {
-			// If it's a keyword function, then take all keyword characters.
-			self.take_while(Character::is_upper);
-		} else {
-			// otherwise, only take that character.
-			self.advance();
-		}
 	}
 
 	pub fn parse_expression(&mut self) -> Result<Value<'e, I, E>> {

@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupedExpression;
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Parsable<'e, I, E> for GroupedExpression {
+impl<'e, I: IntType, E: Encoding> Parsable<'e, I, E> for GroupedExpression {
 	type Output = Value<'e, I, E>;
 
 	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> Result<Option<Self::Output>> {

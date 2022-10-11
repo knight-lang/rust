@@ -1,5 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::{integer::IntType, Runnable, Value};
+use crate::value::{integer::IntType, text::Encoding, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 use std::fmt::{self, Debug, Formatter};
 
@@ -35,13 +35,12 @@ impl<I, E> crate::value::NamedType for Ast<'_, I, E> {
 	const TYPENAME: &'static str = "Ast";
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Ast<'e, I, E> {
+impl<'e, I, E> Ast<'e, I, E> {
 	/// Creates a new `Ast` from the given arguments.
 	///
 	/// # Panics
 	/// Panics if `args.len()` isn't equal to `function.arity`.
 	#[must_use]
-	#[inline]
 	pub fn new(function: Function<'e, I, E>, args: Box<[Value<'e, I, E>]>) -> Self {
 		assert_eq!(args.len(), function.arity());
 
@@ -50,27 +49,24 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Ast<'e, I, E> {
 
 	/// Gets the function associated with the ast.
 	#[must_use]
-	#[inline]
 	pub fn function(&self) -> &Function<'e, I, E> {
 		&self.0.function
 	}
 
 	/// Gets the args associated with the ast.
 	#[must_use]
-	#[inline]
 	pub fn args(&self) -> &[Value<'e, I, E>] {
 		&self.0.args
 	}
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Runnable<'e, I, E> for Ast<'e, I, E> {
-	#[inline]
+impl<'e, I: IntType, E: Encoding> Runnable<'e, I, E> for Ast<'e, I, E> {
 	fn run(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>> {
 		self.function().run(self.args(), env)
 	}
 }
 
-impl<'e, I: IntType, E: crate::value::text::Encoding> Parsable<'e, I, E> for Ast<'e, I, E> {
+impl<'e, I: IntType, E: Encoding> Parsable<'e, I, E> for Ast<'e, I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> parse::Result<Option<Self>> {

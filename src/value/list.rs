@@ -381,7 +381,7 @@ impl<'e, I: IntType, E: Encoding> List<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Parsable<'e, I, E> for List<'e, I, E> {
+impl<'e, I, E> Parsable<'e, I, E> for List<'e, I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> parse::Result<Option<Self>> {

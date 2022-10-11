@@ -38,14 +38,12 @@ impl<T: ?Sized> Clone for RefCount<T> {
 }
 
 impl<T> From<T> for RefCount<T> {
-	#[inline]
 	fn from(inp: T) -> Self {
 		Self(inp.into())
 	}
 }
 
 impl<T: ?Sized> From<Box<T>> for RefCount<T> {
-	#[inline]
 	fn from(inp: Box<T>) -> Self {
 		Self(inp.into())
 	}
@@ -54,7 +52,6 @@ impl<T: ?Sized> From<Box<T>> for RefCount<T> {
 impl<T: ?Sized> Deref for RefCount<T> {
 	type Target = T;
 
-	#[inline]
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
@@ -69,14 +66,12 @@ pub struct Mutable<T>(
 sa::assert_impl_all!(Mutable<()>: Send, Sync);
 
 impl<T> From<T> for Mutable<T> {
-	#[inline]
 	fn from(inp: T) -> Self {
 		Self(inp.into())
 	}
 }
 
 impl<T> Mutable<T> {
-	#[inline]
 	pub fn read(&self) -> impl Deref<Target = T> + '_ {
 		#[cfg(feature = "multithreaded")]
 		{
@@ -89,7 +84,6 @@ impl<T> Mutable<T> {
 		}
 	}
 
-	#[inline]
 	pub fn write(&self) -> impl DerefMut<Target = T> + '_ {
 		#[cfg(feature = "multithreaded")]
 		{

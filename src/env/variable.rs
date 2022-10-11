@@ -44,7 +44,6 @@ impl<I, E> PartialEq for Variable<'_, I, E> {
 	/// Checks to see if two variables are equal.
 	///
 	/// This checks to see if the two variables are pointing to the _exact same object_.
-	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -52,7 +51,6 @@ impl<I, E> PartialEq for Variable<'_, I, E> {
 
 impl<I, E> Borrow<TextSlice<E>> for Variable<'_, I, E> {
 	/// Borrows the [`name`](Variable::name) of the variable.
-	#[inline]
 	fn borrow(&self) -> &TextSlice<E> {
 		self.name()
 	}
@@ -60,7 +58,6 @@ impl<I, E> Borrow<TextSlice<E>> for Variable<'_, I, E> {
 
 impl<I, E> Hash for Variable<'_, I, E> {
 	/// Hashes the [`name`](Variable::name) of the variable.
-	#[inline]
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
 	}
@@ -162,7 +159,6 @@ impl<'e, I, E> Variable<'e, I, E> {
 
 	/// Fetches the name of the variable.
 	#[must_use]
-	#[inline]
 	pub fn name(&self) -> &Text<E> {
 		&self.0.name
 	}

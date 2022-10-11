@@ -75,6 +75,7 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
 }
+
 impl<'e, I, E> Environment<'e, I, E> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
@@ -99,10 +100,12 @@ impl<'e, I, E> Environment<'e, I, E> {
 	pub fn prompt(&mut self) -> &mut Prompt<'e, I, E> {
 		&mut self.prompt
 	}
-}
 
-impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
-	pub fn read_line(&mut self) -> Result<Option<Text<E>>> {
+	pub fn read_line(&mut self) -> Result<Option<Text<E>>>
+	where
+		I: IntType,
+		E: Encoding,
+	{
 		self.prompt.read_line(&self.flags)?.get(self)
 	}
 
@@ -117,7 +120,10 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<'e, I, E>, IllegalVariableName> {
+	) -> std::result::Result<Variable<'e, I, E>, IllegalVariableName>
+	where
+		E: Encoding,
+	{
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -130,14 +136,17 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 
 	/// Gets a random [`Integer`].
 	#[must_use]
-	pub fn random(&mut self) -> Integer<I> {
+	pub fn random(&mut self) -> Integer<I>
+	where
+		I: IntType,
+	{
 		Integer::random(&mut self.rng, &self.flags)
 	}
 }
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
+impl<'e, I, E> Environment<'e, I, E> {
 	/// Gets the list of known extension functions.
 	#[must_use]
 	pub fn extensions(&self) -> &HashSet<ExtensionFunction<'e, I, E>> {
@@ -145,7 +154,10 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 	}
 
 	/// Seeds the random number generator.
-	pub fn srand(&mut self, seed: Integer<I>) {
+	pub fn srand(&mut self, seed: Integer<I>)
+	where
+		I: IntType,
+	{
 		self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
