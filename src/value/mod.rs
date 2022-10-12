@@ -2,6 +2,7 @@
 
 mod boolean;
 #[cfg(feature = "custom-types")]
+#[cfg_attr(docsrs, doc(cfg(feature = "custom-types")))]
 pub mod custom;
 pub mod integer;
 mod list;

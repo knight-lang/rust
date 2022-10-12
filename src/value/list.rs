@@ -41,6 +41,7 @@ pub trait ToList<'e, I, E> {
 	fn to_list(&self, env: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>>;
 }
 
+impl<I: Eq, E> Eq for List<'_, I, E> {}
 impl<I: PartialEq, E> PartialEq for List<'_, I, E> {
 	/// Checks to see if two lists are equal.
 	fn eq(&self, rhs: &Self) -> bool {

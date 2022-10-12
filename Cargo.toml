@@ -11,8 +11,8 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions", "compliance"]
-
+# default = ["extensions", "compliance"]
+default = ["all-extensions", "strict-compliance"]
 
 multithreaded = [] # Enables multithreading support
 extensions = [] # stuff that's not part of base knight

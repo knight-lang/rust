@@ -11,6 +11,8 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// A Value within Knight.
 #[derive_where(Clone; I: Clone)]
 #[derive_where(Default)]
+#[derive_where(PartialEq; I: PartialEq)]
+#[derive_where(Eq; I: Eq)]
 #[non_exhaustive]
 pub enum Value<'e, I, E> {
 	/// Represents the `NULL` value.
@@ -43,26 +45,6 @@ pub enum Value<'e, I, E> {
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value<'_, (), ()>: Send, Sync);
-
-impl<I: PartialEq, E> PartialEq for Value<'_, I, E> {
-	fn eq(&self, rhs: &Self) -> bool {
-		// We cant derive this because of `l.eql`
-		match (self, rhs) {
-			(Self::Null, Self::Null) => true,
-			(Self::Boolean(l), Self::Boolean(r)) => l == r,
-			(Self::Integer(l), Self::Integer(r)) => l == r,
-			(Self::Text(l), Self::Text(r)) => l == r,
-			(Self::List(l), Self::List(r)) => l == r,
-			(Self::Variable(l), Self::Variable(r)) => l == r,
-			(Self::Ast(l), Self::Ast(r)) => l == r,
-
-			#[cfg(feature = "custom-types")]
-			(Self::Custom(l), r) => l.eql(r),
-
-			_ => false,
-		}
-	}
-}
 
 impl<I: Debug, E> Debug for Value<'_, I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -146,7 +128,7 @@ impl<'e, I: IntType, E> ToBoolean<'e, I, E> for Value<'e, I, E> {
 			Self::List(ref list) => list.to_boolean(env),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.clone().to_boolean(env),
+			Self::Custom(ref custom) => custom.to_boolean(env),
 
 			_ => Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() }),
 		}
@@ -162,7 +144,7 @@ impl<'e, I: IntType, E> ToInteger<'e, I, E> for Value<'e, I, E> {
 			Self::Text(ref text) => text.to_integer(env),
 			Self::List(ref list) => list.to_integer(env),
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.clone().to_integer(env),
+			Self::Custom(ref custom) => custom.to_integer(env),
 
 			_ => Err(Error::NoConversion { to: Integer::<I>::TYPENAME, from: self.typename() }),
 		}
@@ -179,7 +161,7 @@ impl<'e, I: Display, E: Encoding> ToText<'e, I, E> for Value<'e, I, E> {
 			Self::List(ref list) => list.to_text(env),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.clone().to_text(env),
+			Self::Custom(ref custom) => custom.to_text(env),
 
 			_ => Err(Error::NoConversion { to: Text::<E>::TYPENAME, from: self.typename() }),
 		}
@@ -196,7 +178,7 @@ impl<'e, I: IntType, E> ToList<'e, I, E> for Value<'e, I, E> {
 			Self::List(ref list) => list.to_list(env),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(ref custom) => custom.clone().to_list(env),
+			Self::Custom(ref custom) => custom.to_list(env),
 
 			_ => Err(Error::NoConversion { to: List::<I, E>::TYPENAME, from: self.typename() }),
 		}
@@ -210,7 +192,7 @@ impl<'e, I: IntType, E: Encoding> Runnable<'e, I, E> for Value<'e, I, E> {
 			Self::Ast(ast) => ast.run(env),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().run(env),
+			Self::Custom(custom) => custom.run(env),
 
 			_ => Ok(self.clone()),
 		}
@@ -231,7 +213,7 @@ impl<'e, I, E> Value<'e, I, E> {
 			Self::Variable(_) => Variable::<I, E>::TYPENAME,
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().typename(),
+			Self::Custom(custom) => custom.typename(),
 		}
 	}
 }
@@ -258,7 +240,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Integer(integer) if env.flags().exts.tys.integer => Ok(integer.head().into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().head(env),
+			Self::Custom(custom) => custom.head(env),
 
 			other => Err(Error::TypeError(other.typename(), "[")),
 		}
@@ -274,7 +256,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Integer(integer) if env.flags().exts.tys.integer => Ok(integer.tail().into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().tail(env),
+			Self::Custom(custom) => custom.tail(env),
 
 			other => Err(Error::TypeError(other.typename(), "]")),
 		}
@@ -293,7 +275,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().length(env),
+			Self::Custom(custom) => custom.length(env),
 
 			other => Err(Error::TypeError(other.typename(), "LENGTH")),
 		}
@@ -306,7 +288,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Text(text) => Ok(text.ord()?.into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().ascii(env),
+			Self::Custom(custom) => custom.ascii(env),
 
 			other => Err(Error::TypeError(other.typename(), "ASCII")),
 		}
@@ -322,7 +304,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Boolean(lhs) if env.flags().exts.tys.boolean => Ok((lhs | rhs.to_boolean(env)?).into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().add(rhs, env),
+			Self::Custom(custom) => custom.add(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "+")),
 		}
@@ -343,7 +325,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			}
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().subtract(rhs, env),
+			Self::Custom(custom) => custom.subtract(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "-")),
 		}
@@ -386,7 +368,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::Boolean(lhs) if env.flags().exts.tys.boolean => Ok((lhs & rhs.to_boolean(env)?).into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().multiply(rhs, env),
+			Self::Custom(custom) => custom.multiply(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "*")),
 		}
@@ -403,7 +385,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::List(list) if env.flags().exts.tys.list => Ok(list.reduce(rhs, env)?.unwrap_or_default()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().divide(rhs, env),
+			Self::Custom(custom) => custom.divide(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "/")),
 		}
@@ -458,7 +440,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::List(list) if env.flags().exts.tys.list => list.filter(rhs, env).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().remainder(rhs, env),
+			Self::Custom(custom) => custom.remainder(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "%")),
 		}
@@ -470,7 +452,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Self::List(list) => list.join(&rhs.to_text(env)?, env).map(Self::from),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().power(rhs, env),
+			Self::Custom(custom) => custom.power(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "^")),
 		}
@@ -497,7 +479,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			}
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().compare(rhs, env),
+			Self::Custom(custom) => custom.compare(rhs, env),
 
 			other => Err(Error::TypeError(other.typename(), "<cmp>")),
 		}
@@ -542,7 +524,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			Value::Variable(_) => unreachable!(),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().assign(value, env)?,
+			Self::Custom(custom) => custom.assign(value, env)?,
 
 			Value::Ast(ast)
 				if env.flags().exts.assign_to.prompt && ast.function().full_name() == "PROMPT" =>
@@ -607,7 +589,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 				.map(Self::from),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().get(start, len, env),
+			Self::Custom(custom) => custom.get(start, len, env),
 
 			other => return Err(Error::TypeError(other.typename(), "GET")),
 		}
@@ -648,7 +630,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 			}
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().set(start, len, replacement, env),
+			Self::Custom(custom) => custom.set(start, len, replacement, env),
 
 			other => return Err(Error::TypeError(other.typename(), "SET")),
 		}
@@ -667,7 +649,7 @@ fn fix_len<'e, I: IntType, E: Encoding>(
 			Value::List(list) => list.len(),
 
 			#[cfg(feature = "custom-types")]
-			Value::Custom(custom) => custom.clone().length(env)?.to_integer(env)?.try_into()?,
+			Value::Custom(custom) => custom.length(env)?.to_integer(env)?.try_into()?,
 
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};
