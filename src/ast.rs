@@ -2,6 +2,7 @@ use crate::parse::{self, Parsable, Parser};
 use crate::value::{integer::IntType, text::Encoding, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 
 /// [`Ast`]s represent functions and their arguments.
 #[derive_where(Debug; I: Debug)]
@@ -19,6 +20,12 @@ impl<I, E> PartialEq for Ast<I, E> {
 	/// Two `Ast`s are equal only if they point to the exact same data.
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
+	}
+}
+
+impl<I: Hash, E> Hash for Ast<I, E> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		(RefCount::as_ptr(&self.0) as usize).hash(state);
 	}
 }
 

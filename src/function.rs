@@ -597,7 +597,7 @@ pub fn GET<I: IntType, E: Encoding>() -> Function<I, E> {
 pub fn SET<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("SET", env, |source, start, length, replacement| {
 		//
-		source.run(env)?.set(&start.run(env)?, &length.run(env)?, &replacement.run(env)?, env)?
+		source.run(env)?.set(&start.run(env)?, &length.run(env)?, replacement.run(env)?, env)?
 	})
 }
 

@@ -33,7 +33,6 @@ impl<I, E: Encoding> Parsable<I, E> for Boolean {
 
 impl<I, E> ToBoolean<I, E> for Boolean {
 	/// Simply returns `self`.
-	#[inline]
 	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Self> {
 		Ok(*self)
 	}
@@ -41,7 +40,6 @@ impl<I, E> ToBoolean<I, E> for Boolean {
 
 impl<I: IntType, E> ToInteger<I, E> for Boolean {
 	/// Returns `1` for true and `0` for false.
-	#[inline]
 	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Integer<I>> {
 		if *self {
 			Ok(Integer::ONE)

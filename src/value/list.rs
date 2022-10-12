@@ -5,6 +5,7 @@ use crate::value::text::Encoding;
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};
 
 #[cfg(feature = "extensions")]
@@ -48,6 +49,15 @@ impl<I: PartialEq, E> PartialEq for List<I, E> {
 		std::ptr::eq(self, rhs) || self.len() == rhs.len() && self.iter().eq(rhs.iter())
 	}
 }
+impl<I: Hash, E> Hash for List<I, E> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		state.write_usize(self.len());
+
+		for ele in self {
+			ele.hash(state);
+		}
+	}
+}
 
 impl<I: Debug, E> Debug for List<I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -58,7 +68,6 @@ impl<I: Debug, E> Debug for List<I, E> {
 // impl<'e> TryFrom<Box<[Value<'e>]>> for List<'e> {
 // 	type Error = Error;
 
-// 	#[inline]
 // 	fn try_from(list: Box<[Value<'e>]>) -> Result<Self> {
 // 		Self::new(list)
 // 	}
@@ -67,7 +76,6 @@ impl<I: Debug, E> Debug for List<I, E> {
 // impl<'e> TryFrom<Vec<Value<'e>>> for List<'e> {
 // 	type Error = Error;
 
-// 	#[inline]
 // 	fn try_from(list: Vec<Value<'e>>) -> Result<Self> {
 // 		list.into_boxed_slice().try_into()
 // 	}
@@ -156,7 +164,6 @@ impl<I, E> List<I, E> {
 	pub fn head(&self) -> Option<Value<I, E>>
 	where
 		I: Clone,
-		E: Clone,
 	{
 		self.get(0).cloned()
 	}
@@ -385,7 +392,6 @@ impl<I, E> Parsable<I, E> for List<I, E> {
 
 impl<I, E> ToList<I, E> for List<I, E> {
 	/// Simply returns `self`.
-	#[inline]
 	fn to_list(&self, _: &mut Environment<I, E>) -> Result<Self> {
 		Ok(self.clone())
 	}
@@ -393,7 +399,6 @@ impl<I, E> ToList<I, E> for List<I, E> {
 
 impl<I, E> ToBoolean<I, E> for List<I, E> {
 	/// Returns whether `self` is nonempty.
-	#[inline]
 	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
@@ -401,7 +406,6 @@ impl<I, E> ToBoolean<I, E> for List<I, E> {
 
 impl<I: IntType, E> ToInteger<I, E> for List<I, E> {
 	/// Returns `self`'s length.
-	#[inline]
 	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Integer<I>> {
 		self.len().try_into()
 	}

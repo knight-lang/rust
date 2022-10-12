@@ -2,10 +2,11 @@ use super::Encoding;
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::text::{Character, NewTextError, TextSlice};
+use crate::RefCount;
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Text<E>(crate::RefCount<TextSlice<E>>);
+pub struct Text<E>(RefCount<TextSlice<E>>);
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Text<()>: Send, Sync);
@@ -17,14 +18,12 @@ impl<E> Debug for Text<E> {
 }
 
 impl<E> Default for Text<E> {
-	#[inline]
 	fn default() -> Self {
 		<&TextSlice<E>>::default().into()
 	}
 }
 
 impl<E> Display for Text<E> {
-	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
@@ -33,7 +32,6 @@ impl<E> Display for Text<E> {
 impl<E> std::ops::Deref for Text<E> {
 	type Target = TextSlice<E>;
 
-	#[inline]
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
@@ -61,15 +59,31 @@ impl<E> Text<E> {
 		Default::default()
 	}
 
-	pub fn new(inp: impl ToString, flags: &Flags) -> Result<Self, NewTextError>
+	pub fn new<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
 	where
+		I: ToString,
 		E: Encoding,
 	{
 		TextSlice::new_boxed(inp.to_string().into(), flags).map(|x| Self(x.into()))
 	}
 
-	pub unsafe fn new_unchecked(inp: impl ToString) -> Self {
-		Self(TextSlice::new_boxed_unchecked(inp.to_string().into()).into())
+	pub unsafe fn new_unchecked<I>(inp: I) -> Self
+	where
+		I: ToString,
+	{
+		let boxed = inp.to_string().into_boxed_str();
+
+		Self(RefCount::from(Box::from_raw(Box::into_raw(boxed) as *mut TextSlice<E>)))
+	}
+
+	pub unsafe fn new_len_unchecked<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
+	where
+		I: ToString,
+	{
+		let inp = inp.to_string();
+		super::validate_len::<E>(&inp, flags)?;
+
+		Ok(Self::new_unchecked(inp))
 	}
 }
 

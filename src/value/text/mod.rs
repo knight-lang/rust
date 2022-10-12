@@ -29,6 +29,9 @@ impl<E> Iterator for Chars<'_, E> {
 	}
 }
 
+/// The maximum length of a [`Text`]/[`TextSlice`] when `check_container_length` is enabled.
+pub const MAX_LEN: usize = i32::MAX as usize;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum NewTextError {
 	#[cfg(feature = "compliance")]
@@ -53,7 +56,7 @@ impl std::fmt::Display for NewTextError {
 		match *self {
 			#[cfg(feature = "compliance")]
 			Self::LengthTooLong(len) => {
-				write!(f, "length {len} longer than max {}", TextSlice::<()>::MAX_LEN)
+				write!(f, "length {len} longer than max {MAX_LEN}")
 			}
 			#[cfg(feature = "compliance")]
 			Self::IllegalChar { chr, index } => {
@@ -65,16 +68,21 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-pub fn validate<E: Encoding>(
-	#[allow(unused)] data: &str,
-	#[allow(unused)] flags: &Flags,
-) -> Result<(), NewTextError> {
+fn validate_len<E>(data: &str, flags: &Flags) -> Result<(), NewTextError> {
+	#[cfg(feature = "compliance")]
+	if flags.compliance.check_container_length && MAX_LEN < data.len() {
+		return Err(NewTextError::LengthTooLong(data.len()));
+	}
+
+	let _ = (data, flags);
+
+	Ok(())
+}
+
+fn validate<E: Encoding>(data: &str, flags: &Flags) -> Result<(), NewTextError> {
 	#[cfg(feature = "compliance")]
 	{
-		if flags.compliance.check_container_length && TextSlice::<E>::MAX_LEN < data.len() {
-			return Err(NewTextError::LengthTooLong(data.len()));
-		}
-
+		validate_len::<E>(data, flags)?;
 		if flags.compliance.knight_encoding_only {
 			// We're in const context, so we must use `while` with bytes.
 			// Since we're not using unicode, everything's just a byte anyways.
@@ -94,6 +102,6 @@ pub fn validate<E: Encoding>(
 		}
 	}
 
-	let _ = data;
+	let _ = (data, flags);
 	Ok(())
 }

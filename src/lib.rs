@@ -1,6 +1,7 @@
 #![allow(clippy::module_inception)]
 #![feature(let_else)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(debug_assertions, allow(deprecated))]
 
 extern crate static_assertions as sa;
 
@@ -36,7 +37,7 @@ pub fn play(
 	macro_rules! play {
 		(E; "ascii") => (crate::value::text::Ascii);
 		(E; "knight-encoding") => (crate::value::text::KnightEncoding);
-		(E; "unicode") => (crate::value::text::Unicode);
+		(E; "utf8") => (crate::value::text::Utf8);
 		(I; "i32") => (i32);
 		(I; "i64") => (i64);
 		(C; "checked" $x:tt) => (crate::value::integer::Checked<play![I; $x]>);
@@ -63,9 +64,9 @@ pub fn play(
 		"ascii" "i64" "checked",
 		"ascii" "i64" "wrapping",
 
-		"unicode" "i32" "checked",
-		"unicode" "i32" "wrapping",
-		"unicode" "i64" "checked",
-		"unicode" "i64" "wrapping",
+		"utf8" "i32" "checked",
+		"utf8" "i32" "wrapping",
+		"utf8" "i64" "checked",
+		"utf8" "i64" "wrapping",
 	}
 }

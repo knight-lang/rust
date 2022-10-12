@@ -35,14 +35,12 @@ pub trait ToInteger<I, E> {
 }
 
 impl<I: Debug> Debug for Integer<I> {
-	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
 
 impl<I: Display> Display for Integer<I> {
-	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
@@ -52,12 +50,18 @@ impl<I> NamedType for Integer<I> {
 	const TYPENAME: &'static str = "Integer";
 }
 
-impl<I: IntType> Integer<I> {
+impl<I> Integer<I> {
+	/// Creates a new `Integer`.
 	pub const fn new(int: I) -> Self {
 		Self(int)
 	}
+}
 
+impl<I: IntType> Integer<I> {
+	/// The zero value.
 	pub const ZERO: Self = Self(I::ZERO);
+
+	/// The one value.
 	pub const ONE: Self = Self(I::ONE);
 
 	/// Returns whether `self` is zero.
@@ -148,7 +152,7 @@ impl<I: IntType> Integer<I> {
 		self.0.log10()
 	}
 
-	/// Attempts to interpret `self` as a Unicode codepoint.
+	/// Attempts to interpret `self` as a utf8 codepoint.
 	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		u32::try_from(self.0.into())
 			.ok()
@@ -207,7 +211,6 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn negate(self) -> Result<Self> {
 		if cfg!(feature = "checked-math-ops") {
 			return Ok(Self(self.0.wrapping_neg()));
@@ -235,7 +238,6 @@ impl Integer {
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
 	#[allow(clippy::should_implement_trait)]
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn add(self, augend: Self) -> Result<Self> {
 		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
 	}
@@ -245,7 +247,6 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
 		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
 	}
@@ -255,7 +256,6 @@ impl Integer {
 	/// # Errors
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn multiply(self, multiplier: Self) -> Result<Self> {
 		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
 	}
@@ -267,7 +267,6 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn divide(self, divisor: Self) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -285,7 +284,6 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[cfg_attr(not(feature = "checked-math-ops"), inline)]
 	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -370,7 +368,6 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Integer<I> {
 
 impl<I: Clone, E> ToInteger<I, E> for Integer<I> {
 	/// Simply returns `self`.
-	#[inline]
 	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Self> {
 		Ok(self.clone())
 	}
@@ -378,7 +375,6 @@ impl<I: Clone, E> ToInteger<I, E> for Integer<I> {
 
 impl<I: IntType, E> ToBoolean<I, E> for Integer<I> {
 	/// Returns whether `self` is nonzero.
-	#[inline]
 	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
@@ -386,7 +382,6 @@ impl<I: IntType, E> ToBoolean<I, E> for Integer<I> {
 
 impl<I: Display, E: Encoding> ToText<I, E> for Integer<I> {
 	/// Returns a string representation of `self`.
-	#[inline]
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		Ok(Text::new(self, env.flags()).expect("`to_text for Integer failed?`"))
 	}
@@ -445,7 +440,6 @@ impl<I: IntType> FromStr for Integer<I> {
 macro_rules! impl_integer_from {
 	($($smaller:ident)* ; $($larger:ident)*) => {
 		$(impl<I: IntType> From<$smaller> for Integer<I> {
-			#[inline]
 			fn from(num: $smaller) -> Self {
 				Self(I::from(num as i32))
 			}
@@ -453,7 +447,6 @@ macro_rules! impl_integer_from {
 		$(impl<I: IntType> TryFrom<$larger> for Integer<I> {
 			type Error = Error;
 
-			#[inline]
 			fn try_from(num: $larger) -> Result<Self> {
 				i64::try_from(num).ok().and_then(|x| I::try_from(x).ok()).map(Self).ok_or(Error::IntegerOverflow)
 			}
@@ -464,7 +457,6 @@ macro_rules! impl_integer_from {
 macro_rules! impl_from_integer {
 	($($smaller:ident)* ; $($larger:ident)*) => {
 		$(impl<I: IntType> From<Integer<I>> for $larger {
-			#[inline]
 			fn from(int: Integer<I>) -> Self {
 				int.0.into() as _
 			}
@@ -472,7 +464,6 @@ macro_rules! impl_from_integer {
 		$(impl<I: IntType> TryFrom<Integer<I>> for $smaller {
 			type Error = Error;
 
-			#[inline]
 			fn try_from(int: Integer<I>) -> Result<Self> {
 				int.0.try_into().ok().and_then(|x| x.try_into().ok()).ok_or(Error::IntegerOverflow)
 			}
@@ -486,7 +477,6 @@ impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
 impl<I: IntType> TryFrom<char> for Integer<I> {
 	type Error = Error;
 
-	#[inline]
 	fn try_from(chr: char) -> Result<Self> {
 		(chr as u32).try_into()
 	}

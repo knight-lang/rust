@@ -3,8 +3,14 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
 
 /// A single character of a specific encoding.
+///
+/// This is essentially a [`char`], except it has an [`Encoding`] associated with it.
 #[derive_where(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Character<E>(char, PhantomData<E>);
+
+// SAFETY: We don't actually hold `E`s, so whether they're `Send` or `Sync` is irrelevant.
+unsafe impl<E> Send for Character<E> {}
+unsafe impl<E> Sync for Character<E> {}
 
 impl<E> Debug for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -21,6 +27,12 @@ impl<E> Display for Character<E> {
 impl<E> PartialEq<char> for Character<E> {
 	fn eq(&self, rhs: &char) -> bool {
 		self.0 == *rhs
+	}
+}
+
+impl<E> From<Character<E>> for char {
+	fn from(character: Character<E>) -> Self {
+		character.0
 	}
 }
 
@@ -60,21 +72,15 @@ impl<E: Encoding> Character<E> {
 		E::is_numeric(self.0)
 	}
 
-	/// Checks to see if `self` is a lowercase or `_` character.
+	/// Checks to see if `self` is '_' or a lowercase character.
 	#[must_use]
 	pub fn is_lower(self) -> bool {
 		self.0 == '_' || E::is_lower(self.0)
 	}
 
-	/// Checks to see if `self` is an uppercase or `_` character.
+	/// Checks to see if `self` is '_' or an uppercase character.
 	#[must_use]
 	pub fn is_upper(self) -> bool {
 		self.0 == '_' || E::is_upper(self.0)
-	}
-}
-
-impl<E> From<Character<E>> for char {
-	fn from(character: Character<E>) -> Self {
-		character.0
 	}
 }

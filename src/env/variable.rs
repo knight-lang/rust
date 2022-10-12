@@ -168,13 +168,12 @@ impl<I, E> Variable<I, E> {
 	pub fn fetch(&self) -> Option<Value<I, E>>
 	where
 		I: Clone,
-		E: Clone,
 	{
 		(self.0).value.read().clone()
 	}
 }
 
-impl<I: Clone, E: Clone> Runnable<I, E> for Variable<I, E> {
+impl<I: Clone, E> Runnable<I, E> for Variable<I, E> {
 	fn run(&self, _env: &mut Environment<I, E>) -> Result<Value<I, E>> {
 		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
 	}

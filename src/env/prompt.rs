@@ -112,7 +112,6 @@ impl<'e, I, E> Prompt<'e, I, E> {
 	///
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
-	#[cfg_attr(not(feature = "extensions"), inline)]
 	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<I, E>>
 	where
 		E: Encoding,

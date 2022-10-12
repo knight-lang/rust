@@ -42,14 +42,6 @@ impl<I, E> Custom<I, E> {
 	}
 }
 
-// // #[derive(Debug)]
-// // pub struct Map< I, E>(std::collections::HashMap< I, E>);
-// // impl< I, E> CustomType< I, E> for Foo {
-// // 	fn to_custom(self: RefCount<Self>) -> Custom< I, E> {
-// // 		self.into()
-// // 	}
-// }
-
 /// Trait for custom types.
 ///
 /// The only required function is [`CustomType::to_custom`] (see below for details). Every other
@@ -62,13 +54,72 @@ impl<I, E> Custom<I, E> {
 /// it's literally as simple as calling `self.into()`.
 ///
 /// # Examples
+/// Here's an example implementation of a map type that would be usable within Knight.
 /// ```
-/// <todo
+/// use std::collections::HashMap;
+/// use std::fmt::{self, Debug, Formatter};
+/// use knightrs::{RefCount, Result, Error, Environment};
+/// use knightrs::value::{
+/// 	integer::IntType,
+/// 	text::Encoding,
+/// 	custom::{Custom, CustomType},
+/// 	Value,
+/// };
 ///
+/// // Our map type. In line with Knight tradition, we'll be keeping it immutable.
+/// #[derive(Debug)]
+/// pub struct Map<I, E>(RefCount<HashMap<Value<I, E>, Value<I, E>>>);
+///
+/// // Here we're implementing the custom type trait for our map.
+/// // Technically we requiring `I` to be `IntType` and `E` to be `Encoding`
+/// // is a stronger requirement than we need, but for the sake of example,
+/// // let's just roll with it.
+/// impl<I: IntType, E: Encoding> CustomType<I, E> for Map<I, E> {
+///    // The required function for all implementations.
+///    fn to_custom(self: RefCount<Self>) -> Custom<I, E> {
+///       self.into()
+///    }
+///
+///    // The length of a map is how many elements it has.
+///    fn length(self: RefCount<Self>, _env: &mut Environment<'_, I, E>) -> Result<usize> {
+///       Ok(self.0.len())
+///    }
+///
+///    // We'll just ignore the length parameter given to us, and use the start
+///    // as the key to index with.
+///    fn get(
+///       self: RefCount<Self>,
+///       start: &Value<I, E>,
+///       _len: &Value<I, E>,
+///       _env: &mut Environment<'_, I, E>,
+///    ) -> Result<Value<I, E>> {
+///       self.0
+///          .get(start)
+///          .ok_or_else(|| Error::Custom(format!("unknown key: {start:?}").into()))
+///          .cloned()
+///    }
+///
+///    // Like `get`, we'll be ignoring `len`. We'll be using `replacement`
+///    // as the value to fetch.
+///    fn set(
+///       self: RefCount<Self>,
+///       start: &Value<I, E>,
+///       _len: &Value<I, E>,
+///       replacement: Value<I, E>,
+///       _env: &mut Environment<'_, I, E>,
+///    ) -> Result<Value<I, E>> {
+///       let mut new = (*self.0).clone();
+///       new.insert(start.clone(), replacement);
+///       Ok(Custom::new(Self(new.into())).into())
+///    }
+/// }
+/// ```
 #[allow(unused_variables)]
 pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
+	/// <todo>
 	fn to_custom(self: RefCount<Self>) -> Custom<I, E>;
 
+	/// Returns the name of this type
 	fn typename(&self) -> &'static str {
 		std::any::type_name::<Self>()
 	}
@@ -122,12 +173,12 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 		Err(Error::TypeError(self.typename(), "]"))
 	}
 
-	fn length(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
+	fn length(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<usize>
 	where
 		I: IntType,
 		E: Encoding,
 	{
-		Integer::<I>::try_from(self.to_list(env)?.len()).map(Value::from)
+		Ok(self.to_list(env)?.len())
 	}
 
 	fn ascii(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
@@ -232,8 +283,8 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn get(
 		self: RefCount<Self>,
-		start: usize,
-		len: usize,
+		start: &Value<I, E>,
+		len: &Value<I, E>,
 		env: &mut Environment<I, E>,
 	) -> Result<Value<I, E>>
 	where
@@ -245,9 +296,9 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn set(
 		self: RefCount<Self>,
-		start: usize,
-		len: usize,
-		replacement: &Value<I, E>,
+		start: &Value<I, E>,
+		len: &Value<I, E>,
+		replacement: Value<I, E>,
 		env: &mut Environment<I, E>,
 	) -> Result<Value<I, E>>
 	where
@@ -313,7 +364,7 @@ impl<I, E> Custom<I, E> {
 		self.0.clone().tail(env)
 	}
 
-	pub fn length(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
+	pub fn length(&self, env: &mut Environment<I, E>) -> Result<usize>
 	where
 		I: IntType,
 		E: Encoding,
@@ -393,7 +444,12 @@ impl<I, E> Custom<I, E> {
 		self.0.clone().assign(rhs, env)
 	}
 
-	pub fn get(&self, start: usize, len: usize, env: &mut Environment<I, E>) -> Result<Value<I, E>>
+	pub fn get(
+		&self,
+		start: &Value<I, E>,
+		len: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -403,9 +459,9 @@ impl<I, E> Custom<I, E> {
 
 	pub fn set(
 		&self,
-		start: usize,
-		len: usize,
-		replacement: &Value<I, E>,
+		start: &Value<I, E>,
+		len: &Value<I, E>,
+		replacement: Value<I, E>,
 		env: &mut Environment<I, E>,
 	) -> Result<Value<I, E>>
 	where

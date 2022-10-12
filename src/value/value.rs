@@ -13,6 +13,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive_where(Default)]
 #[derive_where(PartialEq; I: PartialEq)]
 #[derive_where(Eq; I: Eq)]
+#[derive_where(Hash; I: std::hash::Hash)]
 #[non_exhaustive]
 pub enum Value<I, E> {
 	/// Represents the `NULL` value.
@@ -42,6 +43,9 @@ pub enum Value<I, E> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "custom-types")))]
 	Custom(crate::value::Custom<I, E>),
 }
+
+unsafe impl<I: Send, E> Send for Value<I, E> {}
+unsafe impl<I: Send + Sync, E> Sync for Value<I, E> {}
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Value< (), ()>: Send, Sync);
@@ -250,7 +254,9 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 		let _ = env;
 		match self {
 			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
-			Self::Text(text) => text.tail().ok_or(Error::DomainError("empty text")).map(Self::from),
+			Self::Text(text) => {
+				text.tail().ok_or(Error::DomainError("empty text")).map(Text::from).map(Self::from)
+			}
 
 			#[cfg(feature = "extensions")]
 			Self::Integer(integer) if env.flags().exts.tys.integer => Ok(integer.tail().into()),
@@ -275,7 +281,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
 
 			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.length(env),
+			Self::Custom(custom) => Integer::try_from(custom.length(env)?).map(Self::from),
 
 			other => Err(Error::TypeError(other.typename(), "LENGTH")),
 		}
@@ -572,6 +578,11 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 	}
 
 	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<I, E>) -> Result<Self> {
+		#[cfg(feature = "custom-types")]
+		if let Self::Custom(custom) = self {
+			return custom.get(start, len, env);
+		}
+
 		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
 			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
@@ -588,9 +599,6 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 				.map(ToOwned::to_owned)
 				.map(Self::from),
 
-			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.get(start, len, env),
-
 			other => return Err(Error::TypeError(other.typename(), "GET")),
 		}
 	}
@@ -599,9 +607,14 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 		&self,
 		start: &Self,
 		len: &Self,
-		replacement: &Self,
+		replacement: Self,
 		env: &mut Environment<I, E>,
 	) -> Result<Self> {
+		#[cfg(feature = "custom-types")]
+		if let Self::Custom(custom) = self {
+			return custom.set(start, len, replacement, env);
+		}
+
 		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
 			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
@@ -629,9 +642,6 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 				Ok(builder.finish(env.flags())?.into())
 			}
 
-			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.set(start, len, replacement, env),
-
 			other => return Err(Error::TypeError(other.typename(), "SET")),
 		}
 	}
@@ -649,7 +659,7 @@ fn fix_len<I: IntType, E: Encoding>(
 			Value::List(list) => list.len(),
 
 			#[cfg(feature = "custom-types")]
-			Value::Custom(custom) => custom.length(env)?.to_integer(env)?.try_into()?,
+			Value::Custom(custom) => custom.length(env)?,
 
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};

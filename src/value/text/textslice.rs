@@ -8,6 +8,10 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive_where(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextSlice<E>(std::marker::PhantomData<E>, str);
 
+// SAFETY: `E` is only phantomdata
+unsafe impl<E> Send for TextSlice<E> {}
+unsafe impl<E> Sync for TextSlice<E> {}
+
 impl<E> Debug for TextSlice<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.1, f)
@@ -15,7 +19,6 @@ impl<E> Debug for TextSlice<E> {
 }
 
 impl<E> Default for &TextSlice<E> {
-	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
 		unsafe { TextSlice::new_unchecked("") }
@@ -30,7 +33,7 @@ impl<E> Display for TextSlice<E> {
 
 impl<E> PartialEq<str> for TextSlice<E> {
 	fn eq(&self, rhs: &str) -> bool {
-		&self.1 == rhs
+		self.1 == *rhs
 	}
 }
 
@@ -43,18 +46,17 @@ impl<E> std::ops::Deref for TextSlice<E> {
 }
 
 impl<E> TextSlice<E> {
-	pub const MAX_LEN: usize = i32::MAX as usize;
-
-	/// Creates a new `TextSlice` without validating `inp`.
+	/// Creates a new [`TextSlice`] without validating `inp`.
 	///
 	/// # Safety
-	/// - `inp` must be a valid `TextSlice`.
+	/// - `inp` must be a a valid string for the encoding `E`.
 	pub const unsafe fn new_unchecked(inp: &str) -> &Self {
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
 		&*(inp as *const str as *const Self)
 	}
 
+	/// Tries to create a new [`TextSlice`], returning an error if not possible.
 	pub fn new<'s>(inp: &'s str, flags: &Flags) -> Result<&'s Self, NewTextError>
 	where
 		E: Encoding,
@@ -62,6 +64,7 @@ impl<E> TextSlice<E> {
 		validate::<E>(inp, flags).map(|_| unsafe { Self::new_unchecked(inp) })
 	}
 
+	#[deprecated]
 	pub fn new_boxed(inp: Box<str>, flags: &Flags) -> Result<Box<Self>, NewTextError>
 	where
 		E: Encoding,
@@ -69,7 +72,7 @@ impl<E> TextSlice<E> {
 		validate::<E>(&inp, flags).map(|_| unsafe { Self::new_boxed_unchecked(inp) })
 	}
 
-	#[allow(unsafe_code)]
+	#[deprecated]
 	pub unsafe fn new_boxed_unchecked(inp: Box<str>) -> Box<Self> {
 		// SAFETY: Since `TextSlice` is a `repr(transparent)` wrapper around `str`, we're able to
 		// safely transmute.
@@ -80,6 +83,7 @@ impl<E> TextSlice<E> {
 		&self.1
 	}
 
+	/// Gets an iterate over [`Character`]s.
 	pub fn chars(&self) -> Chars<'_, E> {
 		Chars(std::marker::PhantomData, self.1.chars())
 	}
@@ -136,18 +140,14 @@ impl<E> TextSlice<E> {
 		)
 	}
 
+	/// Gets the first character of `self`, if it exists.
 	pub fn head(&self) -> Option<Character<E>> {
 		self.chars().next()
 	}
 
-	pub fn tail(&self) -> Option<Text<E>> {
-		let mut chrs = self.chars();
-
-		if chrs.next().is_none() {
-			None
-		} else {
-			Some(chrs.as_text().to_owned())
-		}
+	/// Gets everything _but_ the first character of `self`, if it exists.
+	pub fn tail(&self) -> Option<&TextSlice<E>> {
+		self.get(1..)
 	}
 
 	pub fn remove_substr(&self, substr: &Self) -> Text<E> {
@@ -157,7 +157,6 @@ impl<E> TextSlice<E> {
 }
 
 impl<'a, E> From<&'a TextSlice<E>> for &'a str {
-	#[inline]
 	fn from(text: &'a TextSlice<E>) -> Self {
 		text
 	}
