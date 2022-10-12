@@ -1,23 +1,14 @@
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{integer::IntType, text::Encoding, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::Debug;
 
 /// [`Ast`]s represent functions and their arguments.
+#[derive_where(Debug; I: Debug)]
+#[derive_where(Clone)]
 pub struct Ast<'e, I, E>(RefCount<Inner<'e, I, E>>);
 
-impl<I: Debug, E> Debug for Ast<'_, I, E> {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		f.debug_struct("Ast").field("function", &self.0.function).field("args", &self.0.args).finish()
-	}
-}
-impl<I, E> Clone for Ast<'_, I, E> {
-	fn clone(&self) -> Self {
-		Self(self.0.clone())
-	}
-}
-
-#[derive(Debug)]
+#[derive_where(Debug; I: Debug)]
 struct Inner<'e, I, E> {
 	function: Function<'e, I, E>,
 	args: Box<[Value<'e, I, E>]>,

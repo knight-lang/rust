@@ -28,56 +28,6 @@ pub use inttype::{Checked, IntType, Wrapping};
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer<I>(I);
 
-#[rustfmt::skip]
-impl IntType for i64 {
-	const ZERO: Self = 0;
-	const ONE: Self = 1;
-
-	fn log10(mut self) -> usize {
-		// TODO: integer base10 when that comes out.
-		let mut log = 0;
-		while self != 0 {
-			log += 1;
-			self /= 10;
-		}
-
-		log
-	}
-
-	fn negate(self) -> Result<Self> { Ok(-self) }
-	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
-	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
-	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
-	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
-	fn remainder(self, rhs: Self) -> Result<Self> { Ok(self % rhs) }
-	fn power(self, rhs: u32) -> Result<Self> { Ok(self.wrapping_pow(rhs)) }
-}
-
-#[rustfmt::skip]
-impl IntType for i32 {
-	const ZERO: Self = 0;
-	const ONE: Self = 1;
-
-	fn log10(mut self) -> usize {
-		// TODO: integer base10 when that comes out.
-		let mut log = 0;
-		while self != 0 {
-			log += 1;
-			self /= 10;
-		}
-
-		log
-	}
-
-	fn negate(self) -> Result<Self> { Ok(-self) }
-	fn add(self, rhs: Self) -> Result<Self> { Ok(self + rhs) }
-	fn subtract(self, rhs: Self) -> Result<Self> { Ok(self - rhs) }
-	fn multiply(self, rhs: Self) -> Result<Self> { Ok(self * rhs) }
-	fn divide(self, rhs: Self) -> Result<Self> { Ok(self / rhs) }
-	fn remainder(self, rhs: Self) -> Result<Self> { Ok(self % rhs) }
-	fn power(self, rhs: u32) -> Result<Self> { Ok(self.wrapping_pow(rhs)) }
-}
-
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger<'e, I, E> {
 	/// Converts `self` to an [`Integer`].

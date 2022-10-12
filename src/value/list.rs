@@ -25,19 +25,8 @@ use crate::Error;
 ///
 /// However, since this can be a fairly significant performance penalty, this checking is disabled
 /// by default. To enable it, you should enable the `container-length-limit` feature.
+#[derive_where(Clone, Default)]
 pub struct List<'e, I, E>(Option<RefCount<Inner<'e, I, E>>>);
-
-impl<I, E> Clone for List<'_, I, E> {
-	fn clone(&self) -> Self {
-		Self(self.0.clone())
-	}
-}
-
-impl<I, E> Default for List<'_, I, E> {
-	fn default() -> Self {
-		Self::EMPTY
-	}
-}
 
 enum Inner<'e, I, E> {
 	Boxed(Value<'e, I, E>),

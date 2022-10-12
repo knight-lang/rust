@@ -38,7 +38,6 @@ impl<I, E: Encoding> Parsable<'_, I, E> for Null {
 
 impl<'e, I, E> ToBoolean<'e, I, E> for Null {
 	/// Simple returns `false`.
-	#[inline]
 	fn to_boolean(&self, _: &mut Environment<'e, I, E>) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
@@ -46,7 +45,6 @@ impl<'e, I, E> ToBoolean<'e, I, E> for Null {
 
 impl<'e, I: Default, E> ToInteger<'e, I, E> for Null {
 	/// Simple returns zero.
-	#[inline]
 	fn to_integer(&self, _: &mut Environment<'e, I, E>) -> Result<Integer<I>> {
 		Ok(Integer::default())
 	}
@@ -54,7 +52,6 @@ impl<'e, I: Default, E> ToInteger<'e, I, E> for Null {
 
 impl<'e, I, E> ToList<'e, I, E> for Null {
 	/// Simple returns an empty [`List`].
-	#[inline]
 	fn to_list(&self, _: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>> {
 		Ok(List::default())
 	}
@@ -62,7 +59,6 @@ impl<'e, I, E> ToList<'e, I, E> for Null {
 
 impl<'e, I, E> ToText<'e, I, E> for Null {
 	/// Simple returns an empty [`Text`].
-	#[inline]
 	fn to_text(&self, _: &mut Environment<'e, I, E>) -> Result<Text<E>> {
 		Ok(Text::default())
 	}

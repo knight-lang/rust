@@ -3,37 +3,9 @@ use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::text::{Character, NewTextError, TextSlice};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
 
+#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Text<E>(crate::RefCount<TextSlice<E>>);
-
-impl<E> Clone for Text<E> {
-	fn clone(&self) -> Self {
-		Self(self.0.clone())
-	}
-}
-
-impl<E> Eq for Text<E> {}
-impl<E> PartialEq for Text<E> {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.0 == rhs.0
-	}
-}
-impl<E> PartialOrd for Text<E> {
-	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		self.0.partial_cmp(&rhs.0)
-	}
-}
-impl<E> Ord for Text<E> {
-	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.0.cmp(&rhs.0)
-	}
-}
-impl<E> Hash for Text<E> {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.0.hash(state)
-	}
-}
 
 #[cfg(feature = "multithreaded")]
 sa::assert_impl_all!(Text<()>: Send, Sync);

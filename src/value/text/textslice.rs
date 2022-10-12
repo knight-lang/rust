@@ -3,10 +3,9 @@ use crate::env::{Environment, Flags};
 use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 
 #[repr(transparent)]
+#[derive_where(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextSlice<E>(std::marker::PhantomData<E>, str);
 
 impl<E> Debug for TextSlice<E> {
@@ -14,28 +13,7 @@ impl<E> Debug for TextSlice<E> {
 		Debug::fmt(&self.1, f)
 	}
 }
-impl<E> Eq for TextSlice<E> {}
-impl<E> PartialEq for TextSlice<E> {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.1 == rhs.1
-	}
-}
-impl<E> PartialOrd for TextSlice<E> {
-	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		self.1.partial_cmp(&rhs.1)
-	}
-}
 
-impl<E> Ord for TextSlice<E> {
-	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.1.cmp(&rhs.1)
-	}
-}
-impl<E> Hash for TextSlice<E> {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.1.hash(state)
-	}
-}
 impl<E> Default for &TextSlice<E> {
 	#[inline]
 	fn default() -> Self {
@@ -56,7 +34,7 @@ impl<E> PartialEq<str> for TextSlice<E> {
 	}
 }
 
-impl<E> Deref for TextSlice<E> {
+impl<E> std::ops::Deref for TextSlice<E> {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {

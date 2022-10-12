@@ -1,53 +1,26 @@
 use super::Encoding;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 /// A single character of a specific encoding.
+#[derive_where(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Character<E>(char, PhantomData<E>);
-
-impl<E> Copy for Character<E> {}
-impl<E> Clone for Character<E> {
-	fn clone(&self) -> Self {
-		*self
-	}
-}
 
 impl<E> Debug for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
+
 impl<E> Display for Character<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
 }
 
-impl<E> Eq for Character<E> {}
-impl<E> PartialEq for Character<E> {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.0 == rhs.0
-	}
-}
 impl<E> PartialEq<char> for Character<E> {
 	fn eq(&self, rhs: &char) -> bool {
 		self.0 == *rhs
-	}
-}
-impl<E> PartialOrd for Character<E> {
-	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		self.0.partial_cmp(&rhs.0)
-	}
-}
-impl<E> Ord for Character<E> {
-	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.0.cmp(&rhs.0)
-	}
-}
-impl<E> Hash for Character<E> {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.0.hash(state)
 	}
 }
 

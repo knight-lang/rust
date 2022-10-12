@@ -9,8 +9,12 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// A Value within Knight.
+#[derive_where(Clone; I: Clone)]
+#[derive_where(Default)]
+#[non_exhaustive]
 pub enum Value<'e, I, E> {
 	/// Represents the `NULL` value.
+	#[derive_where(default)]
 	Null,
 
 	/// Represents the `TRUE` and `FALSE` values.
@@ -37,50 +41,28 @@ pub enum Value<'e, I, E> {
 	Custom(crate::value::Custom<'e, I, E>),
 }
 
-impl<I, E> Default for Value<'_, I, E> {
-	fn default() -> Self {
-		Self::Null
-	}
-}
-
-impl<I: Clone, E> Clone for Value<'_, I, E> {
-	fn clone(&self) -> Self {
-		match self {
-			Self::Null => Self::Null,
-			Self::Boolean(boolean) => Self::Boolean(boolean.clone()),
-			Self::Integer(integer) => Self::Integer(integer.clone()),
-			Self::Text(text) => Self::Text(text.clone()),
-			Self::List(list) => Self::List(list.clone()),
-			Self::Variable(variable) => Self::Variable(variable.clone()),
-			Self::Ast(ast) => Self::Ast(ast.clone()),
-
-			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => Self::Custom(custom.clone()),
-		}
-	}
-}
+#[cfg(feature = "multithreaded")]
+sa::assert_impl_all!(Value<'_, (), ()>: Send, Sync);
 
 impl<I: PartialEq, E> PartialEq for Value<'_, I, E> {
 	fn eq(&self, rhs: &Self) -> bool {
+		// We cant derive this because of `l.eql`
 		match (self, rhs) {
 			(Self::Null, Self::Null) => true,
-			(Self::Boolean(lboolean), Self::Boolean(rboolean)) => lboolean == rboolean,
-			(Self::Integer(linteger), Self::Integer(rinteger)) => linteger == rinteger,
-			(Self::Text(ltext), Self::Text(rtext)) => ltext == rtext,
-			(Self::List(llist), Self::List(rlist)) => llist == rlist,
-			(Self::Variable(lvariable), Self::Variable(rvariable)) => lvariable == rvariable,
-			(Self::Ast(last), Self::Ast(rast)) => last == rast,
+			(Self::Boolean(l), Self::Boolean(r)) => l == r,
+			(Self::Integer(l), Self::Integer(r)) => l == r,
+			(Self::Text(l), Self::Text(r)) => l == r,
+			(Self::List(l), Self::List(r)) => l == r,
+			(Self::Variable(l), Self::Variable(r)) => l == r,
+			(Self::Ast(l), Self::Ast(r)) => l == r,
 
 			#[cfg(feature = "custom-types")]
-			(Self::Custom(lcustom), rhs) => lcustom.eql(rhs),
+			(Self::Custom(l), r) => l.eql(r),
 
 			_ => false,
 		}
 	}
 }
-
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Value<'_, (), ()>: Send, Sync);
 
 impl<I: Debug, E> Debug for Value<'_, I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -100,56 +82,48 @@ impl<I: Debug, E> Debug for Value<'_, I, E> {
 }
 
 impl<I, E> From<Null> for Value<'_, I, E> {
-	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
 impl<I, E> From<Boolean> for Value<'_, I, E> {
-	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
 impl<I, E> From<Integer<I>> for Value<'_, I, E> {
-	#[inline]
 	fn from(integer: Integer<I>) -> Self {
 		Self::Integer(integer)
 	}
 }
 
 impl<I, E> From<Text<E>> for Value<'_, I, E> {
-	#[inline]
 	fn from(text: Text<E>) -> Self {
 		Self::Text(text)
 	}
 }
 
 impl<I, E> From<Character<E>> for Value<'_, I, E> {
-	#[inline]
 	fn from(character: Character<E>) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
 
 impl<'e, I, E> From<Variable<'e, I, E>> for Value<'e, I, E> {
-	#[inline]
 	fn from(variable: Variable<'e, I, E>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
 impl<'e, I, E> From<Ast<'e, I, E>> for Value<'e, I, E> {
-	#[inline]
 	fn from(inp: Ast<'e, I, E>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
 impl<'e, I, E> From<List<'e, I, E>> for Value<'e, I, E> {
-	#[inline]
 	fn from(list: List<'e, I, E>) -> Self {
 		Self::List(list)
 	}
@@ -157,28 +131,8 @@ impl<'e, I, E> From<List<'e, I, E>> for Value<'e, I, E> {
 
 #[cfg(feature = "custom-types")]
 impl<'e, I, E> From<crate::value::Custom<'e, I, E>> for Value<'e, I, E> {
-	#[inline]
 	fn from(custom: crate::value::Custom<'e, I, E>) -> Self {
 		Self::Custom(custom)
-	}
-}
-
-impl<I, E> Value<'_, I, E> {
-	/// Fetch the type's name.
-	#[must_use = "getting the type name by itself does nothing."]
-	pub fn typename(&self) -> &'static str {
-		match self {
-			Self::Null => Null::TYPENAME,
-			Self::Boolean(_) => Boolean::TYPENAME,
-			Self::Integer(_) => Integer::<I>::TYPENAME,
-			Self::Text(_) => Text::<E>::TYPENAME,
-			Self::List(_) => List::<I, E>::TYPENAME,
-			Self::Ast(_) => Ast::<I, E>::TYPENAME,
-			Self::Variable(_) => Variable::<I, E>::TYPENAME,
-
-			#[cfg(feature = "custom-types")]
-			Self::Custom(custom) => custom.clone().typename(),
-		}
 	}
 }
 
@@ -259,6 +213,25 @@ impl<'e, I: IntType, E: Encoding> Runnable<'e, I, E> for Value<'e, I, E> {
 			Self::Custom(custom) => custom.clone().run(env),
 
 			_ => Ok(self.clone()),
+		}
+	}
+}
+
+impl<'e, I, E> Value<'e, I, E> {
+	/// Fetch the type's name.
+	#[must_use = "getting the type name by itself does nothing."]
+	pub fn typename(&self) -> &'static str {
+		match self {
+			Self::Null => Null::TYPENAME,
+			Self::Boolean(_) => Boolean::TYPENAME,
+			Self::Integer(_) => Integer::<I>::TYPENAME,
+			Self::Text(_) => Text::<E>::TYPENAME,
+			Self::List(_) => List::<I, E>::TYPENAME,
+			Self::Ast(_) => Ast::<I, E>::TYPENAME,
+			Self::Variable(_) => Variable::<I, E>::TYPENAME,
+
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.clone().typename(),
 		}
 	}
 }

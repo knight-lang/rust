@@ -1,8 +1,8 @@
 use super::{Text, TextSlice};
 use std::marker::PhantomData;
 
-#[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
+#[derive_where(Default, Debug, PartialEq, Eq)]
 pub struct Builder<E>(PhantomData<E>, String);
 
 impl<E> Builder<E> {

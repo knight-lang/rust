@@ -10,13 +10,8 @@ use std::hash::{Hash, Hasher};
 /// Represents a variable within Knight.
 ///
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
-// FIXME: You can memory leak via `= a (B a)` (and also `= a (B + a 1)`, etc.)
+#[derive_where(Clone)]
 pub struct Variable<'e, I, E>(RefCount<Inner<'e, I, E>>);
-impl<I, E> Clone for Variable<'_, I, E> {
-	fn clone(&self) -> Self {
-		Self(self.0.clone())
-	}
-}
 
 struct Inner<'e, I, E> {
 	name: Text<E>,

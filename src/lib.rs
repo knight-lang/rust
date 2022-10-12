@@ -1,10 +1,14 @@
 #![allow(clippy::module_inception)]
 #![feature(let_else)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
 extern crate static_assertions as sa;
 
 #[macro_use]
 extern crate cfg_if;
+
+#[macro_use]
+extern crate derive_where;
 
 pub mod ast;
 mod containers;
