@@ -302,7 +302,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn add(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.add(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => integer.add(rhs.to_integer(env)?, env.flags()).map(Self::from),
 			Self::Text(string) => Ok(string.concat(&rhs.to_text(env)?, env.flags())?.into()),
 			Self::List(list) => list.concat(&rhs.to_list(env)?, env.flags()).map(Self::from),
 
@@ -318,7 +318,9 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn subtract(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.subtract(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => {
+				integer.subtract(rhs.to_integer(env)?, env.flags()).map(Self::from)
+			}
 
 			#[cfg(feature = "extensions")]
 			Self::Text(text) if env.flags().exts.tys.text => {
@@ -339,7 +341,9 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn multiply(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.multiply(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => {
+				integer.multiply(rhs.to_integer(env)?, env.flags()).map(Self::from)
+			}
 
 			Self::Text(lstr) => {
 				let amount = usize::try_from(rhs.to_integer(env)?)
@@ -382,7 +386,9 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn divide(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.divide(rhs.to_integer(env)?).map(Self::from),
+			Self::Integer(integer) => {
+				integer.divide(rhs.to_integer(env)?, env.flags()).map(Self::from)
+			}
 
 			#[cfg(feature = "extensions")]
 			Self::Text(text) if env.flags().exts.tys.text => Ok(text.split(&rhs.to_text(env)?, env).into()),
@@ -664,7 +670,7 @@ fn fix_len<I: IntType, E: Encoding>(
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};
 
-		start = start.add(len.try_into()?)?;
+		start = start.add(len.try_into()?, env.flags())?;
 	}
 
 	usize::try_from(start).or(Err(Error::DomainError("negative start position")))

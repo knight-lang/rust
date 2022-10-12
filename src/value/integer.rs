@@ -1,7 +1,8 @@
+use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::{Character, Encoding};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
-use crate::{Environment, Error, Result};
+use crate::{Error, Result};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -11,20 +12,19 @@ pub use inttype::{Checked, IntType, Wrapping};
 /// The integer type within Knight.
 ///
 /// # Bit Size
-/// According to the knight spec, integers must be within the range `-2147483648..2147483647i32`
-/// (inclusive on both sides), i.e. a `i32`'s bounds. However, implementations are free to go above
-/// that number. So, this implementation defaults to an [`i64`] as its internal integer size, and
-/// will switch to [`i32`] if the `strict-integers` feature is enabled.
+/// According to the knight spec, integers must be within the range `-2147483648..=2147483647i32`,
+/// ie an `i32`'s bounds. however, implementations are free to go beyond that range. As such, this
+/// implementation provides the ability to use _either_ [`i32`]s or [`i64`]s as your integer type.
+/// In fact, you can use any type, as long as it implements the [`IntType`] interface.
+///
+/// Additionally, since the Knight specs state that all operations on integers that would overflow/
+/// underflow the bounds of an `i32` are undefined,two optoins are provided: [`Checked`] and
+/// [`Wrapping`]. The [`Checked`] type will raise an error if its argument overflows, whereas the
+/// [`Wrapping`] type will simply wraparound.
 ///
 /// # Conversions
-/// Since the internal representation can either be a 32 or 64 bit integer, all conversions are
-/// implemented as though the internal type is a 32 bit integer.
-///
-/// # Overflow operations
-/// Within Knight, any integer operations which under/overflow the bounds of a 32 bit integer are
-/// undefined. Within this implementation, all operations normally use wrapping logic. However, if
-/// the `checked-overflow` feature is enabled, an [`Error::IntegerOverflow`] is returned whenever
-/// an operation would overflow.
+/// Since the internal representation is a minimum of `i32`, all conversions are implemented
+/// assuming the base type is an `i32`.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer<I>(I);
 
@@ -74,28 +74,59 @@ impl<I: IntType> Integer<I> {
 		self.0 < I::ZERO
 	}
 
-	pub fn negate(self) -> Result<Self> {
-		self.0.negate().map(Self)
+	/// Negates `self`.
+	///
+	/// # Errors
+	/// Returns any errors [`I::negate`](IntType::negate) returns.
+	pub fn negate(self, flags: &Flags) -> Result<Self> {
+		self.0.negate(flags).map(Self)
 	}
 
-	pub fn add(self, rhs: Self) -> Result<Self> {
-		self.0.add(rhs.0).map(Self)
+	/// Adds `self` with `augend`.
+	///
+	/// # Errors
+	/// Returns any errors [`I::add`](IntType::add) returns.
+	pub fn add(self, augend: Self, flags: &Flags) -> Result<Self> {
+		self.0.add(augend.0, flags).map(Self)
 	}
-	pub fn subtract(self, rhs: Self) -> Result<Self> {
-		self.0.subtract(rhs.0).map(Self)
+
+	/// Subtracts `self` by `subtrahend`.
+	///
+	/// # Errors
+	/// Returns any errors [`I::subtract`](IntType::subtract) returns.
+	pub fn subtract(self, subtrahend: Self, flags: &Flags) -> Result<Self> {
+		self.0.subtract(subtrahend.0, flags).map(Self)
 	}
-	pub fn multiply(self, rhs: Self) -> Result<Self> {
-		self.0.multiply(rhs.0).map(Self)
+
+	/// Multiplies `self` by `multiplier`.
+	///
+	/// # Errors
+	/// Returns any errors [`I::multiply`](IntType::multiply) returns.
+	pub fn multiply(self, multiplier: Self, flags: &Flags) -> Result<Self> {
+		self.0.multiply(multiplier.0, flags).map(Self)
 	}
-	pub fn divide(self, rhs: Self) -> Result<Self> {
-		if rhs.is_zero() {
+
+	/// Divides `self` by `multiplier`.
+	///
+	/// # Errors
+	/// Returns [`Error::DivisionByZero`] if `divisor` is zero. Additionally, returns any errors
+	/// [`I::divide`](IntType::divide) returns.
+	pub fn divide(self, divisor: Self, flags: &Flags) -> Result<Self> {
+		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		self.0.divide(rhs.0).map(Self)
+		self.0.divide(divisor.0, flags).map(Self)
 	}
 
-	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
+	/// Gets the remainder of `self` and `base`.
+	///
+	/// # Errors
+	/// Returns [`Error::DivisionByZero`] if `divisor` is zero. If [`check_integer_function_bounds`](
+	/// crate::env::flags::ComplianceFlags::check_integer_function_bounds) is enabled and either
+	/// `self` or `rhs` is negative, an [`Error::DomainError`] is returned. Additionally, returns any
+	/// errors [`I::remainder`](IntType::remainder) returns.
+	pub fn remainder(self, base: Self, flags: &Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
@@ -111,17 +142,17 @@ impl<I: IntType> Integer<I> {
 			}
 		}
 
-		let _ = flags;
-		self.0.remainder(base.0).map(Self)
+		self.0.remainder(base.0, flags).map(Self)
 	}
-	pub fn power(self, mut exponent: Self, flags: &crate::env::Flags) -> Result<Self> {
+
+	pub fn power(self, mut exponent: Self, flags: &Flags) -> Result<Self> {
 		if exponent.is_negative() {
 			match self.0.into() {
 				#[cfg(feature = "compliance")]
 				_ if flags.compliance.check_integer_function_bounds => {
 					return Err(Error::DomainError("negative exponent"))
 				}
-				-1 => exponent = exponent.negate()?,
+				-1 => exponent = exponent.negate(flags)?,
 				0 => return Err(Error::DivisionByZero),
 				1 => return Ok(Self::ONE),
 				_ => return Ok(Self::ZERO),
@@ -145,9 +176,9 @@ impl<I: IntType> Integer<I> {
 			exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
 		}
 
-		let _ = flags;
-		self.0.power(exp).map(Self)
+		self.0.power(exp, flags).map(Self)
 	}
+
 	pub fn log10(self) -> usize {
 		self.0.log10()
 	}
@@ -176,7 +207,7 @@ impl<I: IntType> Integer<I> {
 		todo!()
 	}
 
-	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &crate::env::Flags) -> Self {
+	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &Flags) -> Self {
 		#[allow(unused_mut)]
 		let mut rand = rng.gen::<i64>().abs();
 
@@ -191,7 +222,7 @@ impl<I: IntType> Integer<I> {
 		Self(rand.try_into().unwrap_or_else(|_| {
 			let mut x = I::from(rand as i32);
 			if x < I::ZERO {
-				x = x.negate().unwrap_or_default();
+				x = x.negate(flags).unwrap_or_default();
 			}
 			x
 		}))
@@ -284,7 +315,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn remainder(self, base: Self, flags: &crate::env::Flags) -> Result<Self> {
+	pub fn remainder(self, base: Self, flags: &Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
@@ -315,7 +346,7 @@ impl Integer {
 	///
 	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
 	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn power(self, mut exponent: Self, flags: &crate::env::Flags) -> Result<Self> {
+	pub fn power(self, mut exponent: Self, flags: &Flags) -> Result<Self> {
 		if exponent.is_negative() {
 			match self.0 {
 				#[cfg(feature = "compliance")]

@@ -446,7 +446,7 @@ pub fn ASCII<I: IntType, E: Encoding>() -> Function<I, E> {
 pub fn NEG<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("~", env, |arg| {
 		// comment so it wont make it one line
-		arg.run(env)?.to_integer(env)?.negate()?.into()
+		arg.run(env)?.to_integer(env)?.negate(env.flags())?.into()
 	})
 }
 

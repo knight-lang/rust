@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{env::Flags, Error};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -23,13 +23,15 @@ pub trait IntType:
 	const ONE: Self;
 
 	fn log10(self) -> usize;
-	fn negate(self) -> crate::Result<Self>;
-	fn add(self, rhs: Self) -> crate::Result<Self>;
-	fn subtract(self, rhs: Self) -> crate::Result<Self>;
-	fn multiply(self, rhs: Self) -> crate::Result<Self>;
-	fn divide(self, rhs: Self) -> crate::Result<Self>;
-	fn remainder(self, rhs: Self) -> crate::Result<Self>;
-	fn power(self, rhs: u32) -> crate::Result<Self>;
+	fn negate(self, flags: &Flags) -> crate::Result<Self>;
+	fn add(self, rhs: Self, flags: &Flags) -> crate::Result<Self>;
+	fn subtract(self, rhs: Self, flags: &Flags) -> crate::Result<Self>;
+	fn multiply(self, rhs: Self, flags: &Flags) -> crate::Result<Self>;
+	// you can assume `rhs` is nonzero
+	fn divide(self, rhs: Self, flags: &Flags) -> crate::Result<Self>;
+	// you can assume `rhs` is nonzero
+	fn remainder(self, rhs: Self, flags: &Flags) -> crate::Result<Self>;
+	fn power(self, rhs: u32, flags: &Flags) -> crate::Result<Self>;
 }
 
 macro_rules! create_int_type {
@@ -114,37 +116,37 @@ macro_rules! impl_checked_int_type {
 			}
 
 			#[inline]
-			fn negate(self) -> crate::Result<Self> {
+			fn negate(self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn add(self, rhs: Self) -> crate::Result<Self> {
+			fn add(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_add(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn subtract(self, rhs: Self) -> crate::Result<Self> {
+			fn subtract(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_sub(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn multiply(self, rhs: Self) -> crate::Result<Self> {
+			fn multiply(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_mul(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn divide(self, rhs: Self) -> crate::Result<Self> {
+			fn divide(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_div(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn remainder(self, rhs: Self) -> crate::Result<Self> {
+			fn remainder(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_rem(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
 			}
 
 			#[inline]
-			fn power(self, rhs: u32) -> crate::Result<Self> {
+			fn power(self, rhs: u32, _: &Flags) -> crate::Result<Self> {
 				self.0.checked_pow(rhs).map(Self).ok_or(Error::IntegerOverflow)
 			}
 		}
@@ -169,37 +171,37 @@ macro_rules! impl_wrapping_int_type {
 			}
 
 			#[inline]
-			fn negate(self) -> crate::Result<Self> {
+			fn negate(self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_neg()))
 			}
 
 			#[inline]
-			fn add(self, rhs: Self) -> crate::Result<Self> {
+			fn add(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_add(rhs.0)))
 			}
 
 			#[inline]
-			fn subtract(self, rhs: Self) -> crate::Result<Self> {
+			fn subtract(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_sub(rhs.0)))
 			}
 
 			#[inline]
-			fn multiply(self, rhs: Self) -> crate::Result<Self> {
+			fn multiply(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_mul(rhs.0)))
 			}
 
 			#[inline]
-			fn divide(self, rhs: Self) -> crate::Result<Self> {
+			fn divide(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_div(rhs.0)))
 			}
 
 			#[inline]
-			fn remainder(self, rhs: Self) -> crate::Result<Self> {
+			fn remainder(self, rhs: Self, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_rem(rhs.0)))
 			}
 
 			#[inline]
-			fn power(self, rhs: u32) -> crate::Result<Self> {
+			fn power(self, rhs: u32, _: &Flags) -> crate::Result<Self> {
 				Ok(Self(self.0.wrapping_pow(rhs)))
 			}
 		}
