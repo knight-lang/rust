@@ -33,19 +33,19 @@ pub use variable::{IllegalVariableName, Variable};
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e, I, E> {
 	flags: &'e Flags,
-	variables: HashSet<Variable<'e, I, E>>,
+	variables: HashSet<Variable<I, E>>,
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
-	functions: HashSet<Function<'e, I, E>>,
+	functions: HashSet<Function<I, E>>,
 	rng: StdRng,
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
 	// set of parsers is loaded up.
-	parsers: Vec<ParseFn<'e, I, E>>,
+	parsers: Vec<ParseFn<I, E>>,
 
 	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<'e, I, E>>,
+	extensions: HashSet<ExtensionFunction<I, E>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -85,12 +85,12 @@ impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 	}
 
 	/// A shorthand function for creating [`Builder`]s.
-	pub fn builder(flags: &'e Flags) -> Builder<'e, I, E> {
+	pub fn builder(flags: &'e Flags) -> Builder<I, E> {
 		Builder::new(flags)
 	}
 
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<'e, I, E>> {
+	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<I, E>> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
 }
@@ -104,13 +104,13 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
-	pub fn functions(&self) -> &HashSet<Function<'e, I, E>> {
+	pub fn functions(&self) -> &HashSet<Function<I, E>> {
 		&self.functions
 	}
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
-	pub fn parsers(&self) -> &[ParseFn<'e, I, E>] {
+	pub fn parsers(&self) -> &[ParseFn<I, E>] {
 		&self.parsers
 	}
 
@@ -131,7 +131,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<'e, I, E>, IllegalVariableName>
+	) -> std::result::Result<Variable<I, E>, IllegalVariableName>
 	where
 		E: Encoding,
 	{
@@ -157,10 +157,10 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<'e, I, E> Environment<'e, I, E> {
+impl<I, E> Environment<'_, I, E> {
 	/// Gets the list of known extension functions.
 	#[must_use]
-	pub fn extensions(&self) -> &HashSet<ExtensionFunction<'e, I, E>> {
+	pub fn extensions(&self) -> &HashSet<ExtensionFunction<I, E>> {
 		&self.extensions
 	}
 

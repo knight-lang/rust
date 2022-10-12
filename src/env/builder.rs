@@ -6,11 +6,11 @@ pub struct Builder<'e, I, E> {
 	flags: &'e Flags,
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
-	functions: HashSet<Function<'e, I, E>>,
-	parsers: Vec<ParseFn<'e, I, E>>,
+	functions: HashSet<Function<I, E>>,
+	parsers: Vec<ParseFn<I, E>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<'e, I, E>>,
+	extensions: HashSet<ExtensionFunction<I, E>>,
 
 	#[cfg(feature = "extensions")]
 	system: Option<Box<System<'e, E>>>,
@@ -53,20 +53,20 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 		self.output.set_stdout(stdout);
 	}
 
-	pub fn functions(&mut self) -> &mut HashSet<Function<'e, I, E>> {
+	pub fn functions(&mut self) -> &mut HashSet<Function<I, E>> {
 		&mut self.functions
 	}
 
 	// We only allow access to the parsers when extensions are enabled.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parsers(&mut self) -> &mut Vec<ParseFn<'e, I, E>> {
+	pub fn parsers(&mut self) -> &mut Vec<ParseFn<I, E>> {
 		&mut self.parsers
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<'e, I, E>> {
+	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<I, E>> {
 		&mut self.extensions
 	}
 
@@ -75,9 +75,9 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 	pub fn system<F>(&mut self, func: F)
 	where
 		F: FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> crate::Result<Text<E>>
+			+ 'e
 			+ Send
-			+ Sync
-			+ 'e,
+			+ Sync,
 	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
@@ -86,7 +86,7 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn read_file<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice<E>, &Flags) -> crate::Result<Text<E>> + Send + Sync + 'e,
+		F: FnMut(&TextSlice<E>, &Flags) -> crate::Result<Text<E>> + 'e + Send + Sync,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}

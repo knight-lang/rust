@@ -112,11 +112,7 @@ impl<E> TextSlice<E> {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<'e, I: IntType>(
-		&self,
-		sep: &Self,
-		env: &mut Environment<'e, I, E>,
-	) -> List<'e, I, E>
+	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I, E>) -> List<I, E>
 	where
 		E: Encoding,
 	{
@@ -184,14 +180,14 @@ impl<'a, E> IntoIterator for &'a TextSlice<E> {
 	}
 }
 
-impl<'e, I, E> ToBoolean<'e, I, E> for Text<E> {
-	fn to_boolean(&self, _: &mut Environment<'e, I, E>) -> crate::Result<Boolean> {
+impl<I, E> ToBoolean<I, E> for Text<E> {
+	fn to_boolean(&self, _: &mut Environment<I, E>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<'e, I, E> ToText<'e, I, E> for Text<E> {
-	fn to_text(&self, _: &mut Environment<'e, I, E>) -> crate::Result<Self> {
+impl<I, E> ToText<I, E> for Text<E> {
+	fn to_text(&self, _: &mut Environment<I, E>) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -200,14 +196,14 @@ impl<E> crate::value::NamedType for Text<E> {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<'e, I: IntType, E> ToInteger<'e, I, E> for Text<E> {
-	fn to_integer(&self, _: &mut Environment<'e, I, E>) -> crate::Result<Integer<I>> {
+impl<I: IntType, E> ToInteger<I, E> for Text<E> {
+	fn to_integer(&self, _: &mut Environment<I, E>) -> crate::Result<Integer<I>> {
 		self.parse()
 	}
 }
 
-impl<'e, I, E> ToList<'e, I, E> for Text<E> {
-	fn to_list(&self, _: &mut Environment<'e, I, E>) -> crate::Result<List<'e, I, E>> {
+impl<I, E> ToList<I, E> for Text<E> {
+	fn to_list(&self, _: &mut Environment<I, E>) -> crate::Result<List<I, E>> {
 		let chars = self.chars().map(Value::from).collect::<Vec<_>>();
 
 		// SAFETY: If `self` is within the container bounds, so is the length of its chars.

@@ -3,10 +3,10 @@ use super::*;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupedExpression;
 
-impl<'e, I: IntType, E: Encoding> Parsable<'e, I, E> for GroupedExpression {
-	type Output = Value<'e, I, E>;
+impl<I: IntType, E: Encoding> Parsable<I, E> for GroupedExpression {
+	type Output = Value<I, E>;
 
-	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {
 		if parser.advance_if(')').is_some() {
 			return Err(parser.error(ErrorKind::UnmatchedRightParen));
 		}

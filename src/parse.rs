@@ -22,7 +22,7 @@ pub struct Parser<'s, 'e, I, E> {
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<'e, I, E>: Sized {
+pub trait Parsable<I, E>: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -34,13 +34,13 @@ pub trait Parsable<'e, I, E>: Sized {
 	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
 	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
 	///   returned.
-	fn parse(parser: &mut Parser<'_, 'e, I, E>) -> Result<Option<Self::Output>>;
+	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>>;
 
 	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
 	/// crate::env::Builder::parsers).
-	fn parse_fn() -> ParseFn<'e, I, E>
+	fn parse_fn() -> ParseFn<I, E>
 	where
-		Value<'e, I, E>: From<Self::Output>,
+		Value<I, E>: From<Self::Output>,
 		E: Encoding,
 		I: IntType,
 	{
@@ -48,25 +48,25 @@ pub trait Parsable<'e, I, E>: Sized {
 	}
 }
 
-pub type ParseFn<'e, I, E> = RefCount<dyn ParseFn_<'e, I, E>>;
+pub type ParseFn<I, E> = RefCount<dyn ParseFn_<I, E>>;
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn_<'e, I: IntType, E: Encoding>:
-	Fn(&mut Parser<'_, 'e, I, E>) -> Result<Option<Value<'e, I, E>>> + MaybeSendSync
+pub trait ParseFn_<I: IntType, E: Encoding>:
+	Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync
 {
 }
 
-impl<'e, T, I, E> ParseFn_<'e, I, E> for T
+impl<T, I, E> ParseFn_<I, E> for T
 where
 	I: IntType,
 	E: Encoding,
-	T: Fn(&mut Parser<'_, 'e, I, E>) -> Result<Option<Value<'e, I, E>>> + MaybeSendSync,
+	T: Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync,
 {
 }
 
 // Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
 // in case we want it for extensions later.)
-pub(crate) fn default<'e, I, E>(_flags: &Flags) -> Vec<ParseFn<'e, I, E>>
+pub(crate) fn default<I, E>(_flags: &Flags) -> Vec<ParseFn<I, E>>
 where
 	I: IntType,
 	E: Encoding,
@@ -82,14 +82,14 @@ where
 		GroupedExpression,
 		crate::value::Integer<I>,
 		crate::value::Text<E>,
-		crate::env::Variable<'e, I, E>,
+		crate::env::Variable< I, E>,
 		crate::value::Boolean,
 		crate::value::Null,
-		crate::value::List<'e, I, E>,
-		crate::ast::Ast<'e, I, E>,
+		crate::value::List< I, E>,
+		crate::ast::Ast< I, E>,
 
 		#[cfg(feature = "extensions")]
-		ListLiteral<'e, I, E>
+		ListLiteral< I, E>
 	]
 }
 
@@ -330,7 +330,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 	// }
 
-	// impl<'s, 'e, I, E: Encoding> Parser<'s, 'e, I, E> {
+	// impl<'s,  I, E: Encoding> Parser<'s,  I, E> {
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
 	pub fn strip_whitespace_and_comments(&mut self) -> bool
 	where
@@ -364,7 +364,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](c
 	/// crate::env::flags::ComplianceFlags::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Value<'e, I, E>>
+	pub fn parse_program(mut self) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -386,7 +386,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	///
 	/// This goes through its [environment's parsers](Environment::parsers) one by one, returning
 	/// the first value that returned `Ok(Some(...))`
-	pub fn parse_expression(&mut self) -> Result<Value<'e, I, E>>
+	pub fn parse_expression(&mut self) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,

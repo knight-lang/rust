@@ -14,7 +14,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive_where(PartialEq; I: PartialEq)]
 #[derive_where(Eq; I: Eq)]
 #[non_exhaustive]
-pub enum Value<'e, I, E> {
+pub enum Value<I, E> {
 	/// Represents the `NULL` value.
 	#[derive_where(default)]
 	Null,
@@ -29,24 +29,24 @@ pub enum Value<'e, I, E> {
 	Text(Text<E>),
 
 	/// Represents a list of [`Value`]s.
-	List(List<'e, I, E>),
+	List(List<I, E>),
 
 	/// Represents a variable.
-	Variable(Variable<'e, I, E>),
+	Variable(Variable<I, E>),
 
 	/// Represents a block of code.
-	Ast(Ast<'e, I, E>),
+	Ast(Ast<I, E>),
 
 	/// Represents a custom type.
 	#[cfg(feature = "custom-types")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "custom-types")))]
-	Custom(crate::value::Custom<'e, I, E>),
+	Custom(crate::value::Custom<I, E>),
 }
 
 #[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Value<'_, (), ()>: Send, Sync);
+sa::assert_impl_all!(Value< (), ()>: Send, Sync);
 
-impl<I: Debug, E> Debug for Value<'_, I, E> {
+impl<I: Debug, E> Debug for Value<I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Null => Debug::fmt(&Null, f),
@@ -63,63 +63,63 @@ impl<I: Debug, E> Debug for Value<'_, I, E> {
 	}
 }
 
-impl<I, E> From<Null> for Value<'_, I, E> {
+impl<I, E> From<Null> for Value<I, E> {
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
-impl<I, E> From<Boolean> for Value<'_, I, E> {
+impl<I, E> From<Boolean> for Value<I, E> {
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
-impl<I, E> From<Integer<I>> for Value<'_, I, E> {
+impl<I, E> From<Integer<I>> for Value<I, E> {
 	fn from(integer: Integer<I>) -> Self {
 		Self::Integer(integer)
 	}
 }
 
-impl<I, E> From<Text<E>> for Value<'_, I, E> {
+impl<I, E> From<Text<E>> for Value<I, E> {
 	fn from(text: Text<E>) -> Self {
 		Self::Text(text)
 	}
 }
 
-impl<I, E> From<Character<E>> for Value<'_, I, E> {
+impl<I, E> From<Character<E>> for Value<I, E> {
 	fn from(character: Character<E>) -> Self {
 		Self::Text(Text::from(character))
 	}
 }
 
-impl<'e, I, E> From<Variable<'e, I, E>> for Value<'e, I, E> {
-	fn from(variable: Variable<'e, I, E>) -> Self {
+impl<I, E> From<Variable<I, E>> for Value<I, E> {
+	fn from(variable: Variable<I, E>) -> Self {
 		Self::Variable(variable)
 	}
 }
 
-impl<'e, I, E> From<Ast<'e, I, E>> for Value<'e, I, E> {
-	fn from(inp: Ast<'e, I, E>) -> Self {
+impl<I, E> From<Ast<I, E>> for Value<I, E> {
+	fn from(inp: Ast<I, E>) -> Self {
 		Self::Ast(inp)
 	}
 }
 
-impl<'e, I, E> From<List<'e, I, E>> for Value<'e, I, E> {
-	fn from(list: List<'e, I, E>) -> Self {
+impl<I, E> From<List<I, E>> for Value<I, E> {
+	fn from(list: List<I, E>) -> Self {
 		Self::List(list)
 	}
 }
 
 #[cfg(feature = "custom-types")]
-impl<'e, I, E> From<crate::value::Custom<'e, I, E>> for Value<'e, I, E> {
-	fn from(custom: crate::value::Custom<'e, I, E>) -> Self {
+impl<I, E> From<crate::value::Custom<I, E>> for Value<I, E> {
+	fn from(custom: crate::value::Custom<I, E>) -> Self {
 		Self::Custom(custom)
 	}
 }
 
-impl<'e, I: IntType, E> ToBoolean<'e, I, E> for Value<'e, I, E> {
-	fn to_boolean(&self, env: &mut Environment<'e, I, E>) -> Result<Boolean> {
+impl<I: IntType, E> ToBoolean<I, E> for Value<I, E> {
+	fn to_boolean(&self, env: &mut Environment<I, E>) -> Result<Boolean> {
 		match *self {
 			Self::Null => Null.to_boolean(env),
 			Self::Boolean(boolean) => boolean.to_boolean(env),
@@ -135,8 +135,8 @@ impl<'e, I: IntType, E> ToBoolean<'e, I, E> for Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E> ToInteger<'e, I, E> for Value<'e, I, E> {
-	fn to_integer(&self, env: &mut Environment<'e, I, E>) -> Result<Integer<I>> {
+impl<I: IntType, E> ToInteger<I, E> for Value<I, E> {
+	fn to_integer(&self, env: &mut Environment<I, E>) -> Result<Integer<I>> {
 		match *self {
 			Self::Null => Null.to_integer(env),
 			Self::Boolean(boolean) => boolean.to_integer(env),
@@ -151,8 +151,8 @@ impl<'e, I: IntType, E> ToInteger<'e, I, E> for Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: Display, E: Encoding> ToText<'e, I, E> for Value<'e, I, E> {
-	fn to_text(&self, env: &mut Environment<'e, I, E>) -> Result<Text<E>> {
+impl<I: Display, E: Encoding> ToText<I, E> for Value<I, E> {
+	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(env),
 			Self::Boolean(boolean) => boolean.to_text(env),
@@ -168,8 +168,8 @@ impl<'e, I: Display, E: Encoding> ToText<'e, I, E> for Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E> ToList<'e, I, E> for Value<'e, I, E> {
-	fn to_list(&self, env: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>> {
+impl<I: IntType, E> ToList<I, E> for Value<I, E> {
+	fn to_list(&self, env: &mut Environment<I, E>) -> Result<List<I, E>> {
 		match *self {
 			Self::Null => Null.to_list(env),
 			Self::Boolean(boolean) => boolean.to_list(env),
@@ -185,8 +185,8 @@ impl<'e, I: IntType, E> ToList<'e, I, E> for Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Runnable<'e, I, E> for Value<'e, I, E> {
-	fn run(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+impl<I: IntType, E: Encoding> Runnable<I, E> for Value<I, E> {
+	fn run(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => variable.run(env),
 			Self::Ast(ast) => ast.run(env),
@@ -199,7 +199,7 @@ impl<'e, I: IntType, E: Encoding> Runnable<'e, I, E> for Value<'e, I, E> {
 	}
 }
 
-impl<'e, I, E> Value<'e, I, E> {
+impl<I, E> Value<I, E> {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	pub fn typename(&self) -> &'static str {
@@ -218,8 +218,8 @@ impl<'e, I, E> Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
-	pub fn call(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+impl<I: IntType, E: Encoding> Value<I, E> {
+	pub fn call(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		// When ensuring that `CALL` is only given values returned from `BLOCK`, we must ensure that all
 		// arguments are `Value::Ast`s.
 		#[cfg(feature = "compliance")]
@@ -230,7 +230,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		self.run(env)
 	}
 
-	pub fn head(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn head(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		let _ = env;
 		match self {
 			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
@@ -246,7 +246,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn tail(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn tail(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		let _ = env;
 		match self {
 			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
@@ -262,7 +262,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn length(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn length(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::List(list) => Integer::try_from(list.len()).map(Self::from),
 			Self::Text(text) => {
@@ -281,7 +281,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn ascii(&self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn ascii(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		let _ = env;
 		match self {
 			Self::Integer(integer) => Ok(integer.chr()?.into()),
@@ -294,7 +294,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn add(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn add(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.add(rhs.to_integer(env)?).map(Self::from),
 			Self::Text(string) => Ok(string.concat(&rhs.to_text(env)?, env.flags())?.into()),
@@ -310,7 +310,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn subtract(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn subtract(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.subtract(rhs.to_integer(env)?).map(Self::from),
 
@@ -331,7 +331,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn multiply(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn multiply(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.multiply(rhs.to_integer(env)?).map(Self::from),
 
@@ -374,7 +374,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn divide(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn divide(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.divide(rhs.to_integer(env)?).map(Self::from),
 
@@ -391,7 +391,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn remainder(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn remainder(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => {
 				integer.remainder(rhs.to_integer(env)?, env.flags()).map(Self::from)
@@ -446,7 +446,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		}
 	}
 
-	pub fn power(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn power(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => integer.power(rhs.to_integer(env)?, env.flags()).map(Self::from),
 			Self::List(list) => list.join(&rhs.to_text(env)?, env).map(Self::from),
@@ -459,8 +459,8 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
-	pub fn compare(&self, rhs: &Self, env: &mut Environment<'e, I, E>) -> Result<Ordering> {
+impl<I: IntType, E: Encoding> Value<I, E> {
+	pub fn compare(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Ordering> {
 		match self {
 			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),
 			Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean(env)?)),
@@ -488,7 +488,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 	pub fn equals(&self, rhs: &Self, env: &mut Environment<'_, I, E>) -> Result<bool> {
 		#[cfg(feature = "compliance")]
 		{
-			fn check_for_strict_compliance<I, E>(value: &Value<'_, I, E>) -> Result<()> {
+			fn check_for_strict_compliance<I, E>(value: &Value<I, E>) -> Result<()> {
 				match value {
 					Value::List(list) => {
 						for ele in list {
@@ -511,7 +511,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		Ok(self == rhs)
 	}
 
-	pub fn assign(&self, value: Self, env: &mut Environment<'e, I, E>) -> Result<()> {
+	pub fn assign(&self, value: Self, env: &mut Environment<I, E>) -> Result<()> {
 		let _ = env;
 
 		if let Value::Variable(variable) = self {
@@ -571,7 +571,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		Err(Error::TypeError(self.typename(), "="))
 	}
 
-	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<'e, I, E>) -> Result<Self> {
+	pub fn get(&self, start: &Self, len: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
 			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
@@ -600,7 +600,7 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 		start: &Self,
 		len: &Self,
 		replacement: &Self,
-		env: &mut Environment<'e, I, E>,
+		env: &mut Environment<I, E>,
 	) -> Result<Self> {
 		let start = fix_len(self, start.to_integer(env)?, env)?;
 		let len =
@@ -637,10 +637,10 @@ impl<'e, I: IntType, E: Encoding> Value<'e, I, E> {
 	}
 }
 
-fn fix_len<'e, I: IntType, E: Encoding>(
-	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<'e, I, E>,
+fn fix_len<I: IntType, E: Encoding>(
+	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<I, E>,
 	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer<I>,
-	#[cfg_attr(not(feature = "extensions"), allow(unused))] env: &mut Environment<'e, I, E>,
+	#[cfg_attr(not(feature = "extensions"), allow(unused))] env: &mut Environment<I, E>,
 ) -> Result<usize> {
 	#[cfg(feature = "extensions")]
 	if env.flags().exts.negative_indexing && start.is_negative() {

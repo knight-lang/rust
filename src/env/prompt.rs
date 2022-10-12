@@ -20,7 +20,7 @@ pub struct Prompt<'e, I, E> {
 	_pd: PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
-	replacement: Option<PromptReplacement<'e, I, E>>,
+	replacement: Option<PromptReplacement<I, E>>,
 }
 
 impl<I, E> Default for Prompt<'_, I, E> {
@@ -36,10 +36,10 @@ impl<I, E> Default for Prompt<'_, I, E> {
 }
 
 #[cfg(feature = "extensions")]
-enum PromptReplacement<'e, I, E> {
+enum PromptReplacement<I, E> {
 	Closed,
 	Buffered(VecDeque<Text<E>>),
-	Computed(Ast<'e, I, E>),
+	Computed(Ast<I, E>),
 }
 
 fn strip_ending(line: &mut String) {
@@ -64,8 +64,8 @@ fn strip_ending(line: &mut String) {
 	}
 }
 
-pub struct Line<'e, I, E>(Option<ReadLineResultInner<'e, I, E>>);
-enum ReadLineResultInner<'e, I, E> {
+pub struct Line<I, E>(Option<ReadLineResultInner<I, E>>);
+enum ReadLineResultInner<I, E> {
 	Text(Text<E>),
 
 	#[allow(dead_code)]
@@ -73,11 +73,11 @@ enum ReadLineResultInner<'e, I, E> {
 	_Never(PhantomData<(I, E, &'e ())>),
 
 	#[cfg(feature = "extensions")]
-	Ast(Ast<'e, I, E>),
+	Ast(Ast<I, E>),
 }
 
-impl<'e, I: IntType, E: Encoding> Line<'e, I, E> {
-	pub fn get(self, env: &mut Environment<'e, I, E>) -> Result<Option<Text<E>>> {
+impl<I: IntType, E: Encoding> Line<I, E> {
+	pub fn get(self, env: &mut Environment<I, E>) -> Result<Option<Text<E>>> {
 		match self.0 {
 			None => Ok(None),
 			Some(ReadLineResultInner::Text(text)) => Ok(Some(text)),
@@ -113,7 +113,7 @@ impl<'e, I, E> Prompt<'e, I, E> {
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
 	#[cfg_attr(not(feature = "extensions"), inline)]
-	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<'e, I, E>>
+	pub fn read_line(&mut self, flags: &Flags) -> Result<Line<I, E>>
 	where
 		E: Encoding,
 	{
@@ -146,7 +146,7 @@ impl<'e, I, E> Prompt<'e, I, E> {
 /// If
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
+impl<I: IntType, E: crate::value::text::Encoding> Prompt<'_, I, E> {
 	/// Clears the currently set replacement, if any.
 	pub fn reset_replacement(&mut self) {
 		self.replacement = None;
@@ -162,7 +162,7 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Prompt<'e, I, E> {
 	/// Calling `PROMPT` will actually run `ast` and convert its return value to a [`Text`].
 	///
 	/// This clears any previous replacement.
-	pub fn set_ast(&mut self, ast: Ast<'e, I, E>) {
+	pub fn set_ast(&mut self, ast: Ast<I, E>) {
 		self.replacement = Some(PromptReplacement::Computed(ast));
 	}
 

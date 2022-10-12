@@ -3,8 +3,8 @@ mod character;
 mod encoding;
 mod text;
 mod textslice;
-pub trait ToText<'e, I, E> {
-	fn to_text(&self, env: &mut crate::Environment<'e, I, E>) -> crate::Result<Text<E>>;
+pub trait ToText<I, E> {
+	fn to_text(&self, env: &mut crate::Environment<I, E>) -> crate::Result<Text<E>>;
 }
 
 use crate::env::Flags;

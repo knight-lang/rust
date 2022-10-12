@@ -14,7 +14,7 @@ pub struct Output<'e, I, E> {
 	_pd: std::marker::PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
-	pipe: Option<Variable<'e, I, E>>,
+	pipe: Option<Variable<I, E>>,
 }
 
 impl<I, E> Default for Output<'_, I, E> {
@@ -39,7 +39,7 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Output<'e, I, E> {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn set_pipe(&mut self, variable: Variable<'e, I, E>) {
+	pub fn set_pipe(&mut self, variable: Variable<I, E>) {
 		self.pipe = Some(variable)
 	}
 }

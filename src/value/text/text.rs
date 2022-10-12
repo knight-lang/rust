@@ -39,6 +39,12 @@ impl<E> std::ops::Deref for Text<E> {
 	}
 }
 
+impl<E> PartialEq<str> for Text<E> {
+	fn eq(&self, rhs: &str) -> bool {
+		**self == *rhs
+	}
+}
+
 impl<E> From<Character<E>> for Text<E> {
 	fn from(inp: Character<E>) -> Self {
 		// SAFETY: We know if we have a `Character` it's already valid, so we don't need to check for
@@ -86,7 +92,7 @@ impl<E> From<&TextSlice<E>> for Text<E> {
 // 	}
 // }
 
-impl<I, E> Parsable<'_, I, E> for Text<E> {
+impl<I, E> Parsable<I, E> for Text<E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

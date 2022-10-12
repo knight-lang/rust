@@ -14,38 +14,38 @@ use std::hash::{Hash, Hasher};
 /// This is a simple wrapper around a [`Refcount`] of [`CustomType`]. All the meat is within
 /// [`CustomType`].
 #[derive_where(Debug, Clone)]
-pub struct Custom<'e, I, E>(RefCount<dyn CustomType<'e, I, E>>);
+pub struct Custom<I, E>(RefCount<dyn CustomType<I, E>>);
 
-impl<I: Eq, E> Eq for Custom<'_, I, E> {}
-impl<I: PartialEq, E> PartialEq for Custom<'_, I, E> {
+impl<I: Eq, E> Eq for Custom<I, E> {}
+impl<I: PartialEq, E> PartialEq for Custom<I, E> {
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I: Hash, E> Hash for Custom<'_, I, E> {
+impl<I: Hash, E> Hash for Custom<I, E> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		(RefCount::as_ptr(&self.0) as *const u8 as usize).hash(state);
 	}
 }
 
-impl<'e, I, E, T: CustomType<'e, I, E> + 'static> From<RefCount<T>> for Custom<'e, I, E> {
+impl<I, E, T: CustomType<I, E> + 'static> From<RefCount<T>> for Custom<I, E> {
 	fn from(inp: RefCount<T>) -> Self {
 		Self(inp as _)
 	}
 }
 
-impl<'e, I, E> Custom<'e, I, E> {
+impl<I, E> Custom<I, E> {
 	/// A helper method to create a [`Custom`].
-	pub fn new<T: CustomType<'e, I, E> + 'static>(data: T) -> Self {
+	pub fn new<T: CustomType<I, E> + 'static>(data: T) -> Self {
 		Self(RefCount::from(data) as _)
 	}
 }
 
 // // #[derive(Debug)]
-// // pub struct Map<'e, I, E>(std::collections::HashMap<'e, I, E>);
-// // impl<'e, I, E> CustomType<'e, I, E> for Foo {
-// // 	fn to_custom(self: RefCount<Self>) -> Custom<'e, I, E> {
+// // pub struct Map< I, E>(std::collections::HashMap< I, E>);
+// // impl< I, E> CustomType< I, E> for Foo {
+// // 	fn to_custom(self: RefCount<Self>) -> Custom< I, E> {
 // // 		self.into()
 // // 	}
 // }
@@ -66,18 +66,18 @@ impl<'e, I, E> Custom<'e, I, E> {
 /// <todo
 ///
 #[allow(unused_variables)]
-pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
-	fn to_custom(self: RefCount<Self>) -> Custom<'e, I, E>;
+pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
+	fn to_custom(self: RefCount<Self>) -> Custom<I, E>;
 
 	fn typename(&self) -> &'static str {
 		std::any::type_name::<Self>()
 	}
 
-	fn run(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>> {
+	fn run(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>> {
 		Ok(self.to_custom().into())
 	}
 
-	fn to_text(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Text<E>>
+	fn to_text(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Text<E>>
 	where
 		E: Encoding,
 		I: Display,
@@ -85,28 +85,28 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		Err(Error::NoConversion { to: Text::<E>::TYPENAME, from: self.typename() })
 	}
 
-	fn to_integer(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Integer<I>>
+	fn to_integer(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Integer<I>>
 	where
 		I: IntType,
 	{
 		Err(Error::NoConversion { to: Integer::<I>::TYPENAME, from: self.typename() })
 	}
 
-	fn to_boolean(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Boolean>
+	fn to_boolean(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Boolean>
 	where
 		I: IntType,
 	{
 		Err(Error::NoConversion { to: Boolean::TYPENAME, from: self.typename() })
 	}
 
-	fn to_list(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>>
+	fn to_list(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<List<I, E>>
 	where
 		I: IntType,
 	{
 		Err(Error::NoConversion { to: List::<I, E>::TYPENAME, from: self.typename() })
 	}
 
-	fn head(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	fn head(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -114,7 +114,7 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		Err(Error::TypeError(self.typename(), "["))
 	}
 
-	fn tail(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	fn tail(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -122,7 +122,7 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		Err(Error::TypeError(self.typename(), "]"))
 	}
 
-	fn length(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	fn length(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -130,7 +130,7 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		Integer::<I>::try_from(self.to_list(env)?.len()).map(Value::from)
 	}
 
-	fn ascii(self: RefCount<Self>, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	fn ascii(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -140,9 +140,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn add(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -152,9 +152,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn subtract(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -164,9 +164,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn multiply(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -176,9 +176,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn divide(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -188,9 +188,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn remainder(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -200,9 +200,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn power(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -212,8 +212,8 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn compare(
 		self: RefCount<Self>,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
+		rhs: &Value<I, E>,
+		env: &mut Environment<I, E>,
 	) -> Result<Ordering>
 	where
 		I: IntType,
@@ -222,11 +222,7 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		Err(Error::TypeError(self.typename(), "<cmp>"))
 	}
 
-	fn assign(
-		self: RefCount<Self>,
-		rhs: Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<()>
+	fn assign(self: RefCount<Self>, rhs: Value<I, E>, env: &mut Environment<I, E>) -> Result<()>
 	where
 		I: IntType,
 		E: Encoding,
@@ -238,8 +234,8 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		self: RefCount<Self>,
 		start: usize,
 		len: usize,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -251,9 +247,9 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 		self: RefCount<Self>,
 		start: usize,
 		len: usize,
-		replacement: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		replacement: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -262,46 +258,46 @@ pub trait CustomType<'e, I, E>: std::fmt::Debug + MaybeSendSync {
 	}
 }
 
-impl<'e, I: Display, E: Encoding> ToText<'e, I, E> for Custom<'e, I, E> {
-	fn to_text(&self, env: &mut Environment<'e, I, E>) -> Result<Text<E>> {
+impl<I: Display, E: Encoding> ToText<I, E> for Custom<I, E> {
+	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		self.0.clone().to_text(env)
 	}
 }
 
-impl<'e, I: IntType, E> ToInteger<'e, I, E> for Custom<'e, I, E> {
-	fn to_integer(&self, env: &mut Environment<'e, I, E>) -> Result<Integer<I>> {
+impl<I: IntType, E> ToInteger<I, E> for Custom<I, E> {
+	fn to_integer(&self, env: &mut Environment<I, E>) -> Result<Integer<I>> {
 		self.0.clone().to_integer(env)
 	}
 }
 
-impl<'e, I: IntType, E> ToBoolean<'e, I, E> for Custom<'e, I, E> {
-	fn to_boolean(&self, env: &mut Environment<'e, I, E>) -> Result<Boolean> {
+impl<I: IntType, E> ToBoolean<I, E> for Custom<I, E> {
+	fn to_boolean(&self, env: &mut Environment<I, E>) -> Result<Boolean> {
 		self.0.clone().to_boolean(env)
 	}
 }
 
-impl<'e, I: IntType, E> ToList<'e, I, E> for Custom<'e, I, E> {
-	fn to_list(&self, env: &mut Environment<'e, I, E>) -> Result<List<'e, I, E>> {
+impl<I: IntType, E> ToList<I, E> for Custom<I, E> {
+	fn to_list(&self, env: &mut Environment<I, E>) -> Result<List<I, E>> {
 		self.0.clone().to_list(env)
 	}
 }
 
-impl<'e, I, E> Runnable<'e, I, E> for Custom<'e, I, E> {
-	fn run(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>> {
+impl<I, E> Runnable<I, E> for Custom<I, E> {
+	fn run(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>> {
 		self.0.clone().run(env)
 	}
 }
 
-impl<'e, I, E> Custom<'e, I, E> {
+impl<I, E> Custom<I, E> {
 	pub fn typename(&self) -> &'static str {
 		self.0.typename()
 	}
 
-	pub fn run(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>> {
+	pub fn run(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>> {
 		self.0.clone().run(env)
 	}
 
-	pub fn head(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	pub fn head(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -309,7 +305,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().head(env)
 	}
 
-	pub fn tail(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	pub fn tail(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -317,7 +313,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().tail(env)
 	}
 
-	pub fn length(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	pub fn length(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -325,7 +321,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().length(env)
 	}
 
-	pub fn ascii(&self, env: &mut Environment<'e, I, E>) -> Result<Value<'e, I, E>>
+	pub fn ascii(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -333,11 +329,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().ascii(env)
 	}
 
-	pub fn add(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn add(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -345,11 +337,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().add(rhs, env)
 	}
 
-	pub fn subtract(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn subtract(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -357,11 +345,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().subtract(rhs, env)
 	}
 
-	pub fn multiply(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn multiply(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -369,11 +353,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().multiply(rhs, env)
 	}
 
-	pub fn divide(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn divide(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -381,11 +361,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().divide(rhs, env)
 	}
 
-	pub fn remainder(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn remainder(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -393,11 +369,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().remainder(rhs, env)
 	}
 
-	pub fn power(
-		&self,
-		rhs: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn power(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -405,7 +377,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().power(rhs, env)
 	}
 
-	pub fn compare(&self, rhs: &Value<'e, I, E>, env: &mut Environment<'e, I, E>) -> Result<Ordering>
+	pub fn compare(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Ordering>
 	where
 		I: IntType,
 		E: Encoding,
@@ -413,7 +385,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().compare(rhs, env)
 	}
 
-	pub fn assign(&self, rhs: Value<'e, I, E>, env: &mut Environment<'e, I, E>) -> Result<()>
+	pub fn assign(&self, rhs: Value<I, E>, env: &mut Environment<I, E>) -> Result<()>
 	where
 		I: IntType,
 		E: Encoding,
@@ -421,12 +393,7 @@ impl<'e, I, E> Custom<'e, I, E> {
 		self.0.clone().assign(rhs, env)
 	}
 
-	pub fn get(
-		&self,
-		start: usize,
-		len: usize,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+	pub fn get(&self, start: usize, len: usize, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
@@ -438,9 +405,9 @@ impl<'e, I, E> Custom<'e, I, E> {
 		&self,
 		start: usize,
 		len: usize,
-		replacement: &Value<'e, I, E>,
-		env: &mut Environment<'e, I, E>,
-	) -> Result<Value<'e, I, E>>
+		replacement: &Value<I, E>,
+		env: &mut Environment<I, E>,
+	) -> Result<Value<I, E>>
 	where
 		I: IntType,
 		E: Encoding,
