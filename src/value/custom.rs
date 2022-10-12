@@ -8,10 +8,11 @@ use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
 use std::fmt::Display;
 
+/// A Custom type
 pub type Custom<'a, I, E> = RefCount<dyn CustomType<'a, I, E>>;
 
 pub fn new<'e, I, E, T: CustomType<'e, I, E> + 'static>(data: T) -> Custom<'e, I, E> {
-	(Box::new(data) as Box<dyn CustomType<'e, I, E>>).into()
+	RefCount::new(data)
 }
 
 #[allow(unused_variables)]

@@ -1,14 +1,25 @@
-#[cfg(feature = "extensions")]
-use crate::function::ExtensionFunction;
 use crate::parse::{ParseFn, Parser};
 use crate::value::integer::IntType;
 use crate::value::text::Encoding;
 use crate::value::Runnable;
-use crate::{Function, Integer, Result, Text, TextSlice, Value};
+use crate::{Function, Integer, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::HashSet;
 
+cfg_if! {
+if #[cfg(feature = "extensions")] {
+	use crate::value::Text;
+	use crate::function::ExtensionFunction;
+
+	type System<'e, E> =
+		dyn FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
+
+	type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
+
+}}
+
 mod builder;
+
 pub mod flags;
 pub mod output;
 pub mod prompt;
@@ -18,13 +29,6 @@ pub use flags::Flags;
 use output::Output;
 use prompt::Prompt;
 pub use variable::{IllegalVariableName, Variable};
-
-#[cfg(feature = "extensions")]
-type System<'e, E> =
-	dyn FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
-
-#[cfg(feature = "extensions")]
-type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
 
 /// The environment hosts all relevant information for knight programs.
 pub struct Environment<'e, I, E> {
@@ -40,6 +44,7 @@ pub struct Environment<'e, I, E> {
 	parsers: Vec<ParseFn<'e, I, E>>,
 
 	// A List of extension functions.
+	#[cfg(feature = "extensions")]
 	extensions: HashSet<ExtensionFunction<'e, I, E>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
