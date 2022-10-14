@@ -20,7 +20,7 @@ use crate::Error;
 ///
 /// # Portability concerns and maximum size
 /// According to the Knight specs, implementations only need to support lists (and strings) with a
-/// maximum length of `2,147,483,647` (ie a 32 bit integer's maximum value). So, since it is
+/// maximum length of `2147483647` (ie [`i32::MAX`]). So, since it is
 /// possible to create a list this large, or larger (eg with `* (+,1,2) 2147483647`), we need to
 /// check the length.
 ///
@@ -30,7 +30,7 @@ use crate::Error;
 pub struct List<I, E>(Option<RefCount<Inner<I, E>>>);
 
 enum Inner<I, E> {
-	Boxed(Value<I, E>),
+	Boxed(Value<I, E>),           // a single value
 	Slice(Box<[Value<I, E>]>),    // nonempty slice
 	Cons(List<I, E>, List<I, E>), // neither list is empty
 	Repeat(List<I, E>, usize),    // the usize is >= 2
@@ -46,9 +46,14 @@ impl<I: Eq, E> Eq for List<I, E> {}
 impl<I: PartialEq, E> PartialEq for List<I, E> {
 	/// Checks to see if two lists are equal.
 	fn eq(&self, rhs: &Self) -> bool {
-		std::ptr::eq(self, rhs) || self.len() == rhs.len() && self.iter().eq(rhs.iter())
+		match (self.0.as_ref(), rhs.0.as_ref()) {
+			(None, None) => true,
+			(Some(l), Some(r)) if RefCount::ptr_eq(l, r) => true,
+			_ => self.len() == rhs.len() && self.iter().eq(rhs),
+		}
 	}
 }
+
 impl<I: Hash, E> Hash for List<I, E> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		state.write_usize(self.len());
@@ -61,31 +66,9 @@ impl<I: Hash, E> Hash for List<I, E> {
 
 impl<I: Debug, E> Debug for List<I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		f.debug_list().entries(self.iter()).finish()
+		f.debug_list().entries(self).finish()
 	}
 }
-
-// impl<'e> TryFrom<Box<[Value<'e>]>> for List<'e> {
-// 	type Error = Error;
-
-// 	fn try_from(list: Box<[Value<'e>]>) -> Result<Self> {
-// 		Self::new(list)
-// 	}
-// }
-
-// impl<'e> TryFrom<Vec<Value<'e>>> for List<'e> {
-// 	type Error = Error;
-
-// 	fn try_from(list: Vec<Value<'e>>) -> Result<Self> {
-// 		list.into_boxed_slice().try_into()
-// 	}
-// }
-
-// impl<'e> FromIterator<Value<'e>> for Result<List<'e>> {
-// 	fn from_iter<T: IntoIterator<Item = Value<'e>>>(iter: T) -> Self {
-// 		iter.into_iter().collect::<Vec<Value<'e>>>().try_into()
-// 	}
-// }
 
 impl<I, E> NamedType for List<I, E> {
 	const TYPENAME: &'static str = "List";

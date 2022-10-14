@@ -145,6 +145,10 @@ impl<I: IntType> Integer<I> {
 		self.0.remainder(base.0, flags).map(Self)
 	}
 
+	/// Raises `self` to the `exponent`th power.
+	///
+	/// There's a few intricacies
+	/// If the exponent is negative,
 	pub fn power(self, mut exponent: Self, flags: &Flags) -> Result<Self> {
 		if exponent.is_negative() {
 			match self.0.into() {
@@ -179,11 +183,17 @@ impl<I: IntType> Integer<I> {
 		self.0.power(exp, flags).map(Self)
 	}
 
-	pub fn log10(self) -> usize {
-		self.0.log10()
+	/// Gets the amount of digits in `self`
+	pub fn number_of_digits(self) -> usize {
+		// match self.cmp(&Self::ZERO) {
+		// 	Ordering::Greater => self.0.log10() as usize,
+		// 	Ordering::Equal => 0,
+		// 	Ordering::Less => self.0.negate(),
+		// }
+		self.0.log10() // TODO
 	}
 
-	/// Attempts to interpret `self` as a utf8 codepoint.
+	/// Attempts to interpret `self` as an UTF8 codepoint.
 	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
 		u32::try_from(self.0.into())
 			.ok()
@@ -428,7 +438,7 @@ impl<I: IntType, E> ToList<I, E> for Integer<I> {
 		}
 
 		let mut integer: i64 = self.0.into();
-		let mut digits = Vec::with_capacity(self.log10());
+		let mut digits = Vec::with_capacity(self.number_of_digits());
 
 		while integer != 0 {
 			digits.insert(0, Self(I::from((integer % 10) as i32)).into());

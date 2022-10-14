@@ -9,10 +9,10 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// A Value within Knight.
-#[derive_where(Clone; I: Clone)]
 #[derive_where(Default)]
-#[derive_where(PartialEq; I: PartialEq)]
+#[derive_where(Clone; I: Clone)]
 #[derive_where(Eq; I: Eq)]
+#[derive_where(PartialEq; I: PartialEq)]
 #[derive_where(Hash; I: std::hash::Hash)]
 #[non_exhaustive]
 pub enum Value<I, E> {
@@ -147,6 +147,7 @@ impl<I: IntType, E> ToInteger<I, E> for Value<I, E> {
 			Self::Integer(integer) => integer.to_integer(env),
 			Self::Text(ref text) => text.to_integer(env),
 			Self::List(ref list) => list.to_integer(env),
+
 			#[cfg(feature = "custom-types")]
 			Self::Custom(ref custom) => custom.to_integer(env),
 
@@ -276,7 +277,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 				Integer::try_from(text.len()).map(Self::from)
 			}
 			Self::Integer(int) if int.is_zero() => Ok(Integer::ONE.into()),
-			Self::Integer(int) => Integer::try_from(int.log10()).map(Self::from),
+			Self::Integer(int) => Integer::try_from(int.number_of_digits()).map(Self::from),
 			Self::Boolean(true) => Ok(Integer::ONE.into()),
 			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
 
