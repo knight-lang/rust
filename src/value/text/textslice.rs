@@ -46,7 +46,7 @@ impl<E> std::ops::Deref for TextSlice<E> {
 }
 
 impl<E> TextSlice<E> {
-	/// Creates a new [`TextSlice`] without validating `inp`.
+	/// Creates a new [`TextSlice`] without validating that `inp`'s a valid string for `E`.
 	///
 	/// # Safety
 	/// - `inp` must be a a valid string for the encoding `E`.

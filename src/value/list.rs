@@ -243,15 +243,15 @@ impl<I, E> List<I, E> {
 
 	/// Returns an [`Iter`] instance, which iterates over borrowed references.
 	pub fn iter(&self) -> Iter<'_, I, E> {
-		match self.inner() {
-			None => Iter::Empty,
-			Some(Inner::Boxed(val)) => Iter::Boxed(val),
-			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
-			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
+		Iter(match self.inner() {
+			None => IterInner::Empty,
+			Some(Inner::Boxed(val)) => IterInner::Boxed(val),
+			Some(Inner::Slice(slice)) => IterInner::Slice(slice.iter()),
+			Some(Inner::Cons(lhs, rhs)) => IterInner::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
-				Iter::Repeat(Box::new(list.iter()).cycle().take(list.len() * *amount))
+				IterInner::Repeat(Box::new(list.iter()).cycle().take(list.len() * *amount))
 			}
-		}
+		})
 	}
 }
 
@@ -494,9 +494,13 @@ impl<'a, I, E> IntoIterator for &'a List<I, E> {
 }
 
 /// Represents an iterator over [`List`]s.
-#[derive(Debug)]
+#[derive_where(Debug; I: Debug)]
 #[derive_where(Clone)]
-pub enum Iter<'a, I, E> {
+pub struct Iter<'a, I, E>(IterInner<'a, I, E>);
+
+#[derive_where(Debug; I: Debug)]
+#[derive_where(Clone)]
+enum IterInner<'a, I, E> {
 	/// There's nothing left.
 	Empty,
 
@@ -504,28 +508,28 @@ pub enum Iter<'a, I, E> {
 	Boxed(&'a Value<I, E>),
 
 	/// Iterate over the LHS elements first, then the RHS.
-	Cons(Box<Self>, &'a List<I, E>),
+	Cons(Box<Iter<'a, I, E>>, &'a List<I, E>),
 
 	/// Iterate over a slice of elements.
 	Slice(std::slice::Iter<'a, Value<I, E>>),
 
 	/// Repeats the iterator.
-	Repeat(std::iter::Take<std::iter::Cycle<Box<Self>>>),
+	Repeat(std::iter::Take<std::iter::Cycle<Box<Iter<'a, I, E>>>>),
 }
 
 impl<'a, I, E> Iterator for Iter<'a, I, E> {
 	type Item = &'a Value<I, E>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		match self {
-			Self::Empty => None,
-			Self::Boxed(value) => {
-				let ret = Some(*value);
-				*self = Self::Empty;
+		match self.0 {
+			IterInner::Empty => None,
+			IterInner::Boxed(value) => {
+				let ret = Some(value);
+				self.0 = IterInner::Empty;
 				ret
 			}
-			Self::Slice(iter) => iter.next(),
-			Self::Cons(iter, rhs) => {
+			IterInner::Slice(ref mut iter) => iter.next(),
+			IterInner::Cons(ref mut iter, rhs) => {
 				if let Some(value) = iter.next() {
 					return Some(value);
 				}
@@ -534,7 +538,7 @@ impl<'a, I, E> Iterator for Iter<'a, I, E> {
 				self.next()
 			}
 
-			Self::Repeat(iter) => iter.next(),
+			IterInner::Repeat(ref mut iter) => iter.next(),
 		}
 	}
 }

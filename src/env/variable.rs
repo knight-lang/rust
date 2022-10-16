@@ -2,8 +2,9 @@
 
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
+use crate::value::integer::IntType;
 use crate::value::text::Encoding;
-use crate::value::{integer::IntType, Runnable, Text, TextSlice, Value};
+use crate::value::{NamedType, Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -14,7 +15,6 @@ use std::hash::{Hash, Hasher};
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
 #[derive_where(Clone)]
 pub struct Variable<I, E>(RefCount<Inner<I, E>>);
-
 struct Inner<I, E> {
 	name: Text<E>,
 	value: Mutable<Option<Value<I, E>>>,
@@ -55,7 +55,7 @@ impl<I, E> Hash for Variable<I, E> {
 	}
 }
 
-impl<I, E> crate::value::NamedType for Variable<I, E> {
+impl<I, E> NamedType for Variable<I, E> {
 	const TYPENAME: &'static str = "Variable";
 }
 

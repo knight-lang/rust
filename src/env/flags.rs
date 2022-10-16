@@ -6,6 +6,7 @@
 /// compliance flags will default to `true`. Likewise, is `all-extensions` is enabled, the extension
 /// flags will default to `true`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct Flags {
 	/// Knight specification conformity flags.
 	#[cfg(feature = "compliance")]
@@ -105,6 +106,7 @@ if #[cfg(feature = "compliance")] {
 	/// feature is enabled, they will all instead default to `true`.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
+	#[non_exhaustive]
 	pub struct Compliance {
 		/// Ensure [`QUIT`](crate::function::QUIT)'s argument is within `0..=127`.
 		pub check_quit_bounds: bool,
@@ -162,6 +164,7 @@ if #[cfg(feature = "extensions")] {
 	/// Flags for extensions to the Knight interpreter.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	#[non_exhaustive]
 	pub struct Extensions {
 		/// Extension function flags.
 		pub functions: Functions,
@@ -197,6 +200,7 @@ if #[cfg(feature = "extensions")] {
 	/// Flags to enable extension functions.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	#[non_exhaustive]
 	pub struct Functions {
 		/// Enables the [`VALUE`](crate::function::VALUE) function.
 		pub value: bool,
@@ -238,6 +242,7 @@ if #[cfg(feature = "extensions")] {
 	/// See each flag for more details on what exactly it enables.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	#[non_exhaustive]
 	pub struct Types {
 		/// Enables [`Boolean`](crate::value::Boolean)-related extensions.
 		///
@@ -288,6 +293,7 @@ if #[cfg(feature = "extensions")] {
 	/// Flags related to assigning to non-[`Variable`](crate::env::Variable) types.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	#[non_exhaustive]
 	pub struct AssignTo {
 		/// Allows you to assign to `PROMPT`. See [`Prompt`](crate::env::Prompt) for details.
 		pub prompt: bool,
@@ -331,6 +337,7 @@ if #[cfg(feature = "iffy-extensions")] {
 	/// Features that change how vanilla Knight is interpreted, or are otherwise iffy.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	#[cfg_attr(docsrs, doc(cfg(feature = "iffy-extensions")))]
+	#[non_exhaustive]
 	pub struct Iffy {
 		/// Instead of erroring on undefined variables, have them default to `NULL`
 		pub unassigned_variables_default_to_null: bool,
