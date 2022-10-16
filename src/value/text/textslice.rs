@@ -95,10 +95,7 @@ impl<E> TextSlice<E> {
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text<E>, NewTextError>
-	where
-		E: Encoding,
-	{
+	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text<E>, NewTextError> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
@@ -107,19 +104,13 @@ impl<E> TextSlice<E> {
 		builder.finish(flags)
 	}
 
-	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text<E>, NewTextError>
-	where
-		E: Encoding,
-	{
-		Ok(Text::new((**self).repeat(amount), flags)?)
+	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text<E>, NewTextError> {
+		unsafe { Text::new_len_unchecked((**self).repeat(amount), flags) }
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I, E>) -> List<I, E>
-	where
-		E: Encoding,
-	{
+	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I, E>) -> List<I, E> {
 		if sep.is_empty() {
 			// TODO: optimize me
 			return Value::<I, E>::from(self.to_owned()).to_list(env).unwrap();
@@ -127,7 +118,7 @@ impl<E> TextSlice<E> {
 
 		let chars = (**self)
 			.split(&**sep)
-			.map(|x| Text::new(x, env.flags()).unwrap().into())
+			.map(|x| unsafe { Text::new_unchecked(x) }.into())
 			.collect::<Vec<_>>();
 
 		// SAFETY: If `self` is within the container bounds, so is the length of its chars.

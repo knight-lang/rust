@@ -317,10 +317,11 @@ impl<I: IntType, E> ToBoolean<I, E> for Integer<I> {
 	}
 }
 
-impl<I: Display, E: Encoding> ToText<I, E> for Integer<I> {
+impl<I: Display, E> ToText<I, E> for Integer<I> {
 	/// Returns a string representation of `self`.
-	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
-		Ok(Text::new(self, env.flags()).expect("`to_text for Integer failed?`"))
+	fn to_text(&self, _env: &mut Environment<I, E>) -> Result<Text<E>> {
+		// SAFETY: digits are valid in all encodings, and it'll never exceed the length.
+		Ok(unsafe { Text::new_unchecked(self) })
 	}
 }
 

@@ -1,12 +1,14 @@
 use super::*;
 
-/// A Builder for an [`Environment`], allowing its different options to be configured.
+/// A builder for an [`Environment`], allowing different options to be configured.
 #[must_use]
 pub struct Builder<'e, I, E> {
 	flags: &'e Flags,
 	prompt: Prompt<'e, I, E>,
 	output: Output<'e, I, E>,
 	functions: HashSet<Function<I, E>>,
+
+	// While not feature gated to extensions, it's only modifiable with extensions.
 	parsers: Vec<ParseFn<I, E>>,
 
 	#[cfg(feature = "extensions")]
@@ -48,6 +50,8 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 	}
 
 	/// Sets the stdin, which is used when `PROMPT` is run.
+	///
+	/// # Examples
 	pub fn stdin<S: super::prompt::Stdin + 'e>(&mut self, stdin: S) {
 		self.prompt.set_stdin(stdin);
 	}

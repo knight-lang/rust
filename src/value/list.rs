@@ -113,7 +113,6 @@ impl<I, E> List<I, E> {
 
 		match slice.len() {
 			0 => Self::default(),
-			// OPTIMIZE: is there a way to not do `Vec::from()`?
 			1 => Self::boxed(Vec::from(slice).pop().unwrap()),
 			_ => Self::_new(Inner::Slice(slice)),
 		}
@@ -172,7 +171,7 @@ impl<I, E> List<I, E> {
 	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
 	/// returned.
-	pub fn concat(&self, rhs: &Self, #[allow(unused)] flags: &Flags) -> Result<Self> {
+	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Self> {
 		if self.is_empty() {
 			return Ok(rhs.clone());
 		}
@@ -186,6 +185,7 @@ impl<I, E> List<I, E> {
 			return Err(Error::DomainError("length of concatenation is out of bounds"));
 		}
 
+		let _ = flags;
 		Ok(Self::_new(Inner::Cons(self.clone(), rhs.clone())))
 	}
 
@@ -197,11 +197,15 @@ impl<I, E> List<I, E> {
 	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
-	pub fn repeat(&self, amount: usize, #[allow(unused)] flags: &Flags) -> Result<Self> {
+	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Self> {
 		#[cfg(feature = "compliance")]
-		if flags.compliance.check_container_length && Self::MAX_LEN < self.len() * amount {
+		if flags.compliance.check_container_length
+			&& self.len().checked_mul(amount).map_or(true, |x| Self::MAX_LEN < x)
+		{
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}
+
+		let _ = flags;
 
 		if self.is_empty() {
 			return Ok(Self::EMPTY);
@@ -221,7 +225,6 @@ impl<I, E> List<I, E> {
 	pub fn join(&self, sep: &TextSlice<E>, env: &mut Environment<I, E>) -> Result<Text<E>>
 	where
 		I: Display,
-		E: Encoding,
 	{
 		let mut joined = Text::builder();
 
@@ -246,10 +249,7 @@ impl<I, E> List<I, E> {
 			Some(Inner::Slice(slice)) => Iter::Slice(slice.iter()),
 			Some(Inner::Cons(lhs, rhs)) => Iter::Cons(lhs.iter().into(), rhs),
 			Some(Inner::Repeat(list, amount)) => {
-				// `list.len() * *amount` won't fail with checked length because we know
-				// it's smaller than `i32::MAX`, which (unless we're on 16 bit platforms) is always
-				// smaller than `usize::MAX`.
-				Iter::Repeat(Box::new(list.iter()).cycle(), list.len() * *amount)
+				Iter::Repeat(Box::new(list.iter()).cycle().take(list.len() * *amount))
 			}
 		}
 	}
@@ -257,9 +257,12 @@ impl<I, E> List<I, E> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I: IntType, E: Encoding> List<I, E> {
+impl<I, E> List<I, E> {
 	/// Returns true if `self` contains `value`.
-	pub fn contains(&self, value: &Value<I, E>) -> bool {
+	pub fn contains(&self, value: &Value<I, E>) -> bool
+	where
+		I: PartialEq,
+	{
 		match self.inner() {
 			None => false,
 			Some(Inner::Boxed(val)) => val == value,
@@ -270,8 +273,11 @@ impl<I: IntType, E: Encoding> List<I, E> {
 	}
 
 	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
-	pub fn difference(&self, rhs: &Self) -> Result<Self> {
-		let mut list = Vec::with_capacity(self.len() - rhs.len());
+	pub fn difference(&self, rhs: &Self) -> Result<Self>
+	where
+		I: PartialEq + Clone,
+	{
+		let mut list = Vec::with_capacity(self.len() - rhs.len()); // arbitrary capacity.
 
 		for ele in self {
 			if !rhs.contains(ele) && !list.contains(ele) {
@@ -288,7 +294,11 @@ impl<I: IntType, E: Encoding> List<I, E> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn map(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self> {
+	pub fn map(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
+	where
+		E: Encoding,
+		I: IntType,
+	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(underscore).unwrap();
@@ -309,7 +319,11 @@ impl<I: IntType, E: Encoding> List<I, E> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn filter(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self> {
+	pub fn filter(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
+	where
+		E: Encoding,
+		I: IntType,
+	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
 
 		let arg = env.lookup(underscore).unwrap();
@@ -338,7 +352,11 @@ impl<I: IntType, E: Encoding> List<I, E> {
 		&self,
 		block: &Value<I, E>,
 		env: &mut Environment<I, E>,
-	) -> Result<Option<Value<I, E>>> {
+	) -> Result<Option<Value<I, E>>>
+	where
+		E: Encoding,
+		I: IntType,
+	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
 		let accumulate = unsafe { TextSlice::new_unchecked("a") };
 
@@ -360,7 +378,10 @@ impl<I: IntType, E: Encoding> List<I, E> {
 		Ok(Some(acc.fetch().unwrap()))
 	}
 
-	pub fn reverse(&self) -> Self {
+	pub fn reverse(&self) -> Self
+	where
+		I: Clone,
+	{
 		let mut new = self.into_iter().cloned().collect::<Vec<_>>();
 		new.reverse();
 
@@ -401,7 +422,7 @@ impl<I: IntType, E> ToInteger<I, E> for List<I, E> {
 	}
 }
 
-impl<I: Display, E: Encoding> ToText<I, E> for List<I, E> {
+impl<I: Display, E> ToText<I, E> for List<I, E> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };
@@ -446,6 +467,7 @@ impl<I: Clone, E> ListFetch<'_, I, E> for Range<usize> {
 		let sublist =
 			list.iter().skip(self.start).take(self.end - self.start).cloned().collect::<Vec<_>>();
 
+		// SAFETY: it's a sublist, so no need to check for length
 		Some(unsafe { List::new_unchecked(sublist) })
 	}
 }
@@ -457,6 +479,7 @@ impl<I: Clone, E> ListFetch<'_, I, E> for RangeFrom<usize> {
 		// FIXME: use optimizations
 		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
 
+		// SAFETY: it's a sublist, so no need to check for length
 		Some(unsafe { List::new_unchecked(sublist) })
 	}
 }
@@ -472,6 +495,7 @@ impl<'a, I, E> IntoIterator for &'a List<I, E> {
 
 /// Represents an iterator over [`List`]s.
 #[derive(Debug)]
+#[derive_where(Clone)]
 pub enum Iter<'a, I, E> {
 	/// There's nothing left.
 	Empty,
@@ -486,19 +510,7 @@ pub enum Iter<'a, I, E> {
 	Slice(std::slice::Iter<'a, Value<I, E>>),
 
 	/// Repeats the iterator.
-	Repeat(std::iter::Cycle<Box<Self>>, usize),
-}
-
-impl<I, E> Clone for Iter<'_, I, E> {
-	fn clone(&self) -> Self {
-		match self {
-			Self::Empty => Self::Empty,
-			Self::Boxed(b) => Self::Boxed(b),
-			Self::Cons(c, r) => Self::Cons(c.clone(), r),
-			Self::Slice(s) => Self::Slice(s.clone()),
-			Self::Repeat(c, u) => Self::Repeat(c.clone(), *u),
-		}
-	}
+	Repeat(std::iter::Take<std::iter::Cycle<Box<Self>>>),
 }
 
 impl<'a, I, E> Iterator for Iter<'a, I, E> {
@@ -522,13 +534,7 @@ impl<'a, I, E> Iterator for Iter<'a, I, E> {
 				self.next()
 			}
 
-			Self::Repeat(_, 0) => None,
-			Self::Repeat(iter, n) => {
-				*n -= 1;
-				let value = iter.next();
-				debug_assert!(value.is_some());
-				value
-			}
+			Self::Repeat(iter) => iter.next(),
 		}
 	}
 }

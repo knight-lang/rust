@@ -156,7 +156,7 @@ impl<I: IntType, E> ToInteger<I, E> for Value<I, E> {
 	}
 }
 
-impl<I: Display, E: Encoding> ToText<I, E> for Value<I, E> {
+impl<I: Display, E> ToText<I, E> for Value<I, E> {
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(env),
@@ -271,7 +271,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 		match self {
 			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
 			Self::Text(text) => {
-				text.tail().ok_or(Error::DomainError("empty text")).map(Text::from).map(Self::from)
+				text.tail().ok_or(Error::DomainError("empty text")).map(|x| Text::from(x).into())
 			}
 
 			#[cfg(feature = "extensions")]
@@ -285,14 +285,11 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 	}
 
 	pub fn length(&self, env: &mut Environment<I, E>) -> Result<Self> {
+		let _ = env;
 		match self {
 			Self::List(list) => Integer::try_from(list.len()).map(Self::from),
-			Self::Text(text) => {
-				debug_assert_eq!(text.len(), self.to_list(env).unwrap().len());
-				Integer::try_from(text.len()).map(Self::from)
-			}
-			Self::Integer(int) if int.is_zero() => Ok(Integer::ONE.into()),
-			Self::Integer(int) => Integer::try_from(int.number_of_digits()).map(Self::from),
+			Self::Text(text) => Integer::try_from(text.len()).map(Self::from),
+			Self::Integer(int) => Ok(Integer::try_from(int.number_of_digits()).unwrap().into()),
 			Self::Boolean(true) => Ok(Integer::ONE.into()),
 			Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
 
@@ -367,7 +364,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 				let amount = usize::try_from(rhs.to_integer(env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
-				if isize::MAX as usize <= amount * lstr.len() {
+				if amount.checked_mul(lstr.len()).map_or(true, |c| isize::MAX as usize <= c) {
 					return Err(Error::DomainError("repetition is too large"));
 				}
 
@@ -386,9 +383,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 				let amount = usize::try_from(rhs.to_integer(env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
-				// No need to check for repetition length because `list.repeat` doesnt actually
-				// make a list.
-
+				// No need to check for repetition length because `list.repeat` does it itself.
 				list.repeat(amount, env.flags()).map(Self::from)
 			}
 
@@ -493,9 +488,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 			other => Err(Error::TypeError(other.typename(), "^")),
 		}
 	}
-}
 
-impl<I: IntType, E: Encoding> Value<I, E> {
 	pub fn compare(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Ordering> {
 		match self {
 			Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),

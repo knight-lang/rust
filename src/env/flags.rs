@@ -25,6 +25,13 @@ impl Default for Flags {
 	}
 }
 
+impl Default for &Flags {
+	#[inline]
+	fn default() -> Self {
+		&DEFAULT
+	}
+}
+
 #[cfg(feature = "compliance")]
 const STRICT_COMPLIANCE: bool = cfg!(feature = "strict-compliance");
 

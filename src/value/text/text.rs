@@ -52,10 +52,7 @@ impl<E> From<Character<E>> for Text<E> {
 }
 
 impl<E> Text<E> {
-	pub fn builder() -> super::Builder<E>
-	where
-		E: Encoding,
-	{
+	pub fn builder() -> super::Builder<E> {
 		Default::default()
 	}
 
