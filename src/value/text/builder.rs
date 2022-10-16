@@ -35,7 +35,7 @@ impl<E> Builder<E> {
 	/// Note that there's no `finish_unchecked`. You can simply do [`Text::new_unchecked`] for that.
 	///
 	/// # Results
-	/// If [`check_container_length`](crate::env::flags::ComplianceFlags::check_container_length) is
+	/// If [`check_container_length`](crate::env::flags::Compliance::check_container_length) is
 	/// enabled, and the resulting [`Text`] is too large, an error is returned.
 	pub fn finish(self, flags: &Flags) -> Result<Text<E>, NewTextError> {
 		// SAFETY: We know that `self` is comprised of only valid `E`s because it was constructed only

@@ -1,36 +1,56 @@
+//! How Knight writes to stdout.
+
+use super::Flags;
 use crate::containers::MaybeSendSync;
 use crate::value::integer::IntType;
+use crate::value::text::Encoding;
 use std::io::{self, Write};
+use std::marker::PhantomData;
 
-#[cfg(feature = "extensions")]
-use crate::{env::Variable, value::Text};
-
+/// A trait used for writing to stdout.
+///
+/// This exists instead of simply using [`Write`] because we only need `Send + Sync` when the
+/// `multithreaded` feature is enabled, but we want a uniform interface.
 pub trait Stdout: Write + MaybeSendSync {}
 impl<T: Write + MaybeSendSync> Stdout for T {}
 
+/// The type that's in charge of writing text to stdout.
+///
+/// # Redirection
+/// If `extensions` is enabled, you can redirect anything written to stdout to a variable via
+/// [`Output::set_redirect`]. It'll convert whatever's currently in the variable to a [`Text`](
+/// crate::value::Text), and then append the stuff that's being written to the end. This will catch
+/// both `DUMP` and `OUTPUT`'s output.
+///
+/// ```knight
+/// ; = OUTPUT BLOCK out # redirect output to `out`
+/// ; OUTPUT "hello"
+/// ; OUTPUT "world\"
+/// ; = OUTPUT NULL # return back to normal output
+/// ; DUMP out #=> "hello\nworld"
+/// ```
 pub struct Output<'e, I, E> {
 	default: Box<dyn Stdout + 'e>,
 
-	_pd: std::marker::PhantomData<(I, E)>,
+	#[cfg_attr(not(feature = "extensions"), allow(dead_code))]
+	flags: &'e Flags,
+	_pd: PhantomData<(I, E)>,
 
 	#[cfg(feature = "extensions")]
-	pipe: Option<Variable<I, E>>,
+	redirect: Option<super::Variable<I, E>>,
 }
 
-impl<I, E> Default for Output<'_, I, E> {
-	fn default() -> Self {
+impl<'e, I, E> Output<'e, I, E> {
+	pub(super) fn new(flags: &'e Flags) -> Self {
 		Self {
 			default: Box::new(io::stdout()),
-
-			_pd: std::marker::PhantomData,
+			flags,
+			_pd: PhantomData,
 
 			#[cfg(feature = "extensions")]
-			pipe: None,
+			redirect: None,
 		}
 	}
-}
-
-impl<'e, I: IntType, E: crate::value::text::Encoding> Output<'e, I, E> {
 	/// Sets the default stdout.
 	///
 	/// This doesn't affect any pipes which are enabled.
@@ -38,26 +58,31 @@ impl<'e, I: IntType, E: crate::value::text::Encoding> Output<'e, I, E> {
 		self.default = Box::new(stdout);
 	}
 
+	/// Sets where stdout will be redirected to.
 	#[cfg(feature = "extensions")]
-	pub fn set_pipe(&mut self, variable: Variable<I, E>) {
-		self.pipe = Some(variable)
+	pub fn set_redirection(&mut self, variable: super::Variable<I, E>) {
+		self.redirect = Some(variable)
+	}
+
+	/// Sets where stdout will be assigned.
+	#[cfg(feature = "extensions")]
+	pub fn clear_redirection(&mut self) {
+		self.redirect = None;
 	}
 }
 
-impl<I: IntType, E: super::Encoding> Write for Output<'_, I, E> {
+impl<I: IntType, E: Encoding> Write for Output<'_, I, E> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
-		if let Some(pipe) = self.pipe.as_ref() {
+		if let Some(redirect) = self.redirect.as_ref() {
 			// The error case shouldn't happen if we call `write` from within Knight.
-			let _ = pipe;
-			let _: Text<E> = todo!();
-			// let text = String::from_utf8(bytes.to_vec())
-			// 	.ok()
-			// 	.and_then(|s| Text::try_from(s).ok())
-			// 	.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "not utf8".to_string()))?;
+			let text = String::from_utf8(bytes.to_vec())
+				.map_err(|e| e.to_string())
+				.and_then(|s| crate::value::Text::new(s, self.flags).map_err(|e| e.to_string()))
+				.or_else(|err| Err(io::Error::new(io::ErrorKind::InvalidData, err)))?;
 
-			// pipe.assign(text.into());
-			// return Ok(bytes.len());
+			redirect.assign(text.into());
+			return Ok(bytes.len());
 		}
 
 		self.default.write(bytes)
@@ -65,7 +90,7 @@ impl<I: IntType, E: super::Encoding> Write for Output<'_, I, E> {
 
 	fn flush(&mut self) -> io::Result<()> {
 		#[cfg(feature = "extensions")]
-		if self.pipe.is_some() {
+		if self.redirect.is_some() {
 			return Ok(());
 		}
 

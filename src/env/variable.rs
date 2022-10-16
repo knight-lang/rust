@@ -1,3 +1,5 @@
+//! Types relating to [`Variable`]s.
+
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::Encoding;
@@ -29,30 +31,28 @@ impl<I: Debug, E> Debug for Variable<I, E> {
 				.field("value", &self.0.value)
 				.finish()
 		} else {
-			write!(f, "Variable({})", self.name())
+			f.debug_tuple("Variable").field(self.name()).finish()
 		}
 	}
 }
 
 impl<I, E> Eq for Variable<I, E> {}
 impl<I, E> PartialEq for Variable<I, E> {
-	/// Checks to see if two variables are equal.
-	///
-	/// This checks to see if the two variables are pointing to the _exact same object_.
+	/// Checks to see if two variables are pointing to the _exact same object_
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
 impl<I, E> Borrow<TextSlice<E>> for Variable<I, E> {
-	/// Borrows the [`name`](Variable::name) of the variable.
+	/// Borrows the [name](Variable::name) of the variable.
 	fn borrow(&self) -> &TextSlice<E> {
 		self.name()
 	}
 }
 
 impl<I, E> Hash for Variable<I, E> {
-	/// Hashes the [`name`](Variable::name) of the variable.
+	/// Hashes the [name](Variable::name) of the variable.
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
 	}
@@ -67,6 +67,12 @@ impl<I, E> crate::value::NamedType for Variable<I, E> {
 /// While the enum itself is not feature gated, every one of its variants requires `compliance` to
 /// be enabled. This means that if `compliance` isn't enabled, then it's impossible to ever
 /// construct this type.
+///
+/// NOTE: Technically all the variants other than `TooLong` aren't able to be created without
+/// extensions in this implementation. The parser ensures that all values passed to
+/// [`Environment::lookup`] are nonempty and has a valid first and remaining characters. However,
+/// with the [`VALUE`](crate::functions::VALUE) extension (as well as some other things, like
+/// [assigning to lists](crate::env::flags::AssignTo::list)), it's possible for these to be created.
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IllegalVariableName {
@@ -95,41 +101,34 @@ impl std::error::Error for IllegalVariableName {}
 
 impl Display for IllegalVariableName {
 	fn fmt(&self, #[allow(unused)] f: &mut Formatter) -> fmt::Result {
+		#[cfg(feature = "compliance")]
 		match *self {
-			#[cfg(feature = "compliance")]
 			Self::Empty => write!(f, "empty variable name supplied"),
-
-			#[cfg(feature = "compliance")]
-			Self::TooLong(count) => {
-				write!(f, "variable name was too long ({count} > {})", Variable::<(), ()>::MAX_NAME_LEN)
-			}
-
-			#[cfg(feature = "compliance")]
+			Self::TooLong(count) => write!(f, "variable name was too long ({count} > {MAX_NAME_LEN})"),
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
-
-			#[cfg(feature = "compliance")]
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
 	}
 }
 
-impl<I, E> Variable<I, E> {
-	/// Maximum length a name can have when [`verify_variable_names`](
-	/// crate::env::flags::ComplianceFlags::verify_variable_names) is enabled.
-	pub const MAX_NAME_LEN: usize = 127;
+/// Maximum length a name can have when [`verify_variable_names`](
+/// crate::env::flags::Compliance::verify_variable_names) is enabled.
+pub const MAX_NAME_LEN: usize = 127;
 
+impl<I, E> Variable<I, E> {
 	#[cfg(feature = "compliance")]
 	fn validate_name(name: &TextSlice<E>) -> std::result::Result<(), IllegalVariableName>
 	where
 		E: Encoding,
 	{
-		if Self::MAX_NAME_LEN < name.len() {
+		if MAX_NAME_LEN < name.len() {
 			return Err(IllegalVariableName::TooLong(name.len()));
 		}
 
-		let first = name.chars().next().ok_or(IllegalVariableName::Empty)?;
-		if !first.is_lower() {
-			return Err(IllegalVariableName::IllegalStartingChar(first.inner()));
+		match name.head() {
+			Some(first) if first.is_lower() => {}
+			Some(first) => return Err(IllegalVariableName::IllegalStartingChar(first.inner())),
+			None => return Err(IllegalVariableName::Empty),
 		}
 
 		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
@@ -174,12 +173,21 @@ impl<I, E> Variable<I, E> {
 }
 
 impl<I: Clone, E> Runnable<I, E> for Variable<I, E> {
+	/// [Fetches](Self::fetch) the last assigned value, or returns [`Error::UndefinedVariable`] if
+	/// it was never assigned to.
 	fn run(&self, _env: &mut Environment<I, E>) -> Result<Value<I, E>> {
-		self.fetch().ok_or_else(|| Error::UndefinedVariable(self.name().to_string()))
+		match self.fetch() {
+			Some(value) => Ok(value),
+
+			#[cfg(feature = "iffy-extensions")]
+			None if _env.flags().extensions.iffy.unassigned_variables_default_to_null => Ok(Value::Null),
+
+			None => Err(Error::UndefinedVariable(self.name().to_string())),
+		}
 	}
 }
 
-impl<I: IntType, E: crate::value::text::Encoding> Parsable<I, E> for Variable<I, E> {
+impl<I: IntType, E: Encoding> Parsable<I, E> for Variable<I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

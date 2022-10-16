@@ -1,5 +1,6 @@
 use super::*;
 
+/// A [`Parsable`] that ensures that parens are matched.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupedExpression;
 
@@ -7,15 +8,17 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for GroupedExpression {
 	type Output = Value<I, E>;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {
+		use ErrorKind::{
+			DoesntEncloseExpression, EmptySource, UnmatchedLeftParen, UnmatchedRightParen,
+		};
+
 		if parser.advance_if(')').is_some() {
-			return Err(parser.error(ErrorKind::UnmatchedRightParen));
+			return Err(parser.error(UnmatchedRightParen));
 		}
 
 		if parser.advance_if('(').is_none() {
 			return Ok(None);
 		}
-
-		use ErrorKind::*;
 
 		let start = parser.line;
 

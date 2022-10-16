@@ -1,8 +1,12 @@
+// #![warn(missing_docs)]
+//! [`Integer`] and related types.
+
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::{Character, Encoding};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
+use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformSampler};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -64,6 +68,12 @@ impl<I: IntType> Integer<I> {
 	/// The one value.
 	pub const ONE: Self = Self(I::ONE);
 
+	/// The minimum value.
+	pub const MIN: Self = Self(I::MIN);
+
+	/// The maximum value.
+	pub const MAX: Self = Self(I::MAX);
+
 	/// Returns whether `self` is zero.
 	pub fn is_zero(self) -> bool {
 		self.0 == I::ZERO
@@ -77,7 +87,7 @@ impl<I: IntType> Integer<I> {
 	/// Negates `self`.
 	///
 	/// # Errors
-	/// Returns any errors [`I::negate`](IntType::negate) returns.
+	/// Any errors [`I::negate`](IntType::negate) returns are bubbled up.
 	pub fn negate(self, flags: &Flags) -> Result<Self> {
 		self.0.negate(flags).map(Self)
 	}
@@ -85,7 +95,7 @@ impl<I: IntType> Integer<I> {
 	/// Adds `self` with `augend`.
 	///
 	/// # Errors
-	/// Returns any errors [`I::add`](IntType::add) returns.
+	/// Any errors [`I::add`](IntType::add) returns are bubbled up.
 	pub fn add(self, augend: Self, flags: &Flags) -> Result<Self> {
 		self.0.add(augend.0, flags).map(Self)
 	}
@@ -93,7 +103,7 @@ impl<I: IntType> Integer<I> {
 	/// Subtracts `self` by `subtrahend`.
 	///
 	/// # Errors
-	/// Returns any errors [`I::subtract`](IntType::subtract) returns.
+	/// Any errors [`I::subtract`](IntType::subtract) returns are bubbled up.
 	pub fn subtract(self, subtrahend: Self, flags: &Flags) -> Result<Self> {
 		self.0.subtract(subtrahend.0, flags).map(Self)
 	}
@@ -101,7 +111,7 @@ impl<I: IntType> Integer<I> {
 	/// Multiplies `self` by `multiplier`.
 	///
 	/// # Errors
-	/// Returns any errors [`I::multiply`](IntType::multiply) returns.
+	/// Any errors [`I::multiply`](IntType::multiply) returns are bubbled up.
 	pub fn multiply(self, multiplier: Self, flags: &Flags) -> Result<Self> {
 		self.0.multiply(multiplier.0, flags).map(Self)
 	}
@@ -109,8 +119,9 @@ impl<I: IntType> Integer<I> {
 	/// Divides `self` by `multiplier`.
 	///
 	/// # Errors
-	/// Returns [`Error::DivisionByZero`] if `divisor` is zero. Additionally, returns any errors
-	/// [`I::divide`](IntType::divide) returns.
+	/// Returns [`Error::DivisionByZero`] if `divisor` is zero.
+	///
+	/// Any errors [`I::divide`](IntType::divide) returns are bubbled up.
 	pub fn divide(self, divisor: Self, flags: &Flags) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -122,10 +133,14 @@ impl<I: IntType> Integer<I> {
 	/// Gets the remainder of `self` and `base`.
 	///
 	/// # Errors
-	/// Returns [`Error::DivisionByZero`] if `divisor` is zero. If [`check_integer_function_bounds`](
-	/// crate::env::flags::ComplianceFlags::check_integer_function_bounds) is enabled and either
-	/// `self` or `rhs` is negative, an [`Error::DomainError`] is returned. Additionally, returns any
-	/// errors [`I::remainder`](IntType::remainder) returns.
+	/// Returns [`Error::DivisionByZero`] if `divisor` is zero.
+	///
+	/// If [`check_integer_function_bounds`] is enabled and either `self` or `rhs` is negative, an
+	/// [`Error::DomainError`] is returned.
+	///
+	/// Any errors [`I::remainder`](IntType::remainder) returns are bubbled up.
+	///
+	/// [`check_integer_function_bounds`]: crate::env::flags::Compliance::check_integer_function_bounds
 	pub fn remainder(self, base: Self, flags: &Flags) -> Result<Self> {
 		if base.is_zero() {
 			return Err(Error::DivisionByZero);
@@ -147,40 +162,41 @@ impl<I: IntType> Integer<I> {
 
 	/// Raises `self` to the `exponent`th power.
 	///
-	/// There's a few intricacies
+	/// # Errors
+	/// If the exponent is negative and [`check_integer_function_bounds`] is enabled, then an
+	/// [`Error::DomainError`] is returned.
+	///
+	/// If the exponent is negative, [`check_integer_function_bounds`] isn't enabled, and `self` is
+	/// zero, an [`Error::DivisionByZero`] is returned.
+	///
+	/// If `self` is not zero or one, [`check_integer_function_bounds`] is enabled, and the exponent
+	/// is larger than an [`u32`], then an [`Error::DomainError`] is returned.
+	///
+	/// [`check_integer_function_bounds`]: crate::env::flags::Compliance::check_integer_function_bounds
 	/// If the exponent is negative,
-	pub fn power(self, mut exponent: Self, flags: &Flags) -> Result<Self> {
-		if exponent.is_negative() {
-			match self.0.into() {
-				#[cfg(feature = "compliance")]
-				_ if flags.compliance.check_integer_function_bounds => {
-					return Err(Error::DomainError("negative exponent"))
-				}
-				-1 => exponent = exponent.negate(flags)?,
-				0 => return Err(Error::DivisionByZero),
-				1 => return Ok(Self::ONE),
-				_ => return Ok(Self::ZERO),
+	pub fn power(self, exponent: Self, flags: &Flags) -> Result<Self> {
+		use std::cmp::Ordering;
+
+		match exponent.cmp(&Self::ZERO) {
+			#[cfg(feature = "compliance")]
+			Ordering::Less if flags.compliance.check_integer_function_bounds => {
+				Err(Error::DomainError("negative exponent"))
+			}
+
+			Ordering::Less => match self.0.into() {
+				-1 => Ok(if exponent.0.into() % 2 == 0 { self } else { Self::ONE }),
+				0 => Err(Error::DivisionByZero),
+				1 => Ok(Self::ONE),
+				_ => Ok(Self::ZERO),
+			},
+
+			Ordering::Equal => Ok(Self::ONE),
+
+			Ordering::Greater => {
+				let exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?;
+				self.0.power(exp, flags).map(Self)
 			}
 		}
-
-		if exponent.is_zero() {
-			return Ok(Self::ONE);
-		}
-
-		if self.is_zero() || self == Self::ONE {
-			return Ok(self);
-		}
-
-		// FIXME: you could probably optimize this.
-		#[allow(unused_mut)]
-		let mut exp = exponent.0.into() as u32;
-
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_integer_function_bounds {
-			exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
-		}
-
-		self.0.power(exp, flags).map(Self)
 	}
 
 	/// Gets the amount of digits in `self`
@@ -202,6 +218,8 @@ impl<I: IntType> Integer<I> {
 			.ok_or(Error::DomainError("number isn't a valid char"))
 	}
 
+	/// Gets the most significant digit, negating it if `self` is negative.
+	#[cfg(feature = "extensions")]
 	pub fn head(self) -> Self {
 		todo!()
 
@@ -212,183 +230,64 @@ impl<I: IntType> Integer<I> {
 		// Self(n)
 	}
 
+	/// Gets everything but the most significant digit.
+	#[cfg(feature = "extensions")]
 	pub fn tail(self) -> Self {
 		// Self(self.0 % 10)
 		todo!()
 	}
 
+	/// Get a random integer.
+	///
+	/// # Flags
+	/// If the [`limit_rand_range`](crate::env::flags::Compliance::limit_rand_range) flag is enabled,
+	/// then the returned integer will be within the range `0..=0x7FFF`.
+	///
+	/// If the [`negative_random_integers`](crate::env::flags::Iffy::negative_random_integers) flag
+	/// is enabled, then the returned integer will be in the range `Self::MIN..=Self::MAX`.
+	///
+	/// If neither of these flags are enabled, the returned integer will be in the range
+	/// `0..Self::MAX`.
 	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &Flags) -> Self {
-		#[allow(unused_mut)]
-		let mut rand = rng.gen::<i64>().abs();
+		rng.gen_range(match () {
+			#[cfg(feature = "compliance")]
+			_ if flags.compliance.limit_rand_range => Self::ZERO..=0x7FFF.into(),
 
-		#[cfg(feature = "compliance")]
-		if flags.compliance.limit_rand_range {
-			rand &= 0x7fff;
-		}
+			#[cfg(feature = "iffy-extensions")]
+			_ if flags.extensions.iffy.negative_random_integers => Self::MIN..=Self::MAX,
 
-		let _ = flags;
-
-		// jank and needs to be fixed
-		Self(rand.try_into().unwrap_or_else(|_| {
-			let mut x = I::from(rand as i32);
-			if x < I::ZERO {
-				x = x.negate(flags).unwrap_or_default();
-			}
-			x
-		}))
+			_ => Self::ZERO..=Self::MAX,
+		})
 	}
 }
 
-#[cfg(any())]
-impl Integer {
-	// /// The maximum value for `Integer`s.
-	// pub const MAX: Self = Self(Inner::MAX);
+pub struct UniformIntType<I: IntType>(<I as SampleUniform>::Sampler);
 
-	// /// The minimum value for `Integer`s.
-	// pub const MIN: Self = Self(Inner::MIN);
+impl<I: IntType> SampleUniform for Integer<I> {
+	type Sampler = UniformIntType<I>;
+}
 
-	/// Negates `self`.
-	///
-	/// # Errors
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn negate(self) -> Result<Self> {
-		if cfg!(feature = "checked-math-ops") {
-			return Ok(Self(self.0.wrapping_neg()));
-		}
+impl<I: IntType> UniformSampler for UniformIntType<I> {
+	type X = Integer<I>;
 
-		self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
+	fn new<B1, B2>(low: B1, high: B2) -> Self
+	where
+		B1: SampleBorrow<Self::X>,
+		B2: SampleBorrow<Self::X>,
+	{
+		Self(I::Sampler::new(low.borrow().0, high.borrow().0))
 	}
 
-	fn binary_op<T>(
-		self,
-		rhs: T,
-		checked: impl FnOnce(Inner, T) -> Option<Inner>,
-		wrapping: impl FnOnce(Inner, T) -> Inner,
-	) -> Result<Self> {
-		if cfg!(feature = "checked-math-ops") {
-			return Ok(Self(wrapping(self.0, rhs)));
-		}
-
-		checked(self.0, rhs).map(Self).ok_or(Error::IntegerOverflow)
+	fn new_inclusive<B1, B2>(low: B1, high: B2) -> Self
+	where
+		B1: SampleBorrow<Self::X>,
+		B2: SampleBorrow<Self::X>,
+	{
+		Self(I::Sampler::new_inclusive(low.borrow().0, high.borrow().0))
 	}
 
-	/// Adds `self` to `augend`.
-	///
-	/// # Errors
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	#[allow(clippy::should_implement_trait)]
-	pub fn add(self, augend: Self) -> Result<Self> {
-		self.binary_op(augend.0, Inner::checked_add, Inner::wrapping_add)
-	}
-
-	/// Subtracts `subtrahend` from `self`.
-	///
-	/// # Errors
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
-		self.binary_op(subtrahend.0, Inner::checked_sub, Inner::wrapping_sub)
-	}
-
-	/// Multiplies `self` by `multiplier`.
-	///
-	/// # Errors
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn multiply(self, multiplier: Self) -> Result<Self> {
-		self.binary_op(multiplier.0, Inner::checked_mul, Inner::wrapping_mul)
-	}
-
-	/// Multiplies `self` by `divisor`.
-	///
-	/// # Errors
-	/// If `divisor` is zero, this will return an [`Error::DivisionByZero`].
-	///
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn divide(self, divisor: Self) -> Result<Self> {
-		if divisor.is_zero() {
-			return Err(Error::DivisionByZero);
-		}
-
-		self.binary_op(divisor.0, Inner::checked_div, Inner::wrapping_div)
-	}
-
-	/// Returns the remainder of `self` and `base`.
-	///
-	/// # Errors
-	/// If `base` is zero, this will return an [`Error::DivisionByZero`].
-	///
-	/// If `base` is negative and `strict-integers` is enabled, [`Error::DomainError`] is returned.
-	///
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn remainder(self, base: Self, flags: &Flags) -> Result<Self> {
-		if base.is_zero() {
-			return Err(Error::DivisionByZero);
-		}
-
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_integer_function_bounds {
-			if self.is_negative() {
-				return Err(Error::DomainError("remainder with a negative number"));
-			}
-
-			if base.is_negative() {
-				return Err(Error::DomainError("remainder by a negative base"));
-			}
-		}
-
-		let _ = flags;
-		self.binary_op(base.0, Inner::checked_rem, Inner::wrapping_rem)
-	}
-
-	/// Raises `self` to the `exponent` power.
-	///
-	/// # Errors
-	/// If the exponent is negative and `strict-integers` is enabled, an [`Error::DomainError`]
-	/// is returned.
-	///
-	/// If `strict-integers` is not enabled, the exponent is negative, and `self` is zero, then
-	/// an [`Error::DivisionByZero`] is returned.
-	///
-	/// If the `checked-overflow` feature is enabled, this will return an [`Error::IntegerOverflow`]
-	/// if the operation would overflow. If the feature isn't enabled, the wrapping variant is used.
-	pub fn power(self, mut exponent: Self, flags: &Flags) -> Result<Self> {
-		if exponent.is_negative() {
-			match self.0 {
-				#[cfg(feature = "compliance")]
-				_ if flags.compliance.check_integer_function_bounds => {
-					return Err(Error::DomainError("negative exponent"))
-				}
-				-1 => exponent = exponent.negate()?,
-				0 => return Err(Error::DivisionByZero),
-				1 => return Ok(Self::ONE),
-				_ => return Ok(Self::ZERO),
-			}
-		}
-
-		if exponent.is_zero() {
-			return Ok(Self::ONE);
-		}
-
-		if self.is_zero() || self == Self::ONE {
-			return Ok(self);
-		}
-
-		// FIXME: you could probably optimize this.
-		#[allow(unused_mut)]
-		let mut exp = exponent.0 as u32;
-
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_integer_function_bounds {
-			exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?
-		}
-
-		let _ = flags;
-		self.binary_op(exp, Inner::checked_pow, Inner::wrapping_pow)
+	fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
+		Integer(self.0.sample(rng))
 	}
 }
 
@@ -396,13 +295,10 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Integer<I> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
-		let Some(source) = parser.take_while(Character::is_numeric) else {
-			return Ok(None);
-		};
-
-		source
-			.parse::<Self>()
-			.map(Some)
+		parser
+			.take_while(Character::is_numeric)
+			.map(|src| src.parse())
+			.transpose()
 			.map_err(|_| parser.error(parse::ErrorKind::IntegerLiteralOverflow))
 	}
 }
@@ -437,7 +333,7 @@ impl<I: IntType, E> ToList<I, E> for Integer<I> {
 			return Ok(List::boxed(self.clone().into()));
 		}
 
-		let mut integer: i64 = self.0.into();
+		let mut integer = self.0.into();
 		let mut digits = Vec::with_capacity(self.number_of_digits());
 
 		while integer != 0 {
@@ -452,9 +348,9 @@ impl<I: IntType, E> ToList<I, E> for Integer<I> {
 }
 
 impl<I: IntType> FromStr for Integer<I> {
-	type Err = Error;
+	type Err = <I as FromStr>::Err;
 
-	fn from_str(source: &str) -> Result<Self> {
+	fn from_str(source: &str) -> std::result::Result<Self, Self::Err> {
 		let source = source.trim_start();
 
 		if source.is_empty() {
@@ -474,7 +370,7 @@ impl<I: IntType> FromStr for Integer<I> {
 			start = source;
 		}
 
-		Ok(Self(I::from_str(start).unwrap_or_default()))
+		I::from_str(start).map(Self)
 	}
 }
 

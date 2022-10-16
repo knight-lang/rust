@@ -1,3 +1,5 @@
+//! Parsing Knight code.
+
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::{Environment, Flags};
 use crate::value::text::{Character, Encoding, TextSlice};
@@ -48,6 +50,7 @@ pub trait Parsable<I, E>: Sized {
 	}
 }
 
+/// A type that can parse things.
 pub type ParseFn<I, E> = RefCount<dyn ParseFn_<I, E>>;
 
 /// A Trait that indicates something is able to be parsed.
@@ -154,7 +157,7 @@ pub enum ErrorKind {
 	/// This is only returned when the `verify-variable-names` is enabled.
 	#[cfg(feature = "compliance")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
-	IllegalVariableName(crate::env::IllegalVariableName),
+	IllegalVariableName(crate::env::variable::IllegalVariableName),
 
 	/// The source file wasn't exactly one expression.
 	///
@@ -168,9 +171,10 @@ pub enum ErrorKind {
 	/// An unknown extension name was encountered.
 	UnknownExtensionFunction(String),
 
+	/// An error which doesn't fit into one of the other categories.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	Custom(Box<dyn std::error::Error + Send + Sync>), // TODO: make this be the `cause`
+	Custom(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl Display for ErrorKind {
@@ -362,8 +366,8 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
 	///
-	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](c
-	/// crate::env::flags::ComplianceFlags::forbid_trailing_tokens) is set.
+	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
+	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
 	pub fn parse_program(mut self) -> Result<Value<I, E>>
 	where
 		I: IntType,

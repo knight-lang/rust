@@ -83,22 +83,21 @@ fn validate<E: Encoding>(data: &str, flags: &Flags) -> Result<(), NewTextError> 
 	#[cfg(feature = "compliance")]
 	{
 		validate_len::<E>(data, flags)?;
-		if flags.compliance.knight_encoding_only {
-			// We're in const context, so we must use `while` with bytes.
-			// Since we're not using unicode, everything's just a byte anyways.
-			let bytes = data.as_bytes();
-			let mut index = 0;
 
-			while index < bytes.len() {
-				let chr = bytes[index] as char;
+		// We're in const context, so we must use `while` with bytes.
+		// Since we're not using unicode, everything's just a byte anyways.
+		let bytes = data.as_bytes();
+		let mut index = 0;
 
-				if Character::<E>::new(chr).is_none() {
-					// Since everything's a byte, the byte index is the same as the char index.
-					return Err(NewTextError::IllegalChar { chr, index });
-				}
+		while index < bytes.len() {
+			let chr = bytes[index] as char;
 
-				index += 1;
+			if Character::<E>::new(chr).is_none() {
+				// Since everything's a byte, the byte index is the same as the char index.
+				return Err(NewTextError::IllegalChar { chr, index });
 			}
+
+			index += 1;
 		}
 	}
 

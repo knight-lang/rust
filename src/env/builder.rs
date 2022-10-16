@@ -20,17 +20,19 @@ pub struct Builder<'e, I, E> {
 }
 
 impl<I: IntType, E: Encoding> Default for Builder<'_, I, E> {
+	/// Creates a new [`Builder`] with [default flags](Flags::default).
 	fn default() -> Self {
 		Self::new(&crate::env::flags::DEFAULT)
 	}
 }
 
 impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
+	/// Creates a new [`Builder`] with the given flags.
 	pub fn new(flags: &'e Flags) -> Self {
 		Self {
 			flags,
-			prompt: Prompt::default(),
-			output: Output::default(),
+			prompt: Prompt::new(flags),
+			output: Output::new(flags),
 			functions: Function::default_set(&flags),
 			parsers: crate::parse::default(&flags),
 
@@ -45,31 +47,40 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 		}
 	}
 
+	/// Sets the stdin, which is used when `PROMPT` is run.
 	pub fn stdin<S: super::prompt::Stdin + 'e>(&mut self, stdin: S) {
 		self.prompt.set_stdin(stdin);
 	}
 
+	/// Sets the stdout, which is used when `OUTPUT` and `DUMP` are run.
 	pub fn stdout<S: super::output::Stdout + 'e>(&mut self, stdout: S) {
 		self.output.set_stdout(stdout);
 	}
 
+	/// Gets a mutable set of normal (i.e. non-`X`) functions.
+	///
+	/// See [`Builder::extensions`] for extension functions.
 	pub fn functions(&mut self) -> &mut HashSet<Function<I, E>> {
 		&mut self.functions
 	}
 
-	// We only allow access to the parsers when extensions are enabled.
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parsers(&mut self) -> &mut Vec<ParseFn<I, E>> {
-		&mut self.parsers
-	}
-
+	/// Gets a list of extension (i.e. `X`) functions.
+	///
+	/// See [`Builder::functions`] for normal functions.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<I, E>> {
 		&mut self.extensions
 	}
 
+	/// Gets a list of parse functions, which can be used to modify how parsing is done.
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn parse_fns(&mut self) -> &mut Vec<ParseFn<I, E>> {
+		&mut self.parsers
+	}
+
+	/// Configure what happens when `$` is run.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn system<F>(&mut self, func: F)
@@ -82,6 +93,7 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 		self.system = Some(Box::new(func) as Box<_>);
 	}
 
+	/// Configure what happens when `USE` is run.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn read_file<F>(&mut self, func: F)
@@ -91,10 +103,10 @@ impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
 
-	pub fn build(self) -> Environment<'e, I, E>
-	where
-		E: Encoding,
-	{
+	/// Finishes the builder and creates the given environment.
+	///
+	/// Any values not set use their default values.
+	pub fn build(self) -> Environment<'e, I, E> {
 		Environment {
 			flags: self.flags,
 

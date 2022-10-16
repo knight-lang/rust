@@ -7,7 +7,8 @@ fn main() {
 		std::fs::read_to_string(&*arg).unwrap()
 	};
 
-	match knightrs::play("unicode", "i64", "wrapping", &arg, &Default::default()) {
+	// match knightrs::play("utf8", "i64", "wrapping", &arg, &Default::default()) {
+	match knightrs::play("knight-encoding", "i32", "checked", &arg, &Default::default()) {
 		Err(knightrs::Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {
 			eprintln!("error: {err}");

@@ -3,9 +3,7 @@ use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::integer::IntType;
 use crate::value::text::{Character, Encoding, TextSlice};
-#[cfg(feature = "extensions")]
-use crate::value::Text;
-use crate::value::{List, Runnable, ToBoolean, ToInteger, ToText};
+use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, RefCount, Result, Value};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
@@ -209,7 +207,7 @@ impl<I: IntType, E: Encoding> Function<I, E> {
 		macro_rules! insert {
 			($($(#[$meta:meta] $feature:ident)? $name:ident)*) => {$(
 				$(#[$meta])?
-				if true $(&& flags.exts.fns.$feature)? {
+				if true $(&& flags.extensions.functions.$feature)? {
 					map.insert($name());
 				}
 			)*}
@@ -243,7 +241,7 @@ impl<I: IntType, E: Encoding> ExtensionFunction<I, E> {
 		macro_rules! insert {
 			($($feature:ident $name:ident)*) => {
 				$(
-					if flags.exts.fns.$feature {
+					if flags.extensions.functions.$feature {
 						map.insert($name());
 					}
 				)*
@@ -269,8 +267,7 @@ macro_rules! function {
 		Function(RefCount::from(Inner{
 			full_name: unsafe { Text::new_unchecked($name) },
 			arity: arity!($($args)*),
-			short_name:
-			Some(unsafe { Character::new_unchecked(TextSlice::<E>::new_unchecked($name).as_str().as_bytes()[0] as char) }),
+			short_name: Some(unsafe {Character::new_unchecked(TextSlice::<E>::new_unchecked($name).as_str().as_bytes()[0] as char) }),
 			func: FnType::FnPtr(|args, $env| {
 				let [$($args,)*]: &[Value::< I, E>; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body)
@@ -286,24 +283,22 @@ macro_rules! xfunction {
 	}
 }
 
-/// **4.1.4**: `PROMPT`
+/// The `PROMPT` function.
 pub fn PROMPT<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("PROMPT", env, |/* comment for rustfmt */| {
-
-	let flags = env.flags();
-	env.prompt().read_line(flags)?.get(env)?.map(Value::from).unwrap_or_default()
-})
+		env.prompt().read_line()?.get(env)?.map(Value::from).unwrap_or_default()
+	})
 }
 
-/// **4.1.5**: `RANDOM`
+/// The `RANDOM` function.
 pub fn RANDOM<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("RANDOM", env, |/* comment for rustfmt */| {
-	// note that `env.random()` is seedable with `XSRAND`
-	env.random().into()
-})
+		// note that `env.random()` is seedable with `XSRAND`
+		env.random().into()
+	})
 }
 
-/// **4.2.2** `BOX`
+/// The `BOX` function.
 pub fn BOX<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!(",", env, |val| {
 		// `boxed` is optimized over `vec![val.run(env)]`
@@ -325,7 +320,7 @@ pub fn TAIL<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.3** `BLOCK`  
+/// The `BLOCK` function.
 pub fn BLOCK<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("BLOCK", env, |arg| {
 		// Technically, according to the spec, only the return value from `BLOCK` can be used in `CALL`.
@@ -352,7 +347,7 @@ pub fn BLOCK<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.4** `CALL`  
+/// The `CALL` function.
 pub fn CALL<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("CALL", env, |arg| {
 		//
@@ -360,7 +355,7 @@ pub fn CALL<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.6** `QUIT`  
+/// The `QUIT` function.
 pub fn QUIT<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("QUIT", env, |arg| {
 		let status = arg.run(env)?.to_integer(env)?;
@@ -390,8 +385,38 @@ pub fn QUIT<I: IntType, E: Encoding>() -> Function<I, E> {
 		Value::Null
 	})
 }
+// /// The `QUIT` function.
+// pub fn QUIT<I: IntType, E: Encoding>() -> Function<I, E> {
+// 	function!("QUIT", env, |arg| {
+// 		let status = arg.run(env)?.to_integer(env)?;
 
-/// **4.2.7** `!`  
+// 		match i32::try_from(status) {
+// 			Ok(status)
+// 				if {
+// 					#[cfg(feature = "compliance")]
+// 					{
+// 						!env.flags().compliance.check_quit_bounds
+// 					}
+// 					#[cfg(not(feature = "compliance"))]
+// 					{
+// 						true
+// 					}
+// 				} || (0..=127).contains(&status) =>
+// 			{
+// 				return Err(Error::Quit(status))
+// 			}
+
+// 			_ => return Err(Error::DomainError("exit code out of bounds")),
+// 		}
+
+// 		// The `function!` macro calls `Ok(...)` on the return value of this block,
+// 		// so we need _something_ here so it can typecheck correctly.
+// 		#[allow(unreachable_code)]
+// 		Value::Null
+// 	})
+// }
+
+/// The `!` function.
 pub fn NOT<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("!", env, |arg| {
 		// <blank line so rustfmt doesnt wrap onto the prev line>
@@ -399,7 +424,7 @@ pub fn NOT<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.8** `LENGTH`  
+/// The `LENGTH` function.
 pub fn LENGTH<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("LENGTH", env, |arg| {
 		//
@@ -407,7 +432,7 @@ pub fn LENGTH<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.9** `DUMP`  
+/// The `DUMP` function.
 pub fn DUMP<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("DUMP", env, |arg| {
 		let value = arg.run(env)?;
@@ -416,7 +441,7 @@ pub fn DUMP<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.10** `OUTPUT`  
+/// The `OUTPUT` function.
 pub fn OUTPUT<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("OUTPUT", env, |arg| {
 		let text = arg.run(env)?.to_text(env)?;
@@ -434,7 +459,7 @@ pub fn OUTPUT<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.11** `ASCII`  
+/// The `ASCII` function.
 pub fn ASCII<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("ASCII", env, |arg| {
 		//
@@ -442,15 +467,23 @@ pub fn ASCII<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.12** `~`  
+/// The `~` function.
 pub fn NEG<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("~", env, |arg| {
-		// comment so it wont make it one line
-		arg.run(env)?.to_integer(env)?.negate(env.flags())?.into()
+		let ran = arg.run(env)?;
+
+		#[cfg(feature = "iffy-extensions")]
+		if env.flags().extensions.iffy.negating_a_list_inverts_it {
+			if let Value::List(list) = ran {
+				return Ok(list.reverse().into());
+			}
+		}
+
+		ran.to_integer(env)?.negate(env.flags())?.into()
 	})
 }
 
-/// **4.3.1** `+`  
+/// The `+` function.
 pub fn ADD<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("+", env, |lhs, rhs| {
 		//
@@ -458,7 +491,7 @@ pub fn ADD<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.2** `-`  
+/// The `-` function.
 pub fn SUBTRACT<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("-", env, |lhs, rhs| {
 		//
@@ -466,7 +499,7 @@ pub fn SUBTRACT<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.3** `*`  
+/// The `*` function.
 pub fn MULTIPLY<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("*", env, |lhs, rhs| {
 		//
@@ -474,7 +507,7 @@ pub fn MULTIPLY<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.4** `/`  
+/// The `/` function.
 pub fn DIVIDE<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("/", env, |lhs, rhs| {
 		//
@@ -482,7 +515,7 @@ pub fn DIVIDE<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.5** `%`  
+/// The `%` function.
 pub fn REMAINDER<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("%", env, |lhs, rhs| {
 		//
@@ -490,7 +523,7 @@ pub fn REMAINDER<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.6** `^`  
+/// The `^` function.
 pub fn POWER<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("^", env, |lhs, rhs| {
 		//
@@ -498,21 +531,21 @@ pub fn POWER<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.7** `<`  
+/// The `<` function.
 pub fn LESS_THAN<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("<", env, |lhs, rhs| {
 		(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Less).into()
 	})
 }
 
-/// **4.3.8** `>`  
+/// The `>` function.
 pub fn GREATER_THAN<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!(">", env, |lhs, rhs| {
 		(lhs.run(env)?.compare(&rhs.run(env)?, env)? == Ordering::Greater).into()
 	})
 }
 
-/// **4.3.9** `?`  
+/// The `?` function.
 pub fn EQUALS<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("?", env, |lhs, rhs| {
 		//
@@ -520,7 +553,7 @@ pub fn EQUALS<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.10** `&`  
+/// The `&` function.
 pub fn AND<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("&", env, |lhs, rhs| {
 		let condition = lhs.run(env)?;
@@ -533,7 +566,7 @@ pub fn AND<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.11** `|`  
+/// The `|` function.
 pub fn OR<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("|", env, |lhs, rhs| {
 		let condition = lhs.run(env)?;
@@ -546,7 +579,7 @@ pub fn OR<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.12** `;`  
+/// The `;` function.
 pub fn THEN<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!(";", env, |lhs, rhs| {
 		lhs.run(env)?;
@@ -554,7 +587,7 @@ pub fn THEN<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.13** `=`  
+/// The `=` function.
 pub fn ASSIGN<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("=", env, |variable, value| {
 		let ran = value.run(env)?;
@@ -563,7 +596,7 @@ pub fn ASSIGN<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.3.14** `WHILE`  
+/// The `WHILE` function.
 pub fn WHILE<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("WHILE", env, |condition, body| {
 		while condition.run(env)?.to_boolean(env)? {
@@ -574,7 +607,7 @@ pub fn WHILE<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.4.1** `IF`  
+/// The `IF` function.
 pub fn IF<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("IF", env, |condition, iftrue, iffalse| {
 		if condition.run(env)?.to_boolean(env)? {
@@ -585,7 +618,7 @@ pub fn IF<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.4.2** `GET`  
+/// The `GET` function.
 pub fn GET<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("GET", env, |source, start, length| {
 		//
@@ -593,7 +626,7 @@ pub fn GET<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.5.1** `SET`  
+/// The `SET` function.
 pub fn SET<I: IntType, E: Encoding>() -> Function<I, E> {
 	function!("SET", env, |source, start, length, replacement| {
 		//
@@ -649,7 +682,7 @@ pub fn YEET<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **6.3** `USE`
+/// The `USE` function.
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub fn USE<I: IntType, E: Encoding>() -> Function<I, E> {
@@ -661,7 +694,7 @@ pub fn USE<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.2** `EVAL`
+/// The `EVAL` function.
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub fn EVAL<I: IntType, E: Encoding>() -> Function<I, E> {
@@ -671,7 +704,7 @@ pub fn EVAL<I: IntType, E: Encoding>() -> Function<I, E> {
 	})
 }
 
-/// **4.2.5** `` ` ``
+/// The `` ` `` function.
 #[cfg(feature = "extensions")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub fn SYSTEM<I: IntType, E: Encoding>() -> Function<I, E> {

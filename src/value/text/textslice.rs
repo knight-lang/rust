@@ -197,7 +197,7 @@ impl<E> crate::value::NamedType for Text<E> {
 
 impl<I: IntType, E> ToInteger<I, E> for Text<E> {
 	fn to_integer(&self, _: &mut Environment<I, E>) -> crate::Result<Integer<I>> {
-		self.parse()
+		Ok(self.parse().unwrap_or_default())
 	}
 }
 

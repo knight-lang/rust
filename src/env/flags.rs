@@ -1,3 +1,5 @@
+//! Flags to change how the Knight interpreter works at runtime.
+
 /// A set of flags that can be toggled to change how the interpreter runs.
 ///
 /// Normally, all flags default to `false`. However, if `strict-compliance` is enabled, then the
@@ -8,15 +10,16 @@ pub struct Flags {
 	/// Knight specification conformity flags.
 	#[cfg(feature = "compliance")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
-	pub compliance: ComplianceFlags,
+	pub compliance: Compliance,
 
 	/// Extension-related flags.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub exts: ExtensionFlags,
+	pub extensions: Extensions,
 }
 
 impl Default for Flags {
+	#[inline]
 	fn default() -> Self {
 		DEFAULT
 	}
@@ -28,9 +31,10 @@ const STRICT_COMPLIANCE: bool = cfg!(feature = "strict-compliance");
 #[cfg(feature = "extensions")]
 const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
 
+// We need this as a `static` because `env::Builder::default` needs to take a reference to a Flag.
 pub(crate) static DEFAULT: Flags = Flags {
 	#[cfg(feature = "compliance")]
-	compliance: ComplianceFlags {
+	compliance: Compliance {
 		check_quit_bounds: STRICT_COMPLIANCE,
 		forbid_trailing_tokens: STRICT_COMPLIANCE,
 		verify_variable_names: STRICT_COMPLIANCE,
@@ -38,18 +42,18 @@ pub(crate) static DEFAULT: Flags = Flags {
 		limit_rand_range: STRICT_COMPLIANCE,
 		check_equals_params: STRICT_COMPLIANCE,
 		check_container_length: STRICT_COMPLIANCE,
-		knight_encoding_only: STRICT_COMPLIANCE,
 		check_integer_function_bounds: STRICT_COMPLIANCE,
 	},
 	#[cfg(feature = "extensions")]
-	exts: ExtensionFlags {
-		assign_to: AssignToFlags {
+	extensions: Extensions {
+		assign_to: AssignTo {
 			prompt: ALL_EXTENSIONS,
 			system: ALL_EXTENSIONS,
+			output: ALL_EXTENSIONS,
 			list: ALL_EXTENSIONS,
 			text: ALL_EXTENSIONS,
 		},
-		fns: FunctionFlags {
+		functions: Functions {
 			value: ALL_EXTENSIONS,
 			eval: ALL_EXTENSIONS,
 			handle: ALL_EXTENSIONS,
@@ -60,11 +64,17 @@ pub(crate) static DEFAULT: Flags = Flags {
 			xreverse: ALL_EXTENSIONS,
 			xrange: ALL_EXTENSIONS,
 		},
-		tys: TypeFlags {
+		types: Types {
 			boolean: ALL_EXTENSIONS,
 			list: ALL_EXTENSIONS,
 			text: ALL_EXTENSIONS,
 			integer: ALL_EXTENSIONS,
+		},
+		#[cfg(feature = "iffy-extensions")]
+		iffy: Iffy {
+			negating_a_list_inverts_it: cfg!(feature = "iffy-extensions"),
+			unassigned_variables_default_to_null: cfg!(feature = "iffy-extensions"),
+			negative_random_integers: cfg!(feature = "iffy-extensions"),
 		},
 		negative_indexing: ALL_EXTENSIONS,
 		list_literal: ALL_EXTENSIONS,
@@ -78,16 +88,16 @@ pub(crate) static DEFAULT: Flags = Flags {
 /// undefined behaviour in Knight are too expensive/cumbersome to check for. These flags can be used
 /// to toggle some of these checks on.
 ///
-/// Note that that there are some compile-time flags that should be enabled if 100% compliance is to
-/// be achieved; these are simply the flags that don't affect runtime performance too much. But, if
-/// the `strict-compliance` feature is enabled, _all_ forms of undefined behaviour will be caught.
+/// While these flags will catch most undefined behaviour, to catch _all_ forms, the [`Value`](
+/// crate::value::Value)'s generics should be set to [`Wrapping<i32>`](
+/// crate::value::integer::Wrapping) and [`KnightEncoding`](crate::value::text::KnightEncoding).
 ///
 /// The default value for each of these is normally `false`. However, if the `strict-compliance`
 /// feature is enabled, they will all instead default to `true`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "compliance")]
 #[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
-pub struct ComplianceFlags {
+pub struct Compliance {
 	/// Ensure [`QUIT`](crate::function::QUIT)'s argument is within `0..=127`.
 	pub check_quit_bounds: bool,
 
@@ -97,7 +107,7 @@ pub struct ComplianceFlags {
 	/// Ensure variable names are compliant.
 	///
 	/// This means that all variable names (either in source code or through the [`VALUE`](
-	/// FunctionFlags::value) extension) must be:
+	/// Functions::value) extension) must be:
 	///
 	/// - nonempty,
 	/// - less than 128 characters long
@@ -114,39 +124,49 @@ pub struct ComplianceFlags {
 	/// Without this, it'll return a value from `0..=<max size of integer>`.
 	pub limit_rand_range: bool,
 
-	/// Ensures that [`?`](crate::function::EQUALS) is not with a [`BLOCK`](crate::function::BLOCK)
-	/// return type.
+	/// Ensures that [`?`](crate::function::EQUALS) is not called with with a [`BLOCK`](
+	/// crate::function::BLOCK)'s return value.
 	pub check_equals_params: bool,
 
 	/// Ensures that the length of [`Text`](crate::value::Text)s and [`List`](crate::value::List)s
-	/// are no larger than `i32::MAX`.
+	/// are no larger than [`i32::MAX`].
 	pub check_container_length: bool,
 
-	/// Ensures [`Text`](crate::value::Text)s only contains bytes explicitly allowed by the specs.
-	pub knight_encoding_only: bool,
-
-	/// Ensures that [`%`](crate::function::REMAINDER) and [`^`](crate::function::POWER) are called
-	/// with valid arguments only.
+	/// Ensures that [`Integer::remainder`](crate::value::Integer::remainder) and [`Integer::power`](
+	/// crate::value::Integer::power) are called with valid arguments only.
 	///
-	/// More specifically, this only allows positive integers for both arguments to `%`, and
-	/// nonnegative numbers for the exponent for `^`. Regardless of this toggle, division and modulo
-	/// by zero are checked.
+	/// More specifically, this only allows positive integers for both arguments to `remainder`, and
+	/// nonnegative numbers for the exponent for `power`. Regardless of this flag, division and
+	/// modulo by zero are checked.
 	pub check_integer_function_bounds: bool,
+}
+
+#[cfg(feature = "compliance")]
+impl Default for Compliance {
+	#[inline]
+	fn default() -> Self {
+		DEFAULT.compliance
+	}
 }
 
 /// Flags for extensions to the Knight interpreter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-pub struct ExtensionFlags {
-	/// Assign to types other than variables.
-	pub assign_to: AssignToFlags,
-
-	/// Enable butilin function.
-	pub fns: FunctionFlags,
+pub struct Extensions {
+	/// Extension function flags.
+	pub functions: Functions,
 
 	/// Extensions to types.
-	pub tys: TypeFlags,
+	pub types: Types,
+
+	/// Assign to types other than variables.
+	pub assign_to: AssignTo,
+
+	/// Things that change how knight works, or are otherwise iffy.
+	#[cfg(feature = "iffy-extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "iffy-extensions")))]
+	pub iffy: Iffy,
 
 	/// Indexing either [`GET`](crate::function::GET) or [`SET`](crate::function::SET) with a
 	/// negative number is that many from the end.
@@ -156,11 +176,19 @@ pub struct ExtensionFlags {
 	pub list_literal: bool,
 }
 
+#[cfg(feature = "extensions")]
+impl Default for Extensions {
+	#[inline]
+	fn default() -> Self {
+		DEFAULT.extensions
+	}
+}
+
 /// Flags to enable extension functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-pub struct FunctionFlags {
+pub struct Functions {
 	/// Enables the [`VALUE`](crate::function::VALUE) function.
 	pub value: bool,
 
@@ -189,22 +217,121 @@ pub struct FunctionFlags {
 	pub xrange: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
-#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-pub struct TypeFlags {
-	pub boolean: bool,
-	pub list: bool,
-	pub text: bool,
-	pub integer: bool,
+impl Default for Functions {
+	#[inline]
+	fn default() -> Self {
+		DEFAULT.extensions.functions
+	}
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Flags to enable additional functionality for types.
+///
+/// See each flag for more details on what exactly it enables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-pub struct AssignToFlags {
-	pub prompt: bool,
-	pub system: bool,
+pub struct Types {
+	/// Enables [`Boolean`](crate::value::Boolean)-related extensions.
+	///
+	/// - If a boolean is passed to `+`, it converts the second argument to a boolean and returns
+	///   whether either argument is truthy.
+	/// - If a boolean is passed to `*`, it converts the second argument to a boolean and returns
+	///   whether both arguments are truthy.
+	pub boolean: bool,
+
+	/// Enables [`Integer`](crate::value::Integer)-related extensions.
+	///
+	/// - If an integer is passed to `[`, it'll return the most significant digit. If the integer is
+	///   negative, the resulting value will be negative.
+	/// - If an integer is passed to `]`, it'll return everything but the most significant digit.
+	///   If the integer is negative, the resulting value will be negative.
+	pub integer: bool,
+
+	/// Enables [`List`](crate::value::List)-related extensions.
+	///
+	/// - If a list is passed to `-`, it converts the second argument to a list and return a new list
+	///   comprised of elements only found in the first list. Duplicate elements are also removed.
+	/// - If a list is passed to `*` and the second argument is, after being run, a [block], then the
+	///   list is [mapped](crate::value::List::map).
+	/// - If a list is passed to `/` and the second argument is, after being run, a [block], then the
+	///   list is [reduced](crate::value::List::reduce).
+	/// - If a list is passed to `%` and the second argument is, after being run, a [block], then the
+	///   list is [filtered](crate::value::List::filter).
+	///
+	/// [block]: crate::Ast
 	pub list: bool,
+
+	/// Enables [`Text`](crate::value::Text)-related extensions.
+	///
+	/// - If a text is passed to `-`, it converts the second argument to a text and then [removes
+	///   that substring](crate::value::Text::remove_substr)
+	/// - If a text is passed to `/`, it converts the second to a text and then [splits the first by
+	///   the second](crate::value::Text::split).
 	pub text: bool,
+}
+
+#[cfg(feature = "extensions")]
+impl Default for Types {
+	#[inline]
+	fn default() -> Self {
+		DEFAULT.extensions.types
+	}
+}
+
+/// Flags related to assigning to non-[`Variable`](crate::env::Variable) types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg(feature = "extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+pub struct AssignTo {
+	/// Allows you to assign to `PROMPT`. See [`Prompt`](crate::env::Prompt) for details.
+	pub prompt: bool,
+
+	/// Allows you to assign to `OUTPUT`. See [`Output`](crate::env::Output) for details.
+	pub output: bool,
+
+	/// Allows you to assign to `$`. See [`System`](crate::env::System) for details.
+	pub system: bool,
+
+	/// Allows you to assign to [`List`](crate::value::List)s. This in essence is destructuring.
+	///
+	/// # Example
+	/// ```knight
+	/// ; = +@abc +@1 2 3
+	/// : OUTPUT * (-a b) c #=> -3
+	/// ```
+	pub list: bool,
+
+	/// Allows you to assign to [`Text`](crate::value::Text)s. This lets you dynamically assign to
+	/// variables.
+	///
+	/// # Example
+	/// ```knight
+	/// ; = (+"hi" 1) 4
+	/// : OUTPUT hi1 #=> 4
+	/// ```
+	pub text: bool,
+}
+
+#[cfg(feature = "extensions")]
+impl Default for AssignTo {
+	#[inline]
+	fn default() -> Self {
+		DEFAULT.extensions.assign_to
+	}
+}
+
+/// Features that change how vanilla Knight is interpreted, or are otherwise iffy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg(feature = "iffy-extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "iffy-extensions")))]
+pub struct Iffy {
+	/// Instead of erroring on undefined variables, have them default to `NULL`
+	pub unassigned_variables_default_to_null: bool,
+
+	/// `~list` reverses it, not gets its length and negates it.
+	pub negating_a_list_inverts_it: bool,
+
+	/// `RANDOM` can return negative integers
+	pub negative_random_integers: bool,
 }

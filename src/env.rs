@@ -1,3 +1,5 @@
+//! The runtime environment of Knight.
+
 use crate::parse::{ParseFn, Parser};
 use crate::value::integer::IntType;
 use crate::value::text::Encoding;
@@ -19,18 +21,20 @@ if #[cfg(feature = "extensions")] {
 }}
 
 mod builder;
-
 pub mod flags;
 pub mod output;
 pub mod prompt;
-mod variable;
+pub mod variable;
+
 pub use builder::Builder;
 pub use flags::Flags;
 use output::Output;
 use prompt::Prompt;
-pub use variable::{IllegalVariableName, Variable};
+pub use variable::Variable;
 
-/// The environment hosts all relevant information for knight programs.
+/// The environment hosts all relevant information for Knight programs.
+///
+/// <todo: details>
 pub struct Environment<'e, I, E> {
 	flags: &'e Flags,
 	variables: HashSet<Variable<I, E>>,
@@ -131,7 +135,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<I, E>, IllegalVariableName>
+	) -> std::result::Result<Variable<I, E>, variable::IllegalVariableName>
 	where
 		E: Encoding,
 	{

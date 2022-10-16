@@ -1,5 +1,7 @@
 use crate::env::Flags;
 use crate::{Error, Result};
+use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformInt, UniformSampler};
+use rand::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -18,8 +20,11 @@ pub trait IntType:
 	+ TryFrom<i64>
 	+ TryFrom<usize>
 	+ crate::containers::MaybeSendSync
+	+ SampleUniform
 	+ 'static
 {
+	const MAX: Self;
+	const MIN: Self;
 	const ZERO: Self;
 	const ONE: Self;
 
@@ -98,9 +103,42 @@ macro_rules! create_int_type {
 	};
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct UniformCheckedIntType<T>(UniformInt<T>);
+
+#[derive(Clone, Copy, Debug)]
+pub struct UniformWrappingIntType<T>(UniformInt<T>);
+
 macro_rules! impl_checked_int_type {
 	($($ty:ty),*) => {$(
+		impl SampleUniform for Checked<$ty> {
+			type Sampler = UniformCheckedIntType<$ty>;
+		}
+
+		impl UniformSampler for UniformCheckedIntType<$ty> {
+			type X = Checked<$ty>;
+			fn new<B1, B2>(low: B1, high: B2) -> Self
+			where
+				B1: SampleBorrow<Self::X>,
+				B2: SampleBorrow<Self::X>,
+			{
+				UniformCheckedIntType(UniformInt::<$ty>::new(low.borrow().0, high.borrow().0))
+			}
+			fn new_inclusive<B1, B2>(low: B1, high: B2) -> Self
+			where
+				B1: SampleBorrow<Self::X>,
+				B2: SampleBorrow<Self::X>,
+			{
+				UniformCheckedIntType(UniformInt::<$ty>::new_inclusive(low.borrow().0, high.borrow().0))
+			}
+			fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
+				Checked(self.0.sample(rng))
+			}
+		}
+
 		impl IntType for Checked<$ty> {
+			const MIN: Self = Self(<$ty>::MIN);
+			const MAX: Self = Self(<$ty>::MAX);
 			const ZERO: Self = Self(0);
 			const ONE: Self = Self(1);
 
@@ -155,7 +193,34 @@ macro_rules! impl_checked_int_type {
 }
 macro_rules! impl_wrapping_int_type {
 	($($ty:ty),*) => {$(
+		impl SampleUniform for Wrapping<$ty> {
+			type Sampler = UniformWrappingIntType<$ty>;
+		}
+
+		impl UniformSampler for UniformWrappingIntType<$ty> {
+			type X = Wrapping<$ty>;
+			fn new<B1, B2>(low: B1, high: B2) -> Self
+			where
+				B1: SampleBorrow<Self::X>,
+				B2: SampleBorrow<Self::X>,
+			{
+				UniformWrappingIntType(UniformInt::<$ty>::new(low.borrow().0, high.borrow().0))
+			}
+			fn new_inclusive<B1, B2>(low: B1, high: B2) -> Self
+			where
+				B1: SampleBorrow<Self::X>,
+				B2: SampleBorrow<Self::X>,
+			{
+				UniformWrappingIntType(UniformInt::<$ty>::new_inclusive(low.borrow().0, high.borrow().0))
+			}
+			fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
+				Wrapping(self.0.sample(rng))
+			}
+		}
+
 		impl IntType for Wrapping<$ty> {
+			const MIN: Self = Self(<$ty>::MIN);
+			const MAX: Self = Self(<$ty>::MAX);
 			const ZERO: Self = Self(0);
 			const ONE: Self = Self(1);
 

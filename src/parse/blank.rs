@@ -1,8 +1,10 @@
 use super::*;
 
+/// A [`Parsable`] that strips whitespace and comments.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Blank;
 
+/// The never type's replacement.
 pub enum Never {}
 
 impl<I, E> From<Never> for Value<I, E> {

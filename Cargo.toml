@@ -11,13 +11,13 @@ license = "MIT"
 # categories = []
 
 [features]
-# default = ["extensions", "compliance"]
-default = ["all-extensions", "strict-compliance"]
+default = ["extensions", "compliance"]
+# default = ["all-extensions", "strict-compliance", "iffy-extensions"]
 
 multithreaded = [] # Enables multithreading support
 extensions = [] # stuff that's not part of base knight
 custom-types = ["extensions"] # Allows users to add custom types in
-
+iffy-extensions = ["extensions"]
 # If this is enabled, ensures that all extensions default to true.
 all-extensions = ["extensions", "multithreaded", "custom-types"]
 

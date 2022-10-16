@@ -359,6 +359,13 @@ impl<I: IntType, E: Encoding> List<I, E> {
 
 		Ok(Some(acc.fetch().unwrap()))
 	}
+
+	pub fn reverse(&self) -> Self {
+		let mut new = self.into_iter().cloned().collect::<Vec<_>>();
+		new.reverse();
+
+		unsafe { Self::new_unchecked(new) }
+	}
 }
 
 impl<I, E> Parsable<I, E> for List<I, E> {

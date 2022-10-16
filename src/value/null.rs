@@ -37,28 +37,28 @@ impl<I, E: Encoding> Parsable<I, E> for Null {
 }
 
 impl<I, E> ToBoolean<I, E> for Null {
-	/// Simple returns `false`.
+	/// Simply returns `false`.
 	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
 
 impl<I: Default, E> ToInteger<I, E> for Null {
-	/// Simple returns zero.
+	/// Simply returns zero.
 	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Integer<I>> {
 		Ok(Integer::default())
 	}
 }
 
 impl<I, E> ToList<I, E> for Null {
-	/// Simple returns an empty [`List`].
+	/// Simply returns an empty [`List`].
 	fn to_list(&self, _: &mut Environment<I, E>) -> Result<List<I, E>> {
 		Ok(List::default())
 	}
 }
 
 impl<I, E> ToText<I, E> for Null {
-	/// Simple returns an empty [`Text`].
+	/// Simply returns an empty [`Text`].
 	fn to_text(&self, _: &mut Environment<I, E>) -> Result<Text<E>> {
 		Ok(Text::default())
 	}
