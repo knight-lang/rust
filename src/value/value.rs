@@ -44,12 +44,6 @@ pub enum Value<I, E> {
 	Custom(crate::value::Custom<I, E>),
 }
 
-unsafe impl<I: Send, E> Send for Value<I, E> {}
-unsafe impl<I: Send + Sync, E> Sync for Value<I, E> {}
-
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Value< (), ()>: Send, Sync);
-
 impl<I: Debug, E> Debug for Value<I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {

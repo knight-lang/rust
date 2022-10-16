@@ -3,8 +3,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(debug_assertions, allow(deprecated))]
 
-extern crate static_assertions as sa;
-
 #[macro_use]
 extern crate cfg_if;
 

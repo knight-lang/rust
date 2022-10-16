@@ -12,25 +12,75 @@ license = "MIT"
 
 [features]
 default = ["extensions", "compliance"]
-# default = ["all-extensions", "strict-compliance", "iffy-extensions"]
 
-multithreaded = [] # Enables multithreading support
-extensions = [] # stuff that's not part of base knight
-custom-types = ["extensions"] # Allows users to add custom types in
+## Enables multithreading support.
+#
+# Normally, Knight uses `Rc` and `RefCell` internally, as Knight programs are single-threaded. If
+# this is enabled, it will switch to using `Arc` and `Mutex`.
+multithreaded = []
+
+## Include extensions which aren't a part of vanilla Knight.
+#
+# This flag controls whether extensions are even compiled---without this flag, absolutely no
+# extensions are even usable. However, this flag _doesn't_ control whether extensions are enabled:
+# That's handled by the `Flags` type (which is passed to `Environment::builder()`).
+#
+# By default, all the extensions flags will default to disabled. If the `all-extensions` flag is 
+# enabled, then all extension flags will instead default to enabled.
+extensions = []
+
+## Allows custom types to be used.
+#
+# This allows the use of the `Custom` variant on `Value`, which allows Rust code interacting with
+# Knight. This feature is also required for a few builtin extensions (such as hashmaps).
+#
+# Extensions which require `custom-types` will default to disabled. If the `all-extensions` flag is
+# enabled, then `custom-types` extensions will default to enabled.
+custom-types = ["extensions"]
+
+## Defaults all extensions to enabled.
+#
+# All extensions (except the `iffy-extensions` below) normally default to disabled. If this flag is
+# used, all extensions will instead default to _enabled_.
+all-extensions = ["extensions", "custom-types"]
+
+## Extensions which change how Knight fundamentally works.
+#
+# These extensions are ones that will alter the Knight interpreter in such a way that valid Knight
+# programs will stop behaving properly---for example, `~list` will reverse the list instead of
+# returning the negation of its length.
+#
+# These extensions are _not_ enabled by the `all-extensions` flag, as they can fundamentally change
+# how Knight programs work. If you want them to be enabled, also enable `all-iffy-extensions`.
 iffy-extensions = ["extensions"]
-# If this is enabled, ensures that all extensions default to true.
-all-extensions = ["extensions", "multithreaded", "custom-types"]
 
-compliance = [] # Compiles in the ability to toggle compliance checks for most things.
-# Enables all compliance-related flags, _and_ defaults all interpreter compliance options to true.
+## Defaults all `iffy-extensions` to true, not false.
+all-iffy-extensions = ["iffy-extensions"]
+
+## Enables checks for less-frequently encountered undefined behaviour.
+#
+# The Knight interpreter already checks for some more common forms of undefined behaviour: Division
+# (or remainder) by zero, using `[` on an empty list, trying to convert a Block to a string, etc.
+# However, some forms of undefined behaviour can either be much more expensive to check (e.g.
+# ensuring that strings and lists aren't longer than `i32::MAX` elements), or are a bit restrictive
+# (forbidding negative numbers to be used with `%`, or Blocks to be used with `?`). This flag is
+# used to compile in checks for these forms.
+#
+# Like `extensions`, just enabling this flag does _not_ enable all compliance checks by default. If
+# you want to ensure that all forms of undefined behaviour checking are enabled, then use the
+# `strict-compliance` flag.
+compliance = []
+
+## Defaults all compliance checks to enabled.
+#
+# When `compliance` is enabled, the checks themselves are just compiled in, but not enabled: The
+# `Flags` type is in control of enabling the checks. If this flag is enabled, all compliance checks
+# default to enabled.
 strict-compliance = ["compliance"]
 
 [dependencies]
 rand = "0.8"
-once_cell = "1.7"
-lazy_static = "1.4"
 clap = { version = "2.33", optional = true }
-static_assertions = "1.1"
 cfg-if = "1.0"
 derive-where = "1.0"
 

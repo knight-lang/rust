@@ -20,9 +20,6 @@ struct Inner<I, E> {
 	value: Mutable<Option<Value<I, E>>>,
 }
 
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Variable< (), ()>: Send, Sync);
-
 impl<I: Debug, E> Debug for Variable<I, E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {

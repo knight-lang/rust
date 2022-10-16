@@ -8,9 +8,6 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Text<E>(RefCount<TextSlice<E>>);
 
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Text<()>: Send, Sync);
-
 impl<E> Debug for Text<E> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&***self, f)

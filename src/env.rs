@@ -12,6 +12,7 @@ cfg_if! {
 if #[cfg(feature = "extensions")] {
 	use crate::value::Text;
 	use crate::function::ExtensionFunction;
+	use std::collections::VecDeque;
 
 	type System<'e, E> =
 		dyn FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
@@ -53,7 +54,7 @@ pub struct Environment<'e, I, E> {
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
-	system_results: std::collections::VecDeque<Text<E>>,
+	system_results: VecDeque<Text<E>>,
 
 	#[cfg(feature = "extensions")]
 	system: Box<System<'e, E>>,
@@ -61,9 +62,6 @@ pub struct Environment<'e, I, E> {
 	#[cfg(feature = "extensions")]
 	read_file: Box<ReadFile<'e, E>>,
 }
-
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Environment<'_, (), ()>: Send, Sync);
 
 impl<I, E> Drop for Environment<'_, I, E> {
 	fn drop(&mut self) {
@@ -84,6 +82,7 @@ impl<I: IntType, E: Encoding> Default for Environment<'_, I, E> {
 
 impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
 	/// Creates a new [`Environment`] with the default configuration.
+	#[must_use]
 	pub fn new() -> Self {
 		Self::default()
 	}
