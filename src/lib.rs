@@ -25,6 +25,8 @@ pub use function::Function;
 pub use parse::{Error as ParseError, Parser};
 pub use value::*;
 
+#[cfg(feature = "play")]
+#[cfg_attr(docsrs, doc(cfg(feature = "play")))]
 pub fn play(
 	encoding: &str,
 	inttype: &str,

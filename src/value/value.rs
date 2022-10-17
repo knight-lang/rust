@@ -6,7 +6,7 @@ use crate::value::{
 };
 use crate::{Ast, Error, Result, Variable};
 use std::cmp::Ordering;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Debug, Formatter};
 
 /// A Value within Knight.
 #[derive_where(Default)]
@@ -150,7 +150,7 @@ impl<I: IntType, E> ToInteger<I, E> for Value<I, E> {
 	}
 }
 
-impl<I: Display, E> ToText<I, E> for Value<I, E> {
+impl<I: IntType, E: Encoding> ToText<I, E> for Value<I, E> {
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(env),

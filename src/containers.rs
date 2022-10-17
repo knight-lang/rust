@@ -17,8 +17,6 @@ pub struct Mutable<T>(
 	#[cfg(feature = "multithreaded")] std::sync::RwLock<T>,
 	#[cfg(not(feature = "multithreaded"))] std::cell::RefCell<T>,
 );
-#[cfg(feature = "multithreaded")]
-sa::assert_impl_all!(Mutable<()>: Send, Sync);
 
 impl<T> From<T> for Mutable<T> {
 	fn from(inp: T) -> Self {

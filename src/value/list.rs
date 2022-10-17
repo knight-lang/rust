@@ -4,7 +4,7 @@ use crate::value::integer::IntType;
 use crate::value::text::Encoding;
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, RefCount, Result, TextSlice};
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};
 
@@ -224,7 +224,8 @@ impl<I, E> List<I, E> {
 	/// Any errors that occur when converting elements to a string are returned.
 	pub fn join(&self, sep: &TextSlice<E>, env: &mut Environment<I, E>) -> Result<Text<E>>
 	where
-		I: Display,
+		I: IntType,
+		E: Encoding,
 	{
 		let mut joined = Text::builder();
 
@@ -422,7 +423,7 @@ impl<I: IntType, E> ToInteger<I, E> for List<I, E> {
 	}
 }
 
-impl<I: Display, E> ToText<I, E> for List<I, E> {
+impl<I: IntType, E: Encoding> ToText<I, E> for List<I, E> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };

@@ -11,7 +11,8 @@ license = "MIT"
 # categories = []
 
 [features]
-default = ["extensions", "compliance"]
+# default = ["extensions", "compliance"]
+default = ["extensions", "compliance", "play", "clap"]
 
 ## Enables multithreading support.
 #
@@ -78,9 +79,13 @@ compliance = []
 # default to enabled.
 strict-compliance = ["compliance"]
 
+
+## Enables the "play" function, which can significantly bloat binary sizes.
+play = []
+
 [dependencies]
 rand = "0.8"
-clap = { version = "2.33", optional = true }
+clap = { version = "4.0", optional = true, features = ["derive"] }
 cfg-if = "1.0"
 derive-where = "1.0"
 
@@ -92,5 +97,5 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[bin]]
 name = "knight"
 path = "src/main.rs"
-# required-features = ["clap"]
+required-features = ["clap", "play"]
 
