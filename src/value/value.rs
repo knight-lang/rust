@@ -309,7 +309,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn add(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => integer.add(rhs.to_integer(env)?, env.flags()).map(Self::from),
+			Self::Integer(integer) => integer.add(rhs.to_integer(env)?).map(Self::from),
 			Self::Text(string) => Ok(string.concat(&rhs.to_text(env)?, env.flags())?.into()),
 			Self::List(list) => list.concat(&rhs.to_list(env)?, env.flags()).map(Self::from),
 
@@ -327,9 +327,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn subtract(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => {
-				integer.subtract(rhs.to_integer(env)?, env.flags()).map(Self::from)
-			}
+			Self::Integer(integer) => integer.subtract(rhs.to_integer(env)?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
 			Self::Text(text) if env.flags().extensions.types.text => {
@@ -350,9 +348,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn multiply(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => {
-				integer.multiply(rhs.to_integer(env)?, env.flags()).map(Self::from)
-			}
+			Self::Integer(integer) => integer.multiply(rhs.to_integer(env)?).map(Self::from),
 
 			Self::Text(lstr) => {
 				let amount = usize::try_from(rhs.to_integer(env)?)
@@ -395,9 +391,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 
 	pub fn divide(&self, rhs: &Self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
-			Self::Integer(integer) => {
-				integer.divide(rhs.to_integer(env)?, env.flags()).map(Self::from)
-			}
+			Self::Integer(integer) => integer.divide(rhs.to_integer(env)?).map(Self::from),
 
 			#[cfg(feature = "extensions")]
 			Self::Text(text) if env.flags().extensions.types.text => {
@@ -677,9 +671,9 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 }
 
 fn fix_len<I: IntType, E: Encoding>(
-	#[cfg_attr(not(feature = "extensions"), allow(unused))] container: &Value<I, E>,
+	container: &Value<I, E>,
 	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer<I>,
-	#[cfg_attr(not(feature = "extensions"), allow(unused))] env: &mut Environment<I, E>,
+	env: &mut Environment<I, E>,
 ) -> Result<usize> {
 	#[cfg(feature = "extensions")]
 	if env.flags().extensions.negative_indexing && start.is_negative() {
@@ -693,8 +687,9 @@ fn fix_len<I: IntType, E: Encoding>(
 			other => return Err(Error::TypeError(other.typename(), "get/set")),
 		};
 
-		start = start.add(len.try_into()?, env.flags())?;
+		start = start.add(len.try_into()?)?;
 	}
 
+	let _ = (container, env);
 	usize::try_from(start).or(Err(Error::DomainError("negative start position")))
 }

@@ -479,7 +479,7 @@ pub fn NEG<I: IntType, E: Encoding>() -> Function<I, E> {
 			}
 		}
 
-		ran.to_integer(env)?.negate(env.flags())?.into()
+		ran.to_integer(env)?.negate()?.into()
 	})
 }
 

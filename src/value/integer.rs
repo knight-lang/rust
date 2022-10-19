@@ -11,7 +11,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
 mod inttype;
-pub use inttype::{Checked, IntType, Wrapping};
+pub use inttype::{Checked, IntType};
 
 /// The integer type within Knight.
 ///
@@ -38,6 +38,12 @@ pub trait ToInteger<I, E> {
 	fn to_integer(&self, env: &mut Environment<I, E>) -> Result<Integer<I>>;
 }
 
+impl<I: PartialEq> PartialEq<I> for Integer<I> {
+	fn eq(&self, rhs: &I) -> bool {
+		self.0 == *rhs
+	}
+}
+
 impl<I: Debug> Debug for Integer<I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
@@ -62,24 +68,39 @@ impl<I> Integer<I> {
 }
 
 impl<I: IntType> Integer<I> {
-	/// The zero value.
+	/// The value zero.
 	pub const ZERO: Self = Self(I::ZERO);
 
-	/// The one value.
+	/// The value one.
 	pub const ONE: Self = Self(I::ONE);
 
-	/// The minimum value.
+	/// The minimum value of an integer.
 	pub const MIN: Self = Self(I::MIN);
 
-	/// The maximum value.
+	/// The maximum value of an integer.
 	pub const MAX: Self = Self(I::MAX);
 
 	/// Returns whether `self` is zero.
+	///
+	/// # Examples
+	/// ```
+	/// # use knightrs::value::Integer;
+	/// assert!(Integer::new(0).is_zero());
+	/// assert!(!Integer::new(1).is_zero());
+	/// ```
 	pub fn is_zero(self) -> bool {
 		self.0 == I::ZERO
 	}
 
 	/// Returns whether `self` is negative.
+	///
+	/// # Examples
+	/// ```
+	/// # use knightrs::value::Integer;
+	/// assert!(Integer::new(-1).is_negative());
+	/// assert!(!Integer::new(0).is_negative());
+	/// assert!(!Integer::new(1).is_negative());
+	/// ```
 	pub fn is_negative(self) -> bool {
 		self.0 < I::ZERO
 	}
@@ -88,32 +109,39 @@ impl<I: IntType> Integer<I> {
 	///
 	/// # Errors
 	/// Any errors [`I::negate`](IntType::negate) returns are bubbled up.
-	pub fn negate(self, flags: &Flags) -> Result<Self> {
-		self.0.negate(flags).map(Self)
+	///
+	/// # Examples
+	/// ```
+	/// # use knightrs::value::Integer;
+	/// assert_eq!(1, Integer::new(-1).negate().unwrap());
+	/// assert_eq!(-2, Integer::new(2).negate().unwrap());
+	/// ```
+	pub fn negate(self) -> Result<Self> {
+		self.0.negate().map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Adds `self` with `augend`.
 	///
 	/// # Errors
 	/// Any errors [`I::add`](IntType::add) returns are bubbled up.
-	pub fn add(self, augend: Self, flags: &Flags) -> Result<Self> {
-		self.0.add(augend.0, flags).map(Self)
+	pub fn add(self, augend: Self) -> Result<Self> {
+		self.0.add(augend.0).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Subtracts `self` by `subtrahend`.
 	///
 	/// # Errors
 	/// Any errors [`I::subtract`](IntType::subtract) returns are bubbled up.
-	pub fn subtract(self, subtrahend: Self, flags: &Flags) -> Result<Self> {
-		self.0.subtract(subtrahend.0, flags).map(Self)
+	pub fn subtract(self, subtrahend: Self) -> Result<Self> {
+		self.0.subtract(subtrahend.0).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Multiplies `self` by `multiplier`.
 	///
 	/// # Errors
 	/// Any errors [`I::multiply`](IntType::multiply) returns are bubbled up.
-	pub fn multiply(self, multiplier: Self, flags: &Flags) -> Result<Self> {
-		self.0.multiply(multiplier.0, flags).map(Self)
+	pub fn multiply(self, multiplier: Self) -> Result<Self> {
+		self.0.multiply(multiplier.0).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Divides `self` by `multiplier`.
@@ -122,12 +150,12 @@ impl<I: IntType> Integer<I> {
 	/// Returns [`Error::DivisionByZero`] if `divisor` is zero.
 	///
 	/// Any errors [`I::divide`](IntType::divide) returns are bubbled up.
-	pub fn divide(self, divisor: Self, flags: &Flags) -> Result<Self> {
+	pub fn divide(self, divisor: Self) -> Result<Self> {
 		if divisor.is_zero() {
 			return Err(Error::DivisionByZero);
 		}
 
-		self.0.divide(divisor.0, flags).map(Self)
+		self.0.divide(divisor.0).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Gets the remainder of `self` and `base`.
@@ -157,7 +185,8 @@ impl<I: IntType> Integer<I> {
 			}
 		}
 
-		self.0.remainder(base.0, flags).map(Self)
+		let _ = flags;
+		self.0.remainder(base.0).map(Self).ok_or(Error::IntegerOverflow)
 	}
 
 	/// Raises `self` to the `exponent`th power.
@@ -176,6 +205,7 @@ impl<I: IntType> Integer<I> {
 	/// If the exponent is negative,
 	pub fn power(self, exponent: Self, flags: &Flags) -> Result<Self> {
 		use std::cmp::Ordering;
+		let _ = flags;
 
 		match exponent.cmp(&Self::ZERO) {
 			#[cfg(feature = "compliance")]
@@ -194,19 +224,19 @@ impl<I: IntType> Integer<I> {
 
 			Ordering::Greater => {
 				let exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?;
-				self.0.power(exp, flags).map(Self)
+				self.0.power(exp).map(Self).ok_or(Error::IntegerOverflow)
 			}
 		}
 	}
 
 	/// Gets the amount of digits in `self`
 	pub fn number_of_digits(self) -> usize {
-		// match self.cmp(&Self::ZERO) {
-		// 	Ordering::Greater => self.0.log10() as usize,
-		// 	Ordering::Equal => 0,
-		// 	Ordering::Less => self.0.negate(),
-		// }
-		self.0.log10() // TODO
+		match self.cmp(&Self::ZERO) {
+			std::cmp::Ordering::Greater => self.0.log10() as usize,
+			std::cmp::Ordering::Equal => 1,
+			std::cmp::Ordering::Less => self.negate().unwrap_or(Self::MAX).number_of_digits(),
+		}
+		// self.0.log10() // TODO
 	}
 
 	/// Attempts to interpret `self` as an UTF8 codepoint.

@@ -1,10 +1,18 @@
-use crate::env::Flags;
-use crate::{Error, Result};
 use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformInt, UniformSampler};
 use rand::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
+/// The backing type for [`Integer`](super::Integer)s in Knight.
+///
+/// Strictly speaking, Knight only requires 32 bit integers, and doesn't specify overflow. This
+/// implementation goes beyond that requirement and also allows you to use 64 bit integers.
+///
+/// For all the functions, `None` should be returned if integer over/underflow happened and should
+/// be reported.
+///
+/// The implementations on [`i32`] and [`i64`] are wrapping operations. To use checked math, use the
+/// [`Checked`] type.
 pub trait IntType:
 	Default
 	+ Copy
@@ -21,93 +29,176 @@ pub trait IntType:
 	+ TryFrom<usize>
 	+ crate::containers::MaybeSendSync
 	+ SampleUniform
-	+ 'static
 {
-	const MAX: Self;
-	const MIN: Self;
+	/// The value `0` for this type.
 	const ZERO: Self;
+
+	/// The value `1` for this type.
 	const ONE: Self;
 
+	/// The maximum possible value for this type.
+	const MAX: Self;
+
+	/// The minimum possible value for this type.
+	const MIN: Self;
+
+	/// Gets the log10 of `self`.
 	fn log10(self) -> usize;
-	fn negate(self, flags: &Flags) -> Result<Self>;
-	fn add(self, rhs: Self, flags: &Flags) -> Result<Self>;
-	fn subtract(self, rhs: Self, flags: &Flags) -> Result<Self>;
-	fn multiply(self, rhs: Self, flags: &Flags) -> Result<Self>;
-	// you can assume `rhs` is nonzero
-	fn divide(self, rhs: Self, flags: &Flags) -> Result<Self>;
-	// you can assume `rhs` is nonzero
-	fn remainder(self, rhs: Self, flags: &Flags) -> Result<Self>;
-	fn power(self, rhs: u32, flags: &Flags) -> Result<Self>;
+
+	/// Negates `self`.
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn negate(self) -> Option<Self>;
+
+	/// Adds `self` to `augend`.
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn add(self, augend: Self) -> Option<Self>;
+
+	/// Subtracts `minuend` from `self`.
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn subtract(self, minuend: Self) -> Option<Self>;
+
+	/// Multiplies `self` by `multiplier`.
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn multiply(self, multiplier: Self) -> Option<Self>;
+
+	/// Divides `self` by `divisor`.
+	///
+	/// The case when `divisor` is zero is handled already by [`Integer::divide`].
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn divide(self, divisor: Self) -> Option<Self>;
+
+	/// Gets the remainder of `self` divided by `base`.
+	///
+	/// The case when `base` is zero is handled already by [`Integer::remainder`].
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn remainder(self, base: Self) -> Option<Self>;
+
+	/// Exponentiates `self` by `power`.
+	///
+	/// If the implementation checks for under/overflows and one occurs, `None` should be returned.
+	fn power(self, power: u32) -> Option<Self>;
 }
 
-macro_rules! create_int_type {
-	($(#[$meta:meta])* $name:ident) => {
-		#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-		pub struct $name<I>(I);
+macro_rules! impl_wrapping_int {
+	($($ty:ty),*) => {$(
+	#[doc = concat!("Implements [`IntType`] for [`", stringify!($ty), "`] by doing wrapping arithmetic")]
+	impl IntType for $ty {
+		const ZERO: Self = 0;
+		const ONE: Self = 1;
+		const MAX: Self = Self::MAX;
+		const MIN: Self = Self::MIN;
 
-		impl<I: Debug> Debug for $name<I> {
-			fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-				Debug::fmt(&self.0, f)
-			}
+		#[inline(always)]
+		fn log10(self) -> usize {
+			self.ilog10() as usize
 		}
 
-		impl<I: Display> Display for $name<I> {
-			fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-				Display::fmt(&self.0, f)
-			}
+		#[inline(always)]
+		fn negate(self) -> Option<Self> {
+			Some(self.wrapping_neg())
 		}
 
-		impl<I: From<i32>> From<i32> for $name<I> {
-			fn from(inp: i32) -> Self {
-				Self(I::from(inp))
-			}
+		#[inline(always)]
+		fn add(self, rhs: Self) -> Option<Self> {
+			Some(self.wrapping_add(rhs))
 		}
 
-		impl<I: Into<i64>> From<$name<I>> for i64 {
-			fn from(inp: $name<I>) -> Self {
-				inp.0.into()
-			}
+		#[inline(always)]
+		fn subtract(self, rhs: Self) -> Option<Self> {
+			Some(self.wrapping_sub(rhs))
 		}
 
-		impl<I: FromStr> FromStr for $name<I> {
-			type Err = I::Err;
-
-			fn from_str(src: &str) -> std::result::Result<Self, Self::Err> {
-				src.parse().map(Self)
-			}
+		#[inline(always)]
+		fn multiply(self, rhs: Self) -> Option<Self> {
+			Some(self.wrapping_mul(rhs))
 		}
 
-		impl<T: TryInto<i32>> TryFrom<$name<T>> for i32 {
-			type Error = T::Error;
-
-			fn try_from(inp: $name<T>) -> std::result::Result<Self, Self::Error> {
-				inp.0.try_into()
-			}
+		#[inline(always)]
+		fn divide(self, rhs: Self) -> Option<Self> {
+			Some(self.wrapping_div(rhs))
 		}
 
-		impl<T: TryFrom<i64>> TryFrom<i64> for $name<T> {
-			type Error = T::Error;
-
-			fn try_from(inp: i64) -> std::result::Result<Self, Self::Error> {
-				T::try_from(inp).map(Self)
-			}
+		#[inline(always)]
+		fn remainder(self, rhs: Self) -> Option<Self> {
+			Some(self.wrapping_rem(rhs))
 		}
 
-		impl<T: TryFrom<usize>> TryFrom<usize> for $name<T> {
-			type Error = T::Error;
-
-			fn try_from(inp: usize) -> std::result::Result<Self, Self::Error> {
-				T::try_from(inp).map(Self)
-			}
+		#[inline(always)]
+		fn power(self, rhs: u32) -> Option<Self> {
+			Some(self.wrapping_pow(rhs))
 		}
-	};
+	})*};
+}
+
+impl_wrapping_int!(i32, i64);
+
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Checked<I>(I);
+
+impl<I: Debug> Debug for Checked<I> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
+}
+
+impl<I: Display> Display for Checked<I> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Display::fmt(&self.0, f)
+	}
+}
+
+impl<I: From<i32>> From<i32> for Checked<I> {
+	fn from(inp: i32) -> Self {
+		Self(I::from(inp))
+	}
+}
+
+impl<I: Into<i64>> From<Checked<I>> for i64 {
+	fn from(inp: Checked<I>) -> Self {
+		inp.0.into()
+	}
+}
+
+impl<I: FromStr> FromStr for Checked<I> {
+	type Err = I::Err;
+
+	fn from_str(src: &str) -> std::result::Result<Self, Self::Err> {
+		src.parse().map(Self)
+	}
+}
+
+impl<T: TryInto<i32>> TryFrom<Checked<T>> for i32 {
+	type Error = T::Error;
+
+	fn try_from(inp: Checked<T>) -> std::result::Result<Self, Self::Error> {
+		inp.0.try_into()
+	}
+}
+
+impl<T: TryFrom<i64>> TryFrom<i64> for Checked<T> {
+	type Error = T::Error;
+
+	fn try_from(inp: i64) -> std::result::Result<Self, Self::Error> {
+		T::try_from(inp).map(Self)
+	}
+}
+
+impl<T: TryFrom<usize>> TryFrom<usize> for Checked<T> {
+	type Error = T::Error;
+
+	fn try_from(inp: usize) -> std::result::Result<Self, Self::Error> {
+		T::try_from(inp).map(Self)
+	}
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct UniformCheckedIntType<T>(UniformInt<T>);
-
-#[derive(Clone, Copy, Debug)]
-pub struct UniformWrappingIntType<T>(UniformInt<T>);
 
 macro_rules! impl_checked_int_type {
 	($($ty:ty),*) => {$(
@@ -155,127 +246,41 @@ macro_rules! impl_checked_int_type {
 			}
 
 			#[inline]
-			fn negate(self, _: &Flags) -> Result<Self> {
-				self.0.checked_neg().map(Self).ok_or(Error::IntegerOverflow)
+			fn negate(self) -> Option<Self> {
+				self.0.checked_neg().map(Self)
 			}
 
 			#[inline]
-			fn add(self, rhs: Self, _: &Flags) -> Result<Self> {
-				self.0.checked_add(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			fn add(self, rhs: Self) -> Option<Self> {
+				self.0.checked_add(rhs.0).map(Self)
 			}
 
 			#[inline]
-			fn subtract(self, rhs: Self, _: &Flags) -> Result<Self> {
-				self.0.checked_sub(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			fn subtract(self, rhs: Self) -> Option<Self> {
+				self.0.checked_sub(rhs.0).map(Self)
 			}
 
 			#[inline]
-			fn multiply(self, rhs: Self, _: &Flags) -> Result<Self> {
-				self.0.checked_mul(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			fn multiply(self, rhs: Self) -> Option<Self> {
+				self.0.checked_mul(rhs.0).map(Self)
 			}
 
 			#[inline]
-			fn divide(self, rhs: Self, _: &Flags) -> Result<Self> {
-				self.0.checked_div(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			fn divide(self, rhs: Self) -> Option<Self> {
+				self.0.checked_div(rhs.0).map(Self)
 			}
 
 			#[inline]
-			fn remainder(self, rhs: Self, _: &Flags) -> Result<Self> {
-				self.0.checked_rem(rhs.0).map(Self).ok_or(Error::IntegerOverflow)
+			fn remainder(self, rhs: Self) -> Option<Self> {
+				self.0.checked_rem(rhs.0).map(Self)
 			}
 
 			#[inline]
-			fn power(self, rhs: u32, _: &Flags) -> Result<Self> {
-				self.0.checked_pow(rhs).map(Self).ok_or(Error::IntegerOverflow)
-			}
-		}
-	)*};
-}
-macro_rules! impl_wrapping_int_type {
-	($($ty:ty),*) => {$(
-		impl SampleUniform for Wrapping<$ty> {
-			type Sampler = UniformWrappingIntType<$ty>;
-		}
-
-		impl UniformSampler for UniformWrappingIntType<$ty> {
-			type X = Wrapping<$ty>;
-			fn new<B1, B2>(low: B1, high: B2) -> Self
-			where
-				B1: SampleBorrow<Self::X>,
-				B2: SampleBorrow<Self::X>,
-			{
-				UniformWrappingIntType(UniformInt::<$ty>::new(low.borrow().0, high.borrow().0))
-			}
-			fn new_inclusive<B1, B2>(low: B1, high: B2) -> Self
-			where
-				B1: SampleBorrow<Self::X>,
-				B2: SampleBorrow<Self::X>,
-			{
-				UniformWrappingIntType(UniformInt::<$ty>::new_inclusive(low.borrow().0, high.borrow().0))
-			}
-			fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
-				Wrapping(self.0.sample(rng))
-			}
-		}
-
-		impl IntType for Wrapping<$ty> {
-			const MIN: Self = Self(<$ty>::MIN);
-			const MAX: Self = Self(<$ty>::MAX);
-			const ZERO: Self = Self(0);
-			const ONE: Self = Self(1);
-
-			#[inline]
-			fn log10(mut self) -> usize {
-				// TODO: integer base10 when that comes out.
-				let mut log = 0;
-				while self.0 != 0 {
-					log += 1;
-					self.0 /= 10;
-				}
-
-				log
-			}
-
-			#[inline]
-			fn negate(self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_neg()))
-			}
-
-			#[inline]
-			fn add(self, rhs: Self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_add(rhs.0)))
-			}
-
-			#[inline]
-			fn subtract(self, rhs: Self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_sub(rhs.0)))
-			}
-
-			#[inline]
-			fn multiply(self, rhs: Self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_mul(rhs.0)))
-			}
-
-			#[inline]
-			fn divide(self, rhs: Self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_div(rhs.0)))
-			}
-
-			#[inline]
-			fn remainder(self, rhs: Self, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_rem(rhs.0)))
-			}
-
-			#[inline]
-			fn power(self, rhs: u32, _: &Flags) -> Result<Self> {
-				Ok(Self(self.0.wrapping_pow(rhs)))
+			fn power(self, rhs: u32) -> Option<Self> {
+				self.0.checked_pow(rhs).map(Self)
 			}
 		}
 	)*};
 }
 
-create_int_type!(Wrapping);
-create_int_type!(Checked);
-
-impl_wrapping_int_type!(i32, i64);
 impl_checked_int_type!(i32, i64);

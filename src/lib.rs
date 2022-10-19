@@ -1,5 +1,5 @@
 #![allow(clippy::module_inception)]
-#![feature(let_else)]
+#![feature(let_else, int_log)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(debug_assertions, allow(deprecated))]
 
@@ -41,7 +41,7 @@ pub fn play(
 		(I; "i32") => (i32);
 		(I; "i64") => (i64);
 		(C; "checked" $x:tt) => (crate::value::integer::Checked<play![I; $x]>);
-		(C; "wrapping" $x:tt) => (crate::value::integer::Wrapping<play![I; $x]>);
+		(C; "wrapping" $x:tt) => (play![I; $x]);
 		($($e:tt $i:tt $c:tt),* $(,)?) => {
 			match (encoding, inttype, overflow) {
 				$(($e, $i, $c) => {
