@@ -17,7 +17,7 @@ impl<I, E: Encoding> Parsable<I, E> for Blank {
 	type Output = Never;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {
-		if parser.strip_whitespace_and_comments() {
+		if parser.strip_whitespace_and_comments().is_some() {
 			Err(parser.error(ErrorKind::RestartParsing))
 		} else {
 			Ok(None)

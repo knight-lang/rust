@@ -1,7 +1,7 @@
 use super::Encoding;
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
-use crate::text::{Character, NewTextError, TextSlice};
+use crate::text::{NewTextError, TextSlice};
 use crate::RefCount;
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -37,14 +37,6 @@ impl<E> std::ops::Deref for Text<E> {
 impl<E> PartialEq<str> for Text<E> {
 	fn eq(&self, rhs: &str) -> bool {
 		**self == *rhs
-	}
-}
-
-impl<E> From<Character<E>> for Text<E> {
-	fn from(inp: Character<E>) -> Self {
-		// SAFETY: We know if we have a `Character` it's already valid, so we don't need to check for
-		// validity again.
-		unsafe { Self::new_unchecked(inp) }
 	}
 }
 
@@ -113,9 +105,7 @@ impl<I, E> Parsable<I, E> for Text<E> {
 		let body = parser.take_while(|chr| chr != quote).unwrap_or_default();
 
 		if parser.advance() != Some(quote) {
-			return Err(
-				parse::ErrorKind::UnterminatedText { quote: quote.inner() }.error(starting_line),
-			);
+			return Err(parse::ErrorKind::UnterminatedText { quote }.error(starting_line));
 		}
 
 		Ok(Some(body.to_owned()))

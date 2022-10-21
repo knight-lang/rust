@@ -114,7 +114,10 @@ pub const MAX_NAME_LEN: usize = 127;
 
 impl<I, E> Variable<I, E> {
 	#[cfg(feature = "compliance")]
-	fn validate_name(name: &TextSlice<E>) -> std::result::Result<(), IllegalVariableName>
+	fn validate_name(
+		name: &TextSlice<E>,
+		flags: &Flags,
+	) -> std::result::Result<(), IllegalVariableName>
 	where
 		E: Encoding,
 	{
@@ -123,13 +126,20 @@ impl<I, E> Variable<I, E> {
 		}
 
 		match name.head() {
-			Some(first) if first.is_lower() => {}
-			Some(first) => return Err(IllegalVariableName::IllegalStartingChar(first.inner())),
+			Some('a'..='z' | '_') => {}
+			Some(first) if !flags.compliance.knight_encoding && first.is_lowercase() => {}
+			Some(first) => return Err(IllegalVariableName::IllegalStartingChar(first)),
 			None => return Err(IllegalVariableName::Empty),
 		}
 
-		if let Some(bad) = name.chars().find(|&c| !c.is_lower() && !c.is_numeric()) {
-			return Err(IllegalVariableName::IllegalBodyChar(bad.inner()));
+		if let Some(bad) = name.chars().find(|&chr| {
+			if flags.compliance.knight_encoding {
+				return !matches!(chr, 'a'..='z' | '_' | '0'..='9');
+			}
+
+			!chr.is_lowercase() && chr != '_' && !chr.is_numeric()
+		}) {
+			return Err(IllegalVariableName::IllegalBodyChar(bad));
 		}
 
 		Ok(())
@@ -141,7 +151,7 @@ impl<I, E> Variable<I, E> {
 	{
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
-			Self::validate_name(&name)?;
+			Self::validate_name(&name, flags)?;
 		}
 
 		let _ = flags;
@@ -188,7 +198,9 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Variable<I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
-		let Some(identifier) = parser.take_while(|chr| chr.is_lower() || chr.is_numeric()) else {
+		let Some(identifier) = parser.take_while(|chr| {
+			chr.is_lowercase() || chr == '_' || chr.is_numeric()
+		}) else {
 			return Ok(None);
 		};
 

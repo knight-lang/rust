@@ -1,5 +1,4 @@
 mod builder;
-mod character;
 mod encoding;
 mod text;
 mod textslice;
@@ -9,10 +8,13 @@ pub trait ToText<I, E> {
 
 use crate::env::Flags;
 pub use builder::Builder;
-pub use character::Character;
 pub use encoding::*;
 pub use text::*;
 pub use textslice::*;
+
+pub const fn is_valid_character(chr: char) -> bool {
+	matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
+}
 
 pub struct Chars<'a, E>(std::marker::PhantomData<E>, std::str::Chars<'a>);
 impl<'a, E> Chars<'a, E> {
@@ -22,10 +24,10 @@ impl<'a, E> Chars<'a, E> {
 }
 
 impl<E> Iterator for Chars<'_, E> {
-	type Item = Character<E>;
+	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.1.next().map(|chr| unsafe { Character::new_unchecked(chr) })
+		self.1.next()
 	}
 }
 
@@ -84,20 +86,13 @@ fn validate<E: Encoding>(data: &str, flags: &Flags) -> Result<(), NewTextError> 
 	{
 		validate_len::<E>(data, flags)?;
 
-		// We're in const context, so we must use `while` with bytes.
-		// Since we're not using unicode, everything's just a byte anyways.
-		let bytes = data.as_bytes();
-		let mut index = 0;
-
-		while index < bytes.len() {
-			let chr = bytes[index] as char;
-
-			if Character::<E>::new(chr).is_none() {
-				// Since everything's a byte, the byte index is the same as the char index.
-				return Err(NewTextError::IllegalChar { chr, index });
+		if flags.compliance.knight_encoding {
+			for (index, chr) in data.chars().enumerate() {
+				if !is_valid_character(chr) {
+					// Since everything's a byte, the byte index is the same as the char index.
+					return Err(NewTextError::IllegalChar { chr, index });
+				}
 			}
-
-			index += 1;
 		}
 	}
 

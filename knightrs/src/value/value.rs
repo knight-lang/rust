@@ -1,6 +1,6 @@
 use crate::env::Environment;
 use crate::value::integer::IntType;
-use crate::value::text::{Character, Encoding};
+use crate::value::text::Encoding;
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -82,12 +82,6 @@ impl<I, E> From<Integer<I>> for Value<I, E> {
 impl<I, E> From<Text<E>> for Value<I, E> {
 	fn from(text: Text<E>) -> Self {
 		Self::Text(text)
-	}
-}
-
-impl<I, E> From<Character<E>> for Value<I, E> {
-	fn from(character: Character<E>) -> Self {
-		Self::Text(Text::from(character))
 	}
 }
 
@@ -248,7 +242,10 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 		let _ = env;
 		match self {
 			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
-			Self::Text(text) => text.head().ok_or(Error::DomainError("empty text")).map(Self::from),
+			Self::Text(text) => text
+				.head()
+				.ok_or(Error::DomainError("empty text"))
+				.map(|chr| unsafe { Text::new_unchecked(chr) }.into()),
 
 			#[cfg(feature = "extensions")]
 			Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
@@ -297,7 +294,10 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 	pub fn ascii(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		let _ = env;
 		match self {
-			Self::Integer(integer) => Ok(integer.chr()?.into()),
+			Self::Integer(integer) => Ok({
+				let chr = integer.chr(env.flags())?;
+				unsafe { Text::new_unchecked(chr) }.into()
+			}),
 			Self::Text(text) => Ok(text.ord()?.into()),
 
 			#[cfg(feature = "custom-types")]

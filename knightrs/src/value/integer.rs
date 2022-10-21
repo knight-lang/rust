@@ -3,7 +3,7 @@
 
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
-use crate::value::text::{Character, Encoding};
+use crate::value::text::Encoding;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformSampler};
@@ -240,11 +240,18 @@ impl<I: IntType> Integer<I> {
 	}
 
 	/// Attempts to interpret `self` as an UTF8 codepoint.
-	pub fn chr<E: Encoding>(self) -> Result<Character<E>> {
+	pub fn chr(self, flags: &Flags) -> Result<char> {
 		u32::try_from(self.0.into())
 			.ok()
 			.and_then(char::from_u32)
-			.and_then(Character::new)
+			.and_then(|c| {
+				#[cfg(feature = "compliance")]
+				if flags.compliance.knight_encoding && !crate::value::text::is_valid_character(c) {
+					return None;
+				}
+
+				Some(c)
+			})
 			.ok_or(Error::DomainError("number isn't a valid char"))
 	}
 
@@ -326,7 +333,7 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Integer<I> {
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
 		parser
-			.take_while(Character::is_numeric)
+			.take_while(|c| c.is_ascii_digit())
 			.map(|src| src.parse())
 			.transpose()
 			.map_err(|_| parser.error(parse::ErrorKind::IntegerLiteralOverflow))

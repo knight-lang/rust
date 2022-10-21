@@ -2,7 +2,7 @@
 
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::{Environment, Flags};
-use crate::value::text::{Character, Encoding, TextSlice};
+use crate::value::text::{Encoding, TextSlice};
 use crate::value::{integer::IntType, Value};
 use std::fmt::{self, Display, Formatter};
 
@@ -238,24 +238,18 @@ impl ErrorKind {
 /// Helper trait for [`Praser::advance_if`].
 pub trait AdvanceIfCondition<E> {
 	/// Checks to see whether we should advance past `chr`.
-	fn should_advance(self, chr: Character<E>) -> bool;
+	fn should_advance(self, chr: char) -> bool;
 }
 
-impl<E, T: FnOnce(Character<E>) -> bool> AdvanceIfCondition<E> for T {
-	fn should_advance(self, chr: Character<E>) -> bool {
+impl<E, T: FnOnce(char) -> bool> AdvanceIfCondition<E> for T {
+	fn should_advance(self, chr: char) -> bool {
 		self(chr)
 	}
 }
 
-impl<E> AdvanceIfCondition<E> for Character<E> {
-	fn should_advance(self, chr: Character<E>) -> bool {
-		self == chr
-	}
-}
-
 impl<E> AdvanceIfCondition<E> for char {
-	fn should_advance(self, chr: Character<E>) -> bool {
-		chr == self
+	fn should_advance(self, chr: char) -> bool {
+		self == chr
 	}
 }
 
@@ -286,12 +280,12 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 
 	/// Gets, without consuming, the next character (if it exists).
 	#[must_use = "peeking doesn't advance the parser"]
-	pub fn peek(&self) -> Option<Character<E>> {
+	pub fn peek(&self) -> Option<char> {
 		self.source.head()
 	}
 
 	/// Gets, and advances past, the next character if `cond` matches.
-	pub fn advance_if<F>(&mut self, cond: F) -> Option<Character<E>>
+	pub fn advance_if<F>(&mut self, cond: F) -> Option<char>
 	where
 		F: AdvanceIfCondition<E>,
 	{
@@ -311,14 +305,14 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 
 	/// Advance unequivocally.
-	pub fn advance(&mut self) -> Option<Character<E>> {
+	pub fn advance(&mut self) -> Option<char> {
 		self.advance_if(|_| true)
 	}
 
 	/// Takes characters from while `func` returns true. `None` is returned if nothing was parsed.
 	pub fn take_while<F>(&mut self, mut func: F) -> Option<&'s TextSlice<E>>
 	where
-		F: FnMut(Character<E>) -> bool,
+		F: FnMut(char) -> bool,
 	{
 		let start = self.source;
 
@@ -336,32 +330,38 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 
 	// impl<'s,  I, E: Encoding> Parser<'s,  I, E> {
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
-	pub fn strip_whitespace_and_comments(&mut self) -> bool
+	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice<E>>
 	where
 		E: Encoding,
 	{
-		let mut anything_stripped = false;
+		let start = self.source;
+
 		loop {
 			// strip all leading whitespace, if any.
-			anything_stripped |= self.take_while(|c| c.is_whitespace() || c == ':').is_some();
+			self.take_while(|c| c.is_whitespace() || c == ':');
 
 			// If we're not at the start of a comment, break out
 			if self.advance_if('#').is_none() {
-				return anything_stripped;
+				break;
 			}
 
 			// Eat a comment.
 			self.take_while(|chr| chr != '\n');
-			anything_stripped = true;
 		}
+
+		if start.len() == self.source.len() {
+			return None;
+		}
+
+		Some(start.get(..start.len() - self.source.len()).unwrap())
 	}
 
 	/// Removes the remainder of a keyword function.
-	pub fn strip_keyword_function(&mut self)
+	pub fn strip_keyword_function(&mut self) -> Option<&'s TextSlice<E>>
 	where
 		E: Encoding,
 	{
-		self.take_while(Character::is_upper);
+		self.take_while(|c| c.is_uppercase() || c == '_')
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.

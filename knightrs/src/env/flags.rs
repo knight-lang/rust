@@ -48,6 +48,7 @@ const ALL_EXTENSIONS: bool = cfg!(feature = "all-extensions");
 pub(crate) static DEFAULT: Flags = Flags {
 	#[cfg(feature = "compliance")]
 	compliance: Compliance {
+		knight_encoding: STRICT_COMPLIANCE,
 		check_quit_bounds: STRICT_COMPLIANCE,
 		forbid_trailing_tokens: STRICT_COMPLIANCE,
 		verify_variable_names: STRICT_COMPLIANCE,
@@ -116,6 +117,9 @@ if #[cfg(feature = "compliance")] {
 	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Compliance {
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub knight_encoding: bool,
+
 		/// Ensure [`QUIT`](crate::function::QUIT)'s argument is within `0..=127`.
 		#[cfg_attr(feature = "clap", arg(long))]
 		pub check_quit_bounds: bool,

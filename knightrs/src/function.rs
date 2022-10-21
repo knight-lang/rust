@@ -2,7 +2,7 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::integer::IntType;
-use crate::value::text::{Character, Encoding, TextSlice};
+use crate::value::text::{Encoding, TextSlice};
 use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
 use crate::{Environment, Error, RefCount, Result, Value};
 use std::borrow::Borrow;
@@ -22,7 +22,7 @@ pub struct Function<I, E>(RefCount<Inner<I, E>>);
 struct Inner<I, E> {
 	func: FnType<I, E>,
 	full_name: Text<E>,
-	short_name: Option<Character<E>>,
+	short_name: Option<char>,
 	arity: usize,
 }
 
@@ -50,8 +50,8 @@ impl<I, E> Hash for Function<I, E> {
 	}
 }
 
-impl<I, E> Borrow<Character<E>> for Function<I, E> {
-	fn borrow(&self) -> &Character<E> {
+impl<I, E> Borrow<char> for Function<I, E> {
+	fn borrow(&self) -> &char {
 		self.0.short_name.as_ref().expect("<invalid function>")
 	}
 }
@@ -116,7 +116,7 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Function<I, E> {
 		// FIXME: make this parsing part of the extension function itself
 		#[cfg(feature = "extensions")]
 		if parser.peek().map_or(false, |chr| chr == 'X') {
-			let name = parser.take_while(crate::value::text::Character::is_upper).unwrap();
+			let name = parser.strip_keyword_function().unwrap();
 
 			return parser.env().extensions().get(name).cloned().map(|e| Some(e.0)).ok_or_else(|| {
 				parser.error(parse::ErrorKind::UnknownExtensionFunction(name.to_string()))
@@ -131,7 +131,7 @@ impl<I: IntType, E: Encoding> Parsable<I, E> for Function<I, E> {
 			return Ok(None);
 		};
 
-		if head.is_upper() {
+		if head.is_uppercase() {
 			parser.strip_keyword_function();
 		} else {
 			parser.advance();
@@ -162,9 +162,7 @@ impl<I, E> Function<I, E> {
 		Self(RefCount::from(Inner {
 			arity,
 			func: FnType::Alloc(Box::new(func) as _),
-			short_name: Some(unsafe {
-				Character::new_unchecked(full_name.as_str().as_bytes()[0] as char)
-			}),
+			short_name: Some(full_name.head().unwrap()),
 			full_name,
 		}))
 	}
@@ -179,7 +177,7 @@ impl<I, E> Function<I, E> {
 
 	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
 	#[must_use]
-	pub fn short_name(&self) -> Option<Character<E>> {
+	pub fn short_name(&self) -> Option<char> {
 		self.0.short_name
 	}
 
@@ -267,7 +265,7 @@ macro_rules! function {
 		Function(RefCount::from(Inner{
 			full_name: unsafe { Text::new_unchecked($name) },
 			arity: arity!($($args)*),
-			short_name: Some(unsafe {Character::new_unchecked(TextSlice::<E>::new_unchecked($name).as_str().as_bytes()[0] as char) }),
+			short_name: Some(unsafe {TextSlice::<E>::new_unchecked($name).as_str().as_bytes()[0] as char }),
 			func: FnType::FnPtr(|args, $env| {
 				let [$($args,)*]: &[Value::< I, E>; arity!($($args)*)] = args.try_into().unwrap();
 				Ok($body)

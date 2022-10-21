@@ -1,4 +1,4 @@
-use super::{validate, Character, Chars, Encoding, NewTextError, Text};
+use super::{validate, Chars, Encoding, NewTextError, Text};
 use crate::env::{Environment, Flags};
 use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
@@ -126,13 +126,11 @@ impl<E> TextSlice<E> {
 	}
 
 	pub fn ord<I: IntType>(&self) -> crate::Result<Integer<I>> {
-		Integer::try_from(
-			self.chars().next().ok_or(crate::Error::DomainError("empty string"))?.inner(),
-		)
+		Integer::try_from(self.chars().next().ok_or(crate::Error::DomainError("empty string"))?)
 	}
 
 	/// Gets the first character of `self`, if it exists.
-	pub fn head(&self) -> Option<Character<E>> {
+	pub fn head(&self) -> Option<char> {
 		self.chars().next()
 	}
 
@@ -162,7 +160,7 @@ impl<E> ToOwned for TextSlice<E> {
 }
 
 impl<'a, E> IntoIterator for &'a TextSlice<E> {
-	type Item = Character<E>;
+	type Item = char;
 	type IntoIter = Chars<'a, E>;
 
 	fn into_iter(self) -> Self::IntoIter {
@@ -194,7 +192,8 @@ impl<I: IntType, E> ToInteger<I, E> for Text<E> {
 
 impl<I, E> ToList<I, E> for Text<E> {
 	fn to_list(&self, _: &mut Environment<I, E>) -> crate::Result<List<I, E>> {
-		let chars = self.chars().map(Value::from).collect::<Vec<_>>();
+		let chars =
+			self.chars().map(|c| unsafe { Self::new_unchecked(c) }.into()).collect::<Vec<_>>();
 
 		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
 		Ok(unsafe { List::new_unchecked(chars) })

@@ -26,8 +26,8 @@ impl<E> Builder<E> {
 	}
 
 	/// Adds the given `chr` to the end of the builder.
-	pub fn push_char(&mut self, chr: Character<E>) {
-		self.0.push(chr.inner());
+	pub fn push_char(&mut self, chr: char) {
+		self.0.push(chr);
 	}
 
 	/// Finishes constructing the [`Text`] and returns it.
