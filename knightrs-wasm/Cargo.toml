@@ -1,0 +1,21 @@
+[package]
+name = "knightrs-wasm"
+version = "0.9.9"
+authors = ["Sam Westerman <mail@sampersand.me>"]
+edition = "2021"
+description = "The Knight programming language's wasm version, in Rust"
+repository = "https://github.com/knight-lang/rust"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+
+[dependencies]
+knightrs = { path = "../knightrs", features = ["serde", "play", "iffy-extensions"] }
+wasm-bindgen = "0.2"
+getrandom = { version = "*", features = ["js"] }
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.4"

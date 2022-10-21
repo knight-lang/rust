@@ -8,6 +8,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "clap", derive(clap::Args))]
 #[cfg_attr(feature = "clap", command(next_line_help = false))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub struct Flags {
 	/// Knight specification conformity flags.
@@ -112,6 +113,7 @@ if #[cfg(feature = "compliance")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "compliance")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Compliance {
 		/// Ensure [`QUIT`](crate::function::QUIT)'s argument is within `0..=127`.
@@ -180,6 +182,7 @@ if #[cfg(feature = "extensions")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Extensions {
 		/// Extension function flags.
@@ -224,6 +227,7 @@ if #[cfg(feature = "extensions")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Functions {
 		/// Enables the [`VALUE`](crate::function::VALUE) function.
@@ -277,6 +281,7 @@ if #[cfg(feature = "extensions")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Types {
 		/// Enables [`Boolean`](crate::value::Boolean)-related extensions.
@@ -334,6 +339,7 @@ if #[cfg(feature = "extensions")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct AssignTo {
 		/// Allows you to assign to `PROMPT`. See [`Prompt`](crate::env::Prompt) for details.
@@ -385,6 +391,7 @@ if #[cfg(feature = "iffy-extensions")] {
 	#[cfg_attr(docsrs, doc(cfg(feature = "iffy-extensions")))]
 	#[cfg_attr(feature = "clap", derive(clap::Args))]
 	#[cfg_attr(feature = "clap", command(next_line_help = false))]
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 	#[non_exhaustive]
 	pub struct Iffy {
 		/// Instead of erroring on undefined variables, have them default to `NULL`

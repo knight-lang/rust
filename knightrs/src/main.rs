@@ -412,26 +412,26 @@ struct Cli {
 	flags: knightrs::env::Flags,
 }
 
-fn main() {
-	let cli = Cli::parse();
-}
-
 // fn main() {
-// 	let arg = std::env::args().nth(2).expect("no arg");
-
-// 	let arg = if std::env::args().nth(1).unwrap() == "-e" {
-// 		arg
-// 	} else {
-// 		std::fs::read_to_string(&*arg).unwrap()
-// 	};
-
-// 	// match knightrs::play("utf8", "i64", "wrapping", &arg, &Default::default()) {
-// 	match knightrs::play("knight-encoding", "i32", "checked", &arg, &Default::default()) {
-// 		Err(knightrs::Error::Quit(code)) => std::process::exit(code),
-// 		Err(err) => {
-// 			eprintln!("error: {err}");
-// 			std::process::exit(1);
-// 		}
-// 		_ => {}
-// 	}
+// let cli = Cli::parse();
 // }
+
+fn main() {
+	let arg = std::env::args().nth(2).expect("no arg");
+
+	let arg = if std::env::args().nth(1).unwrap() == "-e" {
+		arg
+	} else {
+		std::fs::read_to_string(&*arg).unwrap()
+	};
+
+	// match knightrs::play("utf8", "i64", "wrapping", &arg, &Default::default()) {
+	match knightrs::play("knight-encoding", "i32", "checked", &arg, &Default::default()) {
+		Err(knightrs::Error::Quit(code)) => std::process::exit(code),
+		Err(err) => {
+			eprintln!("error: {err}");
+			std::process::exit(1);
+		}
+		_ => {}
+	}
+}
