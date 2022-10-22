@@ -3,21 +3,19 @@ use crate::env::{Environment, Flags};
 use crate::value::{Integer, List, ToList, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
-#[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct TextSlice(str);
 
-// SAFETY: `E` is only phantomdata
-unsafe impl Send for TextSlice {}
-unsafe impl Sync for TextSlice {}
-
 impl Debug for TextSlice {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
 
 impl Default for &TextSlice {
+	#[inline]
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
 		unsafe { TextSlice::new_unchecked("") }
@@ -25,8 +23,9 @@ impl Default for &TextSlice {
 }
 
 impl Display for TextSlice {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Display::fmt(&**self, f)
+		Display::fmt(&self.0, f)
 	}
 }
 
@@ -57,12 +56,16 @@ impl TextSlice {
 
 	/// Tries to create a new [`TextSlice`], returning an error if not possible.
 	pub fn new<'s>(inp: &'s str, flags: &Flags) -> Result<&'s Self, NewTextError> {
-		validate(inp, flags).map(|_| unsafe { Self::new_unchecked(inp) })
+		validate(inp, flags)?;
+
+		Ok(unsafe { Self::new_unchecked(inp) })
 	}
 
 	#[deprecated]
 	pub fn new_boxed(inp: Box<str>, flags: &Flags) -> Result<Box<Self>, NewTextError> {
-		validate(&inp, flags).map(|_| unsafe { Self::new_boxed_unchecked(inp) })
+		validate(&inp, flags)?;
+
+		Ok(unsafe { Self::new_boxed_unchecked(inp) })
 	}
 
 	#[deprecated]
@@ -88,6 +91,7 @@ impl TextSlice {
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
+	/// Concatenates two strings together
 	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text, NewTextError> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 

@@ -1,9 +1,10 @@
 #![allow(non_snake_case)]
-use crate::env::Flags;
+
+use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::TextSlice;
 use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
-use crate::{Environment, Error, RefCount, Result, Value};
+use crate::{Error, RefCount, Result, Value};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -35,6 +36,7 @@ pub enum FnType {
 impl Eq for Function {}
 impl PartialEq for Function {
 	/// Functions are only equal if they're identical.
+	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -63,45 +65,6 @@ impl Debug for Function {
 		} else {
 			f.debug_tuple("Function").field(&self.full_name()).finish()
 		}
-	}
-}
-
-pub struct ExtensionFunction(pub Function);
-impl Clone for ExtensionFunction {
-	fn clone(&self) -> Self {
-		Self(self.0.clone())
-	}
-}
-
-impl Eq for ExtensionFunction {}
-impl PartialEq for ExtensionFunction {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.0 == rhs.0
-	}
-}
-impl Debug for ExtensionFunction {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		if f.alternate() {
-			f.debug_struct("ExtensionFunction")
-				.field("name", &self.0.full_name())
-				.field("arity", &self.0.arity())
-				// .field("fnptr", &(self.func.0 as usize as *const ()))
-				.finish()
-		} else {
-			f.debug_tuple("ExtensionFunction").field(&self.0.full_name()).finish()
-		}
-	}
-}
-
-impl Hash for ExtensionFunction {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.0 .0.full_name.hash(state)
-	}
-}
-
-impl Borrow<TextSlice> for ExtensionFunction {
-	fn borrow(&self) -> &TextSlice {
-		&self.0 .0.full_name
 	}
 }
 
@@ -167,24 +130,25 @@ impl Function {
 	///
 	/// For extension functions that start with `X`, this should also start with it.
 	#[must_use]
+	#[inline]
 	pub fn full_name(&self) -> &Text {
 		&self.0.full_name
 	}
 
 	/// Gets the shorthand name for `self`. Returns `None` if it's an `X` function.
 	#[must_use]
+	#[inline]
 	pub fn short_name(&self) -> Option<char> {
 		self.0.short_name
 	}
 
 	/// The arity of the function, i.e. how many arguments it takes.
 	#[must_use]
+	#[inline]
 	pub fn arity(&self) -> usize {
 		self.0.arity
 	}
-}
 
-impl Function {
 	/// Executes this function
 	pub fn run<'e>(&self, args: &[Value], env: &mut Environment) -> Result<Value> {
 		debug_assert_eq!(args.len(), self.arity());
@@ -227,30 +191,56 @@ impl Function {
 	}
 }
 
-#[cfg(feature = "extensions")]
-impl ExtensionFunction {
-	pub(crate) fn default_set(flags: &Flags) -> HashSet<Self> {
-		let mut map = HashSet::new();
+cfg_if! {
+if #[cfg(feature = "extensions")] {
+	#[derive(Debug, Clone)]
+	pub struct ExtensionFunction(pub Function);
 
-		macro_rules! insert {
-			($($feature:ident $name:ident)*) => {
-				$(
-					if flags.extensions.functions.$feature {
-						map.insert($name());
-					}
-				)*
-			}
+	impl Eq for ExtensionFunction {}
+	impl PartialEq for ExtensionFunction {
+		#[inline]
+		fn eq(&self, rhs: &Self) -> bool {
+			self.0 == rhs.0
 		}
-
-		insert! {
-			xsrand XSRAND
-			xreverse XREVERSE
-			xrange XRANGE
-		}
-
-		map
 	}
-}
+
+	impl Hash for ExtensionFunction {
+		fn hash<H: Hasher>(&self, state: &mut H) {
+			self.0 .0.full_name.hash(state)
+		}
+	}
+
+	impl Borrow<TextSlice> for ExtensionFunction {
+		#[inline]
+		fn borrow(&self) -> &TextSlice {
+			&self.0 .0.full_name
+		}
+	}
+
+	impl ExtensionFunction {
+		pub(crate) fn default_set(flags: &Flags) -> HashSet<Self> {
+			let mut map = HashSet::new();
+
+			macro_rules! insert {
+				($($feature:ident $name:ident)*) => {
+					$(
+						if flags.extensions.functions.$feature {
+							map.insert($name());
+						}
+					)*
+				}
+			}
+
+			insert! {
+				xsrand XSRAND
+				xreverse XREVERSE
+				xrange XRANGE
+			}
+
+			map
+		}
+	}
+}}
 
 macro_rules! arity {
 	() => (0);
@@ -270,7 +260,7 @@ macro_rules! function {
 	};
 }
 
-#[cfg_attr(not(feature = "extensions"), allow(unused_macros))]
+#[cfg(feature = "extensions")]
 macro_rules! xfunction {
 	($($tt:tt)*) => {
 		ExtensionFunction(function!($($tt)*))

@@ -27,10 +27,16 @@ pub enum Error {
 	/// Division/Modulo by zero.
 	DivisionByZero,
 
-	/// There was an issue with parsing (eg `EVAL` failed).
+	/// There was an issue with parsing
+	///
+	/// This is normally returned by the [`Parser`](crate::parse::Parser), but the [`EVAL`](
+	/// crate::function::EVAL) extension can also cause this.
 	ParseError(ParseError),
 
 	/// The `QUIT` command was run.
+	///
+	/// Instead of actually exiting the process (which would make Knight unable to be embedded), this
+	/// error is returned; the caller can do what they wish then.
 	Quit(i32),
 
 	/// Indicates that either `GET` or `SET` were given an index that was out of bounds.
@@ -105,7 +111,7 @@ impl std::error::Error for Error {
 			Self::IllegalVariableName(err) => Some(err),
 
 			#[cfg(feature = "extensions")]
-			Self::Custom(err) => Some(&**err),
+			Self::Custom(err) => Some(err.as_ref()),
 
 			_ => None,
 		}

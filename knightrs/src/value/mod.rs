@@ -31,5 +31,5 @@ pub trait NamedType {
 /// A trait indicating a type can be run.
 pub trait Runnable {
 	/// Runs `self`.
-	fn run(&self, env: &mut crate::Environment) -> crate::Result<Value>;
+	fn run(&self, env: &mut crate::env::Environment) -> crate::Result<Value>;
 }

@@ -1,9 +1,9 @@
 //! Types relating to [`Variable`]s.
 
-use crate::env::Flags;
+use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{NamedType, Runnable, Text, TextSlice, Value};
-use crate::{Environment, Error, Mutable, RefCount, Result};
+use crate::{Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};

@@ -1,7 +1,7 @@
+use crate::env::Environment;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::TextSlice;
 use crate::value::{Integer, List, NamedType, Text, ToInteger, ToList, ToText};
-use crate::{Environment, Result};
 
 /// The boolean type within Knight.
 pub type Boolean = bool;
@@ -9,7 +9,7 @@ pub type Boolean = bool;
 /// Represents the ability to be converted to a [`Boolean`].
 pub trait ToBoolean {
 	/// Converts `self` to a [`Boolean`].
-	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean>;
+	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean>;
 }
 
 impl NamedType for Boolean {
@@ -33,7 +33,7 @@ impl Parsable for Boolean {
 impl ToBoolean for Boolean {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> Result<Self> {
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Self> {
 		Ok(*self)
 	}
 }
@@ -41,7 +41,7 @@ impl ToBoolean for Boolean {
 impl ToInteger for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
 		if *self {
 			Ok(Integer::ONE)
 		} else {
@@ -53,7 +53,7 @@ impl ToInteger for Boolean {
 impl ToList for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> Result<List> {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {
@@ -65,7 +65,7 @@ impl ToList for Boolean {
 impl ToText for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_text(&self, _: &mut Environment) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment) -> crate::Result<Text> {
 		const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
 		const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
 

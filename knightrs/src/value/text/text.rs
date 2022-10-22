@@ -29,32 +29,42 @@ impl Display for Text {
 impl std::ops::Deref for Text {
 	type Target = TextSlice;
 
+	#[inline]
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
 impl PartialEq<str> for Text {
+	#[inline]
 	fn eq(&self, rhs: &str) -> bool {
 		**self == *rhs
 	}
 }
 
 impl Text {
+	/// Shorthand for [`Builder::new`].
 	pub fn builder() -> super::Builder {
-		Default::default()
+		super::Builder::new()
 	}
 
 	pub fn new<T: ToString>(inp: T, flags: &Flags) -> Result<Self, NewTextError> {
 		TextSlice::new_boxed(inp.to_string().into(), flags).map(|x| Self(x.into()))
 	}
 
-	pub unsafe fn new_unchecked<T: ToString>(inp: T) -> Self {
-		let boxed = inp.to_string().into_boxed_str();
+	/// Creates a new [`Text`] without validating the input.
+	///
+	/// # Safety
+	/// If `compliance` is not enabled, then this function is always safe to call. If it is enabled,
+	/// then callers must ensure that `string`, after being converted to a string, is a valid
+	/// [`TextSlice`].
+	pub unsafe fn new_unchecked<T: ToString>(string: T) -> Self {
+		let boxed = string.to_string().into_boxed_str();
 
 		Self(RefCount::from(Box::from_raw(Box::into_raw(boxed) as *mut TextSlice)))
 	}
 
+	/// Creates a new [`Text`] without validating that the contents are of the right encoding.
 	pub unsafe fn new_len_unchecked<T>(inp: T, flags: &Flags) -> Result<Self, NewTextError>
 	where
 		T: ToString,
@@ -78,12 +88,6 @@ impl From<&TextSlice> for Text {
 		unsafe { Self::new_unchecked(text) }
 	}
 }
-
-// impl FromIterator<Character> for Text {
-// 	fn from_iter<T: IntoIterator<Item = Character>>(iter: T) -> Self {
-// 		iter.into_iter().map(char::from).collect::<String>().try_into().unwrap()
-// 	}
-// }
 
 impl Parsable for Text {
 	type Output = Self;

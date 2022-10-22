@@ -287,7 +287,8 @@ impl Integer {
 			.and_then(char::from_u32)
 			.and_then(|c| {
 				#[cfg(feature = "compliance")]
-				if flags.compliance.knight_encoding && !crate::value::text::is_valid_character(c) {
+				if flags.compliance.knight_encoding && !crate::value::text::is_valid_character(c, flags)
+				{
 					return None;
 				}
 

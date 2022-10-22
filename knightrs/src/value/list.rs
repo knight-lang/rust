@@ -1,7 +1,7 @@
-use crate::env::Flags;
+use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
-use crate::{Environment, RefCount, Result, TextSlice};
+use crate::{RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};

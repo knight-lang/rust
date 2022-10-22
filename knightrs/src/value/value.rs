@@ -1,8 +1,8 @@
-use crate::env::Environment;
+use crate::env::{Environment, Variable};
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
-use crate::{Ast, Error, Result, Variable};
+use crate::{Ast, Error, Result};
 use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 
