@@ -5,47 +5,47 @@ use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText,
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[repr(transparent)]
-#[derive_where(PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TextSlice<E>(std::marker::PhantomData<E>, str);
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TextSlice(str);
 
 // SAFETY: `E` is only phantomdata
-unsafe impl<E> Send for TextSlice<E> {}
-unsafe impl<E> Sync for TextSlice<E> {}
+unsafe impl Send for TextSlice {}
+unsafe impl Sync for TextSlice {}
 
-impl<E> Debug for TextSlice<E> {
+impl Debug for TextSlice {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(&self.1, f)
+		Debug::fmt(&self.0, f)
 	}
 }
 
-impl<E> Default for &TextSlice<E> {
+impl Default for &TextSlice {
 	fn default() -> Self {
 		// SAFETY: we know that `""` is a valid string, as it contains nothing.
 		unsafe { TextSlice::new_unchecked("") }
 	}
 }
 
-impl<E> Display for TextSlice<E> {
+impl Display for TextSlice {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl<E> PartialEq<str> for TextSlice<E> {
+impl PartialEq<str> for TextSlice {
 	fn eq(&self, rhs: &str) -> bool {
-		self.1 == *rhs
+		self.0 == *rhs
 	}
 }
 
-impl<E> std::ops::Deref for TextSlice<E> {
+impl std::ops::Deref for TextSlice {
 	type Target = str;
 
 	fn deref(&self) -> &Self::Target {
-		&self.1
+		&self.0
 	}
 }
 
-impl<E> TextSlice<E> {
+impl TextSlice {
 	/// Creates a new [`TextSlice`] without validating that `inp`'s a valid string for `E`.
 	///
 	/// # Safety
@@ -74,22 +74,22 @@ impl<E> TextSlice<E> {
 	}
 
 	pub const fn as_str(&self) -> &str {
-		&self.1
+		&self.0
 	}
 
 	/// Gets an iterate over [`Character`]s.
-	pub fn chars(&self) -> Chars<'_, E> {
-		Chars(std::marker::PhantomData, self.1.chars())
+	pub fn chars(&self) -> Chars<'_> {
+		Chars(self.0.chars())
 	}
 
 	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-		let substring = self.1.get(range)?;
+		let substring = self.0.get(range)?;
 
 		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
 		Some(unsafe { Self::new_unchecked(substring) })
 	}
 
-	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text<E>, NewTextError> {
+	pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text, NewTextError> {
 		let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		builder.push(self);
@@ -98,16 +98,16 @@ impl<E> TextSlice<E> {
 		builder.finish(flags)
 	}
 
-	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text<E>, NewTextError> {
+	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text, NewTextError> {
 		unsafe { Text::new_len_unchecked((**self).repeat(amount), flags) }
 	}
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I, E>) -> List<I, E> {
+	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I>) -> List<I> {
 		if sep.is_empty() {
 			// TODO: optimize me
-			return Value::<I, E>::from(self.to_owned()).to_list(env).unwrap();
+			return Value::<I>::from(self.to_owned()).to_list(env).unwrap();
 		}
 
 		let chars = (**self)
@@ -129,63 +129,63 @@ impl<E> TextSlice<E> {
 	}
 
 	/// Gets everything _but_ the first character of `self`, if it exists.
-	pub fn tail(&self) -> Option<&TextSlice<E>> {
+	pub fn tail(&self) -> Option<&TextSlice> {
 		self.get(1..)
 	}
 
-	pub fn remove_substr(&self, substr: &Self) -> Text<E> {
+	pub fn remove_substr(&self, substr: &Self) -> Text {
 		let _ = substr;
 		todo!();
 	}
 }
 
-impl<'a, E> From<&'a TextSlice<E>> for &'a str {
-	fn from(text: &'a TextSlice<E>) -> Self {
+impl<'a> From<&'a TextSlice> for &'a str {
+	fn from(text: &'a TextSlice) -> Self {
 		text
 	}
 }
 
-impl<E> ToOwned for TextSlice<E> {
-	type Owned = Text<E>;
+impl ToOwned for TextSlice {
+	type Owned = Text;
 
 	fn to_owned(&self) -> Self::Owned {
 		self.into()
 	}
 }
 
-impl<'a, E> IntoIterator for &'a TextSlice<E> {
+impl<'a> IntoIterator for &'a TextSlice {
 	type Item = char;
-	type IntoIter = Chars<'a, E>;
+	type IntoIter = Chars<'a>;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.chars()
 	}
 }
 
-impl<I, E> ToBoolean<I, E> for Text<E> {
-	fn to_boolean(&self, _: &mut Environment<I, E>) -> crate::Result<Boolean> {
+impl<I> ToBoolean<I> for Text {
+	fn to_boolean(&self, _: &mut Environment<I>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<I, E> ToText<I, E> for Text<E> {
-	fn to_text(&self, _: &mut Environment<I, E>) -> crate::Result<Self> {
+impl<I> ToText<I> for Text {
+	fn to_text(&self, _: &mut Environment<I>) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl<E> crate::value::NamedType for Text<E> {
+impl crate::value::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<I: IntType, E> ToInteger<I, E> for Text<E> {
-	fn to_integer(&self, _: &mut Environment<I, E>) -> crate::Result<Integer<I>> {
+impl<I: IntType> ToInteger<I> for Text {
+	fn to_integer(&self, _: &mut Environment<I>) -> crate::Result<Integer<I>> {
 		Ok(self.parse().unwrap_or_default())
 	}
 }
 
-impl<I, E> ToList<I, E> for Text<E> {
-	fn to_list(&self, _: &mut Environment<I, E>) -> crate::Result<List<I, E>> {
+impl<I> ToList<I> for Text {
+	fn to_list(&self, _: &mut Environment<I>) -> crate::Result<List<I>> {
 		let chars =
 			self.chars().map(|c| unsafe { Self::new_unchecked(c) }.into()).collect::<Vec<_>>();
 

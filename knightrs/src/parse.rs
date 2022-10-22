@@ -17,14 +17,14 @@ pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'e, I, E> {
-	source: &'s TextSlice<E>,
-	env: &'s mut Environment<'e, I, E>,
+pub struct Parser<'s, 'e, I> {
+	source: &'s TextSlice,
+	env: &'s mut Environment<'e, I>,
 	line: usize,
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<I, E>: Sized {
+pub trait Parsable<I>: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -36,13 +36,13 @@ pub trait Parsable<I, E>: Sized {
 	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
 	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
 	///   returned.
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>>;
+	fn parse(parser: &mut Parser<'_, '_, I>) -> Result<Option<Self::Output>>;
 
 	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
 	/// crate::env::Builder::parsers).
-	fn parse_fn() -> ParseFn<I, E>
+	fn parse_fn() -> ParseFn<I>
 	where
-		Value<I, E>: From<Self::Output>,
+		Value<I>: From<Self::Output>,
 		I: IntType,
 	{
 		RefCount::new(|parser| Ok(Self::parse(parser)?.map(Value::from)))
@@ -50,24 +50,24 @@ pub trait Parsable<I, E>: Sized {
 }
 
 /// A type that can parse things.
-pub type ParseFn<I, E> = RefCount<dyn ParseFn_<I, E>>;
+pub type ParseFn<I> = RefCount<dyn ParseFn_<I>>;
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn_<I: IntType, E>:
-	Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync
+pub trait ParseFn_<I: IntType>:
+	Fn(&mut Parser<'_, '_, I>) -> Result<Option<Value<I>>> + MaybeSendSync
 {
 }
 
-impl<T, I, E> ParseFn_<I, E> for T
+impl<T, I> ParseFn_<I> for T
 where
 	I: IntType,
-	T: Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync,
+	T: Fn(&mut Parser<'_, '_, I>) -> Result<Option<Value<I>>> + MaybeSendSync,
 {
 }
 
 // Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
 // in case we want it for extensions later.)
-pub(crate) fn default<I, E>(_flags: &Flags) -> Vec<ParseFn<I, E>>
+pub(crate) fn default<I>(_flags: &Flags) -> Vec<ParseFn<I>>
 where
 	I: IntType,
 {
@@ -81,15 +81,15 @@ where
 		Blank,
 		GroupedExpression,
 		crate::value::Integer<I>,
-		crate::value::Text<E>,
-		crate::env::Variable< I, E>,
+		crate::value::Text,
+		crate::env::Variable< I>,
 		crate::value::Boolean,
 		crate::value::Null,
-		crate::value::List< I, E>,
-		crate::ast::Ast< I, E>,
+		crate::value::List< I>,
+		crate::ast::Ast< I>,
 
 		#[cfg(feature = "extensions")]
-		ListLiteral< I, E>
+		ListLiteral< I>
 	]
 }
 
@@ -233,27 +233,27 @@ impl ErrorKind {
 }
 
 /// Helper trait for [`Praser::advance_if`].
-pub trait AdvanceIfCondition<E> {
+pub trait AdvanceIfCondition {
 	/// Checks to see whether we should advance past `chr`.
 	fn should_advance(self, chr: char) -> bool;
 }
 
-impl<E, T: FnOnce(char) -> bool> AdvanceIfCondition<E> for T {
+impl<T: FnOnce(char) -> bool> AdvanceIfCondition for T {
 	fn should_advance(self, chr: char) -> bool {
 		self(chr)
 	}
 }
 
-impl<E> AdvanceIfCondition<E> for char {
+impl AdvanceIfCondition for char {
 	fn should_advance(self, chr: char) -> bool {
 		self == chr
 	}
 }
 
-impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
+impl<'s, 'e, I> Parser<'s, 'e, I> {
 	/// Create a new `Parser` from the given source.
 	#[must_use]
-	pub fn new(source: &'s TextSlice<E>, env: &'s mut Environment<'e, I, E>) -> Self {
+	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e, I>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -265,7 +265,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 
 	/// Gets the environment.
 	#[must_use]
-	pub fn env(&mut self) -> &mut Environment<'e, I, E> {
+	pub fn env(&mut self) -> &mut Environment<'e, I> {
 		self.env
 	}
 
@@ -284,7 +284,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	/// Gets, and advances past, the next character if `cond` matches.
 	pub fn advance_if<F>(&mut self, cond: F) -> Option<char>
 	where
-		F: AdvanceIfCondition<E>,
+		F: AdvanceIfCondition,
 	{
 		let mut chars = self.source.chars();
 
@@ -307,7 +307,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 
 	/// Takes characters from while `func` returns true. `None` is returned if nothing was parsed.
-	pub fn take_while<F>(&mut self, mut func: F) -> Option<&'s TextSlice<E>>
+	pub fn take_while<F>(&mut self, mut func: F) -> Option<&'s TextSlice>
 	where
 		F: FnMut(char) -> bool,
 	{
@@ -325,9 +325,9 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 	// }
 
-	// impl<'s,  I, E: Encoding> Parser<'s,  I, E> {
+	// impl<'s,  I: Encoding> Parser<'s,  I> {
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
-	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice<E>> {
+	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice> {
 		let start = self.source;
 
 		loop {
@@ -351,7 +351,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 
 	/// Removes the remainder of a keyword function.
-	pub fn strip_keyword_function(&mut self) -> Option<&'s TextSlice<E>> {
+	pub fn strip_keyword_function(&mut self) -> Option<&'s TextSlice> {
 		self.take_while(|c| c.is_uppercase() || c == '_')
 	}
 
@@ -359,7 +359,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Value<I, E>>
+	pub fn parse_program(mut self) -> Result<Value<I>>
 	where
 		I: IntType,
 	{
@@ -380,7 +380,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	///
 	/// This goes through its [environment's parsers](Environment::parsers) one by one, returning
 	/// the first value that returned `Ok(Some(...))`
-	pub fn parse_expression(&mut self) -> Result<Value<I, E>>
+	pub fn parse_expression(&mut self) -> Result<Value<I>>
 	where
 		I: IntType,
 	{

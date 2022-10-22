@@ -26,23 +26,23 @@ use crate::Error;
 /// However, since this can be a fairly significant performance penalty, this checking is disabled
 /// by default. To enable it, you should enable the `container-length-limit` feature.
 #[derive_where(Clone, Default)]
-pub struct List<I, E>(Option<RefCount<Inner<I, E>>>);
+pub struct List<I>(Option<RefCount<Inner<I>>>);
 
-enum Inner<I, E> {
-	Boxed(Value<I, E>),           // a single value
-	Slice(Box<[Value<I, E>]>),    // nonempty slice
-	Cons(List<I, E>, List<I, E>), // neither list is empty
-	Repeat(List<I, E>, usize),    // the usize is >= 2
+enum Inner<I> {
+	Boxed(Value<I>),        // a single value
+	Slice(Box<[Value<I>]>), // nonempty slice
+	Cons(List<I>, List<I>), // neither list is empty
+	Repeat(List<I>, usize), // the usize is >= 2
 }
 
 /// Represents the ability to be converted to a [`List`].
-pub trait ToList<I, E> {
+pub trait ToList<I> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut Environment<I, E>) -> Result<List<I, E>>;
+	fn to_list(&self, env: &mut Environment<I>) -> Result<List<I>>;
 }
 
-impl<I: Eq, E> Eq for List<I, E> {}
-impl<I: PartialEq, E> PartialEq for List<I, E> {
+impl<I: Eq> Eq for List<I> {}
+impl<I: PartialEq> PartialEq for List<I> {
 	/// Checks to see if two lists are equal.
 	fn eq(&self, rhs: &Self) -> bool {
 		match (self.0.as_ref(), rhs.0.as_ref()) {
@@ -53,7 +53,7 @@ impl<I: PartialEq, E> PartialEq for List<I, E> {
 	}
 }
 
-impl<I: Hash, E> Hash for List<I, E> {
+impl<I: Hash> Hash for List<I> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		state.write_usize(self.len());
 
@@ -63,22 +63,22 @@ impl<I: Hash, E> Hash for List<I, E> {
 	}
 }
 
-impl<I: Debug, E> Debug for List<I, E> {
+impl<I: Debug> Debug for List<I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_list().entries(self).finish()
 	}
 }
 
-impl<I, E> NamedType for List<I, E> {
+impl<I> NamedType for List<I> {
 	const TYPENAME: &'static str = "List";
 }
 
-impl<I, E> List<I, E> {
-	fn _new(inner: Inner<I, E>) -> Self {
+impl<I> List<I> {
+	fn _new(inner: Inner<I>) -> Self {
 		Self(Some(inner.into()))
 	}
 
-	fn inner(&self) -> Option<&Inner<I, E>> {
+	fn inner(&self) -> Option<&Inner<I>> {
 		self.0.as_deref()
 	}
 
@@ -94,7 +94,7 @@ impl<I, E> List<I, E> {
 	/// If `container-length-limit` is enabled, and `slice.len()` is larger than [`List::MAX_LEN`],
 	/// then an [`Error::DomainError`] is returned. If `container-length-limit` is not enabled,
 	/// this function will always succeed.
-	pub fn new<T: Into<Box<[Value<I, E>]>>>(slice: T, flags: &Flags) -> Result<Self> {
+	pub fn new<T: Into<Box<[Value<I>]>>>(slice: T, flags: &Flags) -> Result<Self> {
 		let slice = slice.into();
 
 		#[cfg(feature = "compliance")]
@@ -107,7 +107,7 @@ impl<I, E> List<I, E> {
 	}
 
 	/// Creates a new `list` from `slice`, without ensuring its length is correct.
-	pub unsafe fn new_unchecked<T: Into<Box<[Value<I, E>]>>>(slice: T) -> Self {
+	pub unsafe fn new_unchecked<T: Into<Box<[Value<I>]>>>(slice: T) -> Self {
 		let slice = slice.into();
 
 		match slice.len() {
@@ -118,7 +118,7 @@ impl<I, E> List<I, E> {
 	}
 
 	/// Returns a new [`List`] with the only element being `value`.
-	pub fn boxed(value: Value<I, E>) -> Self {
+	pub fn boxed(value: Value<I>) -> Self {
 		Self::_new(Inner::Boxed(value))
 	}
 
@@ -142,7 +142,7 @@ impl<I, E> List<I, E> {
 	}
 
 	/// Returns the first element in `self`.
-	pub fn head(&self) -> Option<Value<I, E>>
+	pub fn head(&self) -> Option<Value<I>>
 	where
 		I: Clone,
 	{
@@ -160,7 +160,7 @@ impl<I, E> List<I, E> {
 	/// Gets the value(s) at `index`.
 	///
 	/// This is syntactic sugar for `index.get(self)`.
-	pub fn get<'a, F: ListFetch<'a, I, E>>(&'a self, index: F) -> Option<F::Output> {
+	pub fn get<'a, F: ListFetch<'a, I>>(&'a self, index: F) -> Option<F::Output> {
 		index.get(self)
 	}
 
@@ -221,7 +221,7 @@ impl<I, E> List<I, E> {
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &TextSlice<E>, env: &mut Environment<I, E>) -> Result<Text<E>>
+	pub fn join(&self, sep: &TextSlice, env: &mut Environment<I>) -> Result<Text>
 	where
 		I: IntType,
 	{
@@ -241,7 +241,7 @@ impl<I, E> List<I, E> {
 	}
 
 	/// Returns an [`Iter`] instance, which iterates over borrowed references.
-	pub fn iter(&self) -> Iter<'_, I, E> {
+	pub fn iter(&self) -> Iter<'_, I> {
 		Iter(match self.inner() {
 			None => IterInner::Empty,
 			Some(Inner::Boxed(val)) => IterInner::Boxed(val),
@@ -256,9 +256,9 @@ impl<I, E> List<I, E> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I, E> List<I, E> {
+impl<I> List<I> {
 	/// Returns true if `self` contains `value`.
-	pub fn contains(&self, value: &Value<I, E>) -> bool
+	pub fn contains(&self, value: &Value<I>) -> bool
 	where
 		I: PartialEq,
 	{
@@ -293,7 +293,7 @@ impl<I, E> List<I, E> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn map(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
+	pub fn map(&self, block: &Value<I>, env: &mut Environment<I>) -> Result<Self>
 	where
 		I: IntType,
 	{
@@ -317,7 +317,7 @@ impl<I, E> List<I, E> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn filter(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
+	pub fn filter(&self, block: &Value<I>, env: &mut Environment<I>) -> Result<Self>
 	where
 		I: IntType,
 	{
@@ -345,11 +345,7 @@ impl<I, E> List<I, E> {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn reduce(
-		&self,
-		block: &Value<I, E>,
-		env: &mut Environment<I, E>,
-	) -> Result<Option<Value<I, E>>>
+	pub fn reduce(&self, block: &Value<I>, env: &mut Environment<I>) -> Result<Option<Value<I>>>
 	where
 		I: IntType,
 	{
@@ -385,10 +381,10 @@ impl<I, E> List<I, E> {
 	}
 }
 
-impl<I, E> Parsable<I, E> for List<I, E> {
+impl<I> Parsable<I> for List<I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('@').is_some() {
 			return Ok(Some(Self::default()));
 		}
@@ -397,30 +393,30 @@ impl<I, E> Parsable<I, E> for List<I, E> {
 	}
 }
 
-impl<I, E> ToList<I, E> for List<I, E> {
+impl<I> ToList<I> for List<I> {
 	/// Simply returns `self`.
-	fn to_list(&self, _: &mut Environment<I, E>) -> Result<Self> {
+	fn to_list(&self, _: &mut Environment<I>) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl<I, E> ToBoolean<I, E> for List<I, E> {
+impl<I> ToBoolean<I> for List<I> {
 	/// Returns whether `self` is nonempty.
-	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<I>) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<I: IntType, E> ToInteger<I, E> for List<I, E> {
+impl<I: IntType> ToInteger<I> for List<I> {
 	/// Returns `self`'s length.
-	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Integer<I>> {
+	fn to_integer(&self, _: &mut Environment<I>) -> Result<Integer<I>> {
 		self.len().try_into()
 	}
 }
 
-impl<I: IntType, E> ToText<I, E> for List<I, E> {
+impl<I: IntType> ToText<I> for List<I> {
 	/// Returns `self` [joined](Self::join) with a newline.
-	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
+	fn to_text(&self, env: &mut Environment<I>) -> Result<Text> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };
 
 		self.join(newline, env)
@@ -428,18 +424,18 @@ impl<I: IntType, E> ToText<I, E> for List<I, E> {
 }
 
 /// A helper trait for [`List::get`], indicating a type can index into a `List`.
-pub trait ListFetch<'a, I, E> {
+pub trait ListFetch<'a, I> {
 	/// The resulting type.
 	type Output;
 
 	/// Gets an `Output` from `list`.
-	fn get(self, list: &'a List<I, E>) -> Option<Self::Output>;
+	fn get(self, list: &'a List<I>) -> Option<Self::Output>;
 }
 
-impl<'a, I: 'a, E: 'a> ListFetch<'a, I, E> for usize {
-	type Output = &'a Value<I, E>;
+impl<'a, I: 'a> ListFetch<'a, I> for usize {
+	type Output = &'a Value<I>;
 
-	fn get(self, list: &'a List<I, E>) -> Option<Self::Output> {
+	fn get(self, list: &'a List<I>) -> Option<Self::Output> {
 		match list.inner()? {
 			Inner::Boxed(ele) => (self == 0).then_some(ele),
 			Inner::Slice(slice) => slice.get(self),
@@ -451,10 +447,10 @@ impl<'a, I: 'a, E: 'a> ListFetch<'a, I, E> for usize {
 	}
 }
 
-impl<I: Clone, E> ListFetch<'_, I, E> for Range<usize> {
-	type Output = List<I, E>;
+impl<I: Clone> ListFetch<'_, I> for Range<usize> {
+	type Output = List<I>;
 
-	fn get(self, list: &List<I, E>) -> Option<Self::Output> {
+	fn get(self, list: &List<I>) -> Option<Self::Output> {
 		if list.len() < self.end || self.end < self.start {
 			return None;
 		}
@@ -468,10 +464,10 @@ impl<I: Clone, E> ListFetch<'_, I, E> for Range<usize> {
 	}
 }
 
-impl<I: Clone, E> ListFetch<'_, I, E> for RangeFrom<usize> {
-	type Output = List<I, E>;
+impl<I: Clone> ListFetch<'_, I> for RangeFrom<usize> {
+	type Output = List<I>;
 
-	fn get(self, list: &List<I, E>) -> Option<Self::Output> {
+	fn get(self, list: &List<I>) -> Option<Self::Output> {
 		// FIXME: use optimizations
 		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
 
@@ -480,9 +476,9 @@ impl<I: Clone, E> ListFetch<'_, I, E> for RangeFrom<usize> {
 	}
 }
 
-impl<'a, I, E> IntoIterator for &'a List<I, E> {
-	type Item = &'a Value<I, E>;
-	type IntoIter = Iter<'a, I, E>;
+impl<'a, I> IntoIterator for &'a List<I> {
+	type Item = &'a Value<I>;
+	type IntoIter = Iter<'a, I>;
 
 	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
 		self.iter()
@@ -492,29 +488,29 @@ impl<'a, I, E> IntoIterator for &'a List<I, E> {
 /// Represents an iterator over [`List`]s.
 #[derive_where(Debug; I: Debug)]
 #[derive_where(Clone)]
-pub struct Iter<'a, I, E>(IterInner<'a, I, E>);
+pub struct Iter<'a, I>(IterInner<'a, I>);
 
 #[derive_where(Debug; I: Debug)]
 #[derive_where(Clone)]
-enum IterInner<'a, I, E> {
+enum IterInner<'a, I> {
 	/// There's nothing left.
 	Empty,
 
 	/// There's only a single element to iterate over.
-	Boxed(&'a Value<I, E>),
+	Boxed(&'a Value<I>),
 
 	/// Iterate over the LHS elements first, then the RHS.
-	Cons(Box<Iter<'a, I, E>>, &'a List<I, E>),
+	Cons(Box<Iter<'a, I>>, &'a List<I>),
 
 	/// Iterate over a slice of elements.
-	Slice(std::slice::Iter<'a, Value<I, E>>),
+	Slice(std::slice::Iter<'a, Value<I>>),
 
 	/// Repeats the iterator.
-	Repeat(std::iter::Take<std::iter::Cycle<Box<Iter<'a, I, E>>>>),
+	Repeat(std::iter::Take<std::iter::Cycle<Box<Iter<'a, I>>>>),
 }
 
-impl<'a, I, E> Iterator for Iter<'a, I, E> {
-	type Item = &'a Value<I, E>;
+impl<'a, I> Iterator for Iter<'a, I> {
+	type Item = &'a Value<I>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		match self.0 {

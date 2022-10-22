@@ -4,43 +4,43 @@ use crate::text::{NewTextError, TextSlice};
 use crate::RefCount;
 use std::fmt::{self, Debug, Display, Formatter};
 
-#[derive_where(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Text<E>(RefCount<TextSlice<E>>);
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Text(RefCount<TextSlice>);
 
-impl<E> Debug for Text<E> {
+impl Debug for Text {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&***self, f)
 	}
 }
 
-impl<E> Default for Text<E> {
+impl Default for Text {
 	fn default() -> Self {
-		<&TextSlice<E>>::default().into()
+		<&TextSlice>::default().into()
 	}
 }
 
-impl<E> Display for Text<E> {
+impl Display for Text {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&**self, f)
 	}
 }
 
-impl<E> std::ops::Deref for Text<E> {
-	type Target = TextSlice<E>;
+impl std::ops::Deref for Text {
+	type Target = TextSlice;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
-impl<E> PartialEq<str> for Text<E> {
+impl PartialEq<str> for Text {
 	fn eq(&self, rhs: &str) -> bool {
 		**self == *rhs
 	}
 }
 
-impl<E> Text<E> {
-	pub fn builder() -> super::Builder<E> {
+impl Text {
+	pub fn builder() -> super::Builder {
 		Default::default()
 	}
 
@@ -57,7 +57,7 @@ impl<E> Text<E> {
 	{
 		let boxed = inp.to_string().into_boxed_str();
 
-		Self(RefCount::from(Box::from_raw(Box::into_raw(boxed) as *mut TextSlice<E>)))
+		Self(RefCount::from(Box::from_raw(Box::into_raw(boxed) as *mut TextSlice)))
 	}
 
 	pub unsafe fn new_len_unchecked<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
@@ -71,14 +71,14 @@ impl<E> Text<E> {
 	}
 }
 
-impl<E> std::borrow::Borrow<TextSlice<E>> for Text<E> {
-	fn borrow(&self) -> &TextSlice<E> {
+impl std::borrow::Borrow<TextSlice> for Text {
+	fn borrow(&self) -> &TextSlice {
 		self
 	}
 }
 
-impl<E> From<&TextSlice<E>> for Text<E> {
-	fn from(text: &TextSlice<E>) -> Self {
+impl From<&TextSlice> for Text {
+	fn from(text: &TextSlice) -> Self {
 		// SAFETY: `text` is already valid.
 		unsafe { Self::new_unchecked(text) }
 	}
@@ -90,10 +90,10 @@ impl<E> From<&TextSlice<E>> for Text<E> {
 // 	}
 // }
 
-impl<I, E> Parsable<I, E> for Text<E> {
+impl<I> Parsable<I> for Text {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		// since `.advance()` returns a `Character`, we can't match on it.
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
 			return Ok(None);

@@ -13,13 +13,13 @@ use std::hash::{Hash, Hasher};
 ///
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
 #[derive_where(Clone)]
-pub struct Variable<I, E>(RefCount<Inner<I, E>>);
-struct Inner<I, E> {
-	name: Text<E>,
-	value: Mutable<Option<Value<I, E>>>,
+pub struct Variable<I>(RefCount<Inner<I>>);
+struct Inner<I> {
+	name: Text,
+	value: Mutable<Option<Value<I>>>,
 }
 
-impl<I: Debug, E> Debug for Variable<I, E> {
+impl<I: Debug> Debug for Variable<I> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -32,29 +32,29 @@ impl<I: Debug, E> Debug for Variable<I, E> {
 	}
 }
 
-impl<I, E> Eq for Variable<I, E> {}
-impl<I, E> PartialEq for Variable<I, E> {
+impl<I> Eq for Variable<I> {}
+impl<I> PartialEq for Variable<I> {
 	/// Checks to see if two variables are pointing to the _exact same object_
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I, E> Borrow<TextSlice<E>> for Variable<I, E> {
+impl<I> Borrow<TextSlice> for Variable<I> {
 	/// Borrows the [name](Variable::name) of the variable.
-	fn borrow(&self) -> &TextSlice<E> {
+	fn borrow(&self) -> &TextSlice {
 		self.name()
 	}
 }
 
-impl<I, E> Hash for Variable<I, E> {
+impl<I> Hash for Variable<I> {
 	/// Hashes the [name](Variable::name) of the variable.
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
 	}
 }
 
-impl<I, E> NamedType for Variable<I, E> {
+impl<I> NamedType for Variable<I> {
 	const TYPENAME: &'static str = "Variable";
 }
 
@@ -111,10 +111,10 @@ impl Display for IllegalVariableName {
 /// crate::env::flags::Compliance::verify_variable_names) is enabled.
 pub const MAX_NAME_LEN: usize = 127;
 
-impl<I, E> Variable<I, E> {
+impl<I> Variable<I> {
 	#[cfg(feature = "compliance")]
 	fn validate_name(
-		name: &TextSlice<E>,
+		name: &TextSlice,
 		flags: &Flags,
 	) -> std::result::Result<(), IllegalVariableName> {
 		if MAX_NAME_LEN < name.len() {
@@ -141,10 +141,7 @@ impl<I, E> Variable<I, E> {
 		Ok(())
 	}
 
-	pub(crate) fn new(
-		name: Text<E>,
-		flags: &Flags,
-	) -> std::result::Result<Self, IllegalVariableName> {
+	pub(crate) fn new(name: Text, flags: &Flags) -> std::result::Result<Self, IllegalVariableName> {
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
 			Self::validate_name(&name, flags)?;
@@ -156,18 +153,18 @@ impl<I, E> Variable<I, E> {
 
 	/// Fetches the name of the variable.
 	#[must_use]
-	pub fn name(&self) -> &Text<E> {
+	pub fn name(&self) -> &Text {
 		&self.0.name
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&self, new: Value<I, E>) -> Option<Value<I, E>> {
+	pub fn assign(&self, new: Value<I>) -> Option<Value<I>> {
 		(self.0).value.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value<I, E>>
+	pub fn fetch(&self) -> Option<Value<I>>
 	where
 		I: Clone,
 	{
@@ -175,10 +172,10 @@ impl<I, E> Variable<I, E> {
 	}
 }
 
-impl<I: Clone, E> Runnable<I, E> for Variable<I, E> {
+impl<I: Clone> Runnable<I> for Variable<I> {
 	/// [Fetches](Self::fetch) the last assigned value, or returns [`Error::UndefinedVariable`] if
 	/// it was never assigned to.
-	fn run(&self, _env: &mut Environment<I, E>) -> Result<Value<I, E>> {
+	fn run(&self, _env: &mut Environment<I>) -> Result<Value<I>> {
 		match self.fetch() {
 			Some(value) => Ok(value),
 
@@ -190,10 +187,10 @@ impl<I: Clone, E> Runnable<I, E> for Variable<I, E> {
 	}
 }
 
-impl<I: IntType, E> Parsable<I, E> for Variable<I, E> {
+impl<I: IntType> Parsable<I> for Variable<I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		let Some(identifier) = parser.take_while(|chr| {
 			chr.is_lowercase() || chr == '_' || chr.is_numeric()
 		}) else {

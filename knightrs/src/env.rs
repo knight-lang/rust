@@ -13,10 +13,10 @@ if #[cfg(feature = "extensions")] {
 	use crate::function::ExtensionFunction;
 	use std::collections::VecDeque;
 
-	type System<'e, E> =
-		dyn FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
+	type System<'e> =
+		dyn FnMut(&TextSlice, Option<&TextSlice>, &Flags) -> Result<Text> + 'e + Send + Sync;
 
-	type ReadFile<'e, E> = dyn FnMut(&TextSlice<E>, &Flags) -> Result<Text<E>> + 'e + Send + Sync;
+	type ReadFile<'e> = dyn FnMut(&TextSlice, &Flags) -> Result<Text> + 'e + Send + Sync;
 
 }}
 
@@ -35,34 +35,34 @@ pub use variable::Variable;
 /// The environment hosts all relevant information for Knight programs.
 ///
 /// <todo: details>
-pub struct Environment<'e, I, E> {
+pub struct Environment<'e, I> {
 	flags: &'e Flags,
-	variables: HashSet<Variable<I, E>>,
-	prompt: Prompt<'e, I, E>,
-	output: Output<'e, I, E>,
-	functions: HashSet<Function<I, E>>,
+	variables: HashSet<Variable<I>>,
+	prompt: Prompt<'e, I>,
+	output: Output<'e, I>,
+	functions: HashSet<Function<I>>,
 	rng: StdRng,
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
 	// set of parsers is loaded up.
-	parsers: Vec<ParseFn<I, E>>,
+	parsers: Vec<ParseFn<I>>,
 
 	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<I, E>>,
+	extensions: HashSet<ExtensionFunction<I>>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
-	system_results: VecDeque<Text<E>>,
+	system_results: VecDeque<Text>,
 
 	#[cfg(feature = "extensions")]
-	system: Box<System<'e, E>>,
+	system: Box<System<'e>>,
 
 	#[cfg(feature = "extensions")]
-	read_file: Box<ReadFile<'e, E>>,
+	read_file: Box<ReadFile<'e>>,
 }
 
-impl<I, E> Drop for Environment<'_, I, E> {
+impl<I> Drop for Environment<'_, I> {
 	fn drop(&mut self) {
 		// You can assign a variable to itself, which means that it'll end up leaking memory. So,
 		// we have to manually ensure that no variables reference others.
@@ -72,14 +72,14 @@ impl<I, E> Drop for Environment<'_, I, E> {
 	}
 }
 
-impl<I: IntType, E> Default for Environment<'_, I, E> {
+impl<I: IntType> Default for Environment<'_, I> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
 	fn default() -> Self {
 		Self::builder(&flags::DEFAULT).build()
 	}
 }
 
-impl<'e, I: IntType, E> Environment<'e, I, E> {
+impl<'e, I: IntType> Environment<'e, I> {
 	/// Creates a new [`Environment`] with the default configuration.
 	#[must_use]
 	pub fn new() -> Self {
@@ -87,17 +87,17 @@ impl<'e, I: IntType, E> Environment<'e, I, E> {
 	}
 
 	/// A shorthand function for creating [`Builder`]s.
-	pub fn builder(flags: &'e Flags) -> Builder<I, E> {
+	pub fn builder(flags: &'e Flags) -> Builder<I> {
 		Builder::new(flags)
 	}
 
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice<E>) -> Result<Value<I, E>> {
+	pub fn play(&mut self, source: &TextSlice) -> Result<Value<I>> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
 }
 
-impl<'e, I, E> Environment<'e, I, E> {
+impl<'e, I> Environment<'e, I> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
 	pub fn flags(&self) -> &'e Flags {
@@ -106,25 +106,25 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
-	pub fn functions(&self) -> &HashSet<Function<I, E>> {
+	pub fn functions(&self) -> &HashSet<Function<I>> {
 		&self.functions
 	}
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
-	pub fn parsers(&self) -> &[ParseFn<I, E>] {
+	pub fn parsers(&self) -> &[ParseFn<I>] {
 		&self.parsers
 	}
 
 	/// Gets the [`Prompt`] type, which handles reading lines from stdin.
 	#[must_use]
-	pub fn prompt(&mut self) -> &mut Prompt<'e, I, E> {
+	pub fn prompt(&mut self) -> &mut Prompt<'e, I> {
 		&mut self.prompt
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
 	#[must_use]
-	pub fn output(&mut self) -> &mut Output<'e, I, E> {
+	pub fn output(&mut self) -> &mut Output<'e, I> {
 		&mut self.output
 	}
 
@@ -132,8 +132,8 @@ impl<'e, I, E> Environment<'e, I, E> {
 	/// has been requested.
 	pub fn lookup(
 		&mut self,
-		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<I, E>, variable::IllegalVariableName> {
+		name: &TextSlice,
+	) -> std::result::Result<Variable<I>, variable::IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -156,10 +156,10 @@ impl<'e, I, E> Environment<'e, I, E> {
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I, E> Environment<'_, I, E> {
+impl<I> Environment<'_, I> {
 	/// Gets the list of known extension functions.
 	#[must_use]
-	pub fn extensions(&self) -> &HashSet<ExtensionFunction<I, E>> {
+	pub fn extensions(&self) -> &HashSet<ExtensionFunction<I>> {
 		&self.extensions
 	}
 
@@ -172,27 +172,23 @@ impl<I, E> Environment<'_, I, E> {
 	}
 
 	/// Executes `command` as a shell command, returning its result.
-	pub fn run_command(
-		&mut self,
-		command: &TextSlice<E>,
-		stdin: Option<&TextSlice<E>>,
-	) -> Result<Text<E>> {
+	pub fn run_command(&mut self, command: &TextSlice, stdin: Option<&TextSlice>) -> Result<Text> {
 		(self.system)(command, stdin, self.flags)
 	}
 
 	/// Adds `output` as the next value to return from the system command.
-	pub fn add_to_system(&mut self, output: Text<E>) {
+	pub fn add_to_system(&mut self, output: Text) {
 		self.system_results.push_back(output);
 	}
 
 	/// Gets the next result from within system.
 	#[must_use]
-	pub fn get_next_system_result(&mut self) -> Option<Text<E>> {
+	pub fn get_next_system_result(&mut self) -> Option<Text> {
 		self.system_results.pop_front()
 	}
 
 	/// Reads the file located at `filename`, returning its contents.
-	pub fn read_file(&mut self, filename: &TextSlice<E>) -> Result<Text<E>> {
+	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
 		(self.read_file)(filename, self.flags)
 	}
 }

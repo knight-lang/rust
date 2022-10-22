@@ -2,33 +2,33 @@ use super::*;
 
 /// A builder for an [`Environment`], allowing different options to be configured.
 #[must_use]
-pub struct Builder<'e, I, E> {
+pub struct Builder<'e, I> {
 	flags: &'e Flags,
-	prompt: Prompt<'e, I, E>,
-	output: Output<'e, I, E>,
-	functions: HashSet<Function<I, E>>,
+	prompt: Prompt<'e, I>,
+	output: Output<'e, I>,
+	functions: HashSet<Function<I>>,
 
 	// While not feature gated to extensions, it's only modifiable with extensions.
-	parsers: Vec<ParseFn<I, E>>,
+	parsers: Vec<ParseFn<I>>,
 
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<I, E>>,
+	extensions: HashSet<ExtensionFunction<I>>,
 
 	#[cfg(feature = "extensions")]
-	system: Option<Box<System<'e, E>>>,
+	system: Option<Box<System<'e>>>,
 
 	#[cfg(feature = "extensions")]
-	read_file: Option<Box<ReadFile<'e, E>>>,
+	read_file: Option<Box<ReadFile<'e>>>,
 }
 
-impl<I: IntType, E> Default for Builder<'_, I, E> {
+impl<I: IntType> Default for Builder<'_, I> {
 	/// Creates a new [`Builder`] with [default flags](Flags::default).
 	fn default() -> Self {
 		Self::new(&crate::env::flags::DEFAULT)
 	}
 }
 
-impl<'e, I: IntType, E> Builder<'e, I, E> {
+impl<'e, I: IntType> Builder<'e, I> {
 	/// Creates a new [`Builder`] with the given flags.
 	pub fn new(flags: &'e Flags) -> Self {
 		Self {
@@ -64,7 +64,7 @@ impl<'e, I: IntType, E> Builder<'e, I, E> {
 	/// Gets a mutable set of normal (i.e. non-`X`) functions.
 	///
 	/// See [`Builder::extensions`] for extension functions.
-	pub fn functions(&mut self) -> &mut HashSet<Function<I, E>> {
+	pub fn functions(&mut self) -> &mut HashSet<Function<I>> {
 		&mut self.functions
 	}
 
@@ -73,14 +73,14 @@ impl<'e, I: IntType, E> Builder<'e, I, E> {
 	/// See [`Builder::functions`] for normal functions.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<I, E>> {
+	pub fn extensions(&mut self) -> &mut HashSet<ExtensionFunction<I>> {
 		&mut self.extensions
 	}
 
 	/// Gets a list of parse functions, which can be used to modify how parsing is done.
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn parse_fns(&mut self) -> &mut Vec<ParseFn<I, E>> {
+	pub fn parse_fns(&mut self) -> &mut Vec<ParseFn<I>> {
 		&mut self.parsers
 	}
 
@@ -89,10 +89,7 @@ impl<'e, I: IntType, E> Builder<'e, I, E> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn system<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice<E>, Option<&TextSlice<E>>, &Flags) -> crate::Result<Text<E>>
-			+ 'e
-			+ Send
-			+ Sync,
+		F: FnMut(&TextSlice, Option<&TextSlice>, &Flags) -> crate::Result<Text> + 'e + Send + Sync,
 	{
 		self.system = Some(Box::new(func) as Box<_>);
 	}
@@ -102,7 +99,7 @@ impl<'e, I: IntType, E> Builder<'e, I, E> {
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 	pub fn read_file<F>(&mut self, func: F)
 	where
-		F: FnMut(&TextSlice<E>, &Flags) -> crate::Result<Text<E>> + 'e + Send + Sync,
+		F: FnMut(&TextSlice, &Flags) -> crate::Result<Text> + 'e + Send + Sync,
 	{
 		self.read_file = Some(Box::new(func) as Box<_>);
 	}
@@ -110,7 +107,7 @@ impl<'e, I: IntType, E> Builder<'e, I, E> {
 	/// Finishes the builder and creates the given environment.
 	///
 	/// Any values not set use their default values.
-	pub fn build(self) -> Environment<'e, I, E> {
+	pub fn build(self) -> Environment<'e, I> {
 		Environment {
 			flags: self.flags,
 

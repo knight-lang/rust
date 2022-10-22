@@ -3,8 +3,8 @@ mod builder;
 mod text;
 mod textslice;
 
-pub trait ToText<I, E> {
-	fn to_text(&self, env: &mut crate::Environment<I, E>) -> crate::Result<Text<E>>;
+pub trait ToText<I> {
+	fn to_text(&self, env: &mut crate::Environment<I>) -> crate::Result<Text>;
 }
 
 use crate::env::Flags;
@@ -17,18 +17,18 @@ pub const fn is_valid_character(chr: char) -> bool {
 	matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
 }
 
-pub struct Chars<'a, E>(std::marker::PhantomData<E>, std::str::Chars<'a>);
-impl<'a, E> Chars<'a, E> {
-	pub fn as_text(&self) -> &'a TextSlice<E> {
-		unsafe { TextSlice::new_unchecked(self.1.as_str()) }
+pub struct Chars<'a>(std::str::Chars<'a>);
+impl<'a> Chars<'a> {
+	pub fn as_text(&self) -> &'a TextSlice {
+		unsafe { TextSlice::new_unchecked(self.0.as_str()) }
 	}
 }
 
-impl<E> Iterator for Chars<'_, E> {
+impl Iterator for Chars<'_> {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.1.next()
+		self.0.next()
 	}
 }
 

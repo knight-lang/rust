@@ -2,11 +2,11 @@
 use super::*;
 use std::thread::{self, ScopedJoinHandle};
 
-pub struct Thread<'q, I, E>(ScopedJoinHandle<'q, Value<I, E>>);
+pub struct Thread<'q, I>(ScopedJoinHandle<'q, Value<I>>);
 
-impl<'q, I: IntType, E: Encoding> Thread<'q, I, E> {
+impl<'q, I: IntType, E: Encoding> Thread<'q, I> {
 	#[cfg(any())]
-	pub fn spawn(body: Value<I, E>, env: &'q mut crate::env::Environment<I, E>) -> Self {
+	pub fn spawn(body: Value<I>, env: &'q mut crate::env::Environment<I>) -> Self {
 		// Self(thread::spawn(move || body.run(env).unwrap()))
 		Self(thread::scope::<'e>(move |s| s.spawn(move || body.run(env).unwrap())))
 	}
@@ -14,7 +14,7 @@ impl<'q, I: IntType, E: Encoding> Thread<'q, I, E> {
 
 // #[cfg(feature = "extensions")]
 // #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-// pub fn XRANGE< I: IntType, E: Encoding>() -> ExtensionFunction< I, E> {
+// pub fn XRANGE< I: IntType, E: Encoding>() -> ExtensionFunction< I> {
 // 	xfunction!("XRANGE", env, |start, stop| {
 // 		match start.run(env)? {
 // 			Value::Integer(start) => {
@@ -24,7 +24,7 @@ impl<'q, I: IntType, E: Encoding> Thread<'q, I, E> {
 // 					true => List::new(
 // 						(i64::from(start)..i64::from(stop))
 // 							.map(|x| Value::from(crate::value::Integer::try_from(x).unwrap()))
-// 							.collect::<Vec<Value< I, E>>>(),
+// 							.collect::<Vec<Value< I>>>(),
 // 						env.flags(),
 // 					)
 // 					.expect("todo: out of bounds error")

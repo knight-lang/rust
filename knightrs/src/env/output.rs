@@ -28,18 +28,18 @@ impl<T: Write + MaybeSendSync> Stdout for T {}
 /// ; = OUTPUT NULL # return back to normal output
 /// ; DUMP out #=> "hello\nworld"
 /// ```
-pub struct Output<'e, I, E> {
+pub struct Output<'e, I> {
 	default: Box<dyn Stdout + 'e>,
 
 	#[cfg_attr(not(feature = "extensions"), allow(dead_code))]
 	flags: &'e Flags,
-	_pd: PhantomData<(I, E)>,
+	_pd: PhantomData<I>,
 
 	#[cfg(feature = "extensions")]
-	redirect: Option<super::Variable<I, E>>,
+	redirect: Option<super::Variable<I>>,
 }
 
-impl<'e, I, E> Output<'e, I, E> {
+impl<'e, I> Output<'e, I> {
 	pub(super) fn new(flags: &'e Flags) -> Self {
 		Self {
 			default: Box::new(io::stdout()),
@@ -59,7 +59,7 @@ impl<'e, I, E> Output<'e, I, E> {
 
 	/// Sets where stdout will be redirected to.
 	#[cfg(feature = "extensions")]
-	pub fn set_redirection(&mut self, variable: super::Variable<I, E>) {
+	pub fn set_redirection(&mut self, variable: super::Variable<I>) {
 		self.redirect = Some(variable)
 	}
 
@@ -70,7 +70,7 @@ impl<'e, I, E> Output<'e, I, E> {
 	}
 }
 
-impl<I: IntType, E> Write for Output<'_, I, E> {
+impl<I: IntType> Write for Output<'_, I> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
 		if let Some(redirect) = self.redirect.as_ref() {

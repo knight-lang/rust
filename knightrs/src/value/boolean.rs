@@ -8,19 +8,19 @@ use crate::{Environment, Result};
 pub type Boolean = bool;
 
 /// Represents the ability to be converted to a [`Boolean`].
-pub trait ToBoolean<I, E> {
+pub trait ToBoolean<I> {
 	/// Converts `self` to a [`Boolean`].
-	fn to_boolean(&self, env: &mut Environment<I, E>) -> Result<Boolean>;
+	fn to_boolean(&self, env: &mut Environment<I>) -> Result<Boolean>;
 }
 
 impl NamedType for Boolean {
 	const TYPENAME: &'static str = "Boolean";
 }
 
-impl<I, E> Parsable<I, E> for Boolean {
+impl<I> Parsable<I> for Boolean {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		let Some(which) = parser.advance_if(|chr| chr == 'T' || chr == 'F') else {
 			return Ok(None);
 		};
@@ -31,16 +31,16 @@ impl<I, E> Parsable<I, E> for Boolean {
 	}
 }
 
-impl<I, E> ToBoolean<I, E> for Boolean {
+impl<I> ToBoolean<I> for Boolean {
 	/// Simply returns `self`.
-	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Self> {
+	fn to_boolean(&self, _: &mut Environment<I>) -> Result<Self> {
 		Ok(*self)
 	}
 }
 
-impl<I: IntType, E> ToInteger<I, E> for Boolean {
+impl<I: IntType> ToInteger<I> for Boolean {
 	/// Returns `1` for true and `0` for false.
-	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Integer<I>> {
+	fn to_integer(&self, _: &mut Environment<I>) -> Result<Integer<I>> {
 		if *self {
 			Ok(Integer::ONE)
 		} else {
@@ -49,9 +49,9 @@ impl<I: IntType, E> ToInteger<I, E> for Boolean {
 	}
 }
 
-impl<I, E> ToList<I, E> for Boolean {
+impl<I> ToList<I> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
-	fn to_list(&self, _: &mut Environment<I, E>) -> Result<List<I, E>> {
+	fn to_list(&self, _: &mut Environment<I>) -> Result<List<I>> {
 		if *self {
 			Ok(List::boxed((*self).into()))
 		} else {
@@ -60,11 +60,11 @@ impl<I, E> ToList<I, E> for Boolean {
 	}
 }
 
-impl<I, E> ToText<I, E> for Boolean {
+impl<I> ToText<I> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
-	fn to_text(&self, _: &mut Environment<I, E>) -> Result<Text<E>> {
-		// const TRUE_TEXT: &TextSlice<E> = unsafe { TextSlice::new_unchecked("true") };
-		// const FALSE_TEXT: &TextSlice<E> = unsafe { TextSlice::new_unchecked("false") };
+	fn to_text(&self, _: &mut Environment<I>) -> Result<Text> {
+		// const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
+		// const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
 
 		if *self {
 			Ok(unsafe { TextSlice::new_unchecked("true") }.into())

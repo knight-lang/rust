@@ -32,9 +32,9 @@ pub use inttype::{Checked, IntType};
 pub struct Integer<I>(I);
 
 /// Represents the ability to be converted to an [`Integer`].
-pub trait ToInteger<I, E> {
+pub trait ToInteger<I> {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment<I, E>) -> Result<Integer<I>>;
+	fn to_integer(&self, env: &mut Environment<I>) -> Result<Integer<I>>;
 }
 
 impl<I: PartialEq> PartialEq<I> for Integer<I> {
@@ -327,10 +327,10 @@ impl<I: IntType> UniformSampler for UniformIntType<I> {
 	}
 }
 
-impl<I: IntType, E> Parsable<I, E> for Integer<I> {
+impl<I: IntType> Parsable<I> for Integer<I> {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
 		parser
 			.take_while(|c| c.is_ascii_digit())
 			.map(|src| src.parse())
@@ -339,33 +339,33 @@ impl<I: IntType, E> Parsable<I, E> for Integer<I> {
 	}
 }
 
-impl<I: Clone, E> ToInteger<I, E> for Integer<I> {
+impl<I: Clone> ToInteger<I> for Integer<I> {
 	/// Simply returns `self`.
-	fn to_integer(&self, _: &mut Environment<I, E>) -> Result<Self> {
+	fn to_integer(&self, _: &mut Environment<I>) -> Result<Self> {
 		Ok(self.clone())
 	}
 }
 
-impl<I: IntType, E> ToBoolean<I, E> for Integer<I> {
+impl<I: IntType> ToBoolean<I> for Integer<I> {
 	/// Returns whether `self` is nonzero.
-	fn to_boolean(&self, _: &mut Environment<I, E>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<I>) -> Result<Boolean> {
 		Ok(!self.is_zero())
 	}
 }
 
-impl<I: Display, E> ToText<I, E> for Integer<I> {
+impl<I: Display> ToText<I> for Integer<I> {
 	/// Returns a string representation of `self`.
-	fn to_text(&self, _env: &mut Environment<I, E>) -> Result<Text<E>> {
+	fn to_text(&self, _env: &mut Environment<I>) -> Result<Text> {
 		// SAFETY: digits are valid in all encodings, and it'll never exceed the length.
 		Ok(unsafe { Text::new_unchecked(self) })
 	}
 }
 
-impl<I: IntType, E> ToList<I, E> for Integer<I> {
+impl<I: IntType> ToList<I> for Integer<I> {
 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
 	///
 	/// If `self` is negative, all the returned digits are negative.
-	fn to_list(&self, _: &mut Environment<I, E>) -> Result<List<I, E>> {
+	fn to_list(&self, _: &mut Environment<I>) -> Result<List<I>> {
 		if self.is_zero() {
 			return Ok(List::boxed(self.clone().into()));
 		}
