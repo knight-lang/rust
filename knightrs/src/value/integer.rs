@@ -1,11 +1,9 @@
-// #![warn(missing_docs)]
 //! [`Integer`] and related types.
 
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
-use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformSampler};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -48,13 +46,29 @@ impl PartialOrd<i64> for Integer {
 	}
 }
 
+impl PartialEq<i32> for Integer {
+	#[inline]
+	fn eq(&self, rhs: &i32) -> bool {
+		self.0 == *rhs as i64
+	}
+}
+
+impl PartialOrd<i32> for Integer {
+	#[inline]
+	fn partial_cmp(&self, rhs: &i32) -> Option<std::cmp::Ordering> {
+		self.0.partial_cmp(&(*rhs as i64))
+	}
+}
+
 impl Debug for Integer {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)
 	}
 }
 
 impl Display for Integer {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.0, f)
 	}
@@ -82,44 +96,31 @@ impl Integer {
 		let _ = flags;
 		Some(Self(int))
 	}
-}
 
-impl Integer {
 	/// The value zero.
 	pub const ZERO: Self = Self(0);
 
 	/// The value one.
 	pub const ONE: Self = Self(1);
 
-	// /// The minimum value of an integer.
-	// pub const MIN: Self = Self(::MIN);
+	#[inline]
+	pub const fn max(flags: &Flags) -> Self {
+		#[cfg(feature = "compliance")]
+		if flags.compliance.i32_integer {
+			return Self(i32::MAX as i64);
+		}
 
-	// /// The maximum value of an integer.
-	// pub const MAX: Self = Self(::MAX);
-
-	/// Returns whether `self` is zero.
-	///
-	/// # Examples
-	/// ```
-	/// # use knightrs::value::Integer;
-	/// assert!(Integer::new(0).is_zero());
-	/// assert!(!Integer::new(1).is_zero());
-	/// ```
-	pub fn is_zero(self) -> bool {
-		self.0 == 0
+		Self(i64::MAX)
 	}
 
-	/// Returns whether `self` is negative.
-	///
-	/// # Examples
-	/// ```
-	/// # use knightrs::value::Integer;
-	/// assert!(Integer::new(-1).is_negative());
-	/// assert!(!Integer::new(0).is_negative());
-	/// assert!(!Integer::new(1).is_negative());
-	/// ```
-	pub fn is_negative(self) -> bool {
-		self.0 < 0
+	#[inline]
+	pub const fn min(flags: &Flags) -> Self {
+		#[cfg(feature = "compliance")]
+		if flags.compliance.i32_integer {
+			return Self(i32::MIN as i64);
+		}
+
+		Self(i64::MIN)
 	}
 
 	/// Negates `self`.
@@ -134,16 +135,31 @@ impl Integer {
 	/// assert_eq!(-2, Integer::new(2).negate().unwrap());
 	/// ```
 	pub fn negate(self, flags: &Flags) -> Result<Self> {
+		#[allow(unused_mut)]
+		let mut opt = Some(self.0.wrapping_neg());
+
 		#[cfg(feature = "compliance")]
 		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_neg()
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
+			opt = self.0.checked_neg();
 		}
 
-		Self::new(self.0.wrapping_neg(), flags).ok_or(Error::IntegerOverflow)
+		opt.and_then(|int| Self::new(int, flags)).ok_or(Error::IntegerOverflow)
+	}
+
+	fn binary_op<T>(
+		self,
+		rhs: T,
+		flags: &Flags,
+		#[allow(unused)] checked: fn(i64, T) -> Option<i64>,
+		wrapping: fn(i64, T) -> i64,
+	) -> Result<Self> {
+		match () {
+			#[cfg(feature = "compliance")]
+			_ if flags.compliance.check_overflow => checked(self.0, rhs),
+			_ => Some(wrapping(self.0, rhs)),
+		}
+		.and_then(|int| Self::new(int, flags))
+		.ok_or(Error::IntegerOverflow)
 	}
 
 	/// Adds `self` with `augend`.
@@ -151,16 +167,7 @@ impl Integer {
 	/// # Errors
 	/// Any errors [`::add`](IntType::add) returns are bubbled up.
 	pub fn add(self, augend: Self, flags: &Flags) -> Result<Self> {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_add(augend.0)
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
-		}
-
-		Self::new(self.0.wrapping_add(augend.0), flags).ok_or(Error::IntegerOverflow)
+		self.binary_op(augend.0, flags, i64::checked_add, i64::wrapping_add)
 	}
 
 	/// Subtracts `self` by `subtrahend`.
@@ -168,16 +175,7 @@ impl Integer {
 	/// # Errors
 	/// Any errors [`::subtract`](IntType::subtract) returns are bubbled up.
 	pub fn subtract(self, subtrahend: Self, flags: &Flags) -> Result<Self> {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_sub(subtrahend.0)
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
-		}
-
-		Self::new(self.0.wrapping_sub(subtrahend.0), flags).ok_or(Error::IntegerOverflow)
+		self.binary_op(subtrahend.0, flags, i64::checked_sub, i64::wrapping_sub)
 	}
 
 	/// Multiplies `self` by `multiplier`.
@@ -185,16 +183,7 @@ impl Integer {
 	/// # Errors
 	/// Any errors [`::multiply`](IntType::multiply) returns are bubbled up.
 	pub fn multiply(self, multiplier: Self, flags: &Flags) -> Result<Self> {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_mul(multiplier.0)
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
-		}
-
-		Self::new(self.0.wrapping_mul(multiplier.0), flags).ok_or(Error::IntegerOverflow)
+		self.binary_op(multiplier.0, flags, i64::checked_mul, i64::wrapping_mul)
 	}
 
 	/// Divides `self` by `multiplier`.
@@ -208,16 +197,7 @@ impl Integer {
 			return Err(Error::DivisionByZero);
 		}
 
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_div(divisor.0)
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
-		}
-
-		Self::new(self.0.wrapping_div(divisor.0), flags).ok_or(Error::IntegerOverflow)
+		self.binary_op(divisor.0, flags, i64::checked_div, i64::wrapping_div)
 	}
 
 	/// Gets the remainder of `self` and `base`.
@@ -247,16 +227,7 @@ impl Integer {
 			}
 		}
 
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			return self
-				.0
-				.checked_rem(base.0)
-				.and_then(|int| Self::new(int, flags))
-				.ok_or(Error::IntegerOverflow);
-		}
-
-		Self::new(self.0.wrapping_rem(base.0), flags).ok_or(Error::IntegerOverflow)
+		self.binary_op(base.0, flags, i64::checked_rem, i64::wrapping_rem)
 	}
 
 	/// Raises `self` to the `exponent`th power.
@@ -295,16 +266,7 @@ impl Integer {
 			Ordering::Greater => {
 				let exp = u32::try_from(exponent).or(Err(Error::DomainError("exponent too large")))?;
 
-				#[cfg(feature = "compliance")]
-				if flags.compliance.check_overflow {
-					return self
-						.0
-						.checked_pow(exp)
-						.and_then(|int| Self::new(int, flags))
-						.ok_or(Error::IntegerOverflow);
-				}
-
-				Self::new(self.0.wrapping_pow(exp), flags).ok_or(Error::IntegerOverflow)
+				self.binary_op(exp, flags, i64::checked_pow, i64::wrapping_pow)
 			}
 		}
 	}
@@ -314,7 +276,9 @@ impl Integer {
 		match self.cmp(&Self::ZERO) {
 			std::cmp::Ordering::Greater => self.0.ilog10() as usize,
 			std::cmp::Ordering::Equal => 1,
-			std::cmp::Ordering::Less => todo!(), //self.negate().unwrap_or(i64::MAX).number_of_digits(),
+			std::cmp::Ordering::Less => {
+				Self(self.0.checked_neg().unwrap_or(i64::MAX)).number_of_digits()
+			}
 		}
 	}
 
@@ -365,63 +329,31 @@ impl Integer {
 	/// If neither of these flags are enabled, the returned integer will be in the range
 	/// `0..Self::MAX`.
 	pub fn random<R: rand::Rng + ?Sized>(rng: &mut R, flags: &Flags) -> Self {
-		rng.gen_range(match () {
-			#[cfg(feature = "compliance")]
-			_ if flags.compliance.limit_rand_range => Self::ZERO..=0x7FFF.into(),
-
+		let min = match () {
 			#[cfg(feature = "iffy-extensions")]
-			_ if flags.extensions.iffy.negative_random_integers => Self::min(flags)..=Self::max(flags),
+			_ if flags.extensions.iffy.negative_random_integers => {
+				if flags.compliance.i32_integer {
+					i32::MIN as i64
+				} else {
+					i64::MIN
+				}
+			}
 
-			_ => Self::ZERO..=Self::max(flags),
-		})
-	}
+			_ => 0,
+		};
 
-	const fn max(flags: &Flags) -> Self {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.i32_integer {
-			return Self(i32::MAX as i64);
-		}
+		let max = match () {
+			#[cfg(feature = "compliance")]
+			_ if flags.compliance.limit_rand_range => 0x7FFF,
 
-		Self(i64::MAX)
-	}
+			#[cfg(feature = "compliance")]
+			_ if flags.compliance.i32_integer => i32::MAX as i64,
 
-	const fn min(flags: &Flags) -> Self {
-		#[cfg(feature = "compliance")]
-		if flags.compliance.i32_integer {
-			return Self(i32::MIN as i64);
-		}
+			_ => i64::MAX,
+		};
 
-		Self(i64::MIN)
-	}
-}
-
-pub struct UniformIntType(<i64 as SampleUniform>::Sampler);
-
-impl SampleUniform for Integer {
-	type Sampler = UniformIntType;
-}
-
-impl UniformSampler for UniformIntType {
-	type X = Integer;
-
-	fn new<B1, B2>(low: B1, high: B2) -> Self
-	where
-		B1: SampleBorrow<Self::X>,
-		B2: SampleBorrow<Self::X>,
-	{
-		Self(<i64 as SampleUniform>::Sampler::new(low.borrow().0, high.borrow().0))
-	}
-
-	fn new_inclusive<B1, B2>(low: B1, high: B2) -> Self
-	where
-		B1: SampleBorrow<Self::X>,
-		B2: SampleBorrow<Self::X>,
-	{
-		Self(<i64 as SampleUniform>::Sampler::new_inclusive(low.borrow().0, high.borrow().0))
-	}
-
-	fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
-		Integer(self.0.sample(rng))
+		let _ = flags;
+		Self(rng.gen_range(min..=max))
 	}
 }
 
@@ -439,6 +371,7 @@ impl Parsable for Integer {
 
 impl ToInteger for Integer {
 	/// Simply returns `self`.
+	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> Result<Self> {
 		Ok(self.clone())
 	}
@@ -446,13 +379,15 @@ impl ToInteger for Integer {
 
 impl ToBoolean for Integer {
 	/// Returns whether `self` is nonzero.
+	#[inline]
 	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean> {
-		Ok(!self.is_zero())
+		Ok(*self != 0)
 	}
 }
 
 impl ToText for Integer {
 	/// Returns a string representation of `self`.
+	#[inline]
 	fn to_text(&self, _env: &mut Environment) -> Result<Text> {
 		// SAFETY: digits are valid in all encodings, and it'll never exceed the length.
 		Ok(unsafe { Text::new_unchecked(self) })
@@ -464,7 +399,7 @@ impl ToList for Integer {
 	///
 	/// If `self` is negative, all the returned digits are negative.
 	fn to_list(&self, _: &mut Environment) -> Result<List> {
-		if self.is_zero() {
+		if *self == 0 {
 			return Ok(List::boxed(self.clone().into()));
 		}
 
@@ -488,16 +423,12 @@ impl FromStr for Integer {
 	fn from_str(source: &str) -> std::result::Result<Self, Self::Err> {
 		let source = source.trim_start();
 
-		if source.is_empty() {
-			return Ok(Self::default());
-		}
-
-		let mut start = source;
-		if "+-".contains(source.as_bytes()[0] as char) {
-			let mut c = start.chars();
-			c.next();
-			start = c.as_str();
-		}
+		let mut chars = source.chars();
+		let mut start = match chars.next() {
+			None => return Ok(Self::default()),
+			Some('+' | '-') => chars.as_str(),
+			_ => source,
+		};
 
 		if let Some(bad) = start.find(|c: char| !c.is_ascii_digit()) {
 			start = &source[..bad + (start != source) as usize];

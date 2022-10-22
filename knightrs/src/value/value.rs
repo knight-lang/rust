@@ -676,7 +676,7 @@ fn fix_len(
 	env: &mut Environment,
 ) -> Result<usize> {
 	#[cfg(feature = "extensions")]
-	if env.flags().extensions.negative_indexing && start.is_negative() {
+	if env.flags().extensions.negative_indexing && start < 0 {
 		let len = match container {
 			Value::Text(text) => text.len(),
 			Value::List(list) => list.len(),
