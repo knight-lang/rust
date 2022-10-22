@@ -13,7 +13,7 @@ impl<I, E> From<Never> for Value<I, E> {
 	}
 }
 
-impl<I, E: Encoding> Parsable<I, E> for Blank {
+impl<I, E> Parsable<I, E> for Blank {
 	type Output = Never;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {

@@ -3,7 +3,6 @@
 
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
-use crate::value::text::Encoding;
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};
 use crate::{Error, Result};
 use rand::distributions::uniform::{SampleBorrow, SampleUniform, UniformSampler};
@@ -328,7 +327,7 @@ impl<I: IntType> UniformSampler for UniformIntType<I> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Parsable<I, E> for Integer<I> {
+impl<I: IntType, E> Parsable<I, E> for Integer<I> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

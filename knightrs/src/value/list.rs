@@ -1,7 +1,6 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use crate::value::{Boolean, Integer, NamedType, Text, ToBoolean, ToInteger, ToText, Value};
 use crate::{Environment, RefCount, Result, TextSlice};
 use std::fmt::{self, Debug, Formatter};
@@ -225,7 +224,6 @@ impl<I, E> List<I, E> {
 	pub fn join(&self, sep: &TextSlice<E>, env: &mut Environment<I, E>) -> Result<Text<E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		let mut joined = Text::builder();
 
@@ -297,7 +295,6 @@ impl<I, E> List<I, E> {
 	/// Returns any errors that [`block.run`](Value::run) returns.
 	pub fn map(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
 	where
-		E: Encoding,
 		I: IntType,
 	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -322,7 +319,6 @@ impl<I, E> List<I, E> {
 	/// Returns any errors that [`block.run`](Value::run) returns.
 	pub fn filter(&self, block: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Self>
 	where
-		E: Encoding,
 		I: IntType,
 	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -355,7 +351,6 @@ impl<I, E> List<I, E> {
 		env: &mut Environment<I, E>,
 	) -> Result<Option<Value<I, E>>>
 	where
-		E: Encoding,
 		I: IntType,
 	{
 		let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -423,7 +418,7 @@ impl<I: IntType, E> ToInteger<I, E> for List<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> ToText<I, E> for List<I, E> {
+impl<I: IntType, E> ToText<I, E> for List<I, E> {
 	/// Returns `self` [joined](Self::join) with a newline.
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		let newline = unsafe { TextSlice::new_unchecked("\n") };

@@ -1,4 +1,4 @@
-use super::{validate, Chars, Encoding, NewTextError, Text};
+use super::{validate, Chars, NewTextError, Text};
 use crate::env::{Environment, Flags};
 use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
@@ -57,19 +57,13 @@ impl<E> TextSlice<E> {
 	}
 
 	/// Tries to create a new [`TextSlice`], returning an error if not possible.
-	pub fn new<'s>(inp: &'s str, flags: &Flags) -> Result<&'s Self, NewTextError>
-	where
-		E: Encoding,
-	{
-		validate::<E>(inp, flags).map(|_| unsafe { Self::new_unchecked(inp) })
+	pub fn new<'s>(inp: &'s str, flags: &Flags) -> Result<&'s Self, NewTextError> {
+		validate(inp, flags).map(|_| unsafe { Self::new_unchecked(inp) })
 	}
 
 	#[deprecated]
-	pub fn new_boxed(inp: Box<str>, flags: &Flags) -> Result<Box<Self>, NewTextError>
-	where
-		E: Encoding,
-	{
-		validate::<E>(&inp, flags).map(|_| unsafe { Self::new_boxed_unchecked(inp) })
+	pub fn new_boxed(inp: Box<str>, flags: &Flags) -> Result<Box<Self>, NewTextError> {
+		validate(&inp, flags).map(|_| unsafe { Self::new_boxed_unchecked(inp) })
 	}
 
 	#[deprecated]

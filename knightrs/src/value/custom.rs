@@ -1,6 +1,5 @@
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use crate::value::{
 	Boolean, Integer, List, NamedType, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -130,7 +129,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 
 	fn to_text(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Text<E>>
 	where
-		E: Encoding,
 		I: Display,
 	{
 		Err(Error::NoConversion { to: Text::<E>::TYPENAME, from: self.typename() })
@@ -160,7 +158,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	fn head(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "["))
 	}
@@ -168,7 +165,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	fn tail(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "]"))
 	}
@@ -176,7 +172,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	fn length(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<usize>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Ok(self.to_list(env)?.len())
 	}
@@ -184,7 +179,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	fn ascii(self: RefCount<Self>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "ASCII"))
 	}
@@ -196,7 +190,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "+"))
 	}
@@ -208,7 +201,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "-"))
 	}
@@ -220,7 +212,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "*"))
 	}
@@ -232,7 +223,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "/"))
 	}
@@ -244,7 +234,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "%"))
 	}
@@ -256,7 +245,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "^"))
 	}
@@ -268,7 +256,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Ordering>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "<cmp>"))
 	}
@@ -276,7 +263,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	fn assign(self: RefCount<Self>, rhs: Value<I, E>, env: &mut Environment<I, E>) -> Result<()>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "="))
 	}
@@ -289,7 +275,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "GET"))
 	}
@@ -303,7 +288,6 @@ pub trait CustomType<I, E>: std::fmt::Debug + MaybeSendSync {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		Err(Error::TypeError(self.typename(), "GET"))
 	}
@@ -351,7 +335,6 @@ impl<I, E> Custom<I, E> {
 	pub fn head(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().head(env)
 	}
@@ -359,7 +342,6 @@ impl<I, E> Custom<I, E> {
 	pub fn tail(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().tail(env)
 	}
@@ -367,7 +349,6 @@ impl<I, E> Custom<I, E> {
 	pub fn length(&self, env: &mut Environment<I, E>) -> Result<usize>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().length(env)
 	}
@@ -375,7 +356,6 @@ impl<I, E> Custom<I, E> {
 	pub fn ascii(&self, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().ascii(env)
 	}
@@ -383,7 +363,6 @@ impl<I, E> Custom<I, E> {
 	pub fn add(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().add(rhs, env)
 	}
@@ -391,7 +370,6 @@ impl<I, E> Custom<I, E> {
 	pub fn subtract(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().subtract(rhs, env)
 	}
@@ -399,7 +377,6 @@ impl<I, E> Custom<I, E> {
 	pub fn multiply(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().multiply(rhs, env)
 	}
@@ -407,7 +384,6 @@ impl<I, E> Custom<I, E> {
 	pub fn divide(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().divide(rhs, env)
 	}
@@ -415,7 +391,6 @@ impl<I, E> Custom<I, E> {
 	pub fn remainder(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().remainder(rhs, env)
 	}
@@ -423,7 +398,6 @@ impl<I, E> Custom<I, E> {
 	pub fn power(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().power(rhs, env)
 	}
@@ -431,7 +405,6 @@ impl<I, E> Custom<I, E> {
 	pub fn compare(&self, rhs: &Value<I, E>, env: &mut Environment<I, E>) -> Result<Ordering>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().compare(rhs, env)
 	}
@@ -439,7 +412,6 @@ impl<I, E> Custom<I, E> {
 	pub fn assign(&self, rhs: Value<I, E>, env: &mut Environment<I, E>) -> Result<()>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().assign(rhs, env)
 	}
@@ -452,7 +424,6 @@ impl<I, E> Custom<I, E> {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().get(start, len, env)
 	}
@@ -466,7 +437,6 @@ impl<I, E> Custom<I, E> {
 	) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		self.0.clone().set(start, len, replacement, env)
 	}

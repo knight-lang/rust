@@ -3,7 +3,6 @@
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use crate::value::{NamedType, Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
@@ -117,10 +116,7 @@ impl<I, E> Variable<I, E> {
 	fn validate_name(
 		name: &TextSlice<E>,
 		flags: &Flags,
-	) -> std::result::Result<(), IllegalVariableName>
-	where
-		E: Encoding,
-	{
+	) -> std::result::Result<(), IllegalVariableName> {
 		if MAX_NAME_LEN < name.len() {
 			return Err(IllegalVariableName::TooLong(name.len()));
 		}
@@ -145,10 +141,10 @@ impl<I, E> Variable<I, E> {
 		Ok(())
 	}
 
-	pub(crate) fn new(name: Text<E>, flags: &Flags) -> std::result::Result<Self, IllegalVariableName>
-	where
-		E: Encoding,
-	{
+	pub(crate) fn new(
+		name: Text<E>,
+		flags: &Flags,
+	) -> std::result::Result<Self, IllegalVariableName> {
 		#[cfg(feature = "compliance")]
 		if flags.compliance.verify_variable_names {
 			Self::validate_name(&name, flags)?;
@@ -194,7 +190,7 @@ impl<I: Clone, E> Runnable<I, E> for Variable<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Parsable<I, E> for Variable<I, E> {
+impl<I: IntType, E> Parsable<I, E> for Variable<I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

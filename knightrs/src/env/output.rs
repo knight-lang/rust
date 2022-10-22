@@ -3,7 +3,6 @@
 use super::Flags;
 use crate::containers::MaybeSendSync;
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use std::io::{self, Write};
 use std::marker::PhantomData;
 
@@ -71,7 +70,7 @@ impl<'e, I, E> Output<'e, I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Write for Output<'_, I, E> {
+impl<I: IntType, E> Write for Output<'_, I, E> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
 		if let Some(redirect) = self.redirect.as_ref() {

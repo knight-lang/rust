@@ -4,7 +4,7 @@ use super::*;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ListLiteral<I, E>(std::marker::PhantomData<(I, E)>);
 
-impl<I: IntType, E: Encoding> Parsable<I, E> for ListLiteral<I, E> {
+impl<I: IntType, E> Parsable<I, E> for ListLiteral<I, E> {
 	type Output = Value<I, E>;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {

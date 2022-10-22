@@ -4,7 +4,7 @@ use super::*;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupedExpression;
 
-impl<I: IntType, E: Encoding> Parsable<I, E> for GroupedExpression {
+impl<I: IntType, E> Parsable<I, E> for GroupedExpression {
 	type Output = Value<I, E>;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> Result<Option<Self::Output>> {

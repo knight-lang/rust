@@ -1,4 +1,3 @@
-use super::Encoding;
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
 use crate::text::{NewTextError, TextSlice};
@@ -48,7 +47,6 @@ impl<E> Text<E> {
 	pub fn new<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
 	where
 		I: ToString,
-		E: Encoding,
 	{
 		TextSlice::new_boxed(inp.to_string().into(), flags).map(|x| Self(x.into()))
 	}
@@ -67,7 +65,7 @@ impl<E> Text<E> {
 		I: ToString,
 	{
 		let inp = inp.to_string();
-		super::validate_len::<E>(&inp, flags)?;
+		super::validate_len(&inp, flags)?;
 
 		Ok(Self::new_unchecked(inp))
 	}

@@ -2,7 +2,7 @@
 
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::{Environment, Flags};
-use crate::value::text::{Encoding, TextSlice};
+use crate::value::text::TextSlice;
 use crate::value::{integer::IntType, Value};
 use std::fmt::{self, Display, Formatter};
 
@@ -43,7 +43,6 @@ pub trait Parsable<I, E>: Sized {
 	fn parse_fn() -> ParseFn<I, E>
 	where
 		Value<I, E>: From<Self::Output>,
-		E: Encoding,
 		I: IntType,
 	{
 		RefCount::new(|parser| Ok(Self::parse(parser)?.map(Value::from)))
@@ -54,7 +53,7 @@ pub trait Parsable<I, E>: Sized {
 pub type ParseFn<I, E> = RefCount<dyn ParseFn_<I, E>>;
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn_<I: IntType, E: Encoding>:
+pub trait ParseFn_<I: IntType, E>:
 	Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync
 {
 }
@@ -62,7 +61,6 @@ pub trait ParseFn_<I: IntType, E: Encoding>:
 impl<T, I, E> ParseFn_<I, E> for T
 where
 	I: IntType,
-	E: Encoding,
 	T: Fn(&mut Parser<'_, '_, I, E>) -> Result<Option<Value<I, E>>> + MaybeSendSync,
 {
 }
@@ -72,7 +70,6 @@ where
 pub(crate) fn default<I, E>(_flags: &Flags) -> Vec<ParseFn<I, E>>
 where
 	I: IntType,
-	E: Encoding,
 {
 	macro_rules! parsers {
 		($($(#[$meta:meta])* $ty:ty),* $(,)?) => {
@@ -330,10 +327,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 
 	// impl<'s,  I, E: Encoding> Parser<'s,  I, E> {
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
-	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice<E>>
-	where
-		E: Encoding,
-	{
+	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice<E>> {
 		let start = self.source;
 
 		loop {
@@ -357,10 +351,7 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	}
 
 	/// Removes the remainder of a keyword function.
-	pub fn strip_keyword_function(&mut self) -> Option<&'s TextSlice<E>>
-	where
-		E: Encoding,
-	{
+	pub fn strip_keyword_function(&mut self) -> Option<&'s TextSlice<E>> {
 		self.take_while(|c| c.is_uppercase() || c == '_')
 	}
 
@@ -371,7 +362,6 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	pub fn parse_program(mut self) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		let ret = self.parse_expression()?;
 
@@ -393,7 +383,6 @@ impl<'s, 'e, I, E> Parser<'s, 'e, I, E> {
 	pub fn parse_expression(&mut self) -> Result<Value<I, E>>
 	where
 		I: IntType,
-		E: Encoding,
 	{
 		let mut i = 0;
 		// This is quite janky, we should fix it up.

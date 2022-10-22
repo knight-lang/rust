@@ -1,14 +1,15 @@
 mod builder;
-mod encoding;
+// mod encoding;
 mod text;
 mod textslice;
+
 pub trait ToText<I, E> {
 	fn to_text(&self, env: &mut crate::Environment<I, E>) -> crate::Result<Text<E>>;
 }
 
 use crate::env::Flags;
 pub use builder::Builder;
-pub use encoding::*;
+// pub use encoding::*;
 pub use text::*;
 pub use textslice::*;
 
@@ -70,7 +71,7 @@ impl std::fmt::Display for NewTextError {
 
 impl std::error::Error for NewTextError {}
 
-fn validate_len<E>(data: &str, flags: &Flags) -> Result<(), NewTextError> {
+fn validate_len(data: &str, flags: &Flags) -> Result<(), NewTextError> {
 	#[cfg(feature = "compliance")]
 	if flags.compliance.check_container_length && MAX_LEN < data.len() {
 		return Err(NewTextError::LengthTooLong(data.len()));
@@ -81,10 +82,10 @@ fn validate_len<E>(data: &str, flags: &Flags) -> Result<(), NewTextError> {
 	Ok(())
 }
 
-fn validate<E: Encoding>(data: &str, flags: &Flags) -> Result<(), NewTextError> {
+fn validate(data: &str, flags: &Flags) -> Result<(), NewTextError> {
 	#[cfg(feature = "compliance")]
 	{
-		validate_len::<E>(data, flags)?;
+		validate_len(data, flags)?;
 
 		if flags.compliance.knight_encoding {
 			for (index, chr) in data.chars().enumerate() {

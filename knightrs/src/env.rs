@@ -2,7 +2,6 @@
 
 use crate::parse::{ParseFn, Parser};
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use crate::value::Runnable;
 use crate::{Function, Integer, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
@@ -73,14 +72,14 @@ impl<I, E> Drop for Environment<'_, I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Default for Environment<'_, I, E> {
+impl<I: IntType, E> Default for Environment<'_, I, E> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
 	fn default() -> Self {
 		Self::builder(&flags::DEFAULT).build()
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Environment<'e, I, E> {
+impl<'e, I: IntType, E> Environment<'e, I, E> {
 	/// Creates a new [`Environment`] with the default configuration.
 	#[must_use]
 	pub fn new() -> Self {
@@ -134,10 +133,7 @@ impl<'e, I, E> Environment<'e, I, E> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice<E>,
-	) -> std::result::Result<Variable<I, E>, variable::IllegalVariableName>
-	where
-		E: Encoding,
-	{
+	) -> std::result::Result<Variable<I, E>, variable::IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());

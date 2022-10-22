@@ -21,14 +21,14 @@ pub struct Builder<'e, I, E> {
 	read_file: Option<Box<ReadFile<'e, E>>>,
 }
 
-impl<I: IntType, E: Encoding> Default for Builder<'_, I, E> {
+impl<I: IntType, E> Default for Builder<'_, I, E> {
 	/// Creates a new [`Builder`] with [default flags](Flags::default).
 	fn default() -> Self {
 		Self::new(&crate::env::flags::DEFAULT)
 	}
 }
 
-impl<'e, I: IntType, E: Encoding> Builder<'e, I, E> {
+impl<'e, I: IntType, E> Builder<'e, I, E> {
 	/// Creates a new [`Builder`] with the given flags.
 	pub fn new(flags: &'e Flags) -> Self {
 		Self {

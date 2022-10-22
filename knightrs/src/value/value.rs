@@ -1,6 +1,5 @@
 use crate::env::Environment;
 use crate::value::integer::IntType;
-use crate::value::text::Encoding;
 use crate::value::{
 	Boolean, Integer, List, NamedType, Null, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
 };
@@ -144,7 +143,7 @@ impl<I: IntType, E> ToInteger<I, E> for Value<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> ToText<I, E> for Value<I, E> {
+impl<I: IntType, E> ToText<I, E> for Value<I, E> {
 	fn to_text(&self, env: &mut Environment<I, E>) -> Result<Text<E>> {
 		match *self {
 			Self::Null => Null.to_text(env),
@@ -178,7 +177,7 @@ impl<I: IntType, E> ToList<I, E> for Value<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Runnable<I, E> for Value<I, E> {
+impl<I: IntType, E> Runnable<I, E> for Value<I, E> {
 	fn run(&self, env: &mut Environment<I, E>) -> Result<Self> {
 		match self {
 			Self::Variable(variable) => variable.run(env),
@@ -211,7 +210,7 @@ impl<I, E> Value<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Value<I, E> {
+impl<I: IntType, E> Value<I, E> {
 	/// Calls `self`.
 	///
 	/// # Errors
@@ -670,7 +669,7 @@ impl<I: IntType, E: Encoding> Value<I, E> {
 	}
 }
 
-fn fix_len<I: IntType, E: Encoding>(
+fn fix_len<I: IntType, E>(
 	container: &Value<I, E>,
 	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer<I>,
 	env: &mut Environment<I, E>,

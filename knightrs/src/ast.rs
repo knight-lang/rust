@@ -1,5 +1,5 @@
 use crate::parse::{self, Parsable, Parser};
-use crate::value::{integer::IntType, text::Encoding, Runnable, Value};
+use crate::value::{integer::IntType, Runnable, Value};
 use crate::{Environment, Function, RefCount, Result};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
@@ -58,13 +58,13 @@ impl<I, E> Ast<I, E> {
 	}
 }
 
-impl<I: IntType, E: Encoding> Runnable<I, E> for Ast<I, E> {
+impl<I: IntType, E> Runnable<I, E> for Ast<I, E> {
 	fn run(&self, env: &mut Environment<'_, I, E>) -> Result<Value<I, E>> {
 		self.function().run(self.args(), env)
 	}
 }
 
-impl<I: IntType, E: Encoding> Parsable<I, E> for Ast<I, E> {
+impl<I: IntType, E> Parsable<I, E> for Ast<I, E> {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, I, E>) -> parse::Result<Option<Self>> {

@@ -3,7 +3,7 @@
 use super::{Environment, Flags};
 use crate::containers::MaybeSendSync;
 use crate::value::integer::IntType;
-use crate::value::text::{Encoding, Text};
+use crate::value::text::Text;
 use crate::Result;
 use std::io::{self, BufRead};
 use std::marker::PhantomData;
@@ -126,7 +126,7 @@ enum ReadLineResultInner<I, E> {
 	Ast(Ast<I, E>),
 }
 
-impl<I: IntType, E: Encoding> Line<I, E> {
+impl<I: IntType, E> Line<I, E> {
 	/// Gets the `Text` corresponding to this line. Returns `None` if at eof.
 	pub fn get(self, env: &mut Environment<I, E>) -> Result<Option<Text<E>>> {
 		match self.0 {
@@ -176,10 +176,7 @@ impl<'e, I, E> Prompt<'e, I, E> {
 	///
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
-	pub fn read_line(&mut self) -> Result<Line<I, E>>
-	where
-		E: Encoding,
-	{
+	pub fn read_line(&mut self) -> Result<Line<I, E>> {
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
 			Some(PromptReplacement::Eof) => return Ok(Line(None)),
@@ -207,7 +204,7 @@ impl<'e, I, E> Prompt<'e, I, E> {
 /// Replacement functions.
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I: IntType, E: crate::value::text::Encoding> Prompt<'_, I, E> {
+impl<I: IntType, E> Prompt<'_, I, E> {
 	/// Clears the currently set replacement, if any.
 	pub fn reset_replacement(&mut self) {
 		self.replacement = None;
