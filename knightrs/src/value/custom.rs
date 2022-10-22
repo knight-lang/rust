@@ -4,7 +4,6 @@ use crate::value::{
 };
 use crate::{Environment, Error, Result, Value};
 use std::cmp::Ordering;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
 /// A type that can hold custom data that's not a part of vanilla Knight.
@@ -14,29 +13,22 @@ use std::hash::{Hash, Hasher};
 #[derive(Debug, Clone)]
 pub struct Custom(RefCount<dyn CustomType>);
 
-impl<I: Eq, E> Eq for Custom {}
-impl<I: PartialEq, E> PartialEq for Custom {
+impl Eq for Custom {}
+impl PartialEq for Custom {
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I: Hash, E> Hash for Custom {
+impl Hash for Custom {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		(RefCount::as_ptr(&self.0) as *const u8 as usize).hash(state);
 	}
 }
 
-impl<I, E, T: CustomType + 'static> From<RefCount<T>> for Custom {
+impl<T: CustomType + 'static> From<RefCount<T>> for Custom {
 	fn from(inp: RefCount<T>) -> Self {
 		Self(inp as _)
-	}
-}
-
-impl Custom {
-	/// A helper method to create a [`Custom`].
-	pub fn new<T: CustomType + 'static>(data: T) -> Self {
-		Self(RefCount::from(data) as _)
 	}
 }
 
@@ -126,10 +118,7 @@ pub trait CustomType: std::fmt::Debug + MaybeSendSync {
 		Ok(self.to_custom().into())
 	}
 
-	fn to_text(self: RefCount<Self>, env: &mut Environment) -> Result<Text>
-	where
-		I: Display,
-	{
+	fn to_text(self: RefCount<Self>, env: &mut Environment) -> Result<Text> {
 		Err(Error::NoConversion { to: Text::TYPENAME, from: self.typename() })
 	}
 
@@ -213,97 +202,123 @@ pub trait CustomType: std::fmt::Debug + MaybeSendSync {
 	}
 }
 
-impl<I: Display, E: Encoding> ToText for Custom {
+impl ToText for Custom {
+	#[inline]
 	fn to_text(&self, env: &mut Environment) -> Result<Text> {
 		self.0.clone().to_text(env)
 	}
 }
 
 impl ToInteger for Custom {
+	#[inline]
 	fn to_integer(&self, env: &mut Environment) -> Result<Integer> {
 		self.0.clone().to_integer(env)
 	}
 }
 
 impl ToBoolean for Custom {
+	#[inline]
 	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean> {
 		self.0.clone().to_boolean(env)
 	}
 }
 
 impl ToList for Custom {
+	#[inline]
 	fn to_list(&self, env: &mut Environment) -> Result<List> {
 		self.0.clone().to_list(env)
 	}
 }
 
 impl Runnable for Custom {
+	#[inline]
 	fn run(&self, env: &mut Environment) -> Result<Value> {
 		self.0.clone().run(env)
 	}
 }
 
 impl Custom {
+	/// A helper method to create a [`Custom`].
+	pub fn new<T: CustomType + 'static>(data: T) -> Self {
+		Self(RefCount::from(data) as _)
+	}
+
+	#[inline]
 	pub fn typename(&self) -> &'static str {
 		self.0.typename()
 	}
 
+	#[inline]
 	pub fn run(&self, env: &mut Environment) -> Result<Value> {
 		self.0.clone().run(env)
 	}
 
+	#[inline]
 	pub fn head(&self, env: &mut Environment) -> Result<Value> {
 		self.0.clone().head(env)
 	}
 
+	#[inline]
 	pub fn tail(&self, env: &mut Environment) -> Result<Value> {
 		self.0.clone().tail(env)
 	}
 
+	#[inline]
 	pub fn length(&self, env: &mut Environment) -> Result<usize> {
 		self.0.clone().length(env)
 	}
 
+	#[inline]
 	pub fn ascii(&self, env: &mut Environment) -> Result<Value> {
 		self.0.clone().ascii(env)
 	}
 
+	#[inline]
 	pub fn add(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().add(rhs, env)
 	}
 
+	#[inline]
 	pub fn subtract(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().subtract(rhs, env)
 	}
 
+	#[inline]
 	pub fn multiply(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().multiply(rhs, env)
 	}
 
+	#[inline]
 	pub fn divide(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().divide(rhs, env)
 	}
 
+	#[inline]
 	pub fn remainder(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().remainder(rhs, env)
 	}
 
+	#[inline]
 	pub fn power(&self, rhs: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().power(rhs, env)
 	}
 
+	#[inline]
 	pub fn compare(&self, rhs: &Value, env: &mut Environment) -> Result<Ordering> {
 		self.0.clone().compare(rhs, env)
 	}
 
+	#[inline]
 	pub fn assign(&self, rhs: Value, env: &mut Environment) -> Result<()> {
 		self.0.clone().assign(rhs, env)
 	}
 
+	#[inline]
 	pub fn get(&self, start: &Value, len: &Value, env: &mut Environment) -> Result<Value> {
 		self.0.clone().get(start, len, env)
 	}
 
+	#[inline]
 	pub fn set(
 		&self,
 		start: &Value,

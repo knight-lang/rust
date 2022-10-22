@@ -443,6 +443,7 @@ impl FromStr for Integer {
 macro_rules! impl_integer_from {
 	($($smaller:ident)* ; $($larger:ident)*) => {
 		$(impl From<$smaller> for Integer {
+			#[inline]
 			fn from(num: $smaller) -> Self {
 				Self(i64::from(num as i32))
 			}
@@ -450,6 +451,7 @@ macro_rules! impl_integer_from {
 		$(impl TryFrom<$larger> for Integer {
 			type Error = Error;
 
+			#[inline]
 			fn try_from(num: $larger) -> Result<Self> {
 				i64::try_from(num).ok().and_then(|x| i64::try_from(x).ok()).map(Self).ok_or(Error::IntegerOverflow)
 			}

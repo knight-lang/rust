@@ -73,6 +73,7 @@ impl Drop for Environment<'_> {
 
 impl Default for Environment<'_> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
+	#[inline]
 	fn default() -> Self {
 		Self::builder(&flags::DEFAULT).build()
 	}
@@ -81,11 +82,13 @@ impl Default for Environment<'_> {
 impl<'e> Environment<'e> {
 	/// Creates a new [`Environment`] with the default configuration.
 	#[must_use]
+	#[inline]
 	pub fn new() -> Self {
 		Self::default()
 	}
 
 	/// A shorthand function for creating [`Builder`]s.
+	#[inline]
 	pub fn builder(flags: &'e Flags) -> Builder {
 		Builder::new(flags)
 	}
@@ -94,35 +97,38 @@ impl<'e> Environment<'e> {
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
-}
 
-impl<'e> Environment<'e> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
+	#[inline]
 	pub fn flags(&self) -> &'e Flags {
 		self.flags
 	}
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
+	#[inline]
 	pub fn functions(&self) -> &HashSet<Function> {
 		&self.functions
 	}
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
+	#[inline]
 	pub fn parsers(&self) -> &[ParseFn] {
 		&self.parsers
 	}
 
 	/// Gets the [`Prompt`] type, which handles reading lines from stdin.
 	#[must_use]
+	#[inline]
 	pub fn prompt(&mut self) -> &mut Prompt<'e> {
 		&mut self.prompt
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
 	#[must_use]
+	#[inline]
 	pub fn output(&mut self) -> &mut Output<'e> {
 		&mut self.output
 	}
@@ -145,6 +151,7 @@ impl<'e> Environment<'e> {
 
 	/// Gets a random [`Integer`].
 	#[must_use]
+	#[inline]
 	pub fn random(&mut self) -> Integer {
 		Integer::random(&mut self.rng, self.flags)
 	}
@@ -155,32 +162,38 @@ impl<'e> Environment<'e> {
 impl Environment<'_> {
 	/// Gets the list of known extension functions.
 	#[must_use]
+	#[inline]
 	pub fn extensions(&self) -> &HashSet<ExtensionFunction> {
 		&self.extensions
 	}
 
 	/// Seeds the random number generator.
+	#[inline]
 	pub fn srand(&mut self, seed: Integer) {
 		self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 
 	/// Executes `command` as a shell command, returning its result.
+	#[inline]
 	pub fn run_command(&mut self, command: &TextSlice, stdin: Option<&TextSlice>) -> Result<Text> {
 		(self.system)(command, stdin, self.flags)
 	}
 
 	/// Adds `output` as the next value to return from the system command.
+	#[inline]
 	pub fn add_to_system(&mut self, output: Text) {
 		self.system_results.push_back(output);
 	}
 
 	/// Gets the next result from within system.
 	#[must_use]
+	#[inline]
 	pub fn get_next_system_result(&mut self) -> Option<Text> {
 		self.system_results.pop_front()
 	}
 
 	/// Reads the file located at `filename`, returning its contents.
+	#[inline]
 	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
 		(self.read_file)(filename, self.flags)
 	}

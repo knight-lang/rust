@@ -59,12 +59,14 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<io::Error> for Error {
+	#[inline]
 	fn from(err: io::Error) -> Self {
 		Self::IoError(err)
 	}
 }
 
 impl From<NewTextError> for Error {
+	#[inline]
 	fn from(err: NewTextError) -> Self {
 		match err {
 			#[cfg(feature = "compliance")]
@@ -74,12 +76,14 @@ impl From<NewTextError> for Error {
 }
 
 impl From<ParseError> for Error {
+	#[inline]
 	fn from(err: ParseError) -> Self {
 		Self::ParseError(err)
 	}
 }
 
 impl From<IllegalVariableName> for Error {
+	#[inline]
 	fn from(err: IllegalVariableName) -> Self {
 		match err {
 			#[cfg(feature = "compliance")]

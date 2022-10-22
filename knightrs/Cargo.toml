@@ -77,15 +77,11 @@ compliance = []
 # default to enabled.
 strict-compliance = ["compliance"]
 
-## Enables the "play" function, which can significantly bloat binary sizes.
-play = []
-
 [dependencies]
 rand = "0.8"
-clap = { version = "4.0", optional = true, features = ["derive"] }
 cfg-if = "1.0"
+clap = { version = "4.0", optional = true, features = ["derive"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
-
 
 [package.metadata.docs.rs]
 all-features = true
@@ -95,5 +91,5 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[bin]]
 name = "knight"
 path = "src/main.rs"
-required-features = ["clap", "play"]
+required-features = ["clap"]
 

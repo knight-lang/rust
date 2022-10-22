@@ -17,6 +17,7 @@ struct Inner {
 impl Eq for Ast {}
 impl PartialEq for Ast {
 	/// Two `Ast`s are equal only if they point to the exact same data.
+	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -38,6 +39,7 @@ impl Ast {
 	/// # Panics
 	/// Panics if `args.len()` isn't equal to `function.arity`.
 	#[must_use]
+	#[inline]
 	pub fn new(function: Function, args: Box<[Value]>) -> Self {
 		assert_eq!(args.len(), function.arity());
 
@@ -46,18 +48,21 @@ impl Ast {
 
 	/// Gets the function associated with the ast.
 	#[must_use]
+	#[inline]
 	pub fn function(&self) -> &Function {
 		&self.0.function
 	}
 
 	/// Gets the args associated with the ast.
 	#[must_use]
+	#[inline]
 	pub fn args(&self) -> &[Value] {
 		&self.0.args
 	}
 }
 
 impl Runnable for Ast {
+	#[inline]
 	fn run(&self, env: &mut Environment<'_>) -> Result<Value> {
 		self.function().run(self.args(), env)
 	}

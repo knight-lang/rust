@@ -56,42 +56,49 @@ impl Debug for Value {
 }
 
 impl From<Null> for Value {
+	#[inline]
 	fn from(_: Null) -> Self {
 		Self::Null
 	}
 }
 
 impl From<Boolean> for Value {
+	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		Self::Boolean(boolean)
 	}
 }
 
 impl From<Integer> for Value {
+	#[inline]
 	fn from(integer: Integer) -> Self {
 		Self::Integer(integer)
 	}
 }
 
 impl From<Text> for Value {
+	#[inline]
 	fn from(text: Text) -> Self {
 		Self::Text(text)
 	}
 }
 
 impl From<Variable> for Value {
+	#[inline]
 	fn from(variable: Variable) -> Self {
 		Self::Variable(variable)
 	}
 }
 
 impl From<Ast> for Value {
+	#[inline]
 	fn from(inp: Ast) -> Self {
 		Self::Ast(inp)
 	}
 }
 
 impl From<List> for Value {
+	#[inline]
 	fn from(list: List) -> Self {
 		Self::List(list)
 	}
@@ -99,6 +106,7 @@ impl From<List> for Value {
 
 #[cfg(feature = "custom-types")]
 impl From<crate::value::Custom> for Value {
+	#[inline]
 	fn from(custom: crate::value::Custom) -> Self {
 		Self::Custom(custom)
 	}
@@ -203,9 +211,7 @@ impl Value {
 			Self::Custom(custom) => custom.typename(),
 		}
 	}
-}
 
-impl Value {
 	/// Calls `self`.
 	///
 	/// # Errors

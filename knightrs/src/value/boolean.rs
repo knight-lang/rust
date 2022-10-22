@@ -32,6 +32,7 @@ impl Parsable for Boolean {
 
 impl ToBoolean for Boolean {
 	/// Simply returns `self`.
+	#[inline]
 	fn to_boolean(&self, _: &mut Environment) -> Result<Self> {
 		Ok(*self)
 	}
@@ -39,6 +40,7 @@ impl ToBoolean for Boolean {
 
 impl ToInteger for Boolean {
 	/// Returns `1` for true and `0` for false.
+	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
 		if *self {
 			Ok(Integer::ONE)
@@ -50,6 +52,7 @@ impl ToInteger for Boolean {
 
 impl ToList for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
+	#[inline]
 	fn to_list(&self, _: &mut Environment) -> Result<List> {
 		if *self {
 			Ok(List::boxed((*self).into()))
@@ -61,14 +64,15 @@ impl ToList for Boolean {
 
 impl ToText for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
+	#[inline]
 	fn to_text(&self, _: &mut Environment) -> Result<Text> {
-		// const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
-		// const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
+		const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
+		const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
 
 		if *self {
-			Ok(unsafe { TextSlice::new_unchecked("true") }.into())
+			Ok(TRUE_TEXT.into())
 		} else {
-			Ok(unsafe { TextSlice::new_unchecked("false") }.into())
+			Ok(FALSE_TEXT.into())
 		}
 	}
 }

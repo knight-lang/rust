@@ -7,10 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};
 
 #[cfg(feature = "extensions")]
-use crate::value::Runnable;
-
-#[allow(unused_imports)]
-use crate::Error;
+use crate::{value::Runnable, Error};
 
 /// The list type within Knight.
 ///
@@ -63,6 +60,7 @@ impl Hash for List {
 }
 
 impl Debug for List {
+	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.debug_list().entries(self).finish()
 	}
@@ -117,11 +115,13 @@ impl List {
 	}
 
 	/// Returns a new [`List`] with the only element being `value`.
+	#[inline]
 	pub fn boxed(value: Value) -> Self {
 		Self::_new(Inner::Boxed(value))
 	}
 
 	/// Returns whether `self` is empty.
+	#[inline]
 	pub fn is_empty(&self) -> bool {
 		// Every inner variant should be nonempty.
 		debug_assert_eq!(self.0.is_none(), self.len() == 0, "nonempty variant? len={}", self.len());
@@ -141,11 +141,13 @@ impl List {
 	}
 
 	/// Returns the first element in `self`.
+	#[inline]
 	pub fn head(&self) -> Option<Value> {
 		self.get(0).cloned()
 	}
 
 	/// Returns everything but the first element in `self`.
+	#[inline]
 	pub fn tail(&self) -> Option<Self> {
 		self.get(1..)
 	}
@@ -357,16 +359,17 @@ impl Parsable for List {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
-		if parser.advance_if('@').is_some() {
-			return Ok(Some(Self::default()));
+		if parser.advance_if('@').is_none() {
+			return Ok(None);
 		}
 
-		Ok(None)
+		Ok(Some(Self::default()))
 	}
 }
 
 impl ToList for List {
 	/// Simply returns `self`.
+	#[inline]
 	fn to_list(&self, _: &mut Environment) -> Result<Self> {
 		Ok(self.clone())
 	}
@@ -374,6 +377,7 @@ impl ToList for List {
 
 impl ToBoolean for List {
 	/// Returns whether `self` is nonempty.
+	#[inline]
 	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean> {
 		Ok(!self.is_empty())
 	}
@@ -381,6 +385,7 @@ impl ToBoolean for List {
 
 impl ToInteger for List {
 	/// Returns `self`'s length.
+	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
 		self.len().try_into()
 	}
@@ -388,10 +393,11 @@ impl ToInteger for List {
 
 impl ToText for List {
 	/// Returns `self` [joined](Self::join) with a newline.
+	#[inline]
 	fn to_text(&self, env: &mut Environment) -> Result<Text> {
-		let newline = unsafe { TextSlice::new_unchecked("\n") };
+		const NEWLINE: &TextSlice = unsafe { TextSlice::new_unchecked("\n") };
 
-		self.join(newline, env)
+		self.join(NEWLINE, env)
 	}
 }
 
@@ -452,6 +458,7 @@ impl<'a> IntoIterator for &'a List {
 	type Item = &'a Value;
 	type IntoIter = Iter<'a>;
 
+	#[inline]
 	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
 		self.iter()
 	}

@@ -10,21 +10,25 @@ pub struct Builder(String);
 
 impl Builder {
 	/// Creates a new, empty [`Builder`].
+	#[inline]
 	pub const fn new() -> Self {
 		Self(String::new())
 	}
 
 	/// Creates a new builder with the given capacity.
+	#[inline]
 	pub fn with_capacity(cap: usize) -> Self {
 		Self(String::with_capacity(cap))
 	}
 
 	/// Adds the given `text` to the end of the builder.
+	#[inline]
 	pub fn push(&mut self, text: &TextSlice) {
 		self.0.push_str(text);
 	}
 
 	/// Adds the given `chr` to the end of the builder.
+	#[inline]
 	pub fn push_char(&mut self, chr: char) {
 		self.0.push(chr);
 	}
@@ -36,6 +40,7 @@ impl Builder {
 	/// # Results
 	/// If [`check_container_length`](crate::env::flags::Compliance::check_container_length) is
 	/// enabled, and the resulting [`Text`] is too large, an error is returned.
+	#[inline]
 	pub fn finish(self, flags: &Flags) -> Result<Text, NewTextError> {
 		// SAFETY: We know that `self` is comprised of only valid `E`s because it was constructed only
 		// with `E`s. Additionally, since `E: Encoding` is required for creating all `TextSlice`s and

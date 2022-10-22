@@ -13,6 +13,7 @@ pub use builder::Builder;
 pub use text::*;
 pub use textslice::*;
 
+#[inline]
 pub const fn is_valid_character(chr: char) -> bool {
 	matches!(chr, '\r' | '\n' | '\t' | ' '..='~')
 }

@@ -4,7 +4,7 @@ use std::thread::{self, ScopedJoinHandle};
 
 pub struct Thread<'q>(ScopedJoinHandle<'q, Value>);
 
-impl<'q, I: IntType, E: Encoding> Thread<'q> {
+impl<'q> Thread<'q> {
 	#[cfg(any())]
 	pub fn spawn(body: Value, env: &'q mut crate::env::Environment) -> Self {
 		// Self(thread::spawn(move || body.run(env).unwrap()))
@@ -14,7 +14,7 @@ impl<'q, I: IntType, E: Encoding> Thread<'q> {
 
 // #[cfg(feature = "extensions")]
 // #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
-// pub fn XRANGE< I: IntType, E: Encoding>() -> ExtensionFunction< I> {
+// pub fn XRANGE< I, E>() -> ExtensionFunction< I> {
 // 	xfunction!("XRANGE", env, |start, stop| {
 // 		match start.run(env)? {
 // 			Value::Integer(start) => {

@@ -37,6 +37,7 @@ impl Parsable for Null {
 
 impl ToBoolean for Null {
 	/// Simply returns `false`.
+	#[inline]
 	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
@@ -44,6 +45,7 @@ impl ToBoolean for Null {
 
 impl ToInteger for Null {
 	/// Simply returns zero.
+	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
 		Ok(Integer::default())
 	}
@@ -51,6 +53,7 @@ impl ToInteger for Null {
 
 impl ToList for Null {
 	/// Simply returns an empty [`List`].
+	#[inline]
 	fn to_list(&self, _: &mut Environment) -> Result<List> {
 		Ok(List::default())
 	}
@@ -58,6 +61,7 @@ impl ToList for Null {
 
 impl ToText for Null {
 	/// Simply returns an empty [`Text`].
+	#[inline]
 	fn to_text(&self, _: &mut Environment) -> Result<Text> {
 		Ok(Text::default())
 	}

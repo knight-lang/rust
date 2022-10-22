@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 [features]
 
 [dependencies]
-knightrs = { path = "../knightrs", features = ["serde", "play", "iffy-extensions"] }
+knightrs = { path = "../knightrs", features = ["serde", "iffy-extensions"] }
 wasm-bindgen = "0.2"
 getrandom = { version = "*", features = ["js"] }
 serde = { version = "1.0", features = ["derive"] }
