@@ -1,6 +1,6 @@
 use super::{validate, Chars, NewTextError, Text};
 use crate::env::{Environment, Flags};
-use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
+use crate::value::{Integer, List, ToList, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[repr(transparent)]
@@ -158,37 +158,5 @@ impl<'a> IntoIterator for &'a TextSlice {
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.chars()
-	}
-}
-
-impl ToBoolean for Text {
-	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
-		Ok(!self.is_empty())
-	}
-}
-
-impl ToText for Text {
-	fn to_text(&self, _: &mut Environment) -> crate::Result<Self> {
-		Ok(self.clone())
-	}
-}
-
-impl crate::value::NamedType for Text {
-	const TYPENAME: &'static str = "Text";
-}
-
-impl ToInteger for Text {
-	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
-		Ok(self.parse().unwrap_or_default())
-	}
-}
-
-impl ToList for Text {
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		let chars =
-			self.chars().map(|c| unsafe { Self::new_unchecked(c) }.into()).collect::<Vec<_>>();
-
-		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
-		Ok(unsafe { List::new_unchecked(chars) })
 	}
 }

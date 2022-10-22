@@ -1,4 +1,5 @@
 use super::*;
+use ErrorKind::{DoesntEncloseExpression, EmptySource, UnmatchedLeftParen, UnmatchedRightParen};
 
 /// A [`Parsable`] that ensures that parens are matched.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -8,10 +9,6 @@ impl Parsable for GroupedExpression {
 	type Output = Value;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>> {
-		use ErrorKind::{
-			DoesntEncloseExpression, EmptySource, UnmatchedLeftParen, UnmatchedRightParen,
-		};
-
 		if parser.advance_if(')').is_some() {
 			return Err(parser.error(UnmatchedRightParen));
 		}

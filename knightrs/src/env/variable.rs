@@ -35,6 +35,7 @@ impl Debug for Variable {
 impl Eq for Variable {}
 impl PartialEq for Variable {
 	/// Checks to see if two variables are pointing to the _exact same object_
+	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -42,6 +43,7 @@ impl PartialEq for Variable {
 
 impl Borrow<TextSlice> for Variable {
 	/// Borrows the [name](Variable::name) of the variable.
+	#[inline]
 	fn borrow(&self) -> &TextSlice {
 		self.name()
 	}
@@ -153,17 +155,20 @@ impl Variable {
 
 	/// Fetches the name of the variable.
 	#[must_use]
+	#[inline]
 	pub fn name(&self) -> &Text {
 		&self.0.name
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
+	#[inline]
 	pub fn assign(&self, new: Value) -> Option<Value> {
 		(self.0).value.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
-	#[must_use]
+	#[must_use = "fetching the value of a variable does nothing on its own"]
+	#[inline]
 	pub fn fetch(&self) -> Option<Value> {
 		(self.0).value.read().clone()
 	}
@@ -172,12 +177,14 @@ impl Variable {
 impl Runnable for Variable {
 	/// [Fetches](Self::fetch) the last assigned value, or returns [`Error::UndefinedVariable`] if
 	/// it was never assigned to.
-	fn run(&self, _env: &mut Environment) -> Result<Value> {
+	fn run(&self, env: &mut Environment) -> Result<Value> {
+		let _ = env;
+
 		match self.fetch() {
 			Some(value) => Ok(value),
 
 			#[cfg(feature = "iffy-extensions")]
-			None if _env.flags().extensions.iffy.unassigned_variables_default_to_null => Ok(Value::Null),
+			None if env.flags().extensions.iffy.unassigned_variables_default_to_null => Ok(Value::Null),
 
 			None => Err(Error::UndefinedVariable(self.name().to_string())),
 		}
@@ -188,13 +195,15 @@ impl Parsable for Variable {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
-		let Some(identifier) = parser.take_while(|chr| {
-			chr.is_lowercase() || chr == '_' || chr.is_numeric()
-		}) else {
+		if parser.peek().map_or(false, |c| !c.is_lowercase() && c != '_') {
+			return Ok(None);
+		}
+
+		let Some(ident) = parser.take_while(|c| c.is_lowercase() || c == '_' || c.is_numeric()) else {
 			return Ok(None);
 		};
 
-		match parser.env().lookup(identifier) {
+		match parser.env().lookup(ident) {
 			Ok(value) => Ok(Some(value)),
 			Err(err) => match err {
 				// When there's no compliance issues, there'll be nothing to match.

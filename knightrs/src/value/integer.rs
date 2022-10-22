@@ -79,7 +79,7 @@ impl NamedType for Integer {
 }
 
 impl Integer {
-	/// Creates a new `Integer`.
+	/// Creates a new `Integer` without checking bounds.
 	#[inline]
 	pub const unsafe fn new_unchecked(int: i64) -> Self {
 		Self(int)
@@ -135,15 +135,13 @@ impl Integer {
 	/// assert_eq!(-2, Integer::new(2).negate().unwrap());
 	/// ```
 	pub fn negate(self, flags: &Flags) -> Result<Self> {
-		#[allow(unused_mut)]
-		let mut opt = Some(self.0.wrapping_neg());
-
-		#[cfg(feature = "compliance")]
-		if flags.compliance.check_overflow {
-			opt = self.0.checked_neg();
+		match () {
+			#[cfg(feature = "compliance")]
+			_ if flags.compliance.check_overflow => self.0.checked_neg(),
+			_ => Some(self.0.wrapping_neg()),
 		}
-
-		opt.and_then(|int| Self::new(int, flags)).ok_or(Error::IntegerOverflow)
+		.and_then(|int| Self::new(int, flags))
+		.ok_or(Error::IntegerOverflow)
 	}
 
 	fn binary_op<T>(

@@ -17,10 +17,10 @@ impl Parsable for Blank {
 	type Output = Never;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>> {
-		if parser.strip_whitespace_and_comments().is_some() {
-			Err(parser.error(ErrorKind::RestartParsing))
-		} else {
-			Ok(None)
+		if parser.strip_whitespace_and_comments().is_none() {
+			return Ok(None);
 		}
+
+		Err(parser.error(ErrorKind::RestartParsing))
 	}
 }
