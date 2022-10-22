@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Knight</title>
+  <script type=module>
+    import init, { play } from "./knightrs_wasm.js";
+    init().then(() => window.play = play);
+    var $ = x => document.getElementById(x);
+    var STDOUT = $("stdout");
+    var STDERR = $("stderr");
+    var c = id => $(id).checked;
+
+    function get_options() {
+      return {
+        compliance: {
+          knight_encoding: c('knight_encoding'),
+          i32_integer: c('i32_integer'),
+          check_overflow: c('check_overflow'),
+          check_quit_bounds: c('check_quit_bounds'),
+          forbid_trailing_tokens: c('forbid_trailing_tokens'),
+          verify_variable_names: c('verify_variable_names'),
+          check_call_arg: c('check_call_arg'),
+          limit_rand_range: c('limit_rand_range'),
+          check_equals_params: c('check_equals_params'),
+          check_container_length: c('check_container_length'),
+          check_integer_function_bounds: c('check_integer_function_bounds'),
+        },
+        extensions: {
+          assign_to: {
+            prompt: c('assignto_prompt'),
+            output: c('assignto_output'),
+            system: c('assignto_system'),
+            list: c('assignto_list'),
+            text: c('assignto_text'),
+          },
+          functions: {
+            value: c('ext_value'),
+            eval: c('ext_eval'),
+            handle: c('ext_handle'),
+            yeet: c('ext_yeet'),
+            use: c('ext_use'),
+            system: c('ext_system'),
+            xsrand: c('ext_xsrand'),
+            xreverse: c('ext_xreverse'),
+            xrange: c('ext_xrange'),
+          },
+          types: {
+            boolean: c('ty_boolean'),
+            list: c('ty_list'),
+            text: c('ty_text'),
+            integer: c('ty_integer'),
+          },
+          iffy: {
+            negating_a_list_inverts_it: c('negating_a_list_inverts_it'),
+            unassigned_variables_default_to_null: c('unassigned_variables_default_to_null'),
+            negative_random_integers: c('negative_random_integers'),
+          },
+          negative_indexing: c('negative_indexing'),
+          list_literal: c('list_literal'),
+        }
+      }
+    }
+
+    window.submititnow = function() {
+      event.preventDefault();
+      STDOUT.innerText = STDERR.innerText = "<none>";
+      try {
+        STDOUT.innerText = play($('input').value, get_options());
+      } catch (e) {
+        STDERR.innerText = "" + e;
+      }
+      return false;
+    }
+
+    $('input').onkeydown = e => {
+      if (e.keyCode == 9) {
+        e.preventDefault();
+        $('input').value += '\t';
+      }
+
+      if (e.keyCode == 13 && e.shiftKey) {
+        e.preventDefault();
+        submititnow();
+      }
+    };
+  </script>
+  <style>
+    .subheader {
+      padding-top: 1ex;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <form onsubmit="submititnow()">
+  <h1>Input</h1>
+  <span>
+    <div style="float: left; width: 50%">
+      <div>
+        <textarea id=input rows=20 cols=80></textarea>
+        <br/>
+        <input style="float: right" type=submit>
+      </div>
+    </div>
+    <div style="float: right; width: 45%">
+      <div id=compliance>
+        <h3>Compliance</h3>
+        <div>
+          <input type=checkbox id=knight_encoding> Knight&nbsp;Encoding</input>
+          <input type=checkbox id=i32_integer> 32-bit&nbsp;Integer</input>
+          <input type=checkbox id=check_overflow> Check&nbsp;for&nbsp;integer&nbsp;overflow</input>
+          <br>
+          <input type=checkbox id=check_container_length> Constrain&nbsp;Container&nbsp;length</input>
+          <input type=checkbox id=verify_variable_names> Verify&nbsp;variable&nbsp;names</input>
+          <input type=checkbox id=forbid_trailing_tokens> Forbid&nbsp;Trailing&nbsp;Tokens</input>
+        </div>
+        <div class=subheader> Ensure&nbsp;strict&nbsp;compliance&nbsp;for </div>
+        <div>
+          <input type=checkbox id=check_quit_bounds> <tt>QUIT</tt> </input>
+          <input type=checkbox id=check_call_arg> <tt>CALL</tt> </input>
+          <input type=checkbox id=limit_rand_range> <tt>RANDOM</tt> </input>
+          <input type=checkbox id=check_equals_params> <tt>?</tt> </input>
+          <input type=checkbox id=check_integer_function_bounds> <tt>%</tt>&nbsp;&amp;&nbsp;<tt>^</tt></input>
+        </div>
+      </div>
+      <hr/>
+      <div id=extensions>
+        <h3>Extensions</h3>
+        <div>
+          <input type=checkbox id=negative_indexing> Negative&nbsp;Indexing </input>
+          <input type=checkbox id=list_literal> List&nbsp;Literal </input>
+        </div>
+        <div class=subheader>Extension&nbsp;Functions</div>
+        <div>
+          <input type=checkbox id=ext_value> <tt>VALUE</tt> </input>
+          <input type=checkbox id=ext_eval> <tt>EVAL</tt> </input>
+          <input type=checkbox id=ext_handle> <tt>HANDLE</tt> </input>
+          <input type=checkbox id=ext_yeet> <tt>YEET</tt> </input>
+          <input type=checkbox id=ext_use> <tt>USE</tt> </input>
+          <input type=checkbox id=ext_system> <tt>$</tt> </input>
+          <input type=checkbox id=ext_xsrand> <tt>XSRAND</tt> </input>
+          <input type=checkbox id=ext_xreverse> <tt>XREVERSE</tt> </input>
+          <input type=checkbox id=ext_xrange> <tt>XRANGE</tt> </input>
+        </div>
+
+        <div class=subheader>Type&nbsp;Extensions</div>
+        <div>
+          <input type=checkbox id=ty_boolean> Boolean </input>
+          <input type=checkbox id=ty_list> List </input>
+          <input type=checkbox id=ty_text> String </input>
+          <input type=checkbox id=ty_integer> Integer </input>
+        </div>
+
+        <div class=subheader>Assign&nbsp;To</div>
+        <div>
+          <input type=checkbox id=assignto_prompt> <tt>PROMPT</tt> </input>
+          <input type=checkbox id=assignto_output> <tt>OUTPUT</tt> </input>
+          <input type=checkbox id=assignto_system> <tt>$</tt> </input>
+          <input type=checkbox id=assignto_list> Lists </input>
+          <input type=checkbox id=assignto_text> Strings </input>
+        </div>
+
+        <div class=subheader>Iffy&nbsp;Extensions</div>
+        <div>
+          <input type=checkbox id=negating_a_list_inverts_it> <tt>~</tt> inverts lists </input>
+          <input type=checkbox id=unassigned_variables_default_to_null> Default variables to null </input>
+          <input type=checkbox id=negative_random_integers> <tt>RANDOM</tt> returns negative ints </input>
+        </div>
+      </div>
+    </div>
+  </span>
+  </form>
+  <div>
+    <h1>Stdout</h1><tt id=stdout></tt>
+    <h1>Stderr</h1><tt id=stderr></tt>
+  </div>
+</body>
+</html>
