@@ -3,8 +3,8 @@
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::TextSlice;
-use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText};
-use crate::{Error, RefCount, Result, Value};
+use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText, Value};
+use crate::{Error, RefCount, Result};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -635,7 +635,7 @@ pub fn VALUE() -> Function {
 #[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
 pub fn HANDLE() -> Function {
 	function!("HANDLE", env, |block, iferr| {
-		let err_var_name = unsafe { crate::TextSlice::new_unchecked("_") };
+		let err_var_name = unsafe { TextSlice::new_unchecked("_") };
 
 		match block.run(env) {
 			Ok(value) => value,

@@ -1,6 +1,6 @@
+use super::{NewTextError, TextSlice};
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
-use crate::text::{NewTextError, TextSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList, ToText};
 use crate::RefCount;
 use std::fmt::{self, Debug, Display, Formatter};

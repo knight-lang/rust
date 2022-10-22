@@ -18,7 +18,3 @@ pub use ast::Ast;
 pub use containers::{Mutable, RefCount};
 pub use error::{Error, Result};
 pub use function::Function;
-pub use parse::{Error as ParseError, Parser};
-
-#[deprecated]
-pub use value::*;
