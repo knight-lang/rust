@@ -2,12 +2,12 @@ use super::*;
 
 /// A [`Parsable`] for the `{ ... }` list literal syntax.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ListLiteral<I>(std::marker::PhantomData<I>);
+pub struct ListLiteral;
 
-impl<I: IntType> Parsable<I> for ListLiteral<I> {
-	type Output = Value<I>;
+impl Parsable for ListLiteral {
+	type Output = Value;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>> {
 		if !parser.env().flags().extensions.list_literal || parser.advance_if('{').is_none() {
 			return Ok(None);
 		}

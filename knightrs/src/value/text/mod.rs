@@ -3,8 +3,8 @@ mod builder;
 mod text;
 mod textslice;
 
-pub trait ToText<I> {
-	fn to_text(&self, env: &mut crate::Environment<I>) -> crate::Result<Text>;
+pub trait ToText {
+	fn to_text(&self, env: &mut crate::Environment) -> crate::Result<Text>;
 }
 
 use crate::env::Flags;

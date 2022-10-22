@@ -7,16 +7,16 @@ pub struct Blank;
 /// The never type's replacement.
 pub enum Never {}
 
-impl<I> From<Never> for Value<I> {
+impl From<Never> for Value {
 	fn from(never: Never) -> Self {
 		match never {}
 	}
 }
 
-impl<I> Parsable<I> for Blank {
+impl Parsable for Blank {
 	type Output = Never;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>> {
 		if parser.strip_whitespace_and_comments().is_some() {
 			Err(parser.error(ErrorKind::RestartParsing))
 		} else {

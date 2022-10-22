@@ -3,7 +3,7 @@
 use crate::containers::{MaybeSendSync, RefCount};
 use crate::env::{Environment, Flags};
 use crate::value::text::TextSlice;
-use crate::value::{integer::IntType, Value};
+use crate::value::Value;
 use std::fmt::{self, Display, Formatter};
 
 mod blank;
@@ -17,14 +17,14 @@ pub use list_literal::ListLiteral;
 
 /// A type that handles parsing source code.
 #[must_use]
-pub struct Parser<'s, 'e, I> {
+pub struct Parser<'s, 'e> {
 	source: &'s TextSlice,
-	env: &'s mut Environment<'e, I>,
+	env: &'s mut Environment<'e>,
 	line: usize,
 }
 
 /// A trait that indicates that something can be parsed.
-pub trait Parsable<I>: Sized {
+pub trait Parsable: Sized {
 	/// The type that's being parsed.
 	type Output;
 
@@ -36,41 +36,29 @@ pub trait Parsable<I>: Sized {
 	///   whitespace), then [`ErrorKind::RestartParsing`] should be returned.
 	/// - If there's an issue when parsing (such as missing a closing quote), an [`Error`] should be
 	///   returned.
-	fn parse(parser: &mut Parser<'_, '_, I>) -> Result<Option<Self::Output>>;
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>>;
 
 	/// A convenience function that generates things you can stick into [`env::Builder::parsers`](
 	/// crate::env::Builder::parsers).
-	fn parse_fn() -> ParseFn<I>
+	fn parse_fn() -> ParseFn
 	where
-		Value<I>: From<Self::Output>,
-		I: IntType,
+		Value: From<Self::Output>,
 	{
 		RefCount::new(|parser| Ok(Self::parse(parser)?.map(Value::from)))
 	}
 }
 
 /// A type that can parse things.
-pub type ParseFn<I> = RefCount<dyn ParseFn_<I>>;
+pub type ParseFn = RefCount<dyn ParseFn_>;
 
 /// A Trait that indicates something is able to be parsed.
-pub trait ParseFn_<I: IntType>:
-	Fn(&mut Parser<'_, '_, I>) -> Result<Option<Value<I>>> + MaybeSendSync
-{
-}
+pub trait ParseFn_: Fn(&mut Parser<'_, '_>) -> Result<Option<Value>> + MaybeSendSync {}
 
-impl<T, I> ParseFn_<I> for T
-where
-	I: IntType,
-	T: Fn(&mut Parser<'_, '_, I>) -> Result<Option<Value<I>>> + MaybeSendSync,
-{
-}
+impl<T> ParseFn_ for T where T: Fn(&mut Parser<'_, '_>) -> Result<Option<Value>> + MaybeSendSync {}
 
 // Gets the default list of parsers. (We don't use the `_flags` field currently, but it's there
 // in case we want it for extensions later.)
-pub(crate) fn default<I>(_flags: &Flags) -> Vec<ParseFn<I>>
-where
-	I: IntType,
-{
+pub(crate) fn default(_flags: &Flags) -> Vec<ParseFn> {
 	macro_rules! parsers {
 		($($(#[$meta:meta])* $ty:ty),* $(,)?) => {
 			vec![$($(#[$meta])* <$ty>::parse_fn()),*]
@@ -80,16 +68,15 @@ where
 	parsers![
 		Blank,
 		GroupedExpression,
-		crate::value::Integer<I>,
+		crate::value::Integer,
 		crate::value::Text,
-		crate::env::Variable< I>,
+		crate::env::Variable,
 		crate::value::Boolean,
 		crate::value::Null,
-		crate::value::List< I>,
-		crate::ast::Ast< I>,
-
+		crate::value::List,
+		crate::ast::Ast,
 		#[cfg(feature = "extensions")]
-		ListLiteral< I>
+		ListLiteral
 	]
 }
 
@@ -250,10 +237,10 @@ impl AdvanceIfCondition for char {
 	}
 }
 
-impl<'s, 'e, I> Parser<'s, 'e, I> {
+impl<'s, 'e> Parser<'s, 'e> {
 	/// Create a new `Parser` from the given source.
 	#[must_use]
-	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e, I>) -> Self {
+	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e>) -> Self {
 		Self { source, line: 1, env }
 	}
 
@@ -265,7 +252,7 @@ impl<'s, 'e, I> Parser<'s, 'e, I> {
 
 	/// Gets the environment.
 	#[must_use]
-	pub fn env(&mut self) -> &mut Environment<'e, I> {
+	pub fn env(&mut self) -> &mut Environment<'e> {
 		self.env
 	}
 
@@ -323,9 +310,7 @@ impl<'s, 'e, I> Parser<'s, 'e, I> {
 
 		Some(start.get(..start.len() - self.source.len()).unwrap())
 	}
-	// }
 
-	// impl<'s,  I: Encoding> Parser<'s,  I> {
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
 	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'s TextSlice> {
 		let start = self.source;
@@ -359,10 +344,7 @@ impl<'s, 'e, I> Parser<'s, 'e, I> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Value<I>>
-	where
-		I: IntType,
-	{
+	pub fn parse_program(mut self) -> Result<Value> {
 		let ret = self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -380,10 +362,7 @@ impl<'s, 'e, I> Parser<'s, 'e, I> {
 	///
 	/// This goes through its [environment's parsers](Environment::parsers) one by one, returning
 	/// the first value that returned `Ok(Some(...))`
-	pub fn parse_expression(&mut self) -> Result<Value<I>>
-	where
-		I: IntType,
-	{
+	pub fn parse_expression(&mut self) -> Result<Value> {
 		let mut i = 0;
 		// This is quite janky, we should fix it up.
 		while i < self.env.parsers().len() {

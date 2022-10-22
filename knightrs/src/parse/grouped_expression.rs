@@ -4,10 +4,10 @@ use super::*;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GroupedExpression;
 
-impl<I: IntType> Parsable<I> for GroupedExpression {
-	type Output = Value<I>;
+impl Parsable for GroupedExpression {
+	type Output = Value;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> Result<Option<Self::Output>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>> {
 		use ErrorKind::{
 			DoesntEncloseExpression, EmptySource, UnmatchedLeftParen, UnmatchedRightParen,
 		};

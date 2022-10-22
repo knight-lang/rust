@@ -49,6 +49,8 @@ pub(crate) static DEFAULT: Flags = Flags {
 	#[cfg(feature = "compliance")]
 	compliance: Compliance {
 		knight_encoding: STRICT_COMPLIANCE,
+		i32_integer: STRICT_COMPLIANCE,
+		check_overflow: STRICT_COMPLIANCE,
 		check_quit_bounds: STRICT_COMPLIANCE,
 		forbid_trailing_tokens: STRICT_COMPLIANCE,
 		verify_variable_names: STRICT_COMPLIANCE,
@@ -119,6 +121,12 @@ if #[cfg(feature = "compliance")] {
 	pub struct Compliance {
 		#[cfg_attr(feature = "clap", arg(long))]
 		pub knight_encoding: bool,
+
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub check_overflow: bool,
+
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub i32_integer: bool,
 
 		/// Ensure [`QUIT`](crate::function::QUIT)'s argument is within `0..=127`.
 		#[cfg_attr(feature = "clap", arg(long))]

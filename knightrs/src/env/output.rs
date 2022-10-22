@@ -2,9 +2,7 @@
 
 use super::Flags;
 use crate::containers::MaybeSendSync;
-use crate::value::integer::IntType;
 use std::io::{self, Write};
-use std::marker::PhantomData;
 
 /// A trait used for writing to stdout.
 ///
@@ -28,23 +26,21 @@ impl<T: Write + MaybeSendSync> Stdout for T {}
 /// ; = OUTPUT NULL # return back to normal output
 /// ; DUMP out #=> "hello\nworld"
 /// ```
-pub struct Output<'e, I> {
+pub struct Output<'e> {
 	default: Box<dyn Stdout + 'e>,
 
 	#[cfg_attr(not(feature = "extensions"), allow(dead_code))]
 	flags: &'e Flags,
-	_pd: PhantomData<I>,
 
 	#[cfg(feature = "extensions")]
-	redirect: Option<super::Variable<I>>,
+	redirect: Option<super::Variable>,
 }
 
-impl<'e, I> Output<'e, I> {
+impl<'e> Output<'e> {
 	pub(super) fn new(flags: &'e Flags) -> Self {
 		Self {
 			default: Box::new(io::stdout()),
 			flags,
-			_pd: PhantomData,
 
 			#[cfg(feature = "extensions")]
 			redirect: None,
@@ -59,7 +55,7 @@ impl<'e, I> Output<'e, I> {
 
 	/// Sets where stdout will be redirected to.
 	#[cfg(feature = "extensions")]
-	pub fn set_redirection(&mut self, variable: super::Variable<I>) {
+	pub fn set_redirection(&mut self, variable: super::Variable) {
 		self.redirect = Some(variable)
 	}
 
@@ -70,7 +66,7 @@ impl<'e, I> Output<'e, I> {
 	}
 }
 
-impl<I: IntType> Write for Output<'_, I> {
+impl Write for Output<'_> {
 	fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
 		#[cfg(feature = "extensions")]
 		if let Some(redirect) = self.redirect.as_ref() {

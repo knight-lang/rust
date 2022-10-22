@@ -2,11 +2,9 @@
 
 use super::{Environment, Flags};
 use crate::containers::MaybeSendSync;
-use crate::value::integer::IntType;
 use crate::value::text::Text;
 use crate::Result;
 use std::io::{self, BufRead};
-use std::marker::PhantomData;
 
 #[cfg(feature = "extensions")]
 use {
@@ -73,20 +71,19 @@ impl<T: BufRead + MaybeSendSync> Stdin for T {}
 /// ; = PROMPT TRUE
 /// : DUMP PROMPT #=> reads from stdin
 /// ```
-pub struct Prompt<'e, I> {
+pub struct Prompt<'e> {
 	default: Box<dyn Stdin + 'e>,
-	_pd: PhantomData<I>,
 	flags: &'e Flags,
 
 	#[cfg(feature = "extensions")]
-	replacement: Option<PromptReplacement<I>>,
+	replacement: Option<PromptReplacement>,
 }
 
 #[cfg(feature = "extensions")]
-enum PromptReplacement<I> {
+enum PromptReplacement {
 	Eof,
 	Buffered(VecDeque<Text>),
-	Computed(Ast<I>),
+	Computed(Ast),
 }
 
 fn strip_ending(line: &mut String) {
@@ -114,30 +111,20 @@ fn strip_ending(line: &mut String) {
 /// Represents a line read from stdin.
 ///
 /// See [`Prompt::read_line`] for details.
-pub struct Line<I>(Option<ReadLineResultInner<I>>);
-enum ReadLineResultInner<I> {
+pub struct Line(Option<ReadLineResultInner>);
+enum ReadLineResultInner {
 	Text(Text),
 
-	#[allow(dead_code)]
-	#[cfg(not(feature = "extensions"))]
-	_Never(PhantomData<I>),
-
 	#[cfg(feature = "extensions")]
-	Ast(Ast<I>),
+	Ast(Ast),
 }
 
-impl<I: IntType> Line<I> {
+impl Line {
 	/// Gets the `Text` corresponding to this line. Returns `None` if at eof.
-	pub fn get(self, env: &mut Environment<I>) -> Result<Option<Text>> {
+	pub fn get(self, env: &mut Environment) -> Result<Option<Text>> {
 		match self.0 {
 			None => Ok(None),
 			Some(ReadLineResultInner::Text(text)) => Ok(Some(text)),
-
-			#[cfg(not(feature = "extensions"))]
-			Some(ReadLineResultInner::_Never(_)) => {
-				let _ = env;
-				unreachable!()
-			}
 
 			#[cfg(feature = "extensions")]
 			Some(ReadLineResultInner::Ast(ast)) => match ast.run(env)? {
@@ -148,12 +135,11 @@ impl<I: IntType> Line<I> {
 	}
 }
 
-impl<'e, I> Prompt<'e, I> {
+impl<'e> Prompt<'e> {
 	pub(super) fn new(flags: &'e Flags) -> Self {
 		Self {
 			default: Box::new(io::BufReader::new(io::stdin())),
 			flags,
-			_pd: PhantomData,
 
 			#[cfg(feature = "extensions")]
 			replacement: None,
@@ -176,7 +162,7 @@ impl<'e, I> Prompt<'e, I> {
 	///
 	/// # Errors
 	/// Any errors that occur when reading from stdin are bubbled upwards.
-	pub fn read_line(&mut self) -> Result<Line<I>> {
+	pub fn read_line(&mut self) -> Result<Line> {
 		#[cfg(feature = "extensions")]
 		match self.replacement.as_mut() {
 			Some(PromptReplacement::Eof) => return Ok(Line(None)),
@@ -204,7 +190,7 @@ impl<'e, I> Prompt<'e, I> {
 /// Replacement functions.
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I: IntType> Prompt<'_, I> {
+impl Prompt<'_> {
 	/// Clears the currently set replacement, if any.
 	pub fn reset_replacement(&mut self) {
 		self.replacement = None;
@@ -220,7 +206,7 @@ impl<I: IntType> Prompt<'_, I> {
 	/// Calling `PROMPT` will actually run `ast` and convert its return value to a [`Text`].
 	///
 	/// This clears any previous replacement.
-	pub fn set_ast(&mut self, ast: Ast<I>) {
+	pub fn set_ast(&mut self, ast: Ast) {
 		self.replacement = Some(PromptReplacement::Computed(ast));
 	}
 

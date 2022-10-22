@@ -2,11 +2,11 @@
 use super::*;
 use std::thread::{self, ScopedJoinHandle};
 
-pub struct Thread<'q, I>(ScopedJoinHandle<'q, Value<I>>);
+pub struct Thread<'q>(ScopedJoinHandle<'q, Value>);
 
-impl<'q, I: IntType, E: Encoding> Thread<'q, I> {
+impl<'q, I: IntType, E: Encoding> Thread<'q> {
 	#[cfg(any())]
-	pub fn spawn(body: Value<I>, env: &'q mut crate::env::Environment<I>) -> Self {
+	pub fn spawn(body: Value, env: &'q mut crate::env::Environment) -> Self {
 		// Self(thread::spawn(move || body.run(env).unwrap()))
 		Self(thread::scope::<'e>(move |s| s.spawn(move || body.run(env).unwrap())))
 	}

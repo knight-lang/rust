@@ -44,25 +44,19 @@ impl Text {
 		Default::default()
 	}
 
-	pub fn new<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
-	where
-		I: ToString,
-	{
+	pub fn new<T: ToString>(inp: T, flags: &Flags) -> Result<Self, NewTextError> {
 		TextSlice::new_boxed(inp.to_string().into(), flags).map(|x| Self(x.into()))
 	}
 
-	pub unsafe fn new_unchecked<I>(inp: I) -> Self
-	where
-		I: ToString,
-	{
+	pub unsafe fn new_unchecked<T: ToString>(inp: T) -> Self {
 		let boxed = inp.to_string().into_boxed_str();
 
 		Self(RefCount::from(Box::from_raw(Box::into_raw(boxed) as *mut TextSlice)))
 	}
 
-	pub unsafe fn new_len_unchecked<I>(inp: I, flags: &Flags) -> Result<Self, NewTextError>
+	pub unsafe fn new_len_unchecked<T>(inp: T, flags: &Flags) -> Result<Self, NewTextError>
 	where
-		I: ToString,
+		T: ToString,
 	{
 		let inp = inp.to_string();
 		super::validate_len(&inp, flags)?;
@@ -90,10 +84,10 @@ impl From<&TextSlice> for Text {
 // 	}
 // }
 
-impl<I> Parsable<I> for Text {
+impl Parsable for Text {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		// since `.advance()` returns a `Character`, we can't match on it.
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
 			return Ok(None);

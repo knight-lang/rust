@@ -1,6 +1,5 @@
 use super::{validate, Chars, NewTextError, Text};
 use crate::env::{Environment, Flags};
-use crate::value::integer::IntType;
 use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList, ToText, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -104,10 +103,10 @@ impl TextSlice {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split<I: IntType>(&self, sep: &Self, env: &mut Environment<I>) -> List<I> {
+	pub fn split(&self, sep: &Self, env: &mut Environment) -> List {
 		if sep.is_empty() {
 			// TODO: optimize me
-			return Value::<I>::from(self.to_owned()).to_list(env).unwrap();
+			return Value::from(self.to_owned()).to_list(env).unwrap();
 		}
 
 		let chars = (**self)
@@ -119,7 +118,7 @@ impl TextSlice {
 		unsafe { List::new_unchecked(chars) }
 	}
 
-	pub fn ord<I: IntType>(&self) -> crate::Result<Integer<I>> {
+	pub fn ord(&self) -> crate::Result<Integer> {
 		Integer::try_from(self.chars().next().ok_or(crate::Error::DomainError("empty string"))?)
 	}
 
@@ -162,14 +161,14 @@ impl<'a> IntoIterator for &'a TextSlice {
 	}
 }
 
-impl<I> ToBoolean<I> for Text {
-	fn to_boolean(&self, _: &mut Environment<I>) -> crate::Result<Boolean> {
+impl ToBoolean for Text {
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl<I> ToText<I> for Text {
-	fn to_text(&self, _: &mut Environment<I>) -> crate::Result<Self> {
+impl ToText for Text {
+	fn to_text(&self, _: &mut Environment) -> crate::Result<Self> {
 		Ok(self.clone())
 	}
 }
@@ -178,14 +177,14 @@ impl crate::value::NamedType for Text {
 	const TYPENAME: &'static str = "Text";
 }
 
-impl<I: IntType> ToInteger<I> for Text {
-	fn to_integer(&self, _: &mut Environment<I>) -> crate::Result<Integer<I>> {
+impl ToInteger for Text {
+	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
 		Ok(self.parse().unwrap_or_default())
 	}
 }
 
-impl<I> ToList<I> for Text {
-	fn to_list(&self, _: &mut Environment<I>) -> crate::Result<List<I>> {
+impl ToList for Text {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
 		let chars =
 			self.chars().map(|c| unsafe { Self::new_unchecked(c) }.into()).collect::<Vec<_>>();
 

@@ -2,7 +2,6 @@
 
 use crate::env::Flags;
 use crate::parse::{self, Parsable, Parser};
-use crate::value::integer::IntType;
 use crate::value::{NamedType, Runnable, Text, TextSlice, Value};
 use crate::{Environment, Error, Mutable, RefCount, Result};
 use std::borrow::Borrow;
@@ -12,14 +11,15 @@ use std::hash::{Hash, Hasher};
 /// Represents a variable within Knight.
 ///
 /// You'll never create variables directly; Instead, use [`Environment::lookup`].
-#[derive_where(Clone)]
-pub struct Variable<I>(RefCount<Inner<I>>);
-struct Inner<I> {
+#[derive(Clone)]
+pub struct Variable(RefCount<Inner>);
+
+struct Inner {
 	name: Text,
-	value: Mutable<Option<Value<I>>>,
+	value: Mutable<Option<Value>>,
 }
 
-impl<I: Debug> Debug for Variable<I> {
+impl Debug for Variable {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if f.alternate() {
 			f.debug_struct("Variable")
@@ -32,29 +32,29 @@ impl<I: Debug> Debug for Variable<I> {
 	}
 }
 
-impl<I> Eq for Variable<I> {}
-impl<I> PartialEq for Variable<I> {
+impl Eq for Variable {}
+impl PartialEq for Variable {
 	/// Checks to see if two variables are pointing to the _exact same object_
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
 }
 
-impl<I> Borrow<TextSlice> for Variable<I> {
+impl Borrow<TextSlice> for Variable {
 	/// Borrows the [name](Variable::name) of the variable.
 	fn borrow(&self) -> &TextSlice {
 		self.name()
 	}
 }
 
-impl<I> Hash for Variable<I> {
+impl Hash for Variable {
 	/// Hashes the [name](Variable::name) of the variable.
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.name().hash(state);
 	}
 }
 
-impl<I> NamedType for Variable<I> {
+impl NamedType for Variable {
 	const TYPENAME: &'static str = "Variable";
 }
 
@@ -111,7 +111,7 @@ impl Display for IllegalVariableName {
 /// crate::env::flags::Compliance::verify_variable_names) is enabled.
 pub const MAX_NAME_LEN: usize = 127;
 
-impl<I> Variable<I> {
+impl Variable {
 	#[cfg(feature = "compliance")]
 	fn validate_name(
 		name: &TextSlice,
@@ -158,24 +158,21 @@ impl<I> Variable<I> {
 	}
 
 	/// Assigns a new value to the variable, returning whatever the previous value was.
-	pub fn assign(&self, new: Value<I>) -> Option<Value<I>> {
+	pub fn assign(&self, new: Value) -> Option<Value> {
 		(self.0).value.write().replace(new)
 	}
 
 	/// Fetches the last value assigned to `self`, returning `None` if it haven't been assigned yet.
 	#[must_use]
-	pub fn fetch(&self) -> Option<Value<I>>
-	where
-		I: Clone,
-	{
+	pub fn fetch(&self) -> Option<Value> {
 		(self.0).value.read().clone()
 	}
 }
 
-impl<I: Clone> Runnable<I> for Variable<I> {
+impl Runnable for Variable {
 	/// [Fetches](Self::fetch) the last assigned value, or returns [`Error::UndefinedVariable`] if
 	/// it was never assigned to.
-	fn run(&self, _env: &mut Environment<I>) -> Result<Value<I>> {
+	fn run(&self, _env: &mut Environment) -> Result<Value> {
 		match self.fetch() {
 			Some(value) => Ok(value),
 
@@ -187,10 +184,10 @@ impl<I: Clone> Runnable<I> for Variable<I> {
 	}
 }
 
-impl<I: IntType> Parsable<I> for Variable<I> {
+impl Parsable for Variable {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		let Some(identifier) = parser.take_while(|chr| {
 			chr.is_lowercase() || chr == '_' || chr.is_numeric()
 		}) else {

@@ -6,9 +6,6 @@
 #[macro_use]
 extern crate cfg_if;
 
-#[macro_use]
-extern crate derive_where;
-
 pub mod ast;
 mod containers;
 pub mod env;

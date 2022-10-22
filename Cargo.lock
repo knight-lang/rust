@@ -69,17 +69,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive-where"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c13f480ba804fb9ebbbcdeb942be88eedcbe051fdcf375804f8ee837126dc1db"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -122,7 +111,6 @@ version = "0.9.9"
 dependencies = [
  "cfg-if",
  "clap",
- "derive-where",
  "rand",
  "serde",
 ]

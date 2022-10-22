@@ -1,7 +1,6 @@
 //! The runtime environment of Knight.
 
 use crate::parse::{ParseFn, Parser};
-use crate::value::integer::IntType;
 use crate::value::Runnable;
 use crate::{Function, Integer, Result, TextSlice, Value};
 use rand::{rngs::StdRng, SeedableRng};
@@ -35,21 +34,21 @@ pub use variable::Variable;
 /// The environment hosts all relevant information for Knight programs.
 ///
 /// <todo: details>
-pub struct Environment<'e, I> {
+pub struct Environment<'e> {
 	flags: &'e Flags,
-	variables: HashSet<Variable<I>>,
-	prompt: Prompt<'e, I>,
-	output: Output<'e, I>,
-	functions: HashSet<Function<I>>,
+	variables: HashSet<Variable>,
+	prompt: Prompt<'e>,
+	output: Output<'e>,
+	functions: HashSet<Function>,
 	rng: StdRng,
 
 	// Parsers are only modifiable when the `extensions` feature is enabled. Otherwise, the normal
 	// set of parsers is loaded up.
-	parsers: Vec<ParseFn<I>>,
+	parsers: Vec<ParseFn>,
 
 	// A List of extension functions.
 	#[cfg(feature = "extensions")]
-	extensions: HashSet<ExtensionFunction<I>>,
+	extensions: HashSet<ExtensionFunction>,
 
 	// A queue of things that'll be read from for `` ` `` instead of stdin.
 	#[cfg(feature = "extensions")]
@@ -62,7 +61,7 @@ pub struct Environment<'e, I> {
 	read_file: Box<ReadFile<'e>>,
 }
 
-impl<I> Drop for Environment<'_, I> {
+impl Drop for Environment<'_> {
 	fn drop(&mut self) {
 		// You can assign a variable to itself, which means that it'll end up leaking memory. So,
 		// we have to manually ensure that no variables reference others.
@@ -72,14 +71,14 @@ impl<I> Drop for Environment<'_, I> {
 	}
 }
 
-impl<I: IntType> Default for Environment<'_, I> {
+impl Default for Environment<'_> {
 	/// Creates a new [`Environment`] with all the default configuration flags.
 	fn default() -> Self {
 		Self::builder(&flags::DEFAULT).build()
 	}
 }
 
-impl<'e, I: IntType> Environment<'e, I> {
+impl<'e> Environment<'e> {
 	/// Creates a new [`Environment`] with the default configuration.
 	#[must_use]
 	pub fn new() -> Self {
@@ -87,17 +86,17 @@ impl<'e, I: IntType> Environment<'e, I> {
 	}
 
 	/// A shorthand function for creating [`Builder`]s.
-	pub fn builder(flags: &'e Flags) -> Builder<I> {
+	pub fn builder(flags: &'e Flags) -> Builder {
 		Builder::new(flags)
 	}
 
 	/// Parses and executes `source` as knight code.
-	pub fn play(&mut self, source: &TextSlice) -> Result<Value<I>> {
+	pub fn play(&mut self, source: &TextSlice) -> Result<Value> {
 		Parser::new(source, self).parse_program()?.run(self)
 	}
 }
 
-impl<'e, I> Environment<'e, I> {
+impl<'e> Environment<'e> {
 	/// Gets the list of flags for `self`.
 	#[must_use]
 	pub fn flags(&self) -> &'e Flags {
@@ -106,25 +105,25 @@ impl<'e, I> Environment<'e, I> {
 
 	/// Gets the list of currently defined functions for `self`.
 	#[must_use]
-	pub fn functions(&self) -> &HashSet<Function<I>> {
+	pub fn functions(&self) -> &HashSet<Function> {
 		&self.functions
 	}
 
 	/// Gets the list of currently defined parsers for `self`.
 	#[must_use]
-	pub fn parsers(&self) -> &[ParseFn<I>] {
+	pub fn parsers(&self) -> &[ParseFn] {
 		&self.parsers
 	}
 
 	/// Gets the [`Prompt`] type, which handles reading lines from stdin.
 	#[must_use]
-	pub fn prompt(&mut self) -> &mut Prompt<'e, I> {
+	pub fn prompt(&mut self) -> &mut Prompt<'e> {
 		&mut self.prompt
 	}
 
 	/// Gets the [`Output`] type, which handles writing lines to stdout.
 	#[must_use]
-	pub fn output(&mut self) -> &mut Output<'e, I> {
+	pub fn output(&mut self) -> &mut Output<'e> {
 		&mut self.output
 	}
 
@@ -133,7 +132,7 @@ impl<'e, I> Environment<'e, I> {
 	pub fn lookup(
 		&mut self,
 		name: &TextSlice,
-	) -> std::result::Result<Variable<I>, variable::IllegalVariableName> {
+	) -> std::result::Result<Variable, variable::IllegalVariableName> {
 		// OPTIMIZE: This does a double lookup, which isnt spectacular.
 		if let Some(var) = self.variables.get(name) {
 			return Ok(var.clone());
@@ -146,28 +145,22 @@ impl<'e, I> Environment<'e, I> {
 
 	/// Gets a random [`Integer`].
 	#[must_use]
-	pub fn random(&mut self) -> Integer<I>
-	where
-		I: IntType,
-	{
+	pub fn random(&mut self) -> Integer {
 		Integer::random(&mut self.rng, self.flags)
 	}
 }
 
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl<I> Environment<'_, I> {
+impl Environment<'_> {
 	/// Gets the list of known extension functions.
 	#[must_use]
-	pub fn extensions(&self) -> &HashSet<ExtensionFunction<I>> {
+	pub fn extensions(&self) -> &HashSet<ExtensionFunction> {
 		&self.extensions
 	}
 
 	/// Seeds the random number generator.
-	pub fn srand(&mut self, seed: Integer<I>)
-	where
-		I: IntType,
-	{
+	pub fn srand(&mut self, seed: Integer) {
 		self.rng = StdRng::seed_from_u64(i64::from(seed) as u64)
 	}
 

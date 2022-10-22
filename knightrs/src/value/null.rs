@@ -21,10 +21,10 @@ impl NamedType for Null {
 	const TYPENAME: &'static str = "Null";
 }
 
-impl<I> Parsable<I> for Null {
+impl Parsable for Null {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, I>) -> parse::Result<Option<Self>> {
+	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);
 		}
@@ -35,30 +35,30 @@ impl<I> Parsable<I> for Null {
 	}
 }
 
-impl<I> ToBoolean<I> for Null {
+impl ToBoolean for Null {
 	/// Simply returns `false`.
-	fn to_boolean(&self, _: &mut Environment<I>) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
 
-impl<I: Default> ToInteger<I> for Null {
+impl ToInteger for Null {
 	/// Simply returns zero.
-	fn to_integer(&self, _: &mut Environment<I>) -> Result<Integer<I>> {
+	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
 		Ok(Integer::default())
 	}
 }
 
-impl<I> ToList<I> for Null {
+impl ToList for Null {
 	/// Simply returns an empty [`List`].
-	fn to_list(&self, _: &mut Environment<I>) -> Result<List<I>> {
+	fn to_list(&self, _: &mut Environment) -> Result<List> {
 		Ok(List::default())
 	}
 }
 
-impl<I> ToText<I> for Null {
+impl ToText for Null {
 	/// Simply returns an empty [`Text`].
-	fn to_text(&self, _: &mut Environment<I>) -> Result<Text> {
+	fn to_text(&self, _: &mut Environment) -> Result<Text> {
 		Ok(Text::default())
 	}
 }
