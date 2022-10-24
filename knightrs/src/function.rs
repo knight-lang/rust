@@ -1,10 +1,11 @@
 #![allow(non_snake_case)]
 
+use crate::containers::RefCount;
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::text::TextSlice;
 use crate::value::{List, Runnable, Text, ToBoolean, ToInteger, ToText, Value};
-use crate::{Error, RefCount, Result};
+use crate::{Error, Result};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -623,7 +624,7 @@ pub fn SET() -> Function {
 /// This takes a single argument, converts it to a [`Text`](crate::value::Text) and interprets it
 /// as a variable name. Then, it looks up the last assigned value to that variable.
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn VALUE() -> Function {
 	function!("VALUE", env, |arg| {
 		let name = arg.run(env)?.to_text(env)?;
@@ -632,7 +633,7 @@ pub fn VALUE() -> Function {
 }
 
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn HANDLE() -> Function {
 	function!("HANDLE", env, |block, iferr| {
 		let err_var_name = unsafe { TextSlice::new_unchecked("_") };
@@ -654,7 +655,7 @@ pub fn HANDLE() -> Function {
 }
 
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn YEET() -> Function {
 	function!("YEET", env, |errmsg| {
 		let errmsg = errmsg.run(env)?.to_text(env)?.to_string();
@@ -668,7 +669,7 @@ pub fn YEET() -> Function {
 
 /// The `USE` function.
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn USE() -> Function {
 	function!("USE", env, |arg| {
 		let filename = arg.run(env)?.to_text(env)?;
@@ -680,7 +681,7 @@ pub fn USE() -> Function {
 
 /// The `EVAL` function.
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn EVAL() -> Function {
 	function!("EVAL", env, |val| {
 		let code = val.run(env)?.to_text(env)?;
@@ -690,7 +691,7 @@ pub fn EVAL() -> Function {
 
 /// The `` ` `` function.
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn SYSTEM() -> Function {
 	function!("$", env, |cmd, stdin| {
 		let command = cmd.run(env)?.to_text(env)?;
@@ -706,7 +707,7 @@ pub fn SYSTEM() -> Function {
 
 /// **Compiler extension**: SRAND
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn XSRAND() -> ExtensionFunction {
 	xfunction!("XSRAND", env, |arg| {
 		let seed = arg.run(env)?.to_integer(env)?;
@@ -717,7 +718,7 @@ pub fn XSRAND() -> ExtensionFunction {
 
 /// **Compiler extension**: REV
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn XREVERSE() -> ExtensionFunction {
 	xfunction!("XREVERSE", env, |arg| {
 		match arg.run(env)? {
@@ -736,7 +737,7 @@ pub fn XREVERSE() -> ExtensionFunction {
 }
 
 #[cfg(feature = "extensions")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "extensions")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn XRANGE() -> ExtensionFunction {
 	xfunction!("XRANGE", env, |start, stop| {
 		match start.run(env)? {

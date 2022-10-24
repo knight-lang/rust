@@ -1,9 +1,10 @@
+use crate::containers::RefCount;
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{
 	Boolean, Integer, NamedType, Text, TextSlice, ToBoolean, ToInteger, ToText, Value,
 };
-use crate::{RefCount, Result};
+use crate::Result;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};

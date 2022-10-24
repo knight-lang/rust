@@ -1,7 +1,9 @@
+use crate::containers::RefCount;
 use crate::env::Environment;
+use crate::function::Function;
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Runnable, Value};
-use crate::{Function, RefCount, Result};
+use crate::Result;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 

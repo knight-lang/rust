@@ -1,8 +1,9 @@
 use crate::containers::{MaybeSendSync, RefCount};
+use crate::env::Environment;
 use crate::value::{
-	Boolean, Integer, List, NamedType, Runnable, Text, ToBoolean, ToInteger, ToList, ToText,
+	Boolean, Integer, List, NamedType, Runnable, Text, ToBoolean, ToInteger, ToList, ToText, Value,
 };
-use crate::{Environment, Error, Result, Value};
+use crate::{Error, Result};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 

@@ -10,11 +10,9 @@ mod ast;
 mod containers;
 pub mod env;
 mod error;
-mod function;
+pub mod function;
 pub mod parse;
 pub mod value;
 
 pub use ast::Ast;
-pub use containers::{Mutable, RefCount};
 pub use error::{Error, Result};
-pub use function::Function;

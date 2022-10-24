@@ -1,9 +1,10 @@
 //! Types relating to [`Variable`]s.
 
+use crate::containers::{Mutable, RefCount};
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{NamedType, Runnable, Text, TextSlice, Value};
-use crate::{Error, Mutable, RefCount, Result};
+use crate::{Error, Result};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};

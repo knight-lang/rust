@@ -1,5 +1,3 @@
-//! [`Integer`] and related types.
-
 use crate::env::{Environment, Flags};
 use crate::parse::{self, Parsable, Parser};
 use crate::value::{Boolean, List, NamedType, Text, ToBoolean, ToList, ToText};

@@ -1,8 +1,9 @@
 //! The runtime environment of Knight.
 
+use crate::function::Function;
 use crate::parse::{ParseFn, Parser};
 use crate::value::{Integer, Runnable, TextSlice, Value};
-use crate::{Function, Result};
+use crate::Result;
 use rand::{rngs::StdRng, SeedableRng};
 use std::collections::HashSet;
 
