@@ -81,11 +81,11 @@ impl Default for Environment<'_> {
 }
 
 impl<'e> Environment<'e> {
-	/// Creates a new [`Environment`] with the default configuration.
+	/// Creates a new [`Environment`] with the given flags, but default everything else.
 	#[must_use]
 	#[inline]
-	pub fn new() -> Self {
-		Self::default()
+	pub fn new(flags: &'e Flags) -> Self {
+		Self::builder(flags).build()
 	}
 
 	/// A shorthand function for creating [`Builder`]s.

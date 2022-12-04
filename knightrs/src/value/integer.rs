@@ -8,13 +8,13 @@ use std::str::FromStr;
 /// The integer type within Knight.
 ///
 /// # Bit Size
-/// According to the knight spec, integers must be within the range `-2147483648..=2147483647i32`,
+/// According to the knight spec, integers must be within the range `-2147483648..=2147483647`i32`,
 /// ie an `i32`'s bounds. however, implementations are free to go beyond that range. As such, this
 /// implementation provides the ability to use _either_ [`i32`]s or [`i64`]s as your integer type.
 /// In fact, you can use any type, as long as it implements the [`IntType`] interface.
 ///
 /// Additionally, since the Knight specs state that all operations on integers that would overflow/
-/// underflow the bounds of an `i32` are undefined,two optoins are provided: [`Checked`] and
+/// underflow the bounds of an `i32` are undefined,two options are provided: [`Checked`] and
 /// [`Wrapping`]. The [`Checked`] type will raise an error if its argument overflows, whereas the
 /// [`Wrapping`] type will simply wraparound.
 ///

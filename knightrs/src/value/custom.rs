@@ -16,6 +16,7 @@ pub struct Custom(RefCount<dyn CustomType>);
 
 impl Eq for Custom {}
 impl PartialEq for Custom {
+	#[inline]
 	fn eq(&self, rhs: &Self) -> bool {
 		RefCount::ptr_eq(&self.0, &rhs.0)
 	}
@@ -105,7 +106,7 @@ impl<T: CustomType + 'static> From<RefCount<T>> for Custom {
 ///    }
 /// }
 /// ```
-#[allow(unused_variables)]
+#[allow(unused_variables)] // all the `env`s.
 pub trait CustomType: std::fmt::Debug + MaybeSendSync {
 	/// <todo>
 	fn to_custom(self: RefCount<Self>) -> Custom;

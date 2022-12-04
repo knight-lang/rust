@@ -1,5 +1,5 @@
 mod builder;
-// mod encoding;
+mod character;
 mod text;
 mod textslice;
 
@@ -9,7 +9,7 @@ pub trait ToText {
 
 use crate::env::{Environment, Flags};
 pub use builder::Builder;
-// pub use encoding::*;
+pub use character::Character;
 pub use text::*;
 pub use textslice::*;
 

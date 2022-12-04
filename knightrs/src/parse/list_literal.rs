@@ -19,7 +19,14 @@ impl Parsable for ListLiteral {
 		} {
 			expansion = Value::Ast(crate::Ast::new(
 				crate::function::ADD(),
-				vec![expansion, parser.parse_expression()?].into(),
+				vec![
+					expansion,
+					Value::Ast(crate::Ast::new(
+						crate::function::BOX(),
+						vec![parser.parse_expression()?].into(),
+					)),
+				]
+				.into(),
 			));
 		}
 

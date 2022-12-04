@@ -425,8 +425,11 @@ fn main() {
 		std::fs::read_to_string(&*arg).unwrap()
 	};
 
+	let flags = knightrs::env::Flags::default();
 	// match knightrs::play("utf8", "i64", "wrapping", &arg, &Default::default()) {
-	match knightrs::play("knight-encoding", "i32", "checked", &arg, &Default::default()) {
+	match knightrs::env::Environment::new(&flags)
+		.play(&knightrs::value::Text::new(arg, &flags).unwrap())
+	{
 		Err(knightrs::Error::Quit(code)) => std::process::exit(code),
 		Err(err) => {
 			eprintln!("error: {err}");
@@ -434,4 +437,5 @@ fn main() {
 		}
 		_ => {}
 	}
+	drop(flags);
 }
