@@ -184,7 +184,6 @@ impl Function {
 			#[cfg(feature = "extensions")] handle HANDLE
 			#[cfg(feature = "extensions")] yeet YEET
 			#[cfg(feature = "extensions")] r#use USE
-			#[cfg(feature = "extensions")] system SYSTEM
 		}
 
 		let _ = flags;
@@ -236,6 +235,9 @@ if #[cfg(feature = "extensions")] {
 				xsrand XSRAND
 				xreverse XREVERSE
 				xrange XRANGE
+				xsystem XSYSTEM
+				xget XGET
+				xset XSET
 			}
 
 			map
@@ -692,13 +694,13 @@ pub fn EVAL() -> Function {
 /// The `` ` `` function.
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-pub fn SYSTEM() -> Function {
-	function!("$", env, |cmd, stdin| {
+pub fn XSYSTEM() -> ExtensionFunction {
+	xfunction!("XSYSTEM", env, |cmd, stdin| {
 		let command = cmd.run(env)?.to_text(env)?;
 		let stdin = match stdin.run(env)? {
 			Value::Text(text) => Some(text),
 			Value::Null => None,
-			other => return Err(Error::TypeError(other.typename(), "$")),
+			other => return Err(Error::TypeError(other.typename(), "XSYSTEM")),
 		};
 
 		env.run_command(&command, stdin.as_deref())?.into()
@@ -768,5 +770,38 @@ pub fn XRANGE() -> ExtensionFunction {
 
 			other => return Err(Error::TypeError(other.typename(), "XRANGE")),
 		}
+	})
+}
+
+/// **Compiler extension**: XGET
+#[cfg(feature = "extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+pub fn XGET() -> ExtensionFunction {
+	use crate::value::ToList;
+
+	xfunction!("XG", env, |list, index| {
+		let list = list.run(env)?.to_list(env)?;
+		let index: usize = index.run(env)?.to_integer(env)?.try_into()?;
+
+		list.get(index).cloned().unwrap_or_default()
+	})
+}
+
+/// **Compiler extension**: XSET
+#[cfg(feature = "extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+#[allow(unreachable_code)]
+pub fn XSET() -> ExtensionFunction {
+	use crate::value::ToList;
+
+	xfunction!("XS", env, |list, index, value| {
+		let list = list.run(env)?.to_list(env)?;
+		let index: usize = index.run(env)?.to_integer(env)?.try_into()?;
+		let value = value.run(env)?;
+		let _ = (list, index, value);
+		todo!()
+		// list.set(index, value);
+
+		// list.get(index).cloned().unwrap_or_default()
 	})
 }

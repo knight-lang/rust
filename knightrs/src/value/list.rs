@@ -158,9 +158,18 @@ impl List {
 	/// Gets the value(s) at `index`.
 	///
 	/// This is syntactic sugar for `index.get(self)`.
-	pub fn get<'a, F: ListFetch<'a>>(&'a self, index: F) -> Option<F::Output> {
+	pub fn get<'a, F: ListGet<'a>>(&'a self, index: F) -> Option<F::Output> {
 		index.get(self)
 	}
+
+	/*
+	/// Sets the value(s) at `index`.
+	///
+	/// This is syntactic sugar for `index.set(self)`.
+	pub fn set<'a, F: ListSet<'a>>(&'a self, index: F, value: F::Value) {
+		index.set(self, value)
+	}
+	*/
 
 	/// Returns a new list with both `self` and `rhs` concatenated.
 	///
@@ -405,7 +414,7 @@ impl ToText for List {
 }
 
 /// A helper trait for [`List::get`], indicating a type can index into a `List`.
-pub trait ListFetch<'a> {
+pub trait ListGet<'a> {
 	/// The resulting type.
 	type Output;
 
@@ -413,7 +422,7 @@ pub trait ListFetch<'a> {
 	fn get(self, list: &'a List) -> Option<Self::Output>;
 }
 
-impl<'a> ListFetch<'a> for usize {
+impl<'a> ListGet<'a> for usize {
 	type Output = &'a Value;
 
 	fn get(self, list: &'a List) -> Option<Self::Output> {
@@ -428,7 +437,7 @@ impl<'a> ListFetch<'a> for usize {
 	}
 }
 
-impl ListFetch<'_> for Range<usize> {
+impl ListGet<'_> for Range<usize> {
 	type Output = List;
 
 	fn get(self, list: &List) -> Option<Self::Output> {
@@ -445,7 +454,7 @@ impl ListFetch<'_> for Range<usize> {
 	}
 }
 
-impl ListFetch<'_> for RangeFrom<usize> {
+impl ListGet<'_> for RangeFrom<usize> {
 	type Output = List;
 
 	fn get(self, list: &List) -> Option<Self::Output> {
@@ -456,6 +465,59 @@ impl ListFetch<'_> for RangeFrom<usize> {
 		Some(unsafe { List::new_unchecked(sublist) })
 	}
 }
+/*
+/// A helper trait for [`List::Set`], indicating a type can assign into a `List`.
+pub trait ListSet<'a> {
+	/// The type to use when assigning.
+	type Value;
+
+	/// Sets an `Output` from `list`.
+	fn set(self, list: &'a List, value: Value);
+}
+
+impl<'a> ListSet<'a> for usize {
+	type Value = Value;
+
+	fn set(self, list: &'a List, value: Value) -> bool {
+		match list.inner()? {
+			Inner::Boxed(ele) => (self == 0).then_some(ele),
+			Inner::Slice(slice) => slice.get(self),
+			Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
+			Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
+			Inner::Repeat(list, amount) if list.len() * amount < self => None,
+			Inner::Repeat(list, amount) => list.get(self % amount),
+		}
+	}
+}
+
+impl ListSet<'_> for Range<usize> {
+	type Output = List;
+
+	fn get(self, list: &List) -> Option<Self::Output> {
+		if list.len() < self.end || self.end < self.start {
+			return None;
+		}
+
+		// FIXME: use optimizations, including maybe a "sublist" variant?
+		let sublist =
+			list.iter().skip(self.start).take(self.end - self.start).cloned().collect::<Vec<_>>();
+
+		// SAFETY: it's a sublist, so no need to check for length
+		Some(unsafe { List::new_unchecked(sublist) })
+	}
+}
+
+impl ListSet<'_> for RangeFrom<usize> {
+	type Output = List;
+
+	fn get(self, list: &List) -> Option<Self::Output> {
+		// FIXME: use optimizations
+		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
+
+		// SAFETY: it's a sublist, so no need to check for length
+		Some(unsafe { List::new_unchecked(sublist) })
+	}
+}*/
 
 impl<'a> IntoIterator for &'a List {
 	type Item = &'a Value;

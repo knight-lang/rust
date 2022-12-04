@@ -60,6 +60,9 @@ pub struct Environment<'e> {
 
 	#[cfg(feature = "extensions")]
 	read_file: Box<ReadFile<'e>>,
+
+	#[cfg(feature = "extensions")]
+	callstack: Vec<crate::value::List>,
 }
 
 impl Drop for Environment<'_> {
@@ -197,5 +200,10 @@ impl Environment<'_> {
 	#[inline]
 	pub fn read_file(&mut self, filename: &TextSlice) -> Result<Text> {
 		(self.read_file)(filename, self.flags)
+	}
+
+	#[inline]
+	pub fn callstack(&mut self) -> &mut Vec<crate::value::List> {
+		&mut self.callstack
 	}
 }

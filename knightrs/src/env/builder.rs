@@ -147,6 +147,9 @@ impl<'e> Builder<'e> {
 
 			#[cfg(feature = "extensions")]
 			system_results: Default::default(),
+
+			#[cfg(feature = "extensions")]
+			callstack: Vec::default(),
 		}
 	}
 }

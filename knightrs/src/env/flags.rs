@@ -75,10 +75,12 @@ pub(crate) static DEFAULT: Flags = Flags {
 			handle: ALL_EXTENSIONS,
 			yeet: ALL_EXTENSIONS,
 			r#use: ALL_EXTENSIONS,
-			system: ALL_EXTENSIONS,
+			xsystem: ALL_EXTENSIONS,
 			xsrand: ALL_EXTENSIONS,
 			xreverse: ALL_EXTENSIONS,
 			xrange: ALL_EXTENSIONS,
+			xget: ALL_EXTENSIONS,
+			xset: ALL_EXTENSIONS,
 		},
 		types: Types {
 			boolean: ALL_EXTENSIONS,
@@ -262,9 +264,9 @@ if #[cfg(feature = "extensions")] {
 		#[cfg_attr(feature = "clap", arg(long))]
 		pub r#use: bool,
 
-		/// Enables the [`$`](crate::function::SYSTEM) function.
+		/// Enables the [`XSYSTEM`](crate::function::XSYSTEM) function.
 		#[cfg_attr(feature = "clap", arg(long))]
-		pub system: bool,
+		pub xsystem: bool,
 
 		/// Enables the [`XSRAND`](crate::function::XSRAND) function.
 		#[cfg_attr(feature = "clap", arg(long))]
@@ -277,6 +279,14 @@ if #[cfg(feature = "extensions")] {
 		/// Enables the [`XRANGE`](crate::function::XRANGE) function.
 		#[cfg_attr(feature = "clap", arg(long))]
 		pub xrange: bool,
+
+		/// Enables the [`XGET`](crate::function::XGET) (accessed as `XG`) function.
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub xget: bool,
+
+		/// Enables the [`XSET`](crate::function::XSET) (accessed as `XG`) function.
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub xset: bool,
 	}
 
 	impl Default for Functions {
