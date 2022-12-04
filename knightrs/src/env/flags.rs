@@ -96,6 +96,7 @@ pub(crate) static DEFAULT: Flags = Flags {
 		},
 		negative_indexing: ALL_EXTENSIONS,
 		list_literal: ALL_EXTENSIONS,
+		block_params: ALL_EXTENSIONS,
 	},
 };
 
@@ -216,6 +217,11 @@ if #[cfg(feature = "extensions")] {
 		#[cfg_attr(docsrs, doc(cfg(feature = "iffy-extensions")))]
 		#[cfg_attr(feature = "clap", command(flatten))]
 		pub iffy: Iffy,
+
+		/// You can call functions with `CALL +,fn argslist` and then access args via `$1`, `$2`, etc,
+		/// as well as get the list of args via `$0`.
+		#[cfg_attr(feature = "clap", arg(long))]
+		pub block_params: bool,
 
 		/// Indexing either [`GET`](crate::function::GET) or [`SET`](crate::function::SET) with a
 		/// negative number is that many from the end.

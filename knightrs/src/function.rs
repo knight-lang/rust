@@ -186,6 +186,11 @@ impl Function {
 			#[cfg(feature = "extensions")] r#use USE
 		}
 
+		#[cfg(feature = "extensions")]
+		if flags.extensions.block_params {
+			map.insert(ARG_INDEX());
+		}
+
 		let _ = flags;
 		map
 	}
@@ -337,8 +342,20 @@ pub fn BLOCK() -> Function {
 /// The `CALL` function.
 pub fn CALL() -> Function {
 	function!("CALL", env, |arg| {
-		//
-		arg.run(env)?.call(env)?
+		let callable = arg.run(env)?;
+
+		#[cfg(feature = "compliance")]
+		if env.flags().extensions.block_params {
+			if let Value::List(block_and_args) = callable {
+				let callable =
+					block_and_args.head().ok_or(Error::DomainError("cannot call an empty list"))?; // not `head` bc it doesnt error
+				let args = block_and_args.tail().unwrap_or_default();
+
+				return env.with_callframe(args, move |env| callable.call(env));
+			}
+		}
+
+		callable.call(env)?
 	})
 }
 
@@ -688,6 +705,22 @@ pub fn EVAL() -> Function {
 	function!("EVAL", env, |val| {
 		let code = val.run(env)?.to_text(env)?;
 		env.play(&code)?
+	})
+}
+
+/// The `$` (ie arg index) function.
+#[cfg(feature = "extensions")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+pub fn ARG_INDEX() -> Function {
+	function!("$", env, |index| {
+		let index: usize = index.run(env)?.to_integer(env)?.try_into()?;
+		let callstack = env.callstack().last().cloned().unwrap_or_default(); // optimize me
+
+		if index == 0 {
+			callstack.clone().into()
+		} else {
+			callstack.try_get(index - 1)?.clone()
+		}
 	})
 }
 

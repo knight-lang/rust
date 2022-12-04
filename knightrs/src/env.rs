@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 cfg_if! {
 if #[cfg(feature = "extensions")] {
-	use crate::value::Text;
+	use crate::value::{Text, List};
 	use crate::function::ExtensionFunction;
 	use std::collections::VecDeque;
 
@@ -62,7 +62,7 @@ pub struct Environment<'e> {
 	read_file: Box<ReadFile<'e>>,
 
 	#[cfg(feature = "extensions")]
-	callstack: Vec<crate::value::List>,
+	callstack: Vec<List>,
 }
 
 impl Drop for Environment<'_> {
@@ -100,6 +100,12 @@ impl<'e> Environment<'e> {
 	/// Parses and executes `source` as knight code.
 	pub fn play(&mut self, source: &TextSlice) -> Result<Value> {
 		Parser::new(source, self).parse_program()?.run(self)
+	}
+
+	/// Parses and executes `source` as knight code.
+	#[cfg(feature = "extensions")]
+	pub fn play_with_args(&mut self, source: &TextSlice, args: List) -> Result<Value> {
+		self.with_callframe(args, |env| Parser::new(source, env).parse_program()?.run(env))
 	}
 
 	/// Gets the list of flags for `self`.
@@ -203,7 +209,20 @@ impl Environment<'_> {
 	}
 
 	#[inline]
-	pub fn callstack(&mut self) -> &mut Vec<crate::value::List> {
+	pub fn callstack(&mut self) -> &mut Vec<List> {
 		&mut self.callstack
+	}
+
+	pub fn with_callframe<F: FnOnce(&mut Self) -> T, T>(&mut self, args: List, func: F) -> T {
+		#[cfg(debug_assertions)]
+		let len = self.callstack.len();
+
+		self.callstack.push(args);
+		let result = func(self);
+		self.callstack.pop();
+
+		debug_assert_eq!(len, self.callstack.len(), "someone modified the callstack!");
+
+		result
 	}
 }

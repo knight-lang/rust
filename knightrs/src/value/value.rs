@@ -617,10 +617,7 @@ impl Value {
 			usize::try_from(len.to_integer(env)?).or(Err(Error::DomainError("negative length")))?;
 
 		match self {
-			Self::List(list) => list
-				.get(start..start + len)
-				.ok_or(Error::IndexOutOfBounds { len: list.len(), index: start + len })
-				.map(Self::from),
+			Self::List(list) => list.try_get(start..start + len).map(Self::from),
 
 			Self::Text(text) => text
 				.get(start..start + len)

@@ -162,6 +162,11 @@ impl List {
 		index.get(self)
 	}
 
+	pub fn try_get<'a, F: ListGet<'a>>(&'a self, index: F) -> Result<F::Output> {
+		let last_index = index.last_index();
+		self.get(index).ok_or(Error::IndexOutOfBounds { len: self.len(), index: last_index })
+	}
+
 	/*
 	/// Sets the value(s) at `index`.
 	///
@@ -420,6 +425,8 @@ pub trait ListGet<'a> {
 
 	/// Gets an `Output` from `list`.
 	fn get(self, list: &'a List) -> Option<Self::Output>;
+
+	fn last_index(&self) -> usize;
 }
 
 impl<'a> ListGet<'a> for usize {
@@ -434,6 +441,10 @@ impl<'a> ListGet<'a> for usize {
 			Inner::Repeat(list, amount) if list.len() * amount < self => None,
 			Inner::Repeat(list, amount) => list.get(self % amount),
 		}
+	}
+
+	fn last_index(&self) -> usize {
+		*self
 	}
 }
 
@@ -452,17 +463,29 @@ impl ListGet<'_> for Range<usize> {
 		// SAFETY: it's a sublist, so no need to check for length
 		Some(unsafe { List::new_unchecked(sublist) })
 	}
+
+	fn last_index(&self) -> usize {
+		self.end
+	}
 }
 
 impl ListGet<'_> for RangeFrom<usize> {
 	type Output = List;
 
 	fn get(self, list: &List) -> Option<Self::Output> {
+		if list.len() < self.start {
+			return None;
+		}
+
 		// FIXME: use optimizations
 		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
 
 		// SAFETY: it's a sublist, so no need to check for length
 		Some(unsafe { List::new_unchecked(sublist) })
+	}
+
+	fn last_index(&self) -> usize {
+		self.start
 	}
 }
 /*
