@@ -724,7 +724,7 @@ pub fn ARG_INDEX() -> Function {
 	})
 }
 
-/// The `` ` `` function.
+/// The `XSYSTEM` function.
 #[cfg(feature = "extensions")]
 #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
 pub fn XSYSTEM() -> ExtensionFunction {

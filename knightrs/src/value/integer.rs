@@ -270,7 +270,7 @@ impl Integer {
 	/// Gets the amount of digits in `self`
 	pub fn number_of_digits(self) -> usize {
 		match self.cmp(&Self::ZERO) {
-			std::cmp::Ordering::Greater => self.0.ilog10() as usize,
+			std::cmp::Ordering::Greater => self.0.ilog10() as usize + 1,
 			std::cmp::Ordering::Equal => 1,
 			std::cmp::Ordering::Less => {
 				Self(self.0.checked_neg().unwrap_or(i64::MAX)).number_of_digits()
