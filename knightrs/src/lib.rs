@@ -1,5 +1,4 @@
 #![allow(clippy::module_inception)]
-#![feature(int_log)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(debug_assertions, allow(deprecated))]
 
