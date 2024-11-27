@@ -437,5 +437,7 @@ fn main() {
 		}
 		_ => {}
 	}
+
+	#[allow(dropping_copy_types)]
 	drop(flags);
 }
