@@ -1,3 +1,4 @@
+use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, ToInteger, ToKString, ToList};
 use crate::{Environment, Result};
 
@@ -46,14 +47,14 @@ impl ToKString for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
 	fn to_kstring(&self, _: &mut Environment) -> Result<KString> {
-		todo!()
-		// const TRUE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("true") };
-		// const FALSE_TEXT: &TextSlice = unsafe { TextSlice::new_unchecked("false") };
+		static TRUE: &StringSlice = StringSlice::new_unvalidated("true");
+		static FALSE: &StringSlice = StringSlice::new_unvalidated("false");
 
-		// if *self {
-		// 	Ok(TRUE_TEXT.into())
-		// } else {
-		// 	Ok(FALSE_TEXT.into())
-		// }
+		// TODO: make sure this isn't allocating each time
+		if *self {
+			Ok(TRUE.into())
+		} else {
+			Ok(FALSE.into())
+		}
 	}
 }

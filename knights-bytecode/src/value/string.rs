@@ -19,6 +19,12 @@ impl Default for KString {
 	}
 }
 
+impl From<&StringSlice> for KString {
+	fn from(slice: &StringSlice) -> Self {
+		Self::from_slice(slice)
+	}
+}
+
 impl KString {
 	#[inline]
 	pub fn from_slice(slice: &StringSlice) -> Self {

@@ -5,12 +5,12 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(IntegerInner);
 
-pub type IntegerInner = i64;
+type IntegerInner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment) -> Result<Integer, crate::Error>;
+	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer>;
 }
 
 impl Debug for Integer {

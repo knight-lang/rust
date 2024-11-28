@@ -41,7 +41,7 @@ impl ToList for Null {
 }
 
 impl ToKString for Null {
-	/// Simply returns an empty [`Text`].
+	/// Simply returns an empty [`KString`].
 	#[inline]
 	fn to_kstring(&self, _: &mut Environment) -> Result<KString> {
 		Ok(KString::default())
