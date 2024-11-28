@@ -1,4 +1,4 @@
-use crate::encoding::Encoding;
+use crate::strings::Encoding;
 
 pub struct Options {
 	pub check_length: bool,

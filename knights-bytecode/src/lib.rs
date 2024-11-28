@@ -2,11 +2,12 @@
 #[macro_use]
 extern crate cfg_if;
 
-pub mod encoding;
-pub mod env;
-pub mod options;
-pub mod parser;
-pub mod stringslice;
-// pub mod string;
+#[macro_use]
+extern crate thiserror;
 
-// mod container;
+// pub mod env;
+mod container;
+pub mod options;
+// pub mod parser;
+pub mod strings;
+// pub mod string;
