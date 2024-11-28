@@ -1,9 +1,6 @@
 use super::Opcode;
-use crate::{
-	env::Env,
-	value::{Integer, Value},
-	Result,
-};
+use crate::value::{Integer, ToKString, Value};
+use crate::{Environment, Result};
 
 // Arity 1: :, BLOCK, CALL, QUIT, DUMP, OUTPUT, LENGTH, !, ~, ASCII, ,, [, ]
 // Arity 2: +, -, *, /, %, ^, <, >, ?, &, |, ;, =, WHILE
@@ -34,13 +31,13 @@ pub struct Program {
 
 pub struct Vm<'p, 'e> {
 	program: &'p Program,
-	env: &'e Env,
+	env: &'e mut Environment,
 	current_index: usize,
 	stack: Vec<Value>,
 }
 
 impl<'p, 'e> Vm<'p, 'e> {
-	pub fn new(program: &'p Program, env: &'e Env) -> Self {
+	pub fn new(program: &'p Program, env: &'e mut Environment) -> Self {
 		Self { program, env, current_index: 0, stack: Vec::new() }
 	}
 
@@ -62,7 +59,7 @@ impl<'p, 'e> Vm<'p, 'e> {
 				}
 				Opcode::Pop => { /* do nothing, the arity already popped */ }
 				Opcode::Output => {
-					println!("{}", args[0].to_string(self.env)?.as_str());
+					println!("{}", args[0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
 				}
 				Opcode::Quit => {

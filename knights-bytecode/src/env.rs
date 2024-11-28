@@ -1,11 +1,11 @@
 use crate::options::Options;
 
 #[derive(Default)]
-pub struct Env {
+pub struct Environment {
 	opts: Options,
 }
 
-impl Env {
+impl Environment {
 	pub fn opts(&self) -> &Options {
 		&self.opts
 	}

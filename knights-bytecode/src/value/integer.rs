@@ -1,4 +1,4 @@
-use crate::value::{Boolean, KString, List, ToBoolean, ToList, ToString};
+use crate::value::{Boolean, KString, List, ToBoolean, ToKString, ToList};
 use crate::{options::Options, Environment};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -26,7 +26,7 @@ impl Display for Integer {
 }
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum IntegerError {
 	#[cfg(feature = "compliance")]
 	#[error("{0} is out of bounds for integers")]
 	OutOfBounds(IntegerInner),
@@ -59,10 +59,10 @@ impl Integer {
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn new(int: IntegerInner, opts: &Options) -> Result<Self, Error> {
+	pub fn new(int: IntegerInner, opts: &Options) -> Result<Self, IntegerError> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.i32_integer && !(Self::min(opts).0..Self::max(opts).0).contains(&int) {
-			return Err(Error::OutOfBounds(int));
+			return Err(IntegerError::OutOfBounds(int));
 		}
 
 		Ok(Self(int))
@@ -89,10 +89,12 @@ impl Integer {
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn negate(self, opts: &Options) -> Result<Self, Error> {
+	pub fn negate(self, opts: &Options) -> Result<Self, IntegerError> {
 		let value = match () {
 			#[cfg(feature = "compliance")]
-			_ if opts.compliance.check_overflow => self.0.checked_neg().ok_or(Error::Overflow('-'))?,
+			_ if opts.compliance.check_overflow => {
+				self.0.checked_neg().ok_or(IntegerError::Overflow('-'))?
+			}
 			_ => self.0.wrapping_neg(),
 		};
 
@@ -106,49 +108,51 @@ impl Integer {
 		func: char,
 		#[allow(unused)] checked: fn(i64, T) -> Option<i64>,
 		wrapping: fn(i64, T) -> i64,
-	) -> Result<Self, Error> {
+	) -> Result<Self, IntegerError> {
 		let value = match () {
 			#[cfg(feature = "compliance")]
-			_ if opts.compliance.check_overflow => checked(self.0, rhs).ok_or(Error::Overflow(func))?,
+			_ if opts.compliance.check_overflow => {
+				checked(self.0, rhs).ok_or(IntegerError::Overflow(func))?
+			}
 			_ => wrapping(self.0, rhs),
 		};
 
 		Self::new(value, opts)
 	}
 
-	pub fn add(self, augend: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn add(self, augend: Self, opts: &Options) -> Result<Self, IntegerError> {
 		self.binary_op(augend.0, opts, '+', i64::checked_add, i64::wrapping_add)
 	}
 
-	pub fn subtract(self, subtrahend: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn subtract(self, subtrahend: Self, opts: &Options) -> Result<Self, IntegerError> {
 		self.binary_op(subtrahend.0, opts, '-', i64::checked_sub, i64::wrapping_sub)
 	}
 
-	pub fn multiply(self, multiplier: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn multiply(self, multiplier: Self, opts: &Options) -> Result<Self, IntegerError> {
 		self.binary_op(multiplier.0, opts, '*', i64::checked_mul, i64::wrapping_mul)
 	}
 
-	pub fn divide(self, divisor: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn divide(self, divisor: Self, opts: &Options) -> Result<Self, IntegerError> {
 		if divisor == Self::ZERO {
-			return Err(Error::DivisionByZero('/'));
+			return Err(IntegerError::DivisionByZero('/'));
 		}
 
 		self.binary_op(divisor.0, opts, '/', i64::checked_div, i64::wrapping_div)
 	}
 
-	pub fn remainder(self, base: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn remainder(self, base: Self, opts: &Options) -> Result<Self, IntegerError> {
 		if base == Self::ZERO {
-			return Err(Error::DivisionByZero('%'));
+			return Err(IntegerError::DivisionByZero('%'));
 		}
 
 		#[cfg(feature = "compliance")]
 		if opts.compliance.check_integer_function_bounds {
 			if self < Self::ZERO {
-				return Err(Error::DomainError("remainder with a negative number"));
+				return Err(IntegerError::DomainError("remainder with a negative number"));
 			}
 
 			if base < Self::ZERO {
-				return Err(Error::DomainError("remainder by a negative base"));
+				return Err(IntegerError::DomainError("remainder by a negative base"));
 			}
 		}
 
@@ -169,19 +173,19 @@ impl Integer {
 	///
 	/// [`check_integer_function_bounds`]: crate::env::opts::Compliance::check_integer_function_bounds
 	/// If the exponent is negative,
-	pub fn power(self, exponent: Self, opts: &Options) -> Result<Self, Error> {
+	pub fn power(self, exponent: Self, opts: &Options) -> Result<Self, IntegerError> {
 		use std::cmp::Ordering;
 		let _ = opts;
 
 		match exponent.cmp(&Self::ZERO) {
 			#[cfg(feature = "compliance")]
 			Ordering::Less if opts.compliance.check_integer_function_bounds => {
-				Err(Error::DomainError("negative exponent"))
+				Err(IntegerError::DomainError("negative exponent"))
 			}
 
 			Ordering::Less => match self.0 {
 				-1 => Ok(if exponent.0 % 2 == 0 { self } else { Self::ONE }),
-				0 => Err(Error::DivisionByZero('^')),
+				0 => Err(IntegerError::DivisionByZero('^')),
 				1 => Ok(Self::ONE),
 				_ => Ok(Self::ZERO),
 			},
@@ -189,8 +193,8 @@ impl Integer {
 			Ordering::Equal => Ok(Self::ONE),
 
 			Ordering::Greater => {
-				let exp =
-					u32::try_from(exponent.inner()).or(Err(Error::DomainError("exponent too large")))?;
+				let exp = u32::try_from(exponent.inner())
+					.or(Err(IntegerError::DomainError("exponent too large")))?;
 
 				self.binary_op(exp, opts, '^', i64::checked_pow, i64::wrapping_pow)
 			}
@@ -209,12 +213,12 @@ impl Integer {
 	}
 
 	/// Attempts to interpret `self` as a char in the given encoding.
-	pub fn chr(self, opts: &Options) -> Result<char, Error> {
+	pub fn chr(self, opts: &Options) -> Result<char, IntegerError> {
 		u32::try_from(self.0)
 			.ok()
 			.and_then(char::from_u32)
 			.and_then(|chr| opts.encoding.is_char_valid(chr).then_some(chr))
-			.ok_or(Error::DomainError("number isn't a valid char"))
+			.ok_or(IntegerError::DomainError("number isn't a valid char"))
 	}
 }
 
@@ -233,7 +237,7 @@ impl Integer {
 impl ToInteger for Integer {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> Result<Self, crate::Error> {
+	fn to_integer(&self, _: &mut Environment) -> crate::Result<Self> {
 		Ok(*self)
 	}
 }
@@ -241,8 +245,26 @@ impl ToInteger for Integer {
 impl ToBoolean for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean, crate::Error> {
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
 		Ok(*self != Self::ZERO)
+	}
+}
+
+impl ToKString for Integer {
+	/// Returns whether `self` is nonzero.
+	#[inline]
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
+		// Ok(*self != Self::ZERO)
+		todo!()
+	}
+}
+
+impl ToList for Integer {
+	/// Returns whether `self` is nonzero.
+	#[inline]
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
+		// Ok(*self != Self::ZERO)
+		todo!()
 	}
 }
 

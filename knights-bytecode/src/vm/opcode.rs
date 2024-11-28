@@ -1,5 +1,3 @@
-use crate::{env::Env, value::Value, Result};
-
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum Opcode {

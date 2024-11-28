@@ -15,4 +15,4 @@ pub mod value;
 pub mod vm;
 pub use error::{Error, Result};
 
-pub use env::Env as Environment;
+pub use env::Environment;

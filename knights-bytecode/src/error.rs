@@ -4,10 +4,10 @@ pub enum Error {
 	Todo,
 
 	#[error("{0}")]
-	StringError(#[from] crate::strings::Error),
+	StringError(#[from] crate::strings::StringError),
 
 	#[error("{0}")]
-	IntegerError(#[from] crate::value::integer::Error),
+	IntegerError(#[from] crate::value::integer::IntegerError),
 
 	#[cfg(feature = "compliance")]
 	#[error("{0} is out of bounds for integers")]

@@ -3,13 +3,14 @@ use std::borrow::Borrow;
 
 use crate::container::RefCount;
 use crate::options::Options;
-use crate::strings::{Error, StringSlice};
+use crate::strings::{StringError, StringSlice};
+use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList};
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);
 
-pub trait ToString {
-	fn to_string(&self, env: &mut Environment) -> Result<KString, crate::Error>;
+pub trait ToKString {
+	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString>;
 }
 
 impl Default for KString {
@@ -31,7 +32,10 @@ impl KString {
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn new(source: impl AsRef<str>, opts: &Options) -> Result<Self, Error> {
+	pub fn new(
+		source: impl AsRef<str>,
+		opts: &Options,
+	) -> Result<Self, crate::strings::StringError> {
 		StringSlice::new(source, opts).map(Self::from_slice)
 	}
 }
@@ -53,5 +57,29 @@ impl std::ops::Deref for KString {
 impl AsRef<StringSlice> for KString {
 	fn as_ref(&self) -> &StringSlice {
 		&self
+	}
+}
+
+impl ToBoolean for KString {
+	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean> {
+		todo!()
+	}
+}
+
+impl ToKString for KString {
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
+		Ok(self.clone())
+	}
+}
+
+impl ToInteger for KString {
+	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
+		todo!()
+	}
+}
+
+impl ToList for KString {
+	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
+		todo!()
 	}
 }
