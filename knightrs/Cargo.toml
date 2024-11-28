@@ -30,7 +30,7 @@ extensions = []
 
 ## Allows custom types to be used.
 #
-# This allows the use of the `Custom` variant on `Value`, which allows Rust code interacting with
+# This allows the use of the `Custom` variant on `Value`, which allows Rust code to interact with
 # Knight. This feature is also required for a few builtin extensions (such as hashmaps).
 #
 # Extensions which require `custom-types` will default to disabled. If the `all-extensions` flag is
@@ -54,7 +54,7 @@ all-extensions = ["extensions", "custom-types"]
 iffy-extensions = ["extensions"]
 
 ## Defaults all `iffy-extensions` to true, not false.
-all-iffy-extensions = ["iffy-extensions"]
+all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 
 ## Enables checks for less-frequently encountered undefined behaviour.
 #
