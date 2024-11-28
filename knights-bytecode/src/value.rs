@@ -1,13 +1,20 @@
-use crate::{env::Env, KString, Result};
+use crate::{env::Env, Result};
 
-pub type Integer = i64;
+pub mod boolean;
+pub mod integer;
+pub mod list;
+pub mod string;
+pub use boolean::{Boolean, ToBoolean};
+pub use integer::{Integer, ToInteger};
+pub use list::{List, ToList};
+pub use string::{KString, ToString};
 
 // Todo: more
 #[derive(Debug, Clone)]
 pub enum Value {
 	Null,
 	Boolean(bool),
-	Integer(i64),
+	Integer(Integer),
 }
 
 impl Value {

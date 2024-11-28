@@ -1,5 +1,9 @@
 use super::Opcode;
-use crate::{env::Env, value::Value, Result};
+use crate::{
+	env::Env,
+	value::{Integer, Value},
+	Result,
+};
 
 // Arity 1: :, BLOCK, CALL, QUIT, DUMP, OUTPUT, LENGTH, !, ~, ASCII, ,, [, ]
 // Arity 2: +, -, *, /, %, ^, <, >, ?, &, |, ;, =, WHILE
@@ -17,7 +21,7 @@ pub fn foo() -> Program {
 			(Opcode::Quit, 0, 0),
 		]
 		.into(),
-		constants: vec![Value::Boolean(true), Value::Integer(12)].into(),
+		constants: vec![Value::Boolean(true), Value::Integer(Integer::ZERO)].into(),
 		num_variables: 0,
 	}
 }

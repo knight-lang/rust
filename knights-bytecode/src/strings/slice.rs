@@ -10,7 +10,7 @@ pub struct StringSlice(str);
 ///
 /// Note that unless `compliance` is enabled, this will never be returned.
 #[derive(Error, Debug)]
-pub enum StringError {
+pub enum Error {
 	/// Indicates a Knight string was too long.
 	///
 	/// This is only ever returned if [`check_container_length`](
@@ -48,13 +48,13 @@ impl StringSlice {
 	/// Creates a new [`StringSlice`] for the given options. Note that unless the `compliance`
 	/// feature is enabled, this function will never fail.
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
-	pub fn new<'a>(source: impl AsRef<str>, opts: &Options) -> Result<&'a Self, StringError> {
+	pub fn new<'a>(source: impl AsRef<str>, opts: &Options) -> Result<&'a Self, Error> {
 		let source = source.as_ref();
 
 		#[cfg(feature = "compliance")]
 		{
-			if opts.check_length && Self::MAXIMUM_LENGTH < source.len() {
-				return Err(StringError::LengthTooLong(source.len()));
+			if opts.compliance.check_length && Self::MAXIMUM_LENGTH < source.len() {
+				return Err(Error::LengthTooLong(source.len()));
 			}
 
 			opts.encoding.validate(source)?;
@@ -89,10 +89,10 @@ impl Default for &'_ StringSlice {
 }
 
 impl ToOwned for StringSlice {
-	type Owned = super::String;
+	type Owned = crate::value::KString;
 
-	fn to_owned(&self) -> super::String {
-		super::String::from_slice(self)
+	fn to_owned(&self) -> crate::value::KString {
+		crate::value::KString::from_slice(self)
 	}
 }
 

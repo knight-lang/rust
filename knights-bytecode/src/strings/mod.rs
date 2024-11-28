@@ -1,7 +1,7 @@
 mod encoding;
 mod slice;
-mod string;
+// mod string;
 
 pub use encoding::{Encoding, EncodingError};
-pub use slice::{StringError, StringSlice};
-pub use string::String;
+pub use slice::{Error, StringSlice};
+// pub use string::String;

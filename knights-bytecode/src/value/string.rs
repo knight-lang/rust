@@ -1,19 +1,24 @@
+use crate::Environment;
 use std::borrow::Borrow;
 
-use super::{Error, StringSlice};
 use crate::container::RefCount;
 use crate::options::Options;
+use crate::strings::{Error, StringSlice};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct String(RefCount<StringSlice>);
+pub struct KString(RefCount<StringSlice>);
 
-impl Default for String {
+pub trait ToString {
+	fn to_string(&self, env: &mut Environment) -> Result<KString, crate::Error>;
+}
+
+impl Default for KString {
 	fn default() -> Self {
 		Self::from_slice(Default::default())
 	}
 }
 
-impl String {
+impl KString {
 	#[inline]
 	pub fn from_slice(slice: &StringSlice) -> Self {
 		let refcounted = RefCount::<str>::from(slice.as_str());
@@ -31,13 +36,13 @@ impl String {
 	}
 }
 
-impl Borrow<StringSlice> for String {
+impl Borrow<StringSlice> for KString {
 	fn borrow(&self) -> &StringSlice {
 		&self
 	}
 }
 
-impl std::ops::Deref for String {
+impl std::ops::Deref for KString {
 	type Target = StringSlice;
 
 	fn deref(&self) -> &Self::Target {
@@ -45,7 +50,7 @@ impl std::ops::Deref for String {
 	}
 }
 
-impl AsRef<StringSlice> for String {
+impl AsRef<StringSlice> for KString {
 	fn as_ref(&self) -> &StringSlice {
 		&self
 	}

@@ -40,6 +40,18 @@ impl Display for EncodingError {
 }
 
 impl Encoding {
+	pub const fn is_char_valid(self, chr: char) -> bool {
+		match self {
+			Self::Utf8 => true,
+
+			#[cfg(feature = "compliance")]
+			Self::Ascii => chr.is_ascii(),
+
+			#[cfg(feature = "compliance")]
+			Self::Knight => matches!(chr, '\r' | '\n' | '\t' | ' '..='~'),
+		}
+	}
+
 	/// Validate checks to see if `source` only contains valid bytes within the encoding.
 	///
 	/// Note that this doesn't check for the length of the `source`, which is also required by Knight
@@ -57,13 +69,7 @@ impl Encoding {
 			#[cfg(feature = "compliance")]
 			Self::Ascii | Self::Knight => {
 				for (idx, chr) in source.bytes().enumerate() {
-					let is_invalid = if self == Self::Ascii {
-						!chr.is_ascii()
-					} else {
-						!matches!(chr, b'\r' | b'\n' | b'\t' | b' '..=b'~')
-					};
-
-					if is_invalid {
+					if !self.is_char_valid(chr as char) {
 						return Err(EncodingError {
 							encoding: self,
 							position: idx,
