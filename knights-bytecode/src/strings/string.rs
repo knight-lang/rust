@@ -21,8 +21,12 @@ impl String {
 		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
 	}
 
+	pub fn new_unvalidated(source: &str) -> Self {
+		Self::from_slice(StringSlice::new_unvalidated(source))
+	}
+
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn new(source: &str, opts: &Options) -> Result<Self, StringError> {
+	pub fn new(source: impl AsRef<str>, opts: &Options) -> Result<Self, StringError> {
 		StringSlice::new(source, opts).map(Self::from_slice)
 	}
 }

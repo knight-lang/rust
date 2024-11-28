@@ -7,6 +7,11 @@ extern crate thiserror;
 
 mod container;
 pub mod env;
+pub type KString = strings::String;
 pub mod options;
-pub mod parser;
+// pub mod parser;
+pub mod error;
 pub mod strings;
+pub mod value;
+pub mod vm;
+pub use error::{Error, Result};

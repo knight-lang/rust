@@ -48,7 +48,9 @@ impl StringSlice {
 	/// Creates a new [`StringSlice`] for the given options. Note that unless the `compliance`
 	/// feature is enabled, this function will never fail.
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
-	pub fn new<'a>(source: &'a str, opts: &Options) -> Result<&'a Self, StringError> {
+	pub fn new<'a>(source: impl AsRef<str>, opts: &Options) -> Result<&'a Self, StringError> {
+		let source = source.as_ref();
+
 		#[cfg(feature = "compliance")]
 		{
 			if opts.check_length && Self::MAXIMUM_LENGTH < source.len() {
