@@ -254,8 +254,9 @@ impl ToKString for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
 	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
-		// Ok(*self != Self::ZERO)
-		todo!()
+		// Note: number -> string conversions are valid in _all_ environments,
+		// so there's no need to check: digits are in bounds, and correct encodings.
+		Ok(KString::new_unvalidated(&self.to_string()))
 	}
 }
 

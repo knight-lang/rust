@@ -11,7 +11,8 @@ pub enum Opcode {
 	JumpIfTrue = opcode(2, 1, true),
 	JumpIfFalse = opcode(3, 1, true),
 	GetVar = opcode(4, 0, true),
-	SetVar = opcode(5, 1, true),
+	SetVar = opcode(5, 0, true),    // no opcode cause top of stack
+	SetVarPop = opcode(6, 1, true), // same as setvar but it pips
 
 	// Arity 0
 	Prompt = opcode(0, 0, false),
@@ -65,6 +66,7 @@ impl Opcode {
 			_ if byte == Self::JumpIfFalse as u8 => Self::JumpIfFalse,
 			_ if byte == Self::GetVar as u8 => Self::GetVar,
 			_ if byte == Self::SetVar as u8 => Self::SetVar,
+			_ if byte == Self::SetVarPop as u8 => Self::SetVarPop,
 			_ if byte == Self::Prompt as u8 => Self::Prompt,
 			_ if byte == Self::Random as u8 => Self::Random,
 			_ if byte == Self::Dup as u8 => Self::Dup,
@@ -91,7 +93,8 @@ impl Opcode {
 			_ if byte == Self::Eql as u8 => Self::Eql,
 			_ if byte == Self::Get as u8 => Self::Get,
 			_ if byte == Self::Set as u8 => Self::Set,
-			_ => unreachable!("invalid opcode: {byte:?}"),
+			_ if byte == Self::Return as u8 => Self::Return,
+			_ => unreachable!("invalid opcode: {byte:08b}"),
 		}
 	}
 

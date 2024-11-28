@@ -33,6 +33,12 @@ impl From<Null> for Value {
 	}
 }
 
+impl From<Integer> for Value {
+	fn from(integer: Integer) -> Self {
+		Self::Integer(integer)
+	}
+}
+
 impl From<KString> for Value {
 	fn from(string: KString) -> Self {
 		Self::String(string)
