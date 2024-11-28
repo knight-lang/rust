@@ -9,6 +9,9 @@ use crate::{Environment, Result};
 // }
 #[rustfmt::skip]
 pub fn foo() -> Program {
+	fn op(opcode: Opcode, offset: u32) -> u32 {
+		((opcode as u8 as u32)) | (offset << 0o10)
+	}
 	use Opcode::*;
 	Program {
 		/*
@@ -20,25 +23,25 @@ pub fn foo() -> Program {
 		OUTPUT i
 					*/
 		code: vec![
-			PushConstant as u8, 2,
-			SetVarPop as u8, 0,
-			PushConstant as u8, 0,
-			SetVarPop as u8, 1,
+			op(PushConstant, 2),
+			op(SetVarPop, 0),
+			op(PushConstant, 0),
+			op(SetVarPop, 1),
 			// WHILE
-			GetVar as u8, 0,
-			JumpIfFalse as u8, 28,
-			GetVar as u8, 0,
-			GetVar as u8, 1,
-			Add as u8,
-			SetVarPop as u8, 1,
-			PushConstant as u8, 1,
-			GetVar as u8, 0,
-			Sub as u8,
-			SetVarPop as u8, 0,
-			Jump as u8, 8,
-			GetVar as u8, 1,
-			Output as u8,
-			Return as u8, 
+			op(GetVar, 0),
+			op(JumpIfFalse, 15),
+			op(GetVar, 0),
+			op(GetVar, 1),
+			op(Add, 0xff),
+			op(SetVarPop, 1),
+			op(PushConstant, 1),
+			op(GetVar, 0),
+			op(Sub, 0xff),
+			op(SetVarPop, 0),
+			op(Jump, 4),
+			op(GetVar, 1),
+			op(Output, 0xff),
+			op(Return, 0xff) ,
 		]
 		.into(),
 		constants: vec![
@@ -51,48 +54,8 @@ pub fn foo() -> Program {
 	}
 }
 
-// pub fn foo() -> Program {
-// 	Program {
-// 		/*
-// 			*/
-// 		code: vec![
-// 			Opcode::PushConstant as u8,
-// 			2,
-// 			Opcode::PushConstant as u8,
-// 			3,
-// 			Opcode::Add as u8,
-// 			Opcode::SetVar as u8,
-// 			0,
-// 			Opcode::Pop as u8,
-// 			Opcode::PushConstant as u8,
-// 			0,
-// 			Opcode::SetVar as u8,
-// 			1,
-// 			Opcode::Pop as u8,
-// 			Opcode::GetVar as u8,
-// 			1,
-// 			Opcode::GetVar as u8,
-// 			0,
-// 			Opcode::Add as u8,
-// 			Opcode::Output as u8,
-// 			// Opcode::PushConstant as u8,
-// 			// 1,
-// 			Opcode::Return as u8,
-// 		]
-// 		.into(),
-// 		constants: vec![
-// 			Value::Boolean(true),
-// 			Value::Integer(Integer::ZERO),
-// 			Value::Integer(Integer::new_unvalidated(123)),
-// 			Value::Integer(Integer::new_unvalidated(456)),
-// 		]
-// 		.into(),
-// 		num_variables: 2,
-// 	}
-// }
-
 pub struct Program {
-	code: Box<[u8]>,
+	code: Box<[u32]>,
 	constants: Box<[Value]>,
 	num_variables: usize,
 }
@@ -116,45 +79,24 @@ impl<'p, 'e> Vm<'p, 'e> {
 		}
 	}
 
-	fn next_byte(&mut self) -> u8 {
-		let byte = self.program.code[self.current_index];
+	fn next_opcode(&mut self) -> (Opcode, usize) {
+		let number = self.program.code[self.current_index];
 		self.current_index += 1;
-		byte
-	}
-
-	fn next_opcode(&mut self) -> Opcode {
-		let byte = self.next_byte();
 
 		// SAFETY: we know as this type was constructed that all programs result
 		// in valid opcodes
-		unsafe { Opcode::from_byte_unchecked(byte) }
-	}
+		let opcode = unsafe { Opcode::from_byte_unchecked((number as u8)) };
+		let offset = (number >> 0o10) as usize;
 
-	fn next_usize(&mut self) -> usize {
-		let byte = self.next_byte();
-		if byte != 0xff {
-			return byte as usize;
-		}
-
-		// TODO: is this right?
-		((self.next_byte() as usize) << 0o30)
-			| ((self.next_byte() as usize) << 0o20)
-			| ((self.next_byte() as usize) << 0o10)
-			| ((self.next_byte() as usize) << 0o00)
+		(opcode, offset)
 	}
 
 	pub fn run(&mut self) -> Result<Value> {
 		loop {
-			let opcode = self.next_opcode();
-			// println!("{:?}: {:?}", self.current_index, opcode);
+			let (opcode, offset) = self.next_opcode();
+			// println!("{:?}: {:?} / {:?}", self.current_index, offset, opcode);
 			let mut args: [Value; Opcode::MAX_ARITY] =
 				[Value::Null, Value::Null, Value::Null, Value::Null];
-
-			let offset = if opcode.takes_offset() {
-				self.next_usize()
-			} else {
-				11111 // TODO: maybeuninit
-			};
 
 			// TODO: do we need to reverse?
 			for idx in 0..opcode.arity() {
@@ -174,7 +116,9 @@ impl<'p, 'e> Vm<'p, 'e> {
 				}
 
 				Opcode::JumpIfTrue => {
-					todo!()
+					if args[0].to_boolean(self.env)? {
+						self.current_index = offset;
+					}
 				}
 
 				Opcode::JumpIfFalse => {
@@ -213,10 +157,6 @@ impl<'p, 'e> Vm<'p, 'e> {
 						.push(int.subtract(args[1].to_integer(self.env)?, self.env.opts())?.into()),
 					_ => todo!("add {:?}", args[0]),
 				},
-				// (Opcode::Output, 0, 0),
-				// (Opcode::Pop, 0, 0),
-				// (Opcode::PushConstant, 1, 0),
-				// (Opcode::Quit, 0, 0),
 				Opcode::Set => {
 					todo!()
 					// let other = self.stack.pop();
