@@ -11,11 +11,13 @@ use crate::{Environment, Result};
 pub fn foo() -> Program {
 	Program {
 		code: vec![
-			(Opcode::PushConstant, 0, 0),
-			(Opcode::Output, 0, 0),
-			(Opcode::Pop, 0, 0),
-			(Opcode::PushConstant, 1, 0),
-			(Opcode::Quit, 0, 0),
+			Opcode::PushConstant as u8,
+			0,
+			Opcode::Output as u8,
+			Opcode::Pop as u8,
+			Opcode::PushConstant as u8,
+			1,
+			Opcode::Return as u8,
 		]
 		.into(),
 		constants: vec![Value::Boolean(true), Value::Integer(Integer::ZERO)].into(),
@@ -24,7 +26,7 @@ pub fn foo() -> Program {
 }
 
 pub struct Program {
-	code: Box<[(Opcode, u8, u16)]>,
+	code: Box<[u8]>,
 	constants: Box<[Value]>,
 	num_variables: usize,
 }
@@ -41,12 +43,44 @@ impl<'p, 'e> Vm<'p, 'e> {
 		Self { program, env, current_index: 0, stack: Vec::new() }
 	}
 
-	pub fn run(&mut self) -> Result<Value> {
-		while self.current_index < self.program.code.len() {
-			let (opcode, idx, _) = self.program.code[self.current_index];
-			self.current_index += 1;
+	fn next_byte(&mut self) -> u8 {
+		let byte = self.program.code[self.current_index];
+		self.current_index += 1;
+		byte
+	}
 
-			let mut args = [Value::Null, Value::Null, Value::Null, Value::Null];
+	fn next_opcode(&mut self) -> Opcode {
+		let byte = self.next_byte();
+
+		// SAFETY: we know as this type was constructed that all programs result
+		// in valid opcodes
+		unsafe { Opcode::from_byte_unchecked(byte) }
+	}
+
+	fn next_usize(&mut self) -> usize {
+		let byte = self.next_byte();
+		if byte != 0xff {
+			return byte as usize;
+		}
+
+		// TODO: is this right?
+		((self.next_byte() as usize) << 0o30)
+			| ((self.next_byte() as usize) << 0o20)
+			| ((self.next_byte() as usize) << 0o10)
+			| ((self.next_byte() as usize) << 0o00)
+	}
+
+	pub fn run(&mut self) -> Result<Value> {
+		loop {
+			let opcode = self.next_opcode();
+			let mut args: [Value; Opcode::MAX_ARITY] =
+				[Value::Null, Value::Null, Value::Null, Value::Null];
+
+			let offset = if opcode.takes_offset() {
+				self.next_usize()
+			} else {
+				0 // TODO: maybeuninit
+			};
 
 			// TODO: do we need to reverse?
 			for idx in 0..opcode.arity() {
@@ -54,9 +88,31 @@ impl<'p, 'e> Vm<'p, 'e> {
 			}
 
 			match opcode {
+				// Builtins
 				Opcode::PushConstant => {
-					self.stack.push(self.program.constants[idx as usize].clone());
+					self.stack.push(self.program.constants[offset].clone());
 				}
+
+				Opcode::Jump => {
+					todo!()
+				}
+
+				Opcode::JumpIfTrue => {
+					todo!()
+				}
+
+				Opcode::JumpIfFalse => {
+					todo!()
+				}
+
+				Opcode::GetVar => {
+					todo!()
+				}
+
+				Opcode::SetVar => {
+					todo!()
+				}
+
 				Opcode::Pop => { /* do nothing, the arity already popped */ }
 				Opcode::Output => {
 					println!("{}", args[0].to_kstring(self.env)?.as_str());
@@ -69,6 +125,10 @@ impl<'p, 'e> Vm<'p, 'e> {
 				// (Opcode::Pop, 0, 0),
 				// (Opcode::PushConstant, 1, 0),
 				// (Opcode::Quit, 0, 0),
+				Opcode::Set => {
+					todo!()
+					// let other = self.stack.pop();
+				}
 				_ => todo!(),
 			}
 		}
