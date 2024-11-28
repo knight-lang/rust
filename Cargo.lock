@@ -127,6 +127,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "knights-bytecode"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "safe-transmute",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.135"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,6 +238,12 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
 ]
+
+[[package]]
+name = "safe-transmute"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3944826ff8fa8093089aba3acb4ef44b9446a99a16f3bf4e74af3f77d340ab7d"
 
 [[package]]
 name = "serde"
