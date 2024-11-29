@@ -19,7 +19,7 @@ pub trait NamedType {
 }
 
 // Todo: more
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum Value {
 	#[default]
 	Null,

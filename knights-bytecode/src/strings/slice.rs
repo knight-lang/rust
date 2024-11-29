@@ -85,6 +85,13 @@ impl StringSlice {
 		Ok(unsafe { &*(source as *const str as *const Self) })
 	}
 
+	pub fn into_boxed(&self) -> Box<Self> {
+		let rawbox = Box::into_raw(self.as_str().to_string().into_boxed_str());
+
+		// SAFETY: same layout
+		unsafe { Box::from_raw(rawbox as *mut Self) }
+	}
+
 	#[inline]
 	pub fn as_str(&self) -> &str {
 		&self.0

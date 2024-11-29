@@ -6,7 +6,7 @@ use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, T
 use crate::{Environment, Error, Result};
 
 // todo: optimize
-#[derive(Clone, Debug)] // TODO: DEBUG
+#[derive(Clone, Debug, PartialEq)] // TODO: DEBUG
 pub struct List(Option<Box<[Value]>>);
 
 pub trait ToList {
