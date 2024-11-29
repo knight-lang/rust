@@ -92,6 +92,8 @@ impl<'p, 'e> Vm<'p, 'e> {
 	}
 
 	pub fn run(&mut self) -> Result<Value> {
+		use Opcode::*;
+
 		loop {
 			let (opcode, offset) = self.next_opcode();
 			// println!("{:?}: {:?} / {:?}", self.current_index, offset, opcode);
@@ -104,57 +106,78 @@ impl<'p, 'e> Vm<'p, 'e> {
 			}
 
 			match opcode {
-				Opcode::Return => break,
-
 				// Builtins
-				Opcode::PushConstant => {
+				PushConstant => {
 					self.stack.push(self.program.constants[offset].clone());
 				}
 
-				Opcode::Jump => {
+				Jump => {
 					self.current_index = offset;
 				}
 
-				Opcode::JumpIfTrue => {
+				JumpIfTrue => {
 					if args[0].to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 				}
 
-				Opcode::JumpIfFalse => {
+				JumpIfFalse => {
 					if !args[0].to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 				}
 
-				Opcode::GetVar => {
+				GetVar => {
 					self.stack.push(self.vars[offset].clone());
 				}
 
-				Opcode::SetVar => {
+				SetVar => {
 					self.vars[offset] = self.stack.last().unwrap().clone();
 				}
 
-				Opcode::SetVarPop => self.vars[offset] = args[0].clone(),
+				SetVarPop => self.vars[offset] = args[0].clone(),
 
-				Opcode::Pop => { /* do nothing, the arity already popped */ }
-				Opcode::Output => {
+				// Arity 0
+				Prompt => todo!(),
+				Random => todo!(),
+				Dup => todo!(),
+				Return => return Ok(self.stack.pop().unwrap()),
+
+				// Arity 1
+				Call => todo!(),
+				Quit => todo!(),
+				Dump => todo!(),
+				// Output => todo!(),
+				Output => {
 					println!("{}", args[0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
 				}
-				Opcode::Quit => {
-					todo!()
-				}
-				Opcode::Add => self.stack.push(args[0].add(&args[1], self.env)?),
-				Opcode::Sub => self.stack.push(args[0].subtract(&args[1], self.env)?),
-				Opcode::Set => {
-					todo!()
-					// let other = self.stack.pop();
-				}
-				_ => todo!("{:?}", opcode),
+				Length => todo!(),
+				Not => todo!(),
+				Negate => todo!(),
+				Ascii => todo!(),
+				Box => todo!(),
+				Head => todo!(),
+				Tail => todo!(),
+				Pop => { /* do nothing, the arity already popped */ }
+
+				// Arity 2
+				Add => self.stack.push(args[0].op_plus(&args[1], self.env)?),
+				Sub => self.stack.push(args[0].op_minus(&args[1], self.env)?),
+				Mul => self.stack.push(args[0].op_asterisk(&args[1], self.env)?),
+				Div => self.stack.push(args[0].op_slash(&args[1], self.env)?),
+				Mod => self.stack.push(args[0].op_percent(&args[1], self.env)?),
+				Pow => self.stack.push(args[0].op_caret(&args[1], self.env)?),
+				Lth => todo!(),
+				Gth => todo!(),
+				Eql => todo!(),
+
+				// Arity 3
+				Get => todo!(),
+
+				// Arity 4
+				Set => todo!(),
 			}
 		}
-
-		Ok(self.stack.pop().unwrap())
 	}
 }

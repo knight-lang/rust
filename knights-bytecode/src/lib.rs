@@ -13,6 +13,6 @@ pub mod error;
 pub mod strings;
 pub mod value;
 pub mod vm;
-pub use error::{Error, Result};
-
 pub use env::Environment;
+pub use error::{Error, Result};
+pub use value::Value;

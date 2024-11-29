@@ -33,9 +33,14 @@ impl From<&StringSlice> for KString {
 }
 
 impl KString {
-	#[inline]
 	pub fn from_slice(slice: &StringSlice) -> Self {
 		let refcounted = RefCount::<str>::from(slice.as_str());
+		// SAFETY: tood, but it is valid i think lol
+		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
+	}
+
+	pub fn from_string_unchecked(source: String) -> Self {
+		let refcounted = RefCount::<str>::from(source);
 		// SAFETY: tood, but it is valid i think lol
 		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
 	}

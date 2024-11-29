@@ -20,6 +20,7 @@ pub enum Opcode {
 	Dup = opcode(2, 0, false), // doesnt have an arity cause that pops
 	Return = opcode(3, 0, false),
 
+	// Arity 1
 	Call = opcode(0, 1, false),
 	Quit = opcode(1, 1, false),
 	Dump = opcode(2, 1, false),

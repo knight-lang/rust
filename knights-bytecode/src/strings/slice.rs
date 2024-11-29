@@ -1,4 +1,6 @@
 use crate::options::Options;
+use crate::value::{Integer, KString, List, ToList};
+use crate::{Environment, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// StringSlice represents a slice of a Knight string, akin to
@@ -48,7 +50,26 @@ impl StringSlice {
 	/// Creates a new [`StringSlice`] for the given options. Note that unless the `compliance`
 	/// feature is enabled, this function will never fail.
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
+	pub fn new_validate_length<'a>(
+		source: impl AsRef<str>,
+		opts: &Options,
+	) -> Result<&'a Self, StringError> {
+		let source = source.as_ref();
+
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_length && Self::MAXIMUM_LENGTH < source.len() {
+			return Err(StringError::LengthTooLong(source.len()));
+		}
+
+		// SAFETY:
+		Ok(unsafe { &*(source as *const str as *const Self) })
+	}
+
+	/// Creates a new [`StringSlice`] for the given options. Note that unless the `compliance`
+	/// feature is enabled, this function will never fail.
+	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
 	pub fn new<'a>(source: impl AsRef<str>, opts: &Options) -> Result<&'a Self, StringError> {
+		// TODO: Combine with new_validate_length ?
 		let source = source.as_ref();
 
 		#[cfg(feature = "compliance")]
@@ -71,6 +92,82 @@ impl StringSlice {
 
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
+	}
+
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
+	pub fn repeat(&self, amount: usize, opts: &Options) -> Result<KString, StringError> {
+		// Make sure `str.repeat()` won't panic
+		if amount.checked_mul(self.len()).map_or(true, |c| isize::MAX as usize <= c) {
+			// TODO: maybe we don't have the length in `LengthTooLong` ?
+			return Err(StringError::LengthTooLong(self.len().wrapping_mul(amount)));
+		}
+
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_length && Self::MAXIMUM_LENGTH < self.len() * amount {
+			return Err(StringError::LengthTooLong(self.len() * amount));
+		}
+
+		Ok(KString::from_string_unchecked(self.as_str().repeat(amount)))
+	}
+
+	/// Gets an iterate over [`Character`]s.
+	pub fn chars(&self) -> std::str::Chars<'_> {
+		self.0.chars()
+	}
+
+	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
+		let substring = self.0.get(range)?;
+
+		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
+		Some(Self::new_unvalidated(substring))
+	}
+
+	/// Concatenates two strings together
+	pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<KString, StringError> {
+		// let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
+
+		todo!()
+		// builder.push(self);
+		// builder.push(rhs);
+
+		// builder.finish(flags)
+	}
+
+	#[cfg(feature = "extensions")]
+	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
+	pub fn split(&self, sep: &Self, env: &mut Environment) -> List {
+		if sep.is_empty() {
+			// TODO: optimize me
+			return Value::from(self.to_owned()).to_list(env).unwrap();
+		}
+
+		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
+		List::new_unvalidated(
+			self.as_str().split(sep.as_str()).map(KString::new_unvalidated).map(Value::from),
+		)
+	}
+
+	pub fn ord(&self) -> crate::Result<Integer> {
+		todo!()
+		// Integer::try_from(self.chars().next().ok_or(crate::Error::DomainError("empty string"))?)
+	}
+
+	/// Gets the first character of `self`, if it exists.
+	pub fn head(&self) -> Option<char> {
+		self.chars().next()
+	}
+
+	/// Gets everything _but_ the first character of `self`, if it exists.
+	pub fn tail(&self) -> Option<&Self> {
+		self.get(1..)
+	}
+
+	pub fn remove_substr(&self, substr: &Self) -> KString {
+		let _ = substr;
+		todo!();
 	}
 }
 
@@ -114,7 +211,7 @@ impl StringSlice {
 	// }
 
 	// /// Concatenates two strings together
-	// pub fn concat(&self, rhs: &Self, flags: &Flags) -> Result<Text, NewTextError> {
+	// pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<KString, NewTextError> {
 	// 	let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 	// 	builder.push(self);
@@ -123,8 +220,8 @@ impl StringSlice {
 	// 	builder.finish(flags)
 	// }
 
-	// pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Text, NewTextError> {
-	// 	unsafe { Text::new_len_unchecked((**self).repeat(amount), flags) }
+	// pub fn repeat(&self, amount: usize, opts: &Options) -> Result<KString, NewTextError> {
+	// 	unsafe { KString::new_len_unchecked((**self).repeat(amount), flags) }
 	// }
 
 	// #[cfg(feature = "extensions")]
@@ -137,7 +234,7 @@ impl StringSlice {
 
 	// 	let chars = (**self)
 	// 		.split(&**sep)
-	// 		.map(|x| unsafe { Text::new_unchecked(x) }.into())
+	// 		.map(|x| unsafe { KString::new_unchecked(x) }.into())
 	// 		.collect::<Vec<_>>();
 
 	// 	// SAFETY: If `self` is within the container bounds, so is the length of its chars.
@@ -158,7 +255,7 @@ impl StringSlice {
 	// 	self.get(1..)
 	// }
 
-	// pub fn remove_substr(&self, substr: &Self) -> Text {
+	// pub fn remove_substr(&self, substr: &Self) -> KString {
 	// 	let _ = substr;
 	// 	todo!();
 	// }

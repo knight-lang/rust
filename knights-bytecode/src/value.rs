@@ -6,6 +6,7 @@ pub mod list;
 pub mod null;
 pub mod string;
 pub use boolean::{Boolean, ToBoolean};
+use integer::IntegerError;
 pub use integer::{Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;
@@ -18,8 +19,9 @@ pub trait NamedType {
 }
 
 // Todo: more
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub enum Value {
+	#[default]
 	Null,
 	Boolean(Boolean),
 	Integer(Integer),
@@ -124,13 +126,11 @@ impl NamedType for Value {
 }
 
 impl Value {
-	pub fn add(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn op_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),
 			Self::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
-			Self::List(list) => {
-				list.concat(rhs.to_list(env)?.into_iter().cloned(), env.opts()).map(Self::from)
-			}
+			Self::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
 			#[cfg(feature = "extensions")]
 			Self::Boolean(lhs) if env.opts().extensions.types.boolean => {
 				Ok((lhs | rhs.to_boolean(env)?).into())
@@ -143,7 +143,7 @@ impl Value {
 		}
 	}
 
-	pub fn subtract(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn op_minus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into()),
 
@@ -154,7 +154,7 @@ impl Value {
 
 			#[cfg(feature = "extensions")]
 			Self::List(list) if env.opts().extensions.types.list => {
-				Ok(list.difference(&rhs.to_list(env)?, env.opts())?.into())
+				list.difference(&rhs.to_list(env)?).map(Self::from)
 			}
 
 			#[cfg(feature = "custom-types")]
@@ -164,138 +164,133 @@ impl Value {
 		}
 	}
 
-	// pub fn multiply(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-	// 	match self {
-	// 		Self::Integer(integer) => {
-	// 			integer.multiply(rhs.to_integer(env)?, env.opts()).map(Self::from)
-	// 		}
+	pub fn op_asterisk(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => Ok(integer.multiply(rhs.to_integer(env)?, env.opts())?.into()),
 
-	// 		Self::String(lstr) => {
-	// 			let amount = usize::try_from(rhs.to_integer(env)?)
-	// 				.or(Err(Error::DomainError("repetition count is negative")))?;
+			Self::String(lstr) => {
+				let amount = usize::try_from(rhs.to_integer(env)?.inner())
+					.or(Err(IntegerError::DomainError("repetition count is negative")))?;
 
-	// 			if amount.checked_mul(lstr.len()).map_or(true, |c| isize::MAX as usize <= c) {
-	// 				return Err(Error::DomainError("repetition is too large"));
-	// 			}
+				if amount.checked_mul(lstr.len()).map_or(true, |c| isize::MAX as usize <= c) {
+					return Err(IntegerError::DomainError("repetition is too large").into());
+				}
 
-	// 			Ok(lstr.repeat(amount, env.opts())?.into())
-	// 		}
+				Ok(lstr.repeat(amount, env.opts())?.into())
+			}
 
-	// 		Self::List(list) => {
-	// 			let rhs = rhs;
+			Self::List(list) => {
+				let rhs = rhs;
 
-	// 			// Multiplying by a block is invalid, so we can do this as an extension.
-	// 			#[cfg(feature = "extensions")]
-	// 			if env.opts().extensions.types.list && matches!(rhs, Self::Ast(_)) {
-	// 				return list.map(rhs, env).map(Self::from);
-	// 			}
+				// Multiplying by a block is invalid, so we can do this as an extension.
+				#[cfg(any())]
+				#[cfg(feature = "extensions")]
+				if env.opts().extensions.types.list && matches!(rhs, Self::Ast(_)) {
+					return list.map(rhs, env).map(Self::from);
+				}
 
-	// 			let amount = usize::try_from(rhs.to_integer(env)?)
-	// 				.or(Err(Error::DomainError("repetition count is negative")))?;
+				let amount = usize::try_from(rhs.to_integer(env)?.inner())
+					.or(Err(IntegerError::DomainError("repetition count is negative")))?;
 
-	// 			// No need to check for repetition length because `list.repeat` does it itself.
-	// 			list.repeat(amount, env.opts()).map(Self::from)
-	// 		}
+				// No need to check for repetition length because `list.repeat` does it itself.
+				list.repeat(amount, env.opts()).map(Self::from)
+			}
 
-	// 		#[cfg(feature = "extensions")]
-	// 		Self::Boolean(lhs) if env.opts().extensions.types.boolean => {
-	// 			Ok((lhs & rhs.to_boolean(env)?).into())
-	// 		}
+			#[cfg(feature = "extensions")]
+			Self::Boolean(lhs) if env.opts().extensions.types.boolean => {
+				Ok((lhs & rhs.to_boolean(env)?).into())
+			}
 
-	// 		#[cfg(feature = "custom-types")]
-	// 		Self::Custom(custom) => custom.multiply(rhs, env),
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.multiply(rhs, env),
 
-	// 		other => Err(Error::TypeError(other.typename(), "*")),
-	// 	}
-	// }
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "*" }),
+		}
+	}
 
-	// pub fn divide(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-	// 	match self {
-	// 		Self::Integer(integer) => {
-	// 			integer.divide(rhs.to_integer(env)?, env.opts()).map(Self::from)
-	// 		}
+	pub fn op_slash(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into()),
 
-	// 		#[cfg(feature = "extensions")]
-	// 		Self::String(string) if env.opts().extensions.types.string => {
-	// 			Ok(string.split(&rhs.to_text(env)?, env).into())
-	// 		}
+			#[cfg(feature = "extensions")]
+			Self::String(string) if env.opts().extensions.types.string => {
+				Ok(string.split(&rhs.to_kstring(env)?, env).into())
+			}
 
-	// 		#[cfg(feature = "extensions")]
-	// 		Self::List(list) if env.opts().extensions.types.list => {
-	// 			Ok(list.reduce(rhs, env)?.unwrap_or_default())
-	// 		}
+			#[cfg(feature = "extensions")]
+			Self::List(list) if env.opts().extensions.types.list => {
+				Ok(list.reduce(rhs, env)?.unwrap_or_default())
+			}
 
-	// 		#[cfg(feature = "custom-types")]
-	// 		Self::Custom(custom) => custom.divide(rhs, env),
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.divide(rhs, env),
 
-	// 		other => Err(Error::TypeError(other.typename(), "/")),
-	// 	}
-	// }
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "/" }),
+		}
+	}
 
-	// pub fn remainder(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-	// 	match self {
-	// 		Self::Integer(integer) => {
-	// 			integer.remainder(rhs.to_integer(env)?, env.opts()).map(Self::from)
-	// 		}
+	pub fn op_percent(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => Ok(integer.remainder(rhs.to_integer(env)?, env.opts())?.into()),
 
-	// 		// #[cfg(feature = "string-extensions")]
-	// 		// Self::String(lstr) => {
-	// 		// 	let values = rhs.to_list(env)?;
-	// 		// 	let mut values_index = 0;
+			// #[cfg(feature = "string-extensions")]
+			// Self::String(lstr) => {
+			// 	let values = rhs.to_list(env)?;
+			// 	let mut values_index = 0;
 
-	// 		// 	let mut formatted = String::new();
-	// 		// 	let mut chars = lstr.chars();
+			// 	let mut formatted = String::new();
+			// 	let mut chars = lstr.chars();
 
-	// 		// 	while let Some(chr) = chars.next() {
-	// 		// 		match chr {
-	// 		// 			'\\' => {
-	// 		// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
-	// 		// 					'n' => '\n',
-	// 		// 					'r' => '\r',
-	// 		// 					't' => '\t',
-	// 		// 					'{' => '{',
-	// 		// 					'}' => '}',
-	// 		// 					_ => panic!("todo: error for unknown escape code"),
-	// 		// 				});
-	// 		// 			}
-	// 		// 			'{' => {
-	// 		// 				if chars.next() != Some('}') {
-	// 		// 					panic!("todo, missing closing `}}`");
-	// 		// 				}
-	// 		// 				formatted.push_str(
-	// 		// 					&values
-	// 		// 						.as_slice()
-	// 		// 						.get(values_index)
-	// 		// 						.expect("no values left to format")
-	// 		// 						.to_text(env)?,
-	// 		// 				);
-	// 		// 				values_index += 1;
-	// 		// 			}
-	// 		// 			_ => formatted.push(chr),
-	// 		// 		}
-	// 		// 	}
+			// 	while let Some(chr) = chars.next() {
+			// 		match chr {
+			// 			'\\' => {
+			// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
+			// 					'n' => '\n',
+			// 					'r' => '\r',
+			// 					't' => '\t',
+			// 					'{' => '{',
+			// 					'}' => '}',
+			// 					_ => panic!("todo: error for unknown escape code"),
+			// 				});
+			// 			}
+			// 			'{' => {
+			// 				if chars.next() != Some('}') {
+			// 					panic!("todo, missing closing `}}`");
+			// 				}
+			// 				formatted.push_str(
+			// 					&values
+			// 						.as_slice()
+			// 						.get(values_index)
+			// 						.expect("no values left to format")
+			// 						.to_kstring(env)?,
+			// 				);
+			// 				values_index += 1;
+			// 			}
+			// 			_ => formatted.push(chr),
+			// 		}
+			// 	}
 
-	// 		// 	Text::new(formatted).unwrap().into()
-	// 		// }
-	// 		#[cfg(feature = "extensions")]
-	// 		Self::List(list) if env.opts().extensions.types.list => list.filter(rhs, env).map(Self::from),
+			// 	Text::new(formatted).unwrap().into()
+			// }
+			#[cfg(feature = "extensions")]
+			Self::List(list) if env.opts().extensions.types.list => list.filter(rhs, env).map(Self::from),
 
-	// 		#[cfg(feature = "custom-types")]
-	// 		Self::Custom(custom) => custom.remainder(rhs, env),
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.remainder(rhs, env),
 
-	// 		other => Err(Error::TypeError(other.typename(), "%")),
-	// 	}
-	// }
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "%" }),
+		}
+	}
 
-	// pub fn power(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-	// 	match self {
-	// 		Self::Integer(integer) => integer.power(rhs.to_integer(env)?, env.opts()).map(Self::from),
-	// 		Self::List(list) => list.join(&rhs.to_text(env)?, env).map(Self::from),
+	pub fn op_caret(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+		match self {
+			Self::Integer(integer) => Ok(integer.power(rhs.to_integer(env)?, env.opts())?.into()),
+			Self::List(list) => list.join(&rhs.to_kstring(env)?, env).map(Self::from),
 
-	// 		#[cfg(feature = "custom-types")]
-	// 		Self::Custom(custom) => custom.power(rhs, env),
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.power(rhs, env),
 
-	// 		other => Err(Error::TypeError(other.typename(), "^")),
-	// 	}
-	// }
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "^" }),
+		}
+	}
 }
