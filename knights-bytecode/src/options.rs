@@ -20,6 +20,7 @@ pub struct Compliance {
 	pub check_integer_function_bounds: bool,
 	pub variable_name_length: bool,
 	pub variable_count: bool,
+	pub forbid_trailing_tokens: bool,
 }
 
 #[derive(Default)]

@@ -23,9 +23,9 @@ pub enum Encoding {
 /// The error that's returned from [`Encoding::validate`].
 #[derive(Debug)]
 pub struct EncodingError {
-	encoding: Encoding,
-	position: usize,
-	character: char,
+	pub encoding: Encoding, // todo: dont make pub lol make fns
+	pub position: usize,
+	pub character: char,
 }
 
 impl std::error::Error for EncodingError {}

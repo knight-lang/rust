@@ -8,6 +8,22 @@ use knights_bytecode::vm::*;
 
 fn main() {
 	let mut env = Environment::default();
+	let mut parser = Parser::new(
+		&mut env,
+		None,
+		"
+  # HELLO WORLD
+  123",
+	)
+	.unwrap();
+
+	let program = parser.parse_program().unwrap();
+	dbg!(program);
+}
+
+#[cfg(any())]
+fn main() {
+	let mut env = Environment::default();
 	let mut builder = Program::builder(env.opts());
 	// 		/*
 	// 		; = n 10 var=1

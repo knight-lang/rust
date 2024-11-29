@@ -15,8 +15,28 @@ cfg_if! {
 	}
 }
 
+#[derive(Debug)]
+pub struct ParseError {
+	pub whence: (Option<std::path::PathBuf>, usize),
+	pub kind: ParseErrorKind,
+}
+
+use std::fmt::{self, Display, Formatter};
+
+use crate::strings::Encoding;
+impl Display for ParseError {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		if let Some(ref pathbuf) = self.whence.0 {
+			write!(f, "{}.{}: {}", pathbuf.display(), self.whence.1, self.kind)
+		} else {
+			write!(f, "<expr>.{}: {}", self.whence.1, self.kind)
+		}
+	}
+}
+impl std::error::Error for ParseError {}
+
 #[derive(Error, Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
 	#[cfg(feature = "compliance")]
 	#[error("variable name too long ({len} > {max}): {0:?}", len=.0.len(), max = MAX_VARIABLE_LEN)]
 	VariableNameTooLong(crate::value::KString),
@@ -24,4 +44,23 @@ pub enum ParseError {
 	#[cfg(feature = "compliance")]
 	#[error("too many variables encountered (only {MAX_VARIABLE_LEN} allowed)")]
 	TooManyVariables,
+
+	#[cfg(feature = "compliance")]
+	#[error("invalid character {1:?} for encoding {0:?}")]
+	InvalidCharInEncoding(Encoding, char),
+
+	// There was nothing to parse
+	#[error("there was nothing to parse.")]
+	EmptySource,
+
+	#[cfg(feature = "compliance")]
+	#[error("there were additional tokens in the source")]
+	TrailingTokens,
+}
+
+impl ParseErrorKind {
+	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
+	pub fn error(self, whence: ((Option<std::path::PathBuf>, usize))) -> ParseError {
+		ParseError { whence, kind: self }
+	}
 }

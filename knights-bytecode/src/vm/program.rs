@@ -1,4 +1,4 @@
-use super::{Opcode, ParseError, SourceLocation};
+use super::{Opcode, ParseErrorKind, SourceLocation};
 use crate::options::Options;
 use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
@@ -162,10 +162,14 @@ impl<'filename> Builder<'filename> {
 		}
 	}
 
-	fn variable_index(&mut self, name: &StringSlice, opts: &Options) -> Result<usize, ParseError> {
+	fn variable_index(
+		&mut self,
+		name: &StringSlice,
+		opts: &Options,
+	) -> Result<usize, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.variable_name_length && name.len() > super::MAX_VARIABLE_LEN {
-			return Err(ParseError::VariableNameTooLong(name.to_owned()));
+			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
 		}
 
 		// TODO: check for name size (also in `set`)
@@ -176,7 +180,7 @@ impl<'filename> Builder<'filename> {
 
 				#[cfg(feature = "compliance")]
 				if opts.compliance.variable_count && i > super::MAX_VARIABLE_COUNT {
-					return Err(ParseError::TooManyVariables);
+					return Err(ParseErrorKind::TooManyVariables);
 				}
 
 				// TODO: check `name` variable len
@@ -186,7 +190,11 @@ impl<'filename> Builder<'filename> {
 		}
 	}
 
-	pub fn get_variable(&mut self, name: &StringSlice, opts: &Options) -> Result<(), ParseError> {
+	pub fn get_variable(
+		&mut self,
+		name: &StringSlice,
+		opts: &Options,
+	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
 
 		unsafe {
@@ -201,7 +209,7 @@ impl<'filename> Builder<'filename> {
 		&mut self,
 		name: &StringSlice,
 		opts: &Options,
-	) -> Result<(), ParseError> {
+	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
 
 		unsafe {
@@ -216,7 +224,7 @@ impl<'filename> Builder<'filename> {
 		&mut self,
 		name: &StringSlice,
 		opts: &Options,
-	) -> Result<(), ParseError> {
+	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
 
 		unsafe {
