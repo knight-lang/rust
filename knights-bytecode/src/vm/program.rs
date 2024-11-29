@@ -4,27 +4,23 @@ use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
 
 // #[cfg(feature = "knight-debugging")]
-// type SourceLines<'src> = HashMap<usize, SourceLocation<'src>>;
+// type SourceLines<'filename> = HashMap<usize, SourceLocation<'filename>>;
 // #[cfg(not(feature = "knight-debugging"))]
-// type SourceLines<'src> = &'src ();
+// type SourceLines<'filename> = &'filename ();
 
 #[derive(Debug)]
-pub struct Program<'src> {
+pub struct Program<'filename> {
 	code: Box<[u64]>, // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
 	constants: Box<[Value]>,
 	num_variables: usize,
 
 	#[cfg(feature = "knight-debugging")]
-	source_lines: HashMap<usize, SourceLocation<'src>>,
+	source_lines: HashMap<usize, SourceLocation<'filename>>,
 	#[cfg(not(feature = "knight-debugging"))]
-	source_lines: &'src (),
+	source_lines: &'filename (),
 }
 
-impl<'src> Program<'src> {
-	pub fn builder<'opts>(opts: &'opts Options) -> Builder<'opts, 'src> {
-		Builder::new(opts)
-	}
-
+impl<'filename> Program<'filename> {
 	pub fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
 		let number = self.code[offset];
 
@@ -45,16 +41,16 @@ impl<'src> Program<'src> {
 	}
 }
 
-pub struct Builder<'opts, 'src> {
+#[derive(Default)]
+pub struct Builder<'filename> {
 	code: Vec<u64>, // todo: make nonzero u64
 	constants: Vec<Value>,
 	variables: HashMap<Box<StringSlice>, usize>,
-	opts: &'opts Options,
 
 	#[cfg(feature = "knight-debugging")]
-	source_lines: HashMap<usize, SourceLocation<'src>>,
+	source_lines: HashMap<usize, SourceLocation<'filename>>,
 	#[cfg(not(feature = "knight-debugging"))]
-	_ignored: &'src (),
+	_ignored: &'filename (),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,11 +67,11 @@ pub enum JumpWhen {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Builder<'_, '_>) {
+	pub unsafe fn jump_to_current(self, builder: &mut Builder<'_>) {
 		self.jump_to(builder, builder.jump_index())
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Builder<'_, '_>, index: JumpIndex) {
+	pub unsafe fn jump_to(self, builder: &mut Builder<'_>, index: JumpIndex) {
 		assert_eq!(0, builder.code[self.0]);
 
 		let opcode = match self.1 {
@@ -101,22 +97,9 @@ macro_rules! norm_op {
 	)*};
 }
 
-impl<'opts, 'src> Builder<'opts, 'src> {
-	pub fn new(opts: &'opts Options) -> Self {
-		Self {
-			code: Vec::new(),
-			constants: Vec::new(),
-			variables: HashMap::new(),
-			opts,
-			#[cfg(feature = "knight-debugging")]
-			source_lines: HashMap::default(),
-			#[cfg(not(feature = "knight-debugging"))]
-			_ignored: &(),
-		}
-	}
-
+impl<'filename> Builder<'filename> {
 	// needs to be called while ensuring soemthing's ont eh stack.
-	pub unsafe fn build(mut self) -> Program<'src> {
+	pub unsafe fn build(mut self) -> Program<'filename> {
 		unsafe {
 			self.opcode_without_offset(Opcode::Return);
 		}
@@ -137,7 +120,7 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 	}
 
 	#[cfg(feature = "knight-debugging")]
-	pub fn record_source_location(&mut self, loc: SourceLocation<'src>) {
+	pub fn record_source_location(&mut self, loc: SourceLocation<'filename>) {
 		self.source_lines.insert(self.code.len(), loc);
 	}
 
@@ -179,9 +162,9 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 		}
 	}
 
-	fn variable_index(&mut self, name: &StringSlice) -> Result<usize, ParseError> {
+	fn variable_index(&mut self, name: &StringSlice, opts: &Options) -> Result<usize, ParseError> {
 		#[cfg(feature = "compliance")]
-		if self.opts.compliance.variable_name_length && name.len() > super::MAX_VARIABLE_LEN {
+		if opts.compliance.variable_name_length && name.len() > super::MAX_VARIABLE_LEN {
 			return Err(ParseError::VariableNameTooLong(name.to_owned()));
 		}
 
@@ -192,7 +175,7 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 				let i = self.variables.len();
 
 				#[cfg(feature = "compliance")]
-				if self.opts.compliance.variable_count && i > super::MAX_VARIABLE_COUNT {
+				if opts.compliance.variable_count && i > super::MAX_VARIABLE_COUNT {
 					return Err(ParseError::TooManyVariables);
 				}
 
@@ -203,8 +186,8 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 		}
 	}
 
-	pub fn get_variable(&mut self, name: &StringSlice) -> Result<(), ParseError> {
-		let index = self.variable_index(name)?;
+	pub fn get_variable(&mut self, name: &StringSlice, opts: &Options) -> Result<(), ParseError> {
+		let index = self.variable_index(name, opts)?;
 
 		unsafe {
 			self.opcode_with_offset(Opcode::GetVar, index);
@@ -214,8 +197,12 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 	}
 
 	// SAFETY: when called, a value has to be on the stack
-	pub unsafe fn set_variable(&mut self, name: &StringSlice) -> Result<(), ParseError> {
-		let index = self.variable_index(name)?;
+	pub unsafe fn set_variable(
+		&mut self,
+		name: &StringSlice,
+		opts: &Options,
+	) -> Result<(), ParseError> {
+		let index = self.variable_index(name, opts)?;
 
 		unsafe {
 			self.opcode_with_offset(Opcode::SetVar, index);
@@ -225,8 +212,12 @@ impl<'opts, 'src> Builder<'opts, 'src> {
 	}
 
 	// SAFETY: when called, a value has to be on the stack
-	pub unsafe fn set_variable_pop(&mut self, name: &StringSlice) -> Result<(), ParseError> {
-		let index = self.variable_index(name)?;
+	pub unsafe fn set_variable_pop(
+		&mut self,
+		name: &StringSlice,
+		opts: &Options,
+	) -> Result<(), ParseError> {
+		let index = self.variable_index(name, opts)?;
 
 		unsafe {
 			self.opcode_with_offset(Opcode::SetVarPop, index);
