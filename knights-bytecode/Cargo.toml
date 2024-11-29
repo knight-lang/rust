@@ -17,10 +17,11 @@ multithreaded = []
 extensions = []
 compliance = []
 custom-types = ["extensions"]
+knight-debugging = []
 
 all-extensions = ["extensions", "custom-types"]
 iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
-default = ["extensions", "compliance"]
+default = ["extensions", "compliance", "knight-debugging"] # knight-debugging should be default

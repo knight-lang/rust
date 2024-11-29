@@ -1,8 +1,10 @@
 mod opcode;
+mod parser;
 pub mod program;
 mod vm;
 
 pub use opcode::Opcode;
+pub use parser::{Parser, SourceLocation};
 pub use program::{Builder, Program};
 pub use vm::*;
 

@@ -1,17 +1,27 @@
-use super::{Opcode, ParseError};
+use super::{Opcode, ParseError, SourceLocation};
 use crate::options::Options;
 use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
 
+// #[cfg(feature = "knight-debugging")]
+// type SourceLines<'src> = HashMap<usize, SourceLocation<'src>>;
+// #[cfg(not(feature = "knight-debugging"))]
+// type SourceLines<'src> = &'src ();
+
 #[derive(Debug)]
-pub struct Program {
+pub struct Program<'src> {
 	code: Box<[u64]>, // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
 	constants: Box<[Value]>,
 	num_variables: usize,
+
+	#[cfg(feature = "knight-debugging")]
+	source_lines: HashMap<usize, SourceLocation<'src>>,
+	#[cfg(not(feature = "knight-debugging"))]
+	source_lines: &'src (),
 }
 
-impl Program {
-	pub fn builder(opts: &Options) -> Builder<'_> {
+impl<'src> Program<'src> {
+	pub fn builder<'opts>(opts: &'opts Options) -> Builder<'opts, 'src> {
 		Builder::new(opts)
 	}
 
@@ -35,11 +45,16 @@ impl Program {
 	}
 }
 
-pub struct Builder<'opts> {
+pub struct Builder<'opts, 'src> {
 	code: Vec<u64>, // todo: make nonzero u64
 	constants: Vec<Value>,
 	variables: HashMap<Box<StringSlice>, usize>,
 	opts: &'opts Options,
+
+	#[cfg(feature = "knight-debugging")]
+	source_lines: HashMap<usize, SourceLocation<'src>>,
+	#[cfg(not(feature = "knight-debugging"))]
+	_ignored: &'src (),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,11 +71,11 @@ pub enum JumpWhen {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Builder<'_>) {
+	pub unsafe fn jump_to_current(self, builder: &mut Builder<'_, '_>) {
 		self.jump_to(builder, builder.jump_index())
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Builder<'_>, index: JumpIndex) {
+	pub unsafe fn jump_to(self, builder: &mut Builder<'_, '_>, index: JumpIndex) {
 		assert_eq!(0, builder.code[self.0]);
 
 		let opcode = match self.1 {
@@ -78,20 +93,30 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> u64 {
 }
 
 macro_rules! norm_op {
-		($($fn:ident $op:ident),* $(,)?) => {$(
-			// SAFETY: call ensures that the stack at any point when this opcode is run will have at least 2 values
-			pub unsafe fn $fn(&mut self) {
-				self.opcode_without_offset(Opcode::$op);
-			}
-		)*};
-	}
-impl<'opts> Builder<'opts> {
+	($($fn:ident $op:ident),* $(,)?) => {$(
+		// SAFETY: call ensures that the stack at any point when this opcode is run will have at least 2 values
+		pub unsafe fn $fn(&mut self) {
+			self.opcode_without_offset(Opcode::$op);
+		}
+	)*};
+}
+
+impl<'opts, 'src> Builder<'opts, 'src> {
 	pub fn new(opts: &'opts Options) -> Self {
-		Self { code: Vec::new(), constants: Vec::new(), variables: HashMap::new(), opts }
+		Self {
+			code: Vec::new(),
+			constants: Vec::new(),
+			variables: HashMap::new(),
+			opts,
+			#[cfg(feature = "knight-debugging")]
+			source_lines: HashMap::default(),
+			#[cfg(not(feature = "knight-debugging"))]
+			_ignored: &(),
+		}
 	}
 
 	// needs to be called while ensuring soemthing's ont eh stack.
-	pub unsafe fn build(mut self) -> Program {
+	pub unsafe fn build(mut self) -> Program<'src> {
 		unsafe {
 			self.opcode_without_offset(Opcode::Return);
 		}
@@ -100,11 +125,20 @@ impl<'opts> Builder<'opts> {
 			code: self.code.into(),
 			constants: self.constants.into(),
 			num_variables: self.variables.len(),
+			#[cfg(feature = "knight-debugging")]
+			source_lines: self.source_lines,
+			#[cfg(not(feature = "knight-debugging"))]
+			_ignored: &(),
 		}
 	}
 
 	pub fn jump_index(&self) -> JumpIndex {
 		JumpIndex(self.code.len())
+	}
+
+	#[cfg(feature = "knight-debugging")]
+	pub fn record_source_location(&mut self, loc: SourceLocation<'src>) {
+		self.source_lines.insert(self.code.len(), loc);
 	}
 
 	// safety, index has to be from this program
