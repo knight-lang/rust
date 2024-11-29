@@ -18,6 +18,8 @@ pub struct Compliance {
 	pub i32_integer: bool,
 	pub check_overflow: bool,
 	pub check_integer_function_bounds: bool,
+	pub variable_name_length: bool,
+	pub variable_count: bool,
 }
 
 #[derive(Default)]

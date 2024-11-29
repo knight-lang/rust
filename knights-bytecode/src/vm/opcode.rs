@@ -4,7 +4,10 @@ const fn opcode(id: u8, arity: u8, takes_offset: bool) -> u8 {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum Opcode {
+	_Invalid = 0,
+
 	// Builtins
 	PushConstant = opcode(0, 0, true),
 	Jump = opcode(1, 0, true),
@@ -15,10 +18,10 @@ pub enum Opcode {
 	SetVarPop = opcode(6, 1, true), // same as setvar but it pips
 
 	// Arity 0
-	Prompt = opcode(0, 0, false),
-	Random = opcode(1, 0, false),
-	Dup = opcode(2, 0, false), // doesnt have an arity cause that pops
-	Return = opcode(3, 0, false),
+	Prompt = opcode(1, 0, false),
+	Random = opcode(2, 0, false),
+	Dup = opcode(3, 0, false), // doesnt have an arity cause that pops
+	Return = opcode(4, 0, false),
 
 	// Arity 1
 	Call = opcode(0, 1, false),

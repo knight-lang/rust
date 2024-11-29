@@ -28,7 +28,7 @@ impl<'p, 'e> Vm<'p, 'e> {
 			let (opcode, offset) = self.program.opcode_at(self.current_index);
 			self.current_index += 1;
 
-			// println!("{:?}: {:?} / {:?}", self.current_index, offset, opcode);
+			// println!("{:?}: {:?} / {:?}: {:?}", self.current_index, offset, opcode, self.vars);
 			let mut args: [Value; Opcode::MAX_ARITY] =
 				[Value::Null, Value::Null, Value::Null, Value::Null];
 
@@ -38,6 +38,8 @@ impl<'p, 'e> Vm<'p, 'e> {
 			}
 
 			match opcode {
+				_Invalid => unreachable!(),
+
 				// Builtins
 				PushConstant => {
 					self.stack.push(self.program.constant_at(offset).clone());

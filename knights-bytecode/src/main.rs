@@ -1,11 +1,60 @@
+#![allow(unused)]
+
 use knights_bytecode::env::Environment;
+use knights_bytecode::strings::StringSlice;
+use knights_bytecode::value::*;
+use knights_bytecode::vm::program::*;
 use knights_bytecode::vm::*;
 
 fn main() {
 	let mut env = Environment::default();
-	// let foo = foo();
-	// let mut vm = Vm::new(&foo, &mut env);
-	// vm.run().unwrap();
+	let mut builder = Program::builder(env.opts());
+	// 		/*
+	// 		; = n 10 var=1
+	// 		; = i 0 var=0
+	// 		; WHILE n
+	// 			; = i + i n
+	// 			: = n - n 1
+	// 		OUTPUT i
+	// 					*/
+	let program = unsafe {
+		// = n 10
+		builder.push_constant(Integer::new_unvalidated(10).into());
+		builder.set_variable_pop(StringSlice::new_unvalidated("n"));
+
+		// = i 10
+		builder.push_constant(Integer::new_unvalidated(0).into());
+		builder.set_variable_pop(StringSlice::new_unvalidated("i"));
+
+		// WHILE n
+		let start = builder.jump_index();
+		builder.get_variable(StringSlice::new_unvalidated("n"));
+		let jump_to_end = builder.defer_jump(JumpWhen::False);
+
+		// = i + i n
+		builder.get_variable(StringSlice::new_unvalidated("n"));
+		builder.get_variable(StringSlice::new_unvalidated("i"));
+		builder.add();
+		builder.set_variable_pop(StringSlice::new_unvalidated("i"));
+
+		// = n - n 1
+		builder.push_constant(Integer::new_unvalidated(1).into());
+		builder.get_variable(StringSlice::new_unvalidated("n"));
+		builder.sub();
+		builder.set_variable_pop(StringSlice::new_unvalidated("n"));
+
+		// go back to top of while
+		builder.jump_to(JumpWhen::Always, start);
+		jump_to_end.jump_to_current(&mut builder);
+
+		// OUTPUT i
+		builder.get_variable(StringSlice::new_unvalidated("i"));
+		builder.output();
+		builder.build()
+	};
+
+	let mut vm = Vm::new(&program, &mut env);
+	&vm.run().unwrap();
 }
 
 // // Arity 1: :, BLOCK, CALL, QUIT, DUMP, OUTPUT, LENGTH, !, ~, ASCII, ,, [, ]
@@ -20,14 +69,6 @@ fn main() {
 // 	}
 // 	use Opcode::*;
 // 	Program {
-// 		/*
-// 		; = n 10 var=1
-// 		; = i 0 var=0
-// 		; WHILE n
-// 			; = i + i n
-// 			: = n - n 1
-// 		OUTPUT i
-// 					*/
 // 		code: vec![
 // 			op(PushConstant, 2),
 // 			op(SetVarPop, 0),
