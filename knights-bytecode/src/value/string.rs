@@ -4,13 +4,20 @@ use std::borrow::Borrow;
 use crate::container::RefCount;
 use crate::options::Options;
 use crate::strings::{StringError, StringSlice};
-use crate::value::{Boolean, Integer, List, ToBoolean, ToInteger, ToList};
+use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);
 
 pub trait ToKString {
 	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString>;
+}
+
+impl NamedType for KString {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"String"
+	}
 }
 
 impl Default for KString {
@@ -87,5 +94,25 @@ impl ToInteger for KString {
 impl ToList for KString {
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
 		todo!()
+	}
+}
+
+impl KString {
+	/// Concatenates two strings together
+	pub fn concat(&self, rhs: &StringSlice, opts: &Options) -> Result<Self, StringError> {
+		if self.is_empty() {
+			return Ok(rhs.to_owned());
+		}
+
+		if rhs.is_empty() {
+			return Ok(self.clone());
+		}
+
+		Self::new(self.as_str().to_owned() + rhs.as_str(), opts)
+	}
+
+	pub fn remove_substr(&self, substr: &StringSlice) -> Self {
+		let _ = substr;
+		todo!();
 	}
 }

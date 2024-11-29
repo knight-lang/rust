@@ -1,4 +1,4 @@
-use crate::value::{Boolean, KString, List, ToBoolean, ToKString, ToList};
+use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
 use crate::{options::Options, Environment};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -13,6 +13,12 @@ pub trait ToInteger {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer>;
 }
 
+impl NamedType for Integer {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"Integer"
+	}
+}
 impl Debug for Integer {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.0, f)

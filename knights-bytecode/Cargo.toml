@@ -23,4 +23,4 @@ iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
-default = ["custom-types", "compliance"]
+default = ["extensions", "compliance"]

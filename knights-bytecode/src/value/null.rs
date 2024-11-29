@@ -1,4 +1,6 @@
-use crate::value::{Boolean, Integer, KString, List, ToBoolean, ToInteger, ToKString, ToList};
+use crate::value::{
+	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
+};
 use crate::{Environment, Result};
 use std::fmt::{self, Debug, Formatter};
 
@@ -13,6 +15,13 @@ impl Debug for Null {
 	#[inline]
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		f.write_str("null")
+	}
+}
+
+impl NamedType for Null {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"Null"
 	}
 }
 

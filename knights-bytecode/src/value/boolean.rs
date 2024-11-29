@@ -1,5 +1,5 @@
 use crate::strings::StringSlice;
-use crate::value::{Integer, KString, List, ToInteger, ToKString, ToList};
+use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
 use crate::{Environment, Result};
 
 /// The boolean type within Knight.
@@ -9,6 +9,13 @@ pub type Boolean = bool;
 pub trait ToBoolean {
 	/// Converts `self` to a [`Boolean`].
 	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean>;
+}
+
+impl NamedType for Boolean {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"Boolean"
+	}
 }
 
 impl ToBoolean for Boolean {

@@ -145,18 +145,8 @@ impl<'p, 'e> Vm<'p, 'e> {
 				Opcode::Quit => {
 					todo!()
 				}
-				Opcode::Add => match args[0] {
-					Value::Integer(int) => {
-						self.stack.push(int.add(args[1].to_integer(self.env)?, self.env.opts())?.into())
-					}
-					_ => todo!("add {:?}", args[0]),
-				},
-				Opcode::Sub => match args[0] {
-					Value::Integer(int) => self
-						.stack
-						.push(int.subtract(args[1].to_integer(self.env)?, self.env.opts())?.into()),
-					_ => todo!("add {:?}", args[0]),
-				},
+				Opcode::Add => self.stack.push(args[0].add(&args[1], self.env)?),
+				Opcode::Sub => self.stack.push(args[0].subtract(&args[1], self.env)?),
 				Opcode::Set => {
 					todo!()
 					// let other = self.stack.pop();
