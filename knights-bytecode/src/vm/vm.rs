@@ -33,7 +33,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				[Value::Null, Value::Null, Value::Null, Value::Null];
 
 			// TODO: do we need to reverse?
-			for idx in 0..opcode.arity() {
+			for idx in (0..opcode.arity()).rev() {
 				args[idx] = self.stack.pop().unwrap();
 			}
 
@@ -74,7 +74,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				// Arity 0
 				Prompt => todo!(),
 				Random => todo!(),
-				Dup => todo!(),
+				Dup => self.stack.push(self.stack.last().unwrap().clone()),
 				Return => return Ok(self.stack.pop().unwrap()),
 
 				// Arity 1

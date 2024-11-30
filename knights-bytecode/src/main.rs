@@ -12,9 +12,14 @@ fn main() {
 		&mut env,
 		None,
 		"
-OUTPUT 
-+
-1
+; = n 10
+; = i 0
+; WHILE n
+	; = i + i n
+	; | - n 10 XBREAK
+	: = n - n 1
+
+: OUTPUT i
 ",
 	)
 	.unwrap();

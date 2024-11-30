@@ -68,6 +68,13 @@ pub enum ParseErrorKind {
 
 	#[error("missing argument {1} for function {0:?}")]
 	MissingArgument(char, usize),
+
+	#[error("can only assign to variables")]
+	CanOnlyAssignToVariables,
+
+	#[cfg(feature = "extensions")]
+	#[error("unknown extenision function: {0}")]
+	UnknownExtensionFunction(String),
 }
 
 impl ParseErrorKind {

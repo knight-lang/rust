@@ -1,6 +1,9 @@
 use crate::strings::StringSlice;
 use crate::value::KString;
+use crate::vm::program::{DeferredJump, JumpWhen};
 use crate::vm::{Opcode, ParseError, ParseErrorKind, Parseable, Parser};
+
+use super::SourceLocation;
 
 pub struct Function;
 
@@ -44,15 +47,29 @@ fn simple_opcode_for(func: char) -> Option<Opcode> {
 	}
 }
 
+fn parse_argument(
+	parser: &mut Parser<'_, '_>,
+	start: &SourceLocation,
+	fn_name: char,
+	arg: usize,
+) -> Result<(), ParseError> {
+	match parser.parse_expression() {
+		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
+			return Err(start.clone().error(ParseErrorKind::MissingArgument(fn_name, arg)));
+		}
+		other => other,
+	}
+}
+
 unsafe impl Parseable for Function {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
-		// this should be reowrked ot allow for registering arbitrary functions
+		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
+		// support `X`s
 
-		let fn_name = if let Some(name) = parser.advance_if(char::is_uppercase) {
-			parser.strip_keyword_function();
-			name
+		let (fn_name, full_name) = if let Some(fn_name) = parser.advance_if(char::is_uppercase) {
+			(fn_name, parser.strip_keyword_function().unwrap_or_default())
 		} else if let Some(chr) = parser.advance() {
-			chr
+			(chr, "")
 		} else {
 			return Ok(false);
 		};
@@ -64,12 +81,7 @@ unsafe impl Parseable for Function {
 			debug_assert!(!simple_opcode.takes_offset()); // no simple opcodes take offsets
 
 			for arg in 0..simple_opcode.arity() {
-				match parser.parse_expression() {
-					Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
-						return Err(start.error(ParseErrorKind::MissingArgument(fn_name, arg + 1)));
-					}
-					other => other?,
-				}
+				parse_argument(parser, &start, fn_name, arg + 1)?;
 			}
 
 			unsafe {
@@ -80,7 +92,125 @@ unsafe impl Parseable for Function {
 			return Ok(true);
 		}
 
-		todo!()
+		// Non-simple ones
+		match fn_name {
+			';' => {
+				parse_argument(parser, &start, fn_name, 1)?;
+				unsafe {
+					parser.builder.opcode_without_offset(Opcode::Pop);
+				}
+				parse_argument(parser, &start, fn_name, 1)?;
+				Ok(true)
+			}
+			'=' => {
+				parser.strip_whitespace_and_comments();
+
+				match super::variable::Variable::parse_name(parser) {
+					Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
+						Err(start.error(ParseErrorKind::MissingArgument('=', 1)))
+					}
+					Err(err) => Err(err),
+					Ok(Some(name)) => {
+						parse_argument(parser, &start, fn_name, 2)?;
+						// ew, cloning is not a good answer.
+						let opts = (*parser.opts()).clone();
+						// i dont like this new_unvalidated. TODO: fix it.
+						let name = StringSlice::new_unvalidated(name);
+						unsafe { parser.builder().set_variable(name, &opts) }
+							.expect("<todo, the name should already have been checked. remove this.>");
+						Ok(true)
+					}
+					Ok(None) => {
+						#[cfg(feature = "extensions")]
+						{
+							todo!("Assign to OUTPUT, PROMPT, RANDOM, strings, $, and more.");
+						}
+
+						Err(start.error(ParseErrorKind::CanOnlyAssignToVariables))
+					}
+				}
+			}
+			'B' => todo!("blocks"),
+			'&' | '|' => {
+				parse_argument(parser, &start, fn_name, 1)?;
+				unsafe {
+					parser.builder().opcode_without_offset(Opcode::Dup);
+				}
+				let end = parser.builder().defer_jump(if fn_name == '&' {
+					JumpWhen::False
+				} else {
+					JumpWhen::True
+				});
+				parse_argument(parser, &start, fn_name, 2)?;
+				unsafe {
+					end.jump_to_current(parser.builder());
+				}
+				Ok(true)
+			}
+			'I' => {
+				parse_argument(parser, &start, fn_name, 1)?;
+				let to_false = parser.builder().defer_jump(JumpWhen::False);
+				parse_argument(parser, &start, fn_name, 2)?;
+				let to_end = parser.builder().defer_jump(JumpWhen::False);
+				unsafe {
+					to_false.jump_to_current(&mut parser.builder());
+				}
+				parse_argument(parser, &start, fn_name, 3)?;
+				unsafe {
+					to_end.jump_to_current(parser.builder());
+				}
+				Ok(true)
+			}
+			'W' => {
+				let while_start = parser.builder().jump_index();
+
+				parse_argument(parser, &start, fn_name, 1)?;
+				let deferred = parser.builder().defer_jump(JumpWhen::False);
+				parser.loops.push((while_start, vec![deferred]));
+
+				parse_argument(parser, &start, fn_name, 3)?;
+				unsafe {
+					parser.builder().jump_to(JumpWhen::Always, while_start);
+				}
+
+				// jump all `break`s to the end
+				for deferred in parser.loops.pop().unwrap().1 {
+					unsafe {
+						deferred.jump_to_current(parser.builder());
+					}
+				}
+
+				Ok(true)
+			}
+			// TODO: extensions lol
+			#[cfg(feature = "extensions")]
+			'X' => match full_name {
+				"BREAK" => {
+					let deferred = parser.builder().defer_jump(JumpWhen::Always);
+					parser
+						.loops
+						.last_mut()
+						.expect("<todo: exception when `break` when nothing to break, or in a funciton?>")
+						.1
+						.push(deferred);
+					Ok(true)
+				}
+				"CONTINUE" => {
+					let starting = parser
+						.loops
+						.last()
+						.expect("<todo: exception when `break` when nothing to break, or in a funciton?>")
+						.0;
+					unsafe {
+						parser.builder().jump_to(JumpWhen::Always, starting);
+					}
+					Ok(true)
+				}
+				_ => Err(start.error(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()))),
+			},
+
+			_ => todo!(),
+		}
 
 		// let Some(name) = Self::parse_name(parser)? else {
 		// 	return Ok(false);

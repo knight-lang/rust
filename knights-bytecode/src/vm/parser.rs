@@ -11,9 +11,10 @@ use crate::{
 	Environment,
 };
 
+use super::program::{DeferredJump, JumpIndex};
 use super::{Builder, ParseError, Program};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourceLocation {
 	filename: Option<RefCount<Path>>,
 	line: usize,
@@ -47,6 +48,9 @@ pub struct Parser<'env, 'expr> {
 	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
 	builder: Builder,
 	lineno: usize,
+
+	// Start is loop begin, vec is those to jump to loop end
+	loops: Vec<(JumpIndex, Vec<DeferredJump>)>,
 }
 
 fn validate_source<'e>(
@@ -77,7 +81,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 		#[cfg(feature = "compliance")]
 		validate_source(source, &filename, env.opts())?;
 
-		Ok(Self { env, filename, source, builder: Builder::default(), lineno: 1 })
+		Ok(Self { env, filename, source, builder: Builder::default(), lineno: 1, loops: Vec::new() })
 	}
 
 	pub fn builder(&mut self) -> &mut Builder {
