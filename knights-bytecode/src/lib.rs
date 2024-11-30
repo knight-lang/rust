@@ -1,4 +1,6 @@
 #![allow(unused)]
+#![warn(unsafe_op_in_unsafe_fn)]
+
 #[macro_use]
 extern crate cfg_if;
 

@@ -52,8 +52,11 @@ impl Debug for Program {
 }
 
 impl Program {
-	pub fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
-		let number = self.code[offset];
+	// SAFETY: `offset` needs to be <= the code length.
+	pub unsafe fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
+		debug_assert!(offset < self.code.len());
+		// SAFETY: caller ensures offset is correct
+		let number = unsafe { *self.code.get_unchecked(offset) };
 
 		// SAFETY: we know as this type was constructed that all programs result
 		// in valid opcodes
@@ -97,7 +100,8 @@ pub enum JumpWhen {
 
 impl DeferredJump {
 	pub unsafe fn jump_to_current(self, builder: &mut Builder) {
-		self.jump_to(builder, builder.jump_index())
+		// SAFETY: TODO
+		unsafe { self.jump_to(builder, builder.jump_index()) }
 	}
 
 	pub unsafe fn jump_to(self, builder: &mut Builder, index: JumpIndex) {
@@ -115,15 +119,6 @@ impl DeferredJump {
 
 fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> u64 {
 	opcode as u64 | (offset as u64) << 0o10
-}
-
-macro_rules! norm_op {
-	($($fn:ident $op:ident),* $(,)?) => {$(
-		// SAFETY: call ensures that the stack at any point when this opcode is run will have at least 2 values
-		pub unsafe fn $fn(&mut self) {
-			self.opcode_without_offset(Opcode::$op);
-		}
-	)*};
 }
 
 impl Builder {
@@ -168,7 +163,8 @@ impl Builder {
 
 	// safety, index has to be from this program
 	pub unsafe fn jump_to(&mut self, when: JumpWhen, index: JumpIndex) {
-		self.defer_jump(when).jump_to(self, index);
+		// SAFETY: TODO
+		unsafe { self.defer_jump(when).jump_to(self, index) };
 	}
 
 	pub fn defer_jump(&mut self, when: JumpWhen) -> DeferredJump {
@@ -274,25 +270,5 @@ impl Builder {
 		}
 
 		Ok(())
-	}
-
-	norm_op! {
-		pop Pop, dup Dup, // todo are these normal
-
-		// Arity 0
-		prompt Prompt, random Random,
-
-		// Arity 1
-		call Call, quit Quit, dump Dump, output Output, length Length, not Not, negate Negate,
-			ascii Ascii, r#box Box, head Head, tail Tail,
-
-		// Arity 2
-		add Add, sub Sub, mul Mul, div Div, r#mod Mod, pow Pow, lth Lth, gth Gth, eql Eql,
-
-		// Arity 3
-		get Get,
-
-		// Arity 4
-		set Set,
 	}
 }

@@ -27,7 +27,8 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		use Opcode::*;
 
 		loop {
-			let (opcode, offset) = self.program.opcode_at(self.current_index);
+			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
+			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
 			self.current_index += 1;
 
 			// println!("{:?}: {:?} / {:?}: {:?}", self.current_index, offset, opcode, self.vars);
