@@ -22,6 +22,9 @@ pub enum Error {
 
 	#[error("list is too large")]
 	ListIsTooLarge,
+
+	#[error("(quit with exit status {0})")]
+	Exit(i32),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

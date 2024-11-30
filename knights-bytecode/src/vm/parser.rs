@@ -145,7 +145,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 		loop {
 			// strip all leading whitespace, if any.
-			self.take_while(|c| c.is_whitespace() || c == ':');
+			self.take_while(|c| c.is_whitespace() || c == ':'); // TODO: THIS WON'T HANDLE `(:)` PROPERLY!
 
 			// If we're not at the start of a comment, break out
 			if self.advance_if('#').is_none() {

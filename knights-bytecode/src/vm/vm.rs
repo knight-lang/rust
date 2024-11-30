@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use std::mem::MaybeUninit;
 
 use super::{Opcode, Program};
-use crate::value::{Integer, ToBoolean, ToInteger, ToKString, Value};
-use crate::{Environment, Result};
+use crate::value::{Integer, List, ToBoolean, ToInteger, ToKString, Value};
+use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'env> {
 	program: &'prog Program,
@@ -23,7 +24,9 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		}
 	}
 
-	pub fn run(&mut self) -> Result<Value> {
+	pub fn run(&mut self) -> crate::Result<Value> {
+		const NULL: Value = Value::Null;
+
 		use Opcode::*;
 
 		loop {
@@ -32,12 +35,30 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			self.current_index += 1;
 
 			// println!("{:?}: {:?} / {:?}: {:?}", self.current_index, offset, opcode, self.vars);
-			let mut args: [Value; Opcode::MAX_ARITY] =
-				[Value::Null, Value::Null, Value::Null, Value::Null];
+			let mut args = [NULL; Opcode::MAX_ARITY];
 
 			// TODO: do we need to reverse?
+			// debug_assert!(opcode.arity() <= self.stack.len());
+			// std::ptr::copy_nonoverlapping(
+			// 	self
+			// 		.stack
+			// 		.as_mut_ptr()
+			// 		.offset(self.stack.len() as isize - opcode.arity() as isize)
+			// 		.cast::<MaybeUninit<Value>>(),
+			// 	args.as_mut_ptr(),
+			// 	opcode.arity(),
+			// );
+
 			for idx in (0..opcode.arity()).rev() {
 				args[idx] = self.stack.pop().unwrap();
+			}
+
+			macro_rules! arg {
+				($idx:expr) => {{
+					let idx = $idx;
+					debug_assert!(idx < opcode.arity());
+					&args[idx]
+				}};
 			}
 
 			match opcode {
@@ -53,13 +74,13 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				}
 
 				JumpIfTrue => {
-					if args[0].to_boolean(self.env)? {
+					if arg![0].to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 				}
 
 				JumpIfFalse => {
-					if !args[0].to_boolean(self.env)? {
+					if !arg![0].to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 				}
@@ -72,7 +93,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 					self.vars[offset] = self.stack.last().unwrap().clone();
 				}
 
-				SetVarPop => self.vars[offset] = args[0].clone(),
+				SetVarPop => self.vars[offset] = arg![0].clone(),
 
 				// Arity 0
 				Prompt => todo!(),
@@ -82,34 +103,38 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 
 				// Arity 1
 				Call => todo!(),
-				Quit => todo!(),
+				Quit => {
+					let status = arg![0].to_integer(self.env)?;
+					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
+
+					return Err(Error::Exit(status));
+				}
 				Dump => todo!(),
-				// Output => todo!(),
 				Output => {
-					println!("{}", args[0].to_kstring(self.env)?.as_str());
+					println!("{}", arg![0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
 				}
 				Length => todo!(),
-				Not => self.stack.push((!args[0].to_boolean(self.env)?).into()),
+				Not => self.stack.push((!arg![0].to_boolean(self.env)?).into()),
 				Negate => todo!(),
 				Ascii => todo!(),
-				Box => todo!(),
+				Box => self.stack.push(List::boxed(arg![0].clone()).into()),
 				Head => todo!(),
 				Tail => todo!(),
 				Pop => { /* do nothing, the arity already popped */ }
 
 				// Arity 2
-				Add => self.stack.push(args[0].op_plus(&args[1], self.env)?),
-				Sub => self.stack.push(args[0].op_minus(&args[1], self.env)?),
-				Mul => self.stack.push(args[0].op_asterisk(&args[1], self.env)?),
-				Div => self.stack.push(args[0].op_slash(&args[1], self.env)?),
-				Mod => self.stack.push(args[0].op_percent(&args[1], self.env)?),
-				Pow => self.stack.push(args[0].op_caret(&args[1], self.env)?),
-				Lth => self.stack.push((args[0].compare(&args[1], self.env)? == Ordering::Less).into()),
+				Add => self.stack.push(arg![0].op_plus(arg![1], self.env)?),
+				Sub => self.stack.push(arg![0].op_minus(arg![1], self.env)?),
+				Mul => self.stack.push(arg![0].op_asterisk(arg![1], self.env)?),
+				Div => self.stack.push(arg![0].op_slash(arg![1], self.env)?),
+				Mod => self.stack.push(arg![0].op_percent(arg![1], self.env)?),
+				Pow => self.stack.push(arg![0].op_caret(arg![1], self.env)?),
+				Lth => self.stack.push((arg![0].compare(arg![1], self.env)? == Ordering::Less).into()),
 				Gth => {
-					self.stack.push((args[0].compare(&args[1], self.env)? == Ordering::Greater).into())
+					self.stack.push((arg![0].compare(arg![1], self.env)? == Ordering::Greater).into())
 				}
-				Eql => self.stack.push((args[0].is_equal(&args[1], self.env)?).into()),
+				Eql => self.stack.push((arg![0].is_equal(arg![1], self.env)?).into()),
 
 				// Arity 3
 				Get => todo!(),
