@@ -156,6 +156,10 @@ impl NamedType for Value {
 }
 
 impl Value {
+	pub fn dump(&self) {
+		print!("{:?}", self)
+	}
+
 	pub fn compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
 		match self {
 			Self::Integer(int) => Ok(int.cmp(&rhs.to_integer(env)?)),

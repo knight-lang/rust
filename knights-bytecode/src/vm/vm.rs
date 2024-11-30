@@ -123,7 +123,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 
 					return Err(Error::Exit(status));
 				}
-				Dump => todo!(),
+				Dump => {
+					arg![0].dump();
+					self.stack.push(arg![0].clone());
+				}
 				Output => {
 					println!("{}", arg![0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
