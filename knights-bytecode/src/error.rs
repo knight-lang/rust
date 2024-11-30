@@ -1,3 +1,4 @@
+// TODO: make this just runtime error and parse error?
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("todo")]

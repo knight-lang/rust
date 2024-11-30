@@ -2,13 +2,13 @@ use super::{Opcode, ParseErrorKind, SourceLocation};
 use crate::options::Options;
 use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
+use std::fmt::{self, Debug, Formatter};
 
 // #[cfg(feature = "knight-debugging")]
 // type SourceLines<'filename> = HashMap<usize, SourceLocation<'filename>>;
 // #[cfg(not(feature = "knight-debugging"))]
 // type SourceLines<'filename> = &'filename ();
 
-#[derive(Debug)]
 pub struct Program<'filename> {
 	code: Box<[u64]>, // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
 	constants: Box<[Value]>,
@@ -18,6 +18,37 @@ pub struct Program<'filename> {
 	source_lines: HashMap<usize, SourceLocation<'filename>>,
 	#[cfg(not(feature = "knight-debugging"))]
 	source_lines: &'filename (),
+}
+
+impl Debug for Program<'_> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		struct Bytecode<'a>(&'a [u64]);
+		impl Debug for Bytecode<'_> {
+			fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+				if !f.alternate() {
+					return f.write_str("[...]");
+				}
+
+				let mut bytecode = f.debug_list();
+				for (idx, &number) in self.0.into_iter().enumerate() {
+					let opcode = unsafe { Opcode::from_byte_unchecked((number as u8)) };
+					let offset = (number >> 0o10) as usize;
+					if opcode.takes_offset() {
+						bytecode.entry(&format!("{}: {:?} (offset={})", idx, opcode, offset));
+					} else {
+						bytecode.entry(&format!("{}: {:?}", idx, opcode));
+					}
+				}
+				bytecode.finish()
+			}
+		}
+
+		f.debug_struct("Program")
+			.field("num_variables", &self.num_variables)
+			.field("constants", &self.constants)
+			.field("bytecode", &Bytecode(&self.code))
+			.finish()
+	}
 }
 
 impl<'filename> Program<'filename> {
@@ -143,7 +174,7 @@ impl<'filename> Builder<'filename> {
 
 	// SAFETY: `opcode` mustn't take an offset
 	unsafe fn opcode_without_offset(&mut self, opcode: Opcode) {
-		self.code.push(code_from_opcode_and_offset(opcode, 0))
+		self.code.push(code_from_opcode_and_offset(opcode, 0)) // any offset'll do, it's ignored
 	}
 
 	pub fn push_constant(&mut self, value: Value) {

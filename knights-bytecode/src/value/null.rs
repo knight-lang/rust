@@ -1,7 +1,8 @@
 use crate::value::{
 	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
 };
-use crate::{Environment, Result};
+use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::Environment;
 use std::fmt::{self, Debug, Formatter};
 
 /// Represents the `NULL` value within Knight.
@@ -28,7 +29,7 @@ impl NamedType for Null {
 impl ToBoolean for Null {
 	/// Simply returns `false`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
@@ -36,7 +37,7 @@ impl ToBoolean for Null {
 impl ToInteger for Null {
 	/// Simply returns zero.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> Result<Integer> {
+	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
 		Ok(Integer::default())
 	}
 }
@@ -44,7 +45,7 @@ impl ToInteger for Null {
 impl ToList for Null {
 	/// Simply returns an empty [`List`].
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> Result<List> {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
 		Ok(List::default())
 	}
 }
@@ -52,7 +53,19 @@ impl ToList for Null {
 impl ToKString for Null {
 	/// Simply returns an empty [`KString`].
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> Result<KString> {
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
 		Ok(KString::default())
+	}
+}
+
+unsafe impl Parseable for Null {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+		if parser.advance_if('N').is_none() {
+			return Ok(false);
+		}
+
+		parser.strip_keyword_function();
+		parser.builder().push_constant(Null.into());
+		Ok(true)
 	}
 }

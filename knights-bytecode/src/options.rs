@@ -27,6 +27,8 @@ pub struct Compliance {
 #[cfg(feature = "extensions")]
 pub struct Extensions {
 	pub types: Types,
+	pub string_interpolation: bool, // not working
+	pub floats: bool,               // not working
 }
 
 #[derive(Default)]

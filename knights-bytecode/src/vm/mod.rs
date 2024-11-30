@@ -1,10 +1,10 @@
 mod opcode;
-mod parser;
+pub mod parser;
 pub mod program;
 mod vm;
 
 pub use opcode::Opcode;
-pub use parser::{Parser, SourceLocation};
+pub use parser::{Parseable, Parser, SourceLocation};
 pub use program::{Builder, Program};
 pub use vm::*;
 
@@ -49,13 +49,19 @@ pub enum ParseErrorKind {
 	#[error("invalid character {1:?} for encoding {0:?}")]
 	InvalidCharInEncoding(Encoding, char),
 
+	#[cfg(feature = "compliance")]
+	#[error("there were additional tokens in the source")]
+	TrailingTokens,
+
 	// There was nothing to parse
 	#[error("there was nothing to parse.")]
 	EmptySource,
 
-	#[cfg(feature = "compliance")]
-	#[error("there were additional tokens in the source")]
-	TrailingTokens,
+	#[error("character doesn't start a token: {0:?}")]
+	UnknownTokenStart(char),
+
+	#[error("integer literal overflowed")]
+	IntegerLiteralOverflow,
 }
 
 impl ParseErrorKind {

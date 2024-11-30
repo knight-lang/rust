@@ -5,6 +5,7 @@ use crate::container::RefCount;
 use crate::options::Options;
 use crate::strings::{StringError, StringSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
+use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);
@@ -119,5 +120,29 @@ impl KString {
 	pub fn remove_substr(&self, substr: &StringSlice) -> Self {
 		let _ = substr;
 		todo!();
+	}
+}
+
+unsafe impl Parseable for KString {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+		#[cfg(feature = "extensions")]
+		if parser.opts().extensions.string_interpolation && parser.advance_if('`').is_some() {
+			todo!();
+		}
+
+		let start = parser.location();
+
+		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
+			return Ok(false);
+		};
+
+		// empty stings are allowed to exist
+		let contents = parser.take_while(|c| c != quote).unwrap_or_default();
+
+		if parser.advance_if(cond)
+
+		parser.strip_keyword_function();
+		parser.builder().push_constant(Null.into());
+		Ok(true)
 	}
 }

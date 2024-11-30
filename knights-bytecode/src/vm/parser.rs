@@ -1,4 +1,4 @@
-use crate::{options::Options, vm::ParseErrorKind};
+use crate::{options::Options, vm::ParseErrorKind, Value};
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -12,6 +12,11 @@ use super::{Builder, ParseError, Program};
 pub struct SourceLocation<'filename> {
 	filename: Option<&'filename Path>,
 	line: usize,
+}
+
+// safety: cannot do invalid things with the builder.
+pub unsafe trait Parseable {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError>;
 }
 
 pub struct Parser<'env, 'filename, 'expr> {
@@ -47,6 +52,14 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 		Ok(Self { env, filename, source, builder: Builder::default(), lineno: 1 })
 	}
 
+	pub fn builder(&mut self) -> &mut Builder<'filename> {
+		&mut self.builder
+	}
+
+	pub fn opts(&self) -> &Options {
+		self.env.opts()
+	}
+
 	pub fn peek(&self) -> Option<char> {
 		self.source.chars().next()
 	}
@@ -67,6 +80,7 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 			self.lineno += 1;
 		}
 
+		self.source = chars.as_str();
 		Some(head)
 	}
 
@@ -117,6 +131,9 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 		Some(start.get(..start.len() - self.source.len()).unwrap())
 	}
 
+	// ick,
+	pub fn location(&mut self) -> (Option<PathBuf>, usize) {}
+
 	/// Removes the remainder of a keyword function.
 	pub fn strip_keyword_function(&mut self) -> Option<&'expr str> {
 		self.take_while(|c| c.is_uppercase() || c == '_')
@@ -149,7 +166,54 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 
 	/// Parses a single expression and returns it.
 	pub fn parse_expression(&mut self) -> Result<(), ParseError> {
-		todo!()
+		self.strip_whitespace_and_comments();
+
+		if crate::value::Integer::parse(self)? {
+			return Ok(());
+		}
+
+		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;
+
+		match chr {
+			_ if chr == '#' || chr.is_whitespace() => unreachable!("<already handled>"),
+			'0'..='9' => unreachable!(),
+
+			'(' | ')' => todo!(),
+
+			_ if chr.is_lowercase() || chr == '_' => self.parse_variable(),
+			'\"' | '\'' => self.parse_string(),
+
+			'T' => {
+				self.strip_keyword_function();
+				self.builder.push_constant(Value::Boolean(true));
+				Ok(())
+			}
+			'F' => {
+				self.strip_keyword_function();
+				self.builder.push_constant(Value::Boolean(false));
+				Ok(())
+			}
+			'N' => {
+				self.strip_keyword_function();
+				self.builder.push_constant(Value::Null);
+				Ok(())
+			}
+			'@' => {
+				self.advance();
+				self.builder.push_constant(Value::List(Default::default()));
+				Ok(())
+			}
+
+			_ => Err(self.error(ParseErrorKind::UnknownTokenStart(chr))),
+		}
+	}
+
+	fn parse_variable(&mut self) -> Result<(), ParseError> {
+		todo!() // todo: check for int overflow
+	}
+
+	fn parse_string(&mut self) -> Result<(), ParseError> {
+		todo!() // todo: check for int overflow
 	}
 }
 

@@ -1,4 +1,5 @@
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
+use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::{options::Options, Environment};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -64,6 +65,7 @@ impl Integer {
 		Self(int)
 	}
 
+	// TODO: return just an `Option`, so the caller can deal/construct `OutOufBounds` itself.
 	#[cfg_attr(not(feature = "compliance"), inline)]
 	pub fn new(int: IntegerInner, opts: &Options) -> Result<Self, IntegerError> {
 		#[cfg(feature = "compliance")]
@@ -225,6 +227,26 @@ impl Integer {
 			.and_then(char::from_u32)
 			.and_then(|chr| opts.encoding.is_char_valid(chr).then_some(chr))
 			.ok_or(IntegerError::DomainError("number isn't a valid char"))
+	}
+}
+
+unsafe impl Parseable for Integer {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
+			return Ok(false);
+		};
+
+		match digits
+			.parse::<IntegerInner>()
+			.ok()
+			.and_then(|int| Integer::new(int, parser.opts()).ok())
+		{
+			Some(integer) => {
+				parser.builder().push_constant(integer.into());
+				Ok(true)
+			}
+			None => Err(parser.error(ParseErrorKind::IntegerLiteralOverflow)),
+		}
 	}
 }
 
