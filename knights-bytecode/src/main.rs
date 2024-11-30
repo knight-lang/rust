@@ -11,16 +11,25 @@ fn main() {
 	let mut parser = Parser::new(
 		&mut env,
 		None,
-		"
-; = n 10
-; = i 0
-; WHILE n
-	; = i + i n
-	; | - n 10 XBREAK
-	: = n - n 1
+		r#"
+# Fizzbuzz in Knight
 
-: OUTPUT i
-",
+# Initialize variables.
+; = maximum 100
+; = i 0
+
+# Repeat the body while `i < maximum`.
+: WHILE < i maximum
+	# Increment `i`
+	; = i + i 1
+
+	# Use the fact that `IF` is an expression, not a statement like in some
+	# languages (eg python, javascript, etc).
+	: OUTPUT
+		: IF ! % i 15 "FizzBuzz"
+		: IF ! % i 5  "Fizz"
+		: IF ! % i 3  "Buzz" i
+"#,
 	)
 	.unwrap();
 

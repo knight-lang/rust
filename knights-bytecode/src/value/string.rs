@@ -80,8 +80,8 @@ impl AsRef<StringSlice> for KString {
 }
 
 impl ToBoolean for KString {
-	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean> {
-		todo!()
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
+		Ok(!self.is_empty())
 	}
 }
 

@@ -28,20 +28,23 @@ impl Default for List {
 }
 
 impl ToBoolean for List {
-	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean> {
-		todo!()
+	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
+		Ok(self.is_empty())
 	}
 }
 
 impl ToKString for List {
 	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString> {
-		todo!()
+		static NEWLINE: &'static StringSlice = StringSlice::new_unvalidated("\n");
+
+		self.join(&NEWLINE, env)
 	}
 }
 
 impl ToInteger for List {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
-		todo!()
+		// todo: check for cast failures
+		Ok(Integer::new(self.len() as i64, env.opts())?)
 	}
 }
 

@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::{Environment, Error, Result};
 
 pub mod boolean;
@@ -126,6 +128,20 @@ impl NamedType for Value {
 }
 
 impl Value {
+	pub fn compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
+		match self {
+			Self::Integer(int) => Ok(int.cmp(&rhs.to_integer(env)?)),
+			_ => todo!(),
+		}
+	}
+
+	pub fn is_equal(&self, rhs: &Self, env: &mut Environment) -> Result<bool> {
+		match self {
+			Self::Integer(int) => Ok(*int == rhs.to_integer(env)?),
+			_ => todo!(),
+		}
+	}
+
 	pub fn op_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),

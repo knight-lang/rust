@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::{Opcode, Program};
 use crate::value::{Integer, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Result};
@@ -87,7 +89,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 					self.stack.push(Value::Null);
 				}
 				Length => todo!(),
-				Not => todo!(),
+				Not => self.stack.push((!args[0].to_boolean(self.env)?).into()),
 				Negate => todo!(),
 				Ascii => todo!(),
 				Box => todo!(),
@@ -102,9 +104,11 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Div => self.stack.push(args[0].op_slash(&args[1], self.env)?),
 				Mod => self.stack.push(args[0].op_percent(&args[1], self.env)?),
 				Pow => self.stack.push(args[0].op_caret(&args[1], self.env)?),
-				Lth => todo!(),
-				Gth => todo!(),
-				Eql => todo!(),
+				Lth => self.stack.push((args[0].compare(&args[1], self.env)? == Ordering::Less).into()),
+				Gth => {
+					self.stack.push((args[0].compare(&args[1], self.env)? == Ordering::Greater).into())
+				}
+				Eql => self.stack.push((args[0].is_equal(&args[1], self.env)?).into()),
 
 				// Arity 3
 				Get => todo!(),

@@ -151,7 +151,7 @@ unsafe impl Parseable for Function {
 				parse_argument(parser, &start, fn_name, 1)?;
 				let to_false = parser.builder().defer_jump(JumpWhen::False);
 				parse_argument(parser, &start, fn_name, 2)?;
-				let to_end = parser.builder().defer_jump(JumpWhen::False);
+				let to_end = parser.builder().defer_jump(JumpWhen::Always);
 				unsafe {
 					to_false.jump_to_current(&mut parser.builder());
 				}
@@ -209,7 +209,7 @@ unsafe impl Parseable for Function {
 				_ => Err(start.error(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()))),
 			},
 
-			_ => todo!(),
+			_ => todo!("invalid fn: {fn_name:?}"),
 		}
 	}
 }
