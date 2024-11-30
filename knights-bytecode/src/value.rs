@@ -132,7 +132,7 @@ impl Value {
 			Self::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
 			Self::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if env.opts().extensions.types.boolean => {
+			Self::Boolean(lhs) if env.opts().extensions.builtin_fns.boolean => {
 				Ok((lhs | rhs.to_boolean(env)?).into())
 			}
 
@@ -148,12 +148,12 @@ impl Value {
 			Self::Integer(integer) => Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into()),
 
 			#[cfg(feature = "extensions")]
-			Self::String(string) if env.opts().extensions.types.string => {
+			Self::String(string) if env.opts().extensions.builtin_fns.string => {
 				Ok(string.remove_substr(&rhs.to_kstring(env)?).into())
 			}
 
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.opts().extensions.types.list => {
+			Self::List(list) if env.opts().extensions.builtin_fns.list => {
 				list.difference(&rhs.to_list(env)?).map(Self::from)
 			}
 
@@ -185,7 +185,7 @@ impl Value {
 				// Multiplying by a block is invalid, so we can do this as an extension.
 				#[cfg(any())]
 				#[cfg(feature = "extensions")]
-				if env.opts().extensions.types.list && matches!(rhs, Self::Ast(_)) {
+				if env.opts().extensions.builtin_fns.list && matches!(rhs, Self::Ast(_)) {
 					return list.map(rhs, env).map(Self::from);
 				}
 
@@ -197,7 +197,7 @@ impl Value {
 			}
 
 			#[cfg(feature = "extensions")]
-			Self::Boolean(lhs) if env.opts().extensions.types.boolean => {
+			Self::Boolean(lhs) if env.opts().extensions.builtin_fns.boolean => {
 				Ok((lhs & rhs.to_boolean(env)?).into())
 			}
 
@@ -213,12 +213,12 @@ impl Value {
 			Self::Integer(integer) => Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into()),
 
 			#[cfg(feature = "extensions")]
-			Self::String(string) if env.opts().extensions.types.string => {
+			Self::String(string) if env.opts().extensions.builtin_fns.string => {
 				Ok(string.split(&rhs.to_kstring(env)?, env).into())
 			}
 
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.opts().extensions.types.list => {
+			Self::List(list) if env.opts().extensions.builtin_fns.list => {
 				Ok(list.reduce(rhs, env)?.unwrap_or_default())
 			}
 
@@ -273,7 +273,9 @@ impl Value {
 			// 	Text::new(formatted).unwrap().into()
 			// }
 			#[cfg(feature = "extensions")]
-			Self::List(list) if env.opts().extensions.types.list => list.filter(rhs, env).map(Self::from),
+			Self::List(list) if env.opts().extensions.builtin_fns.list => {
+				list.filter(rhs, env).map(Self::from)
+			}
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.remainder(rhs, env),

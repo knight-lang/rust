@@ -26,7 +26,7 @@ pub struct Compliance {
 #[derive(Default)]
 #[cfg(feature = "extensions")]
 pub struct Extensions {
-	pub types: Types,
+	pub builtin_fns: BuiltinFns,
 	pub syntax: Syntax,
 	pub floats: bool, // not working
 }
@@ -41,7 +41,7 @@ pub struct Syntax {
 #[derive(Default)]
 #[cfg(feature = "extensions")]
 // TODO: rename from types (which imlpies new types) to "funciton extensions" or somethin
-pub struct Types {
+pub struct BuiltinFns {
 	pub boolean: bool,
 	pub string: bool,
 	pub list: bool,
