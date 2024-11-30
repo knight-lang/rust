@@ -184,7 +184,7 @@ impl Builder {
 	}
 
 	// SAFETY: `opcode` mustn't take an offset
-	unsafe fn opcode_without_offset(&mut self, opcode: Opcode) {
+	pub unsafe fn opcode_without_offset(&mut self, opcode: Opcode) {
 		self.code.push(code_from_opcode_and_offset(opcode, 0)) // any offset'll do, it's ignored
 	}
 

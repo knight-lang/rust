@@ -1,3 +1,5 @@
+mod function;
+mod parens;
 mod variable;
 
 use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
@@ -202,15 +204,14 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 		crate::value::Null::parse(self)? && return Ok(());
 		crate::value::List::parse(self)? && return Ok(());
 		variable::Variable::parse(self)? && return Ok(());
+		function::Function::parse(self)? && return Ok(());
+		// todo: parens
 
 		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;
 
 		match chr {
 			_ if chr == '#' || chr.is_whitespace() => unreachable!("<already handled>"),
 			'(' | ')' => todo!(),
-
-			_ if chr.is_lowercase() || chr == '_' => self.parse_variable(),
-			'\"' | '\'' => self.parse_string(),
 
 			_ => Err(self.error(ParseErrorKind::UnknownTokenStart(chr))),
 		}

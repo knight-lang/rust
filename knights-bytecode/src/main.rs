@@ -12,13 +12,15 @@ fn main() {
 		&mut env,
 		None,
 		"
-  # HELLO WORLD
-  a123a",
+OUTPUT 
++
+1
+",
 	)
 	.unwrap();
 
-	let program = parser.parse_program().unwrap();
-	dbg!(program);
+	let program = parser.parse_program().map_err(|err| panic!("{}", err)).unwrap();
+	Vm::new(&program, &mut env).run().map_err(|err| panic!("{}", err));
 }
 
 #[cfg(any())]

@@ -1,10 +1,11 @@
 use crate::strings::StringSlice;
 use crate::value::KString;
 use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+
 pub struct Variable;
 
 impl Variable {
-	// here in case i ever wanna do like `XLOCAL a b c`
+	// here for `=` function, and also `XLOCAL` and what have you
 	pub fn parse_name<'e>(parser: &mut Parser<'_, 'e>) -> Result<Option<&'e str>, ParseError> {
 		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
 			return Ok(None);

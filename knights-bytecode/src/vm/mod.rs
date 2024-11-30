@@ -65,6 +65,9 @@ pub enum ParseErrorKind {
 
 	#[error("{0}")]
 	StringError(#[from] StringError),
+
+	#[error("missing argument {1} for function {0:?}")]
+	MissingArgument(char, usize),
 }
 
 impl ParseErrorKind {
