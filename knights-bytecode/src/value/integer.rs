@@ -231,7 +231,7 @@ impl Integer {
 }
 
 unsafe impl Parseable for Integer {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(false);
 		};

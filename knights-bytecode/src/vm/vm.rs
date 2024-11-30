@@ -2,16 +2,16 @@ use super::{Opcode, Program};
 use crate::value::{Integer, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Result};
 
-pub struct Vm<'prog, 'env, 'filename> {
-	program: &'prog Program<'filename>,
+pub struct Vm<'prog, 'env> {
+	program: &'prog Program,
 	env: &'env mut Environment,
 	current_index: usize,
 	stack: Vec<Value>,
 	vars: Box<[Value]>,
 }
 
-impl<'prog, 'env, 'filename> Vm<'prog, 'env, 'filename> {
-	pub fn new(program: &'prog Program<'filename>, env: &'env mut Environment) -> Self {
+impl<'prog, 'env> Vm<'prog, 'env> {
+	pub fn new(program: &'prog Program, env: &'env mut Environment) -> Self {
 		Self {
 			program,
 			env,

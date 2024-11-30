@@ -3,14 +3,15 @@ use std::slice::Iter;
 use crate::options::Options;
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
-use crate::{Environment, Error, Result};
+use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::{Environment, Error};
 
 // todo: optimize
 #[derive(Clone, Debug, PartialEq)] // TODO: DEBUG
 pub struct List(Option<Box<[Value]>>);
 
 pub trait ToList {
-	fn to_list(&self, env: &mut Environment) -> Result<List>;
+	fn to_list(&self, env: &mut Environment) -> crate::Result<List>;
 }
 
 impl NamedType for List {
@@ -27,25 +28,25 @@ impl Default for List {
 }
 
 impl ToBoolean for List {
-	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean> {
+	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean> {
 		todo!()
 	}
 }
 
 impl ToKString for List {
-	fn to_kstring(&self, env: &mut Environment) -> Result<KString> {
+	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString> {
 		todo!()
 	}
 }
 
 impl ToInteger for List {
-	fn to_integer(&self, env: &mut Environment) -> Result<Integer> {
+	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
 		todo!()
 	}
 }
 
 impl ToList for List {
-	fn to_list(&self, _: &mut Environment) -> Result<List> {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
 		Ok(self.clone())
 	}
 }
@@ -72,7 +73,7 @@ impl List {
 	#[cfg(feature = "compliance")]
 	pub const MAXIMUM_LENGTH: usize = i32::MAX as usize;
 
-	pub fn new(iter: impl IntoIterator<Item = Value>, opts: &Options) -> Result<Self> {
+	pub fn new(iter: impl IntoIterator<Item = Value>, opts: &Options) -> crate::Result<Self> {
 		let iter = iter.into_iter();
 		let v = iter.collect::<Vec<_>>();
 
@@ -134,7 +135,7 @@ impl List {
 		index.get(self)
 	}
 
-	pub fn try_get<'a, F: ListGet<'a>>(&'a self, index: F) -> Result<F::Output> {
+	pub fn try_get<'a, F: ListGet<'a>>(&'a self, index: F) -> crate::Result<F::Output> {
 		let last_index = index.last_index();
 		self.get(index).ok_or(Error::IndexOutOfBounds { len: self.len(), index: last_index })
 	}
@@ -154,7 +155,7 @@ impl List {
 	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
 	/// returned.
-	pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<Self> {
+	pub fn concat(&self, rhs: &Self, opts: &Options) -> crate::Result<Self> {
 		todo!()
 		// if self.is_empty() {
 		// 	return Ok(rhs.clone());
@@ -181,7 +182,7 @@ impl List {
 	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
-	pub fn repeat(&self, amount: usize, opts: &Options) -> Result<Self> {
+	pub fn repeat(&self, amount: usize, opts: &Options) -> crate::Result<Self> {
 		todo!()
 
 		// #[cfg(feature = "compliance")]
@@ -208,7 +209,7 @@ impl List {
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &StringSlice, env: &mut Environment) -> Result<KString> {
+	pub fn join(&self, sep: &StringSlice, env: &mut Environment) -> crate::Result<KString> {
 		todo!()
 
 		// let mut joined = Text::builder();
@@ -330,7 +331,7 @@ impl List {
 	}
 
 	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
-	pub fn difference(&self, rhs: &Self) -> Result<Self> {
+	pub fn difference(&self, rhs: &Self) -> crate::Result<Self> {
 		todo!()
 
 		// let mut list = Vec::with_capacity(self.len() - rhs.len()); // arbitrary capacity.
@@ -350,7 +351,7 @@ impl List {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn map(&self, block: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn map(&self, block: &Value, env: &mut Environment) -> crate::Result<Self> {
 		todo!()
 
 		// let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -373,7 +374,7 @@ impl List {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn filter(&self, block: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn filter(&self, block: &Value, env: &mut Environment) -> crate::Result<Self> {
 		todo!()
 
 		// let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -400,7 +401,7 @@ impl List {
 	///
 	/// # Errors
 	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn reduce(&self, block: &Value, env: &mut Environment) -> Result<Option<Value>> {
+	pub fn reduce(&self, block: &Value, env: &mut Environment) -> crate::Result<Option<Value>> {
 		todo!()
 
 		// let underscore = unsafe { TextSlice::new_unchecked("_") };
@@ -430,5 +431,21 @@ impl List {
 		// new.reverse();
 
 		// unsafe { Self::new_unchecked(new) }
+	}
+}
+
+unsafe impl Parseable for List {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+		#[cfg(feature = "extensions")]
+		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
+			todo!("list literals")
+		}
+
+		if parser.advance_if('@').is_none() {
+			return Ok(false);
+		}
+
+		parser.builder().push_constant(Self::default().into());
+		Ok(true)
 	}
 }

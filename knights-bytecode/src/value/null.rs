@@ -59,7 +59,7 @@ impl ToKString for Null {
 }
 
 unsafe impl Parseable for Null {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		if parser.advance_if('N').is_none() {
 			return Ok(false);
 		}

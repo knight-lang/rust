@@ -1,4 +1,5 @@
-use crate::{options::Options, vm::ParseErrorKind, Value};
+use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
+use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -9,25 +10,46 @@ use crate::{
 use super::{Builder, ParseError, Program};
 
 #[derive(Debug)]
-pub struct SourceLocation<'filename> {
-	filename: Option<&'filename Path>,
+pub struct SourceLocation {
+	filename: Option<RefCount<Path>>,
 	line: usize,
+}
+
+impl SourceLocation {
+	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
+	pub fn error(self, kind: ParseErrorKind) -> ParseError {
+		ParseError { whence: self, kind }
+	}
+}
+
+impl Display for SourceLocation {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		if let Some(ref filename) = self.filename {
+			write!(f, "{}.{}", filename.display(), self.line)
+		} else {
+			write!(f, "<expr>.{}", self.line)
+		}
+	}
 }
 
 // safety: cannot do invalid things with the builder.
 pub unsafe trait Parseable {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError>;
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError>;
 }
 
-pub struct Parser<'env, 'filename, 'expr> {
+pub struct Parser<'env, 'expr> {
 	env: &'env mut Environment,
-	filename: Option<&'filename Path>,
-	source: &'expr str, // can't use `StringSlice` b/c it has a length limit.
-	builder: Builder<'filename>,
+	filename: Option<RefCount<Path>>, // TODO: dont use refcount
+	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
+	builder: Builder,
 	lineno: usize,
 }
 
-fn validate_source<'e>(source: &'e str, opts: &Options) -> Result<(), ParseError> {
+fn validate_source<'e>(
+	source: &'e str,
+	filename: &Option<RefCount<Path>>,
+	opts: &Options,
+) -> Result<(), ParseError> {
 	let Err(err) = opts.encoding.validate(source) else {
 		return Ok(());
 	};
@@ -36,23 +58,25 @@ fn validate_source<'e>(source: &'e str, opts: &Options) -> Result<(), ParseError
 	// 1 + because line numbering starts at 1
 	let lineno = 1 + source.as_bytes().iter().take(err.position).filter(|&&c| c == b'\n').count();
 
-	let whence = (Some(PathBuf::new()), lineno);
+	let whence = SourceLocation { filename: filename.clone(), line: lineno };
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
-impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
+impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn new(
 		env: &'env mut Environment,
-		filename: Option<&'filename Path>,
+		filename: Option<&Path>,
 		source: &'expr str,
 	) -> Result<Self, ParseError> {
+		let filename = filename.map(|c| c.to_owned().into());
+
 		#[cfg(feature = "compliance")]
-		validate_source(source, env.opts())?;
+		validate_source(source, &filename, env.opts())?;
 
 		Ok(Self { env, filename, source, builder: Builder::default(), lineno: 1 })
 	}
 
-	pub fn builder(&mut self) -> &mut Builder<'filename> {
+	pub fn builder(&mut self) -> &mut Builder {
 		&mut self.builder
 	}
 
@@ -132,7 +156,9 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 	}
 
 	// ick,
-	pub fn location(&mut self) -> (Option<PathBuf>, usize) {}
+	pub fn location(&self) -> SourceLocation {
+		SourceLocation { filename: self.filename.clone(), line: self.lineno }
+	}
 
 	/// Removes the remainder of a keyword function.
 	pub fn strip_keyword_function(&mut self) -> Option<&'expr str> {
@@ -142,14 +168,14 @@ impl<'env, 'filename, 'expr> Parser<'env, 'filename, 'expr> {
 	/// Creates an error at the current source code position.
 	#[must_use]
 	pub fn error(&self, kind: ParseErrorKind) -> ParseError {
-		kind.error((self.filename.map(ToOwned::to_owned), self.lineno))
+		kind.error(self.location())
 	}
 
 	/// Parses a whole program, returning a [`Value`] corresponding to its ast.
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Program<'filename>, ParseError> {
+	pub fn parse_program(mut self) -> Result<Program, ParseError> {
 		self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.

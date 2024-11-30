@@ -124,9 +124,9 @@ impl KString {
 }
 
 unsafe impl Parseable for KString {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		#[cfg(feature = "extensions")]
-		if parser.opts().extensions.string_interpolation && parser.advance_if('`').is_some() {
+		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
 			todo!();
 		}
 
@@ -139,10 +139,12 @@ unsafe impl Parseable for KString {
 		// empty stings are allowed to exist
 		let contents = parser.take_while(|c| c != quote).unwrap_or_default();
 
-		if parser.advance_if(cond)
+		if parser.advance_if(quote).is_none() {
+			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
+		}
 
-		parser.strip_keyword_function();
-		parser.builder().push_constant(Null.into());
+		let string = KString::new(contents, parser.opts()).map_err(|err| start.error(err.into()))?;
+		parser.builder().push_constant(string.into());
 		Ok(true)
 	}
 }

@@ -68,7 +68,7 @@ impl ToKString for Boolean {
 }
 
 unsafe impl Parseable for Boolean {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(false);
 		};

@@ -17,22 +17,19 @@ cfg_if! {
 
 #[derive(Debug)]
 pub struct ParseError {
-	pub whence: (Option<std::path::PathBuf>, usize),
+	pub whence: SourceLocation,
 	pub kind: ParseErrorKind,
 }
 
 use std::fmt::{self, Display, Formatter};
 
-use crate::strings::Encoding;
+use crate::strings::{Encoding, StringError};
 impl Display for ParseError {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		if let Some(ref pathbuf) = self.whence.0 {
-			write!(f, "{}.{}: {}", pathbuf.display(), self.whence.1, self.kind)
-		} else {
-			write!(f, "<expr>.{}: {}", self.whence.1, self.kind)
-		}
+		write!(f, "{}: {}", self.whence, self.kind)
 	}
 }
+
 impl std::error::Error for ParseError {}
 
 #[derive(Error, Debug)]
@@ -62,11 +59,17 @@ pub enum ParseErrorKind {
 
 	#[error("integer literal overflowed")]
 	IntegerLiteralOverflow,
+
+	#[error("missing ending {0:?} quote")]
+	MissingEndingQuote(char),
+
+	#[error("{0}")]
+	StringError(#[from] StringError),
 }
 
 impl ParseErrorKind {
 	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
-	pub fn error(self, whence: ((Option<std::path::PathBuf>, usize))) -> ParseError {
+	pub fn error(self, whence: SourceLocation) -> ParseError {
 		ParseError { whence, kind: self }
 	}
 }

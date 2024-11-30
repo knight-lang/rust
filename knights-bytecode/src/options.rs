@@ -27,12 +27,20 @@ pub struct Compliance {
 #[cfg(feature = "extensions")]
 pub struct Extensions {
 	pub types: Types,
-	pub string_interpolation: bool, // not working
-	pub floats: bool,               // not working
+	pub syntax: Syntax,
+	pub floats: bool, // not working
 }
 
 #[derive(Default)]
 #[cfg(feature = "extensions")]
+pub struct Syntax {
+	pub list_literals: bool,
+	pub string_interpolation: bool, // not working
+}
+
+#[derive(Default)]
+#[cfg(feature = "extensions")]
+// TODO: rename from types (which imlpies new types) to "funciton extensions" or somethin
 pub struct Types {
 	pub boolean: bool,
 	pub string: bool,

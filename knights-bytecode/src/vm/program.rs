@@ -4,23 +4,16 @@ use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 
-// #[cfg(feature = "knight-debugging")]
-// type SourceLines<'filename> = HashMap<usize, SourceLocation<'filename>>;
-// #[cfg(not(feature = "knight-debugging"))]
-// type SourceLines<'filename> = &'filename ();
-
-pub struct Program<'filename> {
+pub struct Program {
 	code: Box<[u64]>, // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
 	constants: Box<[Value]>,
 	num_variables: usize,
 
 	#[cfg(feature = "knight-debugging")]
-	source_lines: HashMap<usize, SourceLocation<'filename>>,
-	#[cfg(not(feature = "knight-debugging"))]
-	source_lines: &'filename (),
+	source_lines: HashMap<usize, SourceLocation>,
 }
 
-impl Debug for Program<'_> {
+impl Debug for Program {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		struct Bytecode<'a>(&'a [u64]);
 		impl Debug for Bytecode<'_> {
@@ -51,7 +44,7 @@ impl Debug for Program<'_> {
 	}
 }
 
-impl<'filename> Program<'filename> {
+impl Program {
 	pub fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
 		let number = self.code[offset];
 
@@ -73,15 +66,13 @@ impl<'filename> Program<'filename> {
 }
 
 #[derive(Default)]
-pub struct Builder<'filename> {
+pub struct Builder {
 	code: Vec<u64>, // todo: make nonzero u64
 	constants: Vec<Value>,
 	variables: HashMap<Box<StringSlice>, usize>,
 
 	#[cfg(feature = "knight-debugging")]
-	source_lines: HashMap<usize, SourceLocation<'filename>>,
-	#[cfg(not(feature = "knight-debugging"))]
-	_ignored: &'filename (),
+	source_lines: HashMap<usize, SourceLocation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,11 +89,11 @@ pub enum JumpWhen {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Builder<'_>) {
+	pub unsafe fn jump_to_current(self, builder: &mut Builder) {
 		self.jump_to(builder, builder.jump_index())
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Builder<'_>, index: JumpIndex) {
+	pub unsafe fn jump_to(self, builder: &mut Builder, index: JumpIndex) {
 		assert_eq!(0, builder.code[self.0]);
 
 		let opcode = match self.1 {
@@ -128,9 +119,9 @@ macro_rules! norm_op {
 	)*};
 }
 
-impl<'filename> Builder<'filename> {
+impl Builder {
 	// needs to be called while ensuring soemthing's ont eh stack.
-	pub unsafe fn build(mut self) -> Program<'filename> {
+	pub unsafe fn build(mut self) -> Program {
 		unsafe {
 			self.opcode_without_offset(Opcode::Return);
 		}
@@ -151,7 +142,7 @@ impl<'filename> Builder<'filename> {
 	}
 
 	#[cfg(feature = "knight-debugging")]
-	pub fn record_source_location(&mut self, loc: SourceLocation<'filename>) {
+	pub fn record_source_location(&mut self, loc: SourceLocation) {
 		self.source_lines.insert(self.code.len(), loc);
 	}
 
