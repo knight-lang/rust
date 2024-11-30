@@ -86,7 +86,7 @@ pub struct Builder {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct JumpIndex(usize);
+pub struct JumpIndex(pub(super) usize);
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeferredJump(usize, JumpWhen);

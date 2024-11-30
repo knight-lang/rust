@@ -1,12 +1,17 @@
 use std::cmp::Ordering;
 
-use crate::{Environment, Error, Result};
+use crate::{
+	vm::{program::JumpIndex, Vm},
+	Environment, Error, Result,
+};
 
+pub mod block;
 pub mod boolean;
 pub mod integer;
 pub mod list;
 pub mod null;
 pub mod string;
+pub use block::Block;
 pub use boolean::{Boolean, ToBoolean};
 use integer::IntegerError;
 pub use integer::{Integer, ToInteger};
@@ -22,6 +27,7 @@ pub trait NamedType {
 
 // Todo: more
 #[derive(Default, Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Value {
 	#[default]
 	Null,
@@ -29,6 +35,7 @@ pub enum Value {
 	Integer(Integer),
 	String(KString),
 	List(List),
+	Block(Block),
 }
 
 impl From<Boolean> for Value {
@@ -61,6 +68,12 @@ impl From<List> for Value {
 	}
 }
 
+impl From<Block> for Value {
+	fn from(block: Block) -> Self {
+		Self::Block(block)
+	}
+}
+
 impl ToBoolean for Value {
 	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean> {
 		match self {
@@ -69,6 +82,10 @@ impl ToBoolean for Value {
 			Self::Integer(integer) => integer.to_boolean(env),
 			Self::String(string) => string.to_boolean(env),
 			Self::List(list) => list.to_boolean(env),
+			_ => Err(Error::ConversionNotDefined {
+				to: Boolean::default().type_name(),
+				from: self.type_name(),
+			}),
 		}
 	}
 }
@@ -81,6 +98,10 @@ impl ToInteger for Value {
 			Self::Integer(integer) => integer.to_integer(env),
 			Self::String(string) => string.to_integer(env),
 			Self::List(list) => list.to_integer(env),
+			_ => Err(Error::ConversionNotDefined {
+				to: Integer::default().type_name(),
+				from: self.type_name(),
+			}),
 		}
 	}
 }
@@ -93,6 +114,10 @@ impl ToKString for Value {
 			Self::Integer(integer) => integer.to_kstring(env),
 			Self::String(string) => string.to_kstring(env),
 			Self::List(list) => list.to_kstring(env),
+			_ => Err(Error::ConversionNotDefined {
+				to: KString::default().type_name(),
+				from: self.type_name(),
+			}),
 		}
 	}
 }
@@ -105,6 +130,10 @@ impl ToList for Value {
 			Self::Integer(integer) => integer.to_list(env),
 			Self::String(string) => string.to_list(env),
 			Self::List(list) => list.to_list(env),
+			_ => Err(Error::ConversionNotDefined {
+				to: List::default().type_name(),
+				from: self.type_name(),
+			}),
 		}
 	}
 }
@@ -119,8 +148,7 @@ impl NamedType for Value {
 			Self::Integer(integer) => integer.type_name(),
 			Self::String(string) => string.type_name(),
 			Self::List(list) => list.type_name(),
-			// Self::Ast(_) => Ast::TYPENAME,
-			// Self::Variable(_) => Variable::TYPENAME,
+			Self::Block(list) => "Block",
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.type_name(),
 		}
@@ -138,6 +166,13 @@ impl Value {
 	pub fn is_equal(&self, rhs: &Self, env: &mut Environment) -> Result<bool> {
 		match self {
 			Self::Integer(int) => Ok(*int == rhs.to_integer(env)?),
+			_ => todo!(),
+		}
+	}
+
+	pub fn call(&self, vm: &mut Vm) -> Result<Value> {
+		match self {
+			Self::Block(block) => vm.child_stackframe(*block),
 			_ => todo!(),
 		}
 	}

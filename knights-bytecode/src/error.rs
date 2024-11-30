@@ -25,6 +25,9 @@ pub enum Error {
 
 	#[error("(quit with exit status {0})")]
 	Exit(i32),
+
+	#[error("Conversion to {to} not defined for {from}")]
+	ConversionNotDefined { to: &'static str, from: &'static str },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

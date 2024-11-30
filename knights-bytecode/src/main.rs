@@ -12,6 +12,9 @@ fn main() {
 		&mut env,
 		None,
 		r#"
+; = a 3
+; = f BLOCK + 1 a
+: OUTPUT CALL f
 # Fizzbuzz in Knight
 
 # Initialize variables.

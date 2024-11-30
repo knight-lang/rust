@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, Program};
-use crate::value::{Integer, List, ToBoolean, ToInteger, ToKString, Value};
+use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'env> {
@@ -22,6 +22,17 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			stack: Vec::new(),
 			vars: vec![Value::Null; program.num_variables()].into(),
 		}
+	}
+
+	pub fn child_stackframe(&mut self, block: Block) -> crate::Result<Value> {
+		let index = self.current_index;
+		let stack_len = self.stack.len();
+
+		self.current_index = block.inner().0;
+		let result = self.run();
+		debug_assert_eq!(stack_len, self.stack.len());
+		self.current_index = index;
+		result
 	}
 
 	pub fn run(&mut self) -> crate::Result<Value> {
@@ -102,7 +113,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Return => return Ok(self.stack.pop().unwrap()),
 
 				// Arity 1
-				Call => todo!(),
+				Call => {
+					let result = arg![0].call(self)?;
+					self.stack.push(result)
+				}
 				Quit => {
 					let status = arg![0].to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");

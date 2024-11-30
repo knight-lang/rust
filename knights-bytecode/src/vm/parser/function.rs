@@ -61,6 +61,51 @@ fn parse_argument(
 	}
 }
 
+fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
+	parser.strip_whitespace_and_comments();
+
+	match super::variable::Variable::parse_name(parser) {
+		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
+			return Err(start.error(ParseErrorKind::MissingArgument('=', 1)));
+		}
+		Err(err) => return Err(err),
+		Ok(Some(name)) => {
+			parse_argument(parser, &start, '=', 2)?;
+			// ew, cloning is not a good answer.
+			let opts = (*parser.opts()).clone();
+			// i dont like this new_unvalidated. TODO: fix it.
+			let name = StringSlice::new_unvalidated(name);
+			unsafe { parser.builder().set_variable(name, &opts) }
+				.expect("<todo, the name should already have been checked. remove this.>");
+		}
+		Ok(None) => {
+			#[cfg(feature = "extensions")]
+			{
+				todo!("Assign to OUTPUT, PROMPT, RANDOM, strings, $, and more.");
+			}
+
+			return Err(start.error(ParseErrorKind::CanOnlyAssignToVariables));
+		}
+	}
+
+	Ok(())
+}
+
+fn parse_block(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
+	// TODO: improve blocks later on by not having to jump over their definitions always.
+	let jump_after = parser.builder().defer_jump(JumpWhen::Always);
+
+	let block_start = parser.builder().jump_index();
+	parse_argument(parser, &start, 'B', 1)?;
+	unsafe {
+		parser.builder().opcode_without_offset(Opcode::Return);
+		jump_after.jump_to_current(parser.builder());
+	}
+
+	parser.builder().push_constant(crate::value::Block::new(block_start).into());
+	Ok(())
+}
+
 unsafe impl Parseable for Function {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
@@ -102,35 +147,8 @@ unsafe impl Parseable for Function {
 				parse_argument(parser, &start, fn_name, 1)?;
 				Ok(true)
 			}
-			'=' => {
-				parser.strip_whitespace_and_comments();
-
-				match super::variable::Variable::parse_name(parser) {
-					Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
-						Err(start.error(ParseErrorKind::MissingArgument('=', 1)))
-					}
-					Err(err) => Err(err),
-					Ok(Some(name)) => {
-						parse_argument(parser, &start, fn_name, 2)?;
-						// ew, cloning is not a good answer.
-						let opts = (*parser.opts()).clone();
-						// i dont like this new_unvalidated. TODO: fix it.
-						let name = StringSlice::new_unvalidated(name);
-						unsafe { parser.builder().set_variable(name, &opts) }
-							.expect("<todo, the name should already have been checked. remove this.>");
-						Ok(true)
-					}
-					Ok(None) => {
-						#[cfg(feature = "extensions")]
-						{
-							todo!("Assign to OUTPUT, PROMPT, RANDOM, strings, $, and more.");
-						}
-
-						Err(start.error(ParseErrorKind::CanOnlyAssignToVariables))
-					}
-				}
-			}
-			'B' => todo!("blocks"),
+			'=' => parse_assignment(start, parser).and(Ok(true)),
+			'B' => parse_block(start, parser).and(Ok(true)),
 			'&' | '|' => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				unsafe {
@@ -208,7 +226,6 @@ unsafe impl Parseable for Function {
 				}
 				_ => Err(start.error(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()))),
 			},
-
 			_ => todo!("invalid fn: {fn_name:?}"),
 		}
 	}
