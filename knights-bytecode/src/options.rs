@@ -23,28 +23,34 @@ pub struct Compliance {
 	pub forbid_trailing_tokens: bool,
 }
 
-#[derive(Default)]
-#[cfg(feature = "extensions")]
-pub struct Extensions {
-	pub builtin_fns: BuiltinFns,
-	pub syntax: Syntax,
-	pub floats: bool, // not working
-}
+cfg_if! {
+if #[cfg(feature = "extensions")] {
+	#[derive(Default)]
+	pub struct Extensions {
+		pub builtin_fns: BuiltinFns,
+		pub syntax: Syntax,
+		pub types: Types,
+	}
 
-#[derive(Default)]
-#[cfg(feature = "extensions")]
-pub struct Syntax {
-	pub list_literals: bool,
-	pub string_interpolation: bool, // not working
-}
+	#[derive(Default)]
+	pub struct Types {
+		pub floats: bool, // not working, potential future idea.
+		pub hashmaps: bool, // not working, potential future idea.
+		pub classes: bool, // not working, potential future idea.
+	}
 
-#[derive(Default)]
-#[cfg(feature = "extensions")]
-// TODO: rename from types (which imlpies new types) to "funciton extensions" or somethin
-pub struct BuiltinFns {
-	pub boolean: bool,
-	pub string: bool,
-	pub list: bool,
-	pub integer: bool,
-	pub null: bool,
-}
+	#[derive(Default)]
+	pub struct Syntax {
+		pub list_literals: bool, // not working
+		pub string_interpolation: bool, // not working
+	}
+
+	#[derive(Default)]
+	pub struct BuiltinFns {
+		pub boolean: bool,
+		pub string: bool,
+		pub list: bool,
+		pub integer: bool,
+		pub null: bool,
+	}
+}}
