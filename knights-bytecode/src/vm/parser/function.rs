@@ -185,7 +185,7 @@ unsafe impl Parseable for Function {
 			// TODO: extensions lol
 			#[cfg(feature = "extensions")]
 			'X' => match full_name {
-				"BREAK" => {
+				"BREAK" if parser.opts().extensions.syntax.control_flow => {
 					let deferred = parser.builder().defer_jump(JumpWhen::Always);
 					parser
 						.loops
@@ -195,7 +195,7 @@ unsafe impl Parseable for Function {
 						.push(deferred);
 					Ok(true)
 				}
-				"CONTINUE" => {
+				"CONTINUE" if parser.opts().extensions.syntax.control_flow => {
 					let starting = parser
 						.loops
 						.last()
@@ -211,14 +211,5 @@ unsafe impl Parseable for Function {
 
 			_ => todo!(),
 		}
-
-		// let Some(name) = Self::parse_name(parser)? else {
-		// 	return Ok(false);
-		// };
-
-		// // TODO: ew, cloning the opts is icky as heck.
-		// let opts = (*parser.opts()).clone();
-		// parser.builder().get_variable(StringSlice::new_unvalidated(name), &opts);
-		// Ok(true)
 	}
 }

@@ -43,6 +43,7 @@ if #[cfg(feature = "extensions")] {
 	pub struct Syntax {
 		pub list_literals: bool, // not working
 		pub string_interpolation: bool, // not working
+		pub control_flow: bool, // XBREAK, XCONTINUE, XRETURN : partially working
 	}
 
 	#[derive(Default, Clone)]
