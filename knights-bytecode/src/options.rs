@@ -1,6 +1,6 @@
 use crate::strings::Encoding;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Options {
 	pub encoding: Encoding,
 
@@ -11,7 +11,7 @@ pub struct Options {
 	pub extensions: Extensions,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[cfg(feature = "compliance")]
 pub struct Compliance {
 	pub check_length: bool,
@@ -25,27 +25,27 @@ pub struct Compliance {
 
 cfg_if! {
 if #[cfg(feature = "extensions")] {
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	pub struct Extensions {
 		pub builtin_fns: BuiltinFns,
 		pub syntax: Syntax,
 		pub types: Types,
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	pub struct Types {
 		pub floats: bool, // not working, potential future idea.
 		pub hashmaps: bool, // not working, potential future idea.
 		pub classes: bool, // not working, potential future idea.
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	pub struct Syntax {
 		pub list_literals: bool, // not working
 		pub string_interpolation: bool, // not working
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	pub struct BuiltinFns {
 		pub boolean: bool,
 		pub string: bool,

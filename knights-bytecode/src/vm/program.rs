@@ -11,6 +11,9 @@ pub struct Program {
 
 	#[cfg(feature = "knight-debugging")]
 	source_lines: HashMap<usize, SourceLocation>,
+
+	#[cfg(debug_assertions)]
+	variable_names: Vec<Box<StringSlice>>, // since it's only needed for debugging knightrs itself
 }
 
 impl Debug for Program {
@@ -36,11 +39,15 @@ impl Debug for Program {
 			}
 		}
 
-		f.debug_struct("Program")
-			.field("num_variables", &self.num_variables)
-			.field("constants", &self.constants)
-			.field("bytecode", &Bytecode(&self.code))
-			.finish()
+		let mut prog = f.debug_struct("Program");
+		prog.field("num_variables", &self.num_variables);
+		prog.field("constants", &self.constants);
+		prog.field("bytecode", &Bytecode(&self.code));
+
+		#[cfg(debug_assertions)]
+		prog.field("variables", &self.variable_names);
+
+		prog.finish()
 	}
 }
 
@@ -130,10 +137,23 @@ impl Builder {
 			code: self.code.into(),
 			constants: self.constants.into(),
 			num_variables: self.variables.len(),
+
 			#[cfg(feature = "knight-debugging")]
 			source_lines: self.source_lines,
-			#[cfg(not(feature = "knight-debugging"))]
-			_ignored: &(),
+
+			#[cfg(debug_assertions)]
+			variable_names: {
+				// todo: ordered hash map lol;
+				let mut vars = vec![];
+				for i in 0..self.variables.len() {
+					vars.push(crate::value::KString::default().into_boxed());
+				}
+
+				for (name, idx) in self.variables {
+					vars[idx] = name;
+				}
+				vars
+			},
 		}
 	}
 

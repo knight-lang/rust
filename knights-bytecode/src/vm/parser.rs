@@ -1,3 +1,5 @@
+mod variable;
+
 use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -194,41 +196,21 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn parse_expression(&mut self) -> Result<(), ParseError> {
 		self.strip_whitespace_and_comments();
 
-		if crate::value::Integer::parse(self)? {
-			return Ok(());
-		}
+		crate::value::Integer::parse(self)? && return Ok(());
+		crate::value::Boolean::parse(self)? && return Ok(());
+		crate::value::KString::parse(self)? && return Ok(());
+		crate::value::Null::parse(self)? && return Ok(());
+		crate::value::List::parse(self)? && return Ok(());
+		variable::Variable::parse(self)? && return Ok(());
 
 		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;
 
 		match chr {
 			_ if chr == '#' || chr.is_whitespace() => unreachable!("<already handled>"),
-			'0'..='9' => unreachable!(),
-
 			'(' | ')' => todo!(),
 
 			_ if chr.is_lowercase() || chr == '_' => self.parse_variable(),
 			'\"' | '\'' => self.parse_string(),
-
-			'T' => {
-				self.strip_keyword_function();
-				self.builder.push_constant(Value::Boolean(true));
-				Ok(())
-			}
-			'F' => {
-				self.strip_keyword_function();
-				self.builder.push_constant(Value::Boolean(false));
-				Ok(())
-			}
-			'N' => {
-				self.strip_keyword_function();
-				self.builder.push_constant(Value::Null);
-				Ok(())
-			}
-			'@' => {
-				self.advance();
-				self.builder.push_constant(Value::List(Default::default()));
-				Ok(())
-			}
 
 			_ => Err(self.error(ParseErrorKind::UnknownTokenStart(chr))),
 		}
