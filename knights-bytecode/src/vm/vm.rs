@@ -114,9 +114,9 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 					println!("{}", arg![0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
 				}
-				Length => todo!(),
+				Length => self.stack.push(arg![0].length(self.env)?.into()),
 				Not => self.stack.push((!arg![0].to_boolean(self.env)?).into()),
-				Negate => todo!(),
+				Negate => self.stack.push(arg![0].negate(self.env)?.into()),
 				Ascii => todo!(),
 				Box => self.stack.push(List::boxed(arg![0].clone()).into()),
 				Head => todo!(),

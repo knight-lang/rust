@@ -57,7 +57,7 @@ impl StringSlice {
 		let source = source.as_ref();
 
 		#[cfg(feature = "compliance")]
-		if opts.compliance.check_length && Self::MAXIMUM_LENGTH < source.len() {
+		if opts.compliance.check_container_length && Self::MAXIMUM_LENGTH < source.len() {
 			return Err(StringError::LengthTooLong(source.len()));
 		}
 
@@ -74,7 +74,7 @@ impl StringSlice {
 
 		#[cfg(feature = "compliance")]
 		{
-			if opts.compliance.check_length && Self::MAXIMUM_LENGTH < source.len() {
+			if opts.compliance.check_container_length && Self::MAXIMUM_LENGTH < source.len() {
 				return Err(StringError::LengthTooLong(source.len()));
 			}
 
@@ -113,7 +113,7 @@ impl StringSlice {
 		}
 
 		#[cfg(feature = "compliance")]
-		if opts.compliance.check_length && Self::MAXIMUM_LENGTH < self.len() * amount {
+		if opts.compliance.check_container_length && Self::MAXIMUM_LENGTH < self.len() * amount {
 			return Err(StringError::LengthTooLong(self.len() * amount));
 		}
 

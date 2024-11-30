@@ -81,7 +81,7 @@ impl List {
 		let v = iter.collect::<Vec<_>>();
 
 		#[cfg(feature = "compliance")]
-		if opts.compliance.check_length && Self::MAXIMUM_LENGTH < v.len() {
+		if opts.compliance.check_container_length && Self::MAXIMUM_LENGTH < v.len() {
 			return Err(Error::ListIsTooLarge);
 		}
 

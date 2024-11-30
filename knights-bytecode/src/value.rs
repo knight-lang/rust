@@ -142,6 +142,47 @@ impl Value {
 		}
 	}
 
+	pub fn length(&self, env: &mut Environment) -> Result<Integer> {
+		match self {
+			Self::String(string) => {
+				// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
+				// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
+				// the `i64` without failure.
+				//
+				// With compliance enabled, it's possible that we are only checking for compliance on
+				// integer bounds, and not on string lengths, so we do have to check in compliance mode.
+				#[cfg(feature = "compliance")]
+				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
+					return Ok(Integer::new(string.len() as i64, env.opts())?);
+				}
+
+				Ok(Integer::new_unvalidated(string.len() as i64))
+			}
+
+			Self::List(list) => {
+				// (same guarantees as `Self::String`)
+				#[cfg(feature = "compliance")]
+				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
+					return Ok(Integer::new(list.len() as i64, env.opts())?);
+				}
+
+				Ok(Integer::new_unvalidated(list.len() as i64))
+			}
+
+			// TODO: Knight 2.0.1 extensions?
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "LENGTH" }),
+		}
+	}
+
+	pub fn negate(&self, env: &mut Environment) -> Result<Integer> {
+		#[cfg(feature = "extensions")]
+		if env.opts().extensions.breaking.negate_reverses_collections {
+			todo!();
+		}
+
+		Ok(self.to_integer(env)?.negate(env.opts())?)
+	}
+
 	pub fn op_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),

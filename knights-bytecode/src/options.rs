@@ -14,7 +14,7 @@ pub struct Options {
 #[derive(Default, Clone)]
 #[cfg(feature = "compliance")]
 pub struct Compliance {
-	pub check_length: bool,
+	pub check_container_length: bool, // make sure containers are within `i32::MAX`
 	pub i32_integer: bool,
 	pub check_overflow: bool,
 	pub check_integer_function_bounds: bool,
@@ -30,6 +30,7 @@ if #[cfg(feature = "extensions")] {
 		pub builtin_fns: BuiltinFns,
 		pub syntax: Syntax,
 		pub types: Types,
+		pub breaking: BreakingChanges,
 	}
 
 	#[derive(Default, Clone)]
@@ -37,6 +38,11 @@ if #[cfg(feature = "extensions")] {
 		pub floats: bool, // not working, potential future idea.
 		pub hashmaps: bool, // not working, potential future idea.
 		pub classes: bool, // not working, potential future idea.
+	}
+
+	#[derive(Default, Clone)]
+	pub struct BreakingChanges {
+		pub negate_reverses_collections: bool, // not working, potential future idea.
 	}
 
 	#[derive(Default, Clone)]
