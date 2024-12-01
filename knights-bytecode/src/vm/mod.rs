@@ -1,21 +1,17 @@
 mod error;
 mod opcode;
-pub mod parser;
 pub mod program;
 mod vm;
 
+#[deprecated]
+pub use crate::parser::{Parseable, Parser, SourceLocation};
 pub use error::RuntimeError;
 pub use opcode::Opcode;
-pub use parser::{Parseable, Parser, SourceLocation};
 pub use program::{Builder, Program};
 pub use vm::*;
 
-cfg_if! {
-	if #[cfg(feature = "compliance")] {
-		pub const MAX_VARIABLE_LEN: usize = 127;
-		pub const MAX_VARIABLE_COUNT: usize = 65535;
-	}
-}
+#[cfg(feature = "compliance")]
+pub const MAX_VARIABLE_COUNT: usize = 65535;
 
 #[derive(Debug)]
 pub struct ParseError {
@@ -37,11 +33,11 @@ impl std::error::Error for ParseError {}
 #[derive(Error, Debug)]
 pub enum ParseErrorKind {
 	#[cfg(feature = "compliance")]
-	#[error("variable name too long ({len} > {max}): {0:?}", len=.0.len(), max = MAX_VARIABLE_LEN)]
+	#[error("variable name too long ({len} > {max}): {0:?}", len=.0.len(), max = crate::parser::MAX_VARIABLE_LEN)]
 	VariableNameTooLong(crate::value::KString),
 
 	#[cfg(feature = "compliance")]
-	#[error("too many variables encountered (only {MAX_VARIABLE_LEN} allowed)")]
+	#[error("too many variables encountered (only {MAX_VARIABLE_COUNT} allowed)")]
 	TooManyVariables,
 
 	#[cfg(feature = "compliance")]

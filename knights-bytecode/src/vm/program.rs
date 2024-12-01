@@ -239,7 +239,7 @@ impl Builder {
 		opts: &Options,
 	) -> Result<usize, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
-		if opts.compliance.variable_name_length && name.len() > super::MAX_VARIABLE_LEN {
+		if opts.compliance.variable_name_length && name.len() > crate::parser::MAX_VARIABLE_LEN {
 			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
 		}
 
@@ -250,7 +250,7 @@ impl Builder {
 				let i = self.variables.len();
 
 				#[cfg(feature = "compliance")]
-				if opts.compliance.variable_count && i > super::MAX_VARIABLE_COUNT {
+				if opts.compliance.variable_count && i > crate::vm::MAX_VARIABLE_COUNT {
 					return Err(ParseErrorKind::TooManyVariables);
 				}
 

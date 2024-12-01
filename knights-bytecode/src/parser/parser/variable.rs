@@ -17,7 +17,7 @@ impl Variable {
 
 		#[cfg(feature = "compliance")]
 		if parser.opts().compliance.variable_name_length
-			&& name.len() <= super::super::MAX_VARIABLE_LEN
+			&& name.len() <= crate::parser::MAX_VARIABLE_LEN
 		{
 			// i dont like this new_unvalidated. TODO: fix it.
 			return Err(
