@@ -49,7 +49,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 					self.program.function_name(block.inner()).expect("<todo: when block doesnt exist>");
 				let fn_name = fn_name.unwrap_or(StringSlice::new_unvalidated("<block>"));
 
-				Err(crate::Error::Todo(format!("{loc}:<in {fn_name}>: {err}",)))
+				Err(crate::Error::Todo(format!("{loc}:(in {fn_name}): {err}",)))
 			}
 		}
 	}

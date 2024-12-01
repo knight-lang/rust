@@ -14,11 +14,11 @@ fn main() {
 		&mut env,
 		Some(Path::new("main")),
 		r#"
-; 0
-; = f BLOCK
-	/ 1 a
-; = a 0
-: OUTPUT CALL f
+; = numer 1
+; = divide BLOCK
+	/ numer denom
+; = denom 0
+: OUTPUT CALL divide
 # Fizzbuzz in Knight
 
 # Initialize variables.
