@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use knights_bytecode::env::Environment;
+use knights_bytecode::parser::*;
 use knights_bytecode::program::*;
 use knights_bytecode::strings::StringSlice;
 use knights_bytecode::value::*;

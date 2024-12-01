@@ -1,12 +1,11 @@
 mod compiler;
 
-use crate::parser::VariableName;
+use crate::parser::{ParseErrorKind, SourceLocation, VariableName};
+use crate::strings::StringSlice;
+use crate::value::{KString, Value};
+use crate::vm::Opcode;
+use crate::Options;
 pub use compiler::{Compilable, Compiler};
-
-use crate::options::Options;
-use crate::value::KString;
-use crate::vm::{Opcode, ParseErrorKind, SourceLocation};
-use crate::{strings::StringSlice, Value};
 use std::fmt::{self, Debug, Formatter};
 
 // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
