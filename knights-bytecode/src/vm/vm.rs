@@ -92,8 +92,6 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			}
 
 			match opcode {
-				_Invalid => unreachable!(),
-
 				// Builtins
 				PushConstant => {
 					self.stack.push(self.program.constant_at(offset).clone());

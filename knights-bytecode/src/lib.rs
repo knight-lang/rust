@@ -7,6 +7,9 @@ extern crate cfg_if;
 #[macro_use]
 extern crate thiserror;
 
+#[macro_use]
+extern crate static_assertions as sa;
+
 mod container;
 pub mod env;
 pub mod error;
