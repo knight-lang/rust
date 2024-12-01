@@ -1,5 +1,5 @@
+use crate::old_vm_and_parser_and_program::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::{options::Options, Environment};
 use std::fmt::{self, Debug, Display, Formatter};
 

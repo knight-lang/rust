@@ -11,7 +11,7 @@ pub enum Error {
 	IntegerError(#[from] crate::value::integer::IntegerError),
 
 	#[error("{0}")]
-	ParseError(#[from] crate::vm::ParseError),
+	ParseError(#[from] crate::old_vm_and_parser_and_program::ParseError),
 
 	#[error("bad type {type_name} to function {function:?}")]
 	TypeError { type_name: &'static str, function: &'static str },

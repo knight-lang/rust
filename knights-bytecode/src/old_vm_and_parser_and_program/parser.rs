@@ -2,7 +2,9 @@ mod function;
 mod parens;
 mod variable;
 
-use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
+use crate::{
+	container::RefCount, old_vm_and_parser_and_program::ParseErrorKind, options::Options, Value,
+};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 

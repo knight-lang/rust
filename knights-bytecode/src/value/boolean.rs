@@ -1,6 +1,6 @@
+use crate::old_vm_and_parser_and_program::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::Environment;
 
 /// The boolean type within Knight.

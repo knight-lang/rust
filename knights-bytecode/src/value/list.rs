@@ -1,9 +1,9 @@
 use std::slice::Iter;
 
+use crate::old_vm_and_parser_and_program::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::options::Options;
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::{Environment, Error};
 
 // todo: optimize

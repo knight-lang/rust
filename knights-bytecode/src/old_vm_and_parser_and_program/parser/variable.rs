@@ -1,6 +1,6 @@
+use crate::old_vm_and_parser_and_program::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::strings::StringSlice;
 use crate::value::KString;
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
 
 pub struct Variable;
 

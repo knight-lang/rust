@@ -1,4 +1,4 @@
-use crate::vm::program::JumpIndex;
+use crate::old_vm_and_parser_and_program::program::JumpIndex;
 
 use super::NamedType;
 
