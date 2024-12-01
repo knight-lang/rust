@@ -1,7 +1,7 @@
-use crate::old_vm_and_parser_and_program::program::{DeferredJump, JumpWhen};
-use crate::old_vm_and_parser_and_program::{Opcode, ParseError, ParseErrorKind, Parseable, Parser};
 use crate::strings::StringSlice;
 use crate::value::KString;
+use crate::vm::program::{DeferredJump, JumpWhen};
+use crate::vm::{Opcode, ParseError, ParseErrorKind, Parseable, Parser};
 
 use super::SourceLocation;
 

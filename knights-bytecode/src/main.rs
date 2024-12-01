@@ -3,10 +3,10 @@
 use std::path::Path;
 
 use knights_bytecode::env::Environment;
-use knights_bytecode::old_vm_and_parser_and_program::program::*;
-use knights_bytecode::old_vm_and_parser_and_program::*;
 use knights_bytecode::strings::StringSlice;
 use knights_bytecode::value::*;
+use knights_bytecode::vm::program::*;
+use knights_bytecode::vm::*;
 
 fn main() {
 	let mut env = Environment::default();

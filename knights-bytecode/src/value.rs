@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-	old_vm_and_parser_and_program::{program::JumpIndex, Vm},
+	vm::{program::JumpIndex, Vm},
 	Environment, Error, Result,
 };
 
