@@ -39,6 +39,7 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 	opcode as InstructionAndOffset | (offset as InstructionAndOffset) << 0o10
 }
 
+// TODO: Make a "build-a-block" function
 impl Builder {
 	/// Finished building the [`Program`], and returns it
 	///
@@ -60,8 +61,8 @@ impl Builder {
 		}
 
 		Program {
-			code: self.code.into(),
-			constants: self.constants.into(),
+			code: self.code.into_boxed_slice(),
+			constants: self.constants.into_boxed_slice(),
 			num_variables: self.variables.len(),
 
 			#[cfg(feature = "stacktrace")]
@@ -108,7 +109,8 @@ impl Builder {
 
 	/// Defers a jump when `when` is complete.
 	///
-	/// Note that while this isn't
+	/// Note that while this itself isn't unsafe, calling [`Builder::build`] without `.jump_to`ing
+	/// the deferred jump is.
 	pub fn defer_jump(&mut self, when: JumpWhen) -> DeferredJump {
 		let deferred = self.code.len();
 		self.code.push(0);
@@ -117,12 +119,16 @@ impl Builder {
 
 	// SAFETY: `opcode` must take an offset and `offset` must be a valid offset for it.
 	unsafe fn opcode_with_offset(&mut self, opcode: Opcode, offset: usize) {
+		debug_assert!(opcode.takes_offset());
+
 		// No need to check if `offset as InstructionAndOffset`'s topbit is nonzero, as that's so massive it'll never happen
 		self.code.push(code_from_opcode_and_offset(opcode, offset))
 	}
 
 	// SAFETY: `opcode` mustn't take an offset
 	pub unsafe fn opcode_without_offset(&mut self, opcode: Opcode) {
+		debug_assert!(!opcode.takes_offset());
+
 		self.code.push(code_from_opcode_and_offset(opcode, 0)) // any offset'll do, it's ignored
 	}
 
@@ -148,7 +154,9 @@ impl Builder {
 		opts: &Options,
 	) -> Result<usize, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
-		if opts.compliance.variable_name_length && name.len() > crate::parser::MAX_VARIABLE_LEN {
+		if opts.compliance.variable_name_length
+			&& name.len() > crate::parser::VariableName::MAX_NAME_LEN
+		{
 			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
 		}
 

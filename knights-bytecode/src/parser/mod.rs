@@ -1,5 +1,7 @@
+mod error;
 mod parser;
-pub use parser::*;
+mod variable_name;
 
-#[cfg(feature = "compliance")]
-pub const MAX_VARIABLE_LEN: usize = 127;
+pub use error::*;
+pub use parser::*;
+pub use variable_name::VariableName;
