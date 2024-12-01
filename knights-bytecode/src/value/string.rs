@@ -144,7 +144,7 @@ unsafe impl Parseable for KString {
 		}
 
 		let string = KString::new(contents, parser.opts()).map_err(|err| start.error(err.into()))?;
-		parser.builder().push_constant(string.into());
+		parser.compiler().push_constant(string.into());
 		Ok(true)
 	}
 }

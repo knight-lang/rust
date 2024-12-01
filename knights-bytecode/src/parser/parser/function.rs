@@ -86,7 +86,7 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 			let opts = (*parser.opts()).clone();
 			// i dont like this new_unvalidated. TODO: fix it.
 			let name = StringSlice::new_unvalidated(name);
-			unsafe { parser.builder().set_variable(name, &opts) }
+			unsafe { parser.compiler().set_variable(name, &opts) }
 				.expect("<todo, the name should already have been checked. remove this.>");
 		}
 		Ok(None) => {
@@ -108,18 +108,18 @@ fn parse_block(
 	name: Option<KString>,
 ) -> Result<(), ParseError> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
-	let jump_after = parser.builder().defer_jump(JumpWhen::Always);
+	let jump_after = parser.compiler().defer_jump(JumpWhen::Always);
 
-	let jump_index = parser.builder().jump_index();
+	let jump_index = parser.compiler().jump_index();
 	parse_argument(parser, &start, 'B', 1)?;
 	unsafe {
-		parser.builder().opcode_without_offset(Opcode::Return);
-		jump_after.jump_to_current(parser.builder());
+		parser.compiler().opcode_without_offset(Opcode::Return);
+		jump_after.jump_to_current(parser.compiler());
 	}
 
-	parser.builder().push_constant(crate::value::Block::new(jump_index).into());
+	parser.compiler().push_constant(crate::value::Block::new(jump_index).into());
 
-	parser.builder().record_block(start, jump_index, name);
+	parser.compiler().record_block(start, jump_index, name);
 	Ok(())
 }
 
@@ -148,7 +148,7 @@ unsafe impl Parseable for Function {
 
 			unsafe {
 				// todo: rename to simple opcode?
-				parser.builder.opcode_without_offset(simple_opcode);
+				parser.compiler.opcode_without_offset(simple_opcode);
 			}
 
 			return Ok(true);
@@ -159,7 +159,7 @@ unsafe impl Parseable for Function {
 			';' => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				unsafe {
-					parser.builder.opcode_without_offset(Opcode::Pop);
+					parser.compiler.opcode_without_offset(Opcode::Pop);
 				}
 				parse_argument(parser, &start, fn_name, 1)?;
 				Ok(true)
@@ -169,49 +169,49 @@ unsafe impl Parseable for Function {
 			'&' | '|' => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				unsafe {
-					parser.builder().opcode_without_offset(Opcode::Dup);
+					parser.compiler().opcode_without_offset(Opcode::Dup);
 				}
-				let end = parser.builder().defer_jump(if fn_name == '&' {
+				let end = parser.compiler().defer_jump(if fn_name == '&' {
 					JumpWhen::False
 				} else {
 					JumpWhen::True
 				});
 				parse_argument(parser, &start, fn_name, 2)?;
 				unsafe {
-					end.jump_to_current(parser.builder());
+					end.jump_to_current(parser.compiler());
 				}
 				Ok(true)
 			}
 			'I' => {
 				parse_argument(parser, &start, fn_name, 1)?;
-				let to_false = parser.builder().defer_jump(JumpWhen::False);
+				let to_false = parser.compiler().defer_jump(JumpWhen::False);
 				parse_argument(parser, &start, fn_name, 2)?;
-				let to_end = parser.builder().defer_jump(JumpWhen::Always);
+				let to_end = parser.compiler().defer_jump(JumpWhen::Always);
 				unsafe {
-					to_false.jump_to_current(&mut parser.builder());
+					to_false.jump_to_current(&mut parser.compiler());
 				}
 				parse_argument(parser, &start, fn_name, 3)?;
 				unsafe {
-					to_end.jump_to_current(parser.builder());
+					to_end.jump_to_current(parser.compiler());
 				}
 				Ok(true)
 			}
 			'W' => {
-				let while_start = parser.builder().jump_index();
+				let while_start = parser.compiler().jump_index();
 
 				parse_argument(parser, &start, fn_name, 1)?;
-				let deferred = parser.builder().defer_jump(JumpWhen::False);
+				let deferred = parser.compiler().defer_jump(JumpWhen::False);
 				parser.loops.push((while_start, vec![deferred]));
 
 				parse_argument(parser, &start, fn_name, 3)?;
 				unsafe {
-					parser.builder().jump_to(JumpWhen::Always, while_start);
+					parser.compiler().jump_to(JumpWhen::Always, while_start);
 				}
 
 				// jump all `break`s to the end
 				for deferred in parser.loops.pop().unwrap().1 {
 					unsafe {
-						deferred.jump_to_current(parser.builder());
+						deferred.jump_to_current(parser.compiler());
 					}
 				}
 
@@ -221,7 +221,7 @@ unsafe impl Parseable for Function {
 			#[cfg(feature = "extensions")]
 			'X' => match full_name {
 				"BREAK" if parser.opts().extensions.syntax.control_flow => {
-					let deferred = parser.builder().defer_jump(JumpWhen::Always);
+					let deferred = parser.compiler().defer_jump(JumpWhen::Always);
 					parser
 						.loops
 						.last_mut()
@@ -237,7 +237,7 @@ unsafe impl Parseable for Function {
 						.expect("<todo: exception when `break` when nothing to break, or in a funciton?>")
 						.0;
 					unsafe {
-						parser.builder().jump_to(JumpWhen::Always, starting);
+						parser.compiler().jump_to(JumpWhen::Always, starting);
 					}
 					Ok(true)
 				}

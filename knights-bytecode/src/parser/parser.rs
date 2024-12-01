@@ -12,8 +12,8 @@ use crate::{
 };
 
 use crate::parser::SourceLocation;
-use crate::program::{DeferredJump, JumpIndex};
-use crate::vm::{Builder, ParseError, Program};
+use crate::program::{Compiler, DeferredJump, JumpIndex};
+use crate::vm::{ParseError, Program};
 
 // safety: cannot do invalid things with the builder.
 pub unsafe trait Parseable {
@@ -24,7 +24,7 @@ pub struct Parser<'env, 'expr> {
 	env: &'env mut Environment,
 	filename: Option<RefCount<Path>>, // TODO: dont use refcount
 	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
-	builder: Builder,
+	compiler: Compiler,
 	lineno: usize,
 
 	// Start is loop begin, vec is those to jump to loop end
@@ -59,11 +59,18 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 		#[cfg(feature = "compliance")]
 		validate_source(source, &filename, env.opts())?;
 
-		Ok(Self { env, filename, source, builder: Builder::default(), lineno: 1, loops: Vec::new() })
+		Ok(Self {
+			env,
+			filename,
+			source,
+			compiler: Compiler::default(),
+			lineno: 1,
+			loops: Vec::new(),
+		})
 	}
 
-	pub fn builder(&mut self) -> &mut Builder {
-		&mut self.builder
+	pub fn compiler(&mut self) -> &mut Compiler {
+		&mut self.compiler
 	}
 
 	pub fn opts(&self) -> &Options {
@@ -173,7 +180,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 		}
 
 		// SAFETY: this program ensures that things are built properly
-		Ok(unsafe { self.builder.build() })
+		Ok(unsafe { self.compiler.build() })
 	}
 
 	/// Parses a single expression and returns it.

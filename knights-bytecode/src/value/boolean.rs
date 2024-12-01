@@ -74,7 +74,7 @@ unsafe impl Parseable for Boolean {
 		};
 
 		parser.strip_keyword_function();
-		parser.builder().push_constant((chr == 'T').into());
+		parser.compiler().push_constant((chr == 'T').into());
 		Ok(true)
 	}
 }

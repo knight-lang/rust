@@ -8,7 +8,7 @@ pub use error::RuntimeError;
 pub use opcode::Opcode;
 
 #[deprecated]
-pub use crate::program::{Builder, Program};
+pub use crate::program::Program;
 pub use vm::*;
 
 #[cfg(feature = "compliance")]

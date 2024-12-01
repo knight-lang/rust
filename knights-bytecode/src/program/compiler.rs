@@ -7,9 +7,9 @@ use crate::vm::{Opcode, ParseErrorKind};
 
 use std::collections::HashMap;
 
-/// A Builder is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
+/// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
 #[derive(Default)]
-pub struct Builder {
+pub struct Compiler {
 	// The current code so far; The bottom-most byte is the opcode, and when that's shifted away, the
 	// remainder is the offset.
 	code: Vec<InstructionAndOffset>,
@@ -40,7 +40,7 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 }
 
 // TODO: Make a "build-a-block" function
-impl Builder {
+impl Compiler {
 	/// Finished building the [`Program`], and returns it
 	///
 	/// # Safety
@@ -109,7 +109,7 @@ impl Builder {
 
 	/// Defers a jump when `when` is complete.
 	///
-	/// Note that while this itself isn't unsafe, calling [`Builder::build`] without `.jump_to`ing
+	/// Note that while this itself isn't unsafe, calling [`Compiler::build`] without `.jump_to`ing
 	/// the deferred jump is.
 	pub fn defer_jump(&mut self, when: JumpWhen) -> DeferredJump {
 		let deferred = self.code.len();
@@ -224,12 +224,12 @@ impl Builder {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Builder) {
+	pub unsafe fn jump_to_current(self, builder: &mut Compiler) {
 		// SAFETY: TODO
 		unsafe { self.jump_to(builder, builder.jump_index()) }
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Builder, index: JumpIndex) {
+	pub unsafe fn jump_to(self, builder: &mut Compiler, index: JumpIndex) {
 		assert_eq!(0, builder.code[self.0]);
 
 		let opcode = match self.1 {

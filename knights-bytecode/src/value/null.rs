@@ -65,7 +65,7 @@ unsafe impl Parseable for Null {
 		}
 
 		parser.strip_keyword_function();
-		parser.builder().push_constant(Null.into());
+		parser.compiler().push_constant(Null.into());
 		Ok(true)
 	}
 }

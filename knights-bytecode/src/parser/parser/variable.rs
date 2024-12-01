@@ -38,7 +38,7 @@ unsafe impl Parseable for Variable {
 
 		// TODO: ew, cloning the opts is icky as heck.
 		let opts = (*parser.opts()).clone();
-		parser.builder().get_variable(StringSlice::new_unvalidated(name), &opts);
+		parser.compiler().get_variable(StringSlice::new_unvalidated(name), &opts);
 		Ok(true)
 	}
 }

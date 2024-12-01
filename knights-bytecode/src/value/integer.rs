@@ -242,7 +242,7 @@ unsafe impl Parseable for Integer {
 			.and_then(|int| Integer::new(int, parser.opts()).ok())
 		{
 			Some(integer) => {
-				parser.builder().push_constant(integer.into());
+				parser.compiler().push_constant(integer.into());
 				Ok(true)
 			}
 			None => Err(parser.error(ParseErrorKind::IntegerLiteralOverflow)),
