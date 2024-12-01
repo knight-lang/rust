@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use std::path::Path;
+
 use knights_bytecode::env::Environment;
 use knights_bytecode::strings::StringSlice;
 use knights_bytecode::value::*;
@@ -10,9 +12,11 @@ fn main() {
 	let mut env = Environment::default();
 	let mut parser = Parser::new(
 		&mut env,
-		None,
+		Some(Path::new("main")),
 		r#"
-; = f BLOCK / 1 a
+; 0
+; = f BLOCK
+	/ 1 a
 ; = a 0
 : OUTPUT CALL f
 # Fizzbuzz in Knight

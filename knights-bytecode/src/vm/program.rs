@@ -185,8 +185,13 @@ impl Builder {
 	}
 
 	#[cfg(feature = "knight-debugging")]
-	pub fn record_function(&mut self, loc: SourceLocation, whence: JumpIndex) {
-		self.functions.insert(whence, (None, loc));
+	pub fn record_function(
+		&mut self,
+		loc: SourceLocation,
+		whence: JumpIndex,
+		name: Option<KString>,
+	) {
+		self.functions.insert(whence, (name, loc));
 	}
 
 	// safety, index has to be from this program

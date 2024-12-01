@@ -70,7 +70,18 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 		}
 		Err(err) => return Err(err),
 		Ok(Some(name)) => {
-			parse_argument(parser, &start, '=', 2)?;
+			// try for a block, if so give it a name.
+			parser.strip_whitespace_and_comments();
+			if parser.peek().map_or(false, |c| c == 'B') {
+				parser.strip_keyword_function();
+				parse_block(
+					start,
+					parser,
+					Some(KString::new(name, parser.opts()).expect("<todo: this failure>")),
+				)?;
+			} else {
+				parse_argument(parser, &start, '=', 2)?;
+			}
 			// ew, cloning is not a good answer.
 			let opts = (*parser.opts()).clone();
 			// i dont like this new_unvalidated. TODO: fix it.
@@ -91,7 +102,11 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 	Ok(())
 }
 
-fn parse_block(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
+fn parse_block(
+	start: SourceLocation,
+	parser: &mut Parser<'_, '_>,
+	name: Option<KString>,
+) -> Result<(), ParseError> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
 	let jump_after = parser.builder().defer_jump(JumpWhen::Always);
 
@@ -104,7 +119,7 @@ fn parse_block(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(),
 
 	parser.builder().push_constant(crate::value::Block::new(block_start).into());
 
-	parser.builder().record_function(start, block_start);
+	parser.builder().record_function(start, block_start, name);
 	Ok(())
 }
 
@@ -150,7 +165,7 @@ unsafe impl Parseable for Function {
 				Ok(true)
 			}
 			'=' => parse_assignment(start, parser).and(Ok(true)),
-			'B' => parse_block(start, parser).and(Ok(true)),
+			'B' => parse_block(start, parser, None).and(Ok(true)),
 			'&' | '|' => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				unsafe {

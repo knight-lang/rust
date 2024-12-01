@@ -30,9 +30,9 @@ impl SourceLocation {
 impl Display for SourceLocation {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if let Some(ref filename) = self.filename {
-			write!(f, "{}.{}", filename.display(), self.line)
+			write!(f, "{}:{}", filename.display(), self.line)
 		} else {
-			write!(f, "<expr>.{}", self.line)
+			write!(f, "<expr>:{}", self.line)
 		}
 	}
 }
