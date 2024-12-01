@@ -1,3 +1,6 @@
+use crate::parser::Parseable;
+use crate::program::Compilable;
+use crate::program::Compiler;
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
 use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 use crate::{options::Options, Environment};
@@ -230,37 +233,28 @@ impl Integer {
 	}
 }
 
-unsafe impl Parseable_OLD for Integer {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+impl Parseable for Integer {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
-			return Ok(false);
+			return Ok(None);
 		};
 
-		match digits
+		digits
 			.parse::<IntegerInner>()
 			.ok()
 			.and_then(|int| Integer::new(int, parser.opts()).ok())
-		{
-			Some(integer) => {
-				parser.compiler().push_constant(integer.into());
-				Ok(true)
-			}
-			None => Err(parser.error(ParseErrorKind::IntegerLiteralOverflow)),
-		}
+			.map(Some)
+			.ok_or_else(|| parser.error(ParseErrorKind::IntegerLiteralOverflow))
 	}
 }
 
-// impl Parsable for Integer {
-// 	type Output = Self;
-
-// 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
-// 		parser
-// 			.take_while(|c| c.is_ascii_digit())
-// 			.map(|src| src.parse())
-// 			.transpose()
-// 			.map_err(|_| parser.error(parse::ErrorKind::IntegerLiteralOverflow))
-// 	}
-// }
+unsafe impl Compilable for Integer {
+	fn compile(self, compiler: &mut Compiler) {
+		compiler.push_constant(self.into());
+	}
+}
 
 impl ToInteger for Integer {
 	/// Simply returns `self`.
@@ -296,113 +290,3 @@ impl ToList for Integer {
 		todo!()
 	}
 }
-
-// impl ToText for Integer {
-// 	/// Returns a string representation of `self`.
-// 	#[inline]
-// 	fn to_text(&self, _env: &mut Environment) -> Result<Text> {
-// 		// SAFETY: digits are valid in all encodings, and it'll never exceed the length.
-// 		Ok(unsafe { Text::new_unchecked(self) })
-// 	}
-// }
-
-// impl ToList for Integer {
-// 	/// Returns a list of all the digits of `self`, when `self` is expressed in base 10.
-// 	///
-// 	/// If `self` is negative, all the returned digits are negative.
-// 	fn to_list(&self, _: &mut Environment) -> Result<List> {
-// 		if *self == 0 {
-// 			return Ok(List::boxed(self.clone().into()));
-// 		}
-
-// 		let mut integer = self.0;
-// 		let mut digits = Vec::with_capacity(self.number_of_digits());
-
-// 		while integer != 0 {
-// 			digits.insert(0, Self(integer % 10).into());
-// 			integer /= 10;
-// 		}
-
-// 		// The maximum amount of digits for an Integer is vastly smaller than `i32::MAX`, so
-// 		// there's no need to do a check.
-// 		Ok(unsafe { List::new_unchecked(digits) })
-// 	}
-// }
-
-// impl FromStr for Integer {
-// 	type Err = <i64 as FromStr>::Err;
-
-// 	fn from_str(source: &str) -> std::result::Result<Self, Self::Err> {
-// 		let source = source.trim_start();
-
-// 		let mut chars = source.chars();
-// 		let mut start = match chars.next() {
-// 			None => return Ok(Self::default()),
-// 			Some('+' | '-') => chars.as_str(),
-// 			_ => source,
-// 		};
-
-// 		if let Some(bad) = start.find(|c: char| !c.is_ascii_digit()) {
-// 			start = &source[..bad + (start != source) as usize];
-// 		} else if start != source {
-// 			start = source;
-// 		}
-
-// 		i64::from_str(start).map(Self)
-// 	}
-// }
-
-// macro_rules! impl_integer_from {
-// 	($($smaller:ident)* ; $($larger:ident)*) => {
-// 		$(impl From<$smaller> for Integer {
-// 			#[inline]
-// 			fn from(num: $smaller) -> Self {
-// 				Self(i64::from(num as i32))
-// 			}
-// 		})*
-// 		$(impl TryFrom<$larger> for Integer {
-// 			type Error = Error;
-
-// 			#[inline]
-// 			fn try_from(num: $larger) -> Result<Self, Error> {
-// 				i64::try_from(num).ok().and_then(|x| i64::try_from(x).ok()).map(Self).ok_or(Error::Overflow)
-// 			}
-// 		})*
-// 	};
-// }
-
-// macro_rules! impl_from_integer {
-// 	($($smaller:ident)* ; $($larger:ident)*) => {
-// 		$(impl From<Integer> for $larger {
-// 			fn from(int: Integer) -> Self {
-// 				int.0 as _
-// 			}
-// 		})*
-// 		$(impl TryFrom<Integer> for $smaller {
-// 			type Error = Error;
-
-// 			fn try_from(int: Integer) -> Result<Self, Error> {
-// 				int.0.try_into().or(Err(Error::Overflow))
-// 			}
-// 		})*
-// 	};
-// }
-
-// impl_integer_from!(bool u8 u16 i8 i16 i32 ; u32 u64 u128 usize i64 i128 isize );
-// impl_from_integer!(u8 u16 u32 u64 u128 usize i8 i16 i32 isize; i64 i128);
-
-// impl TryFrom<char> for Integer {
-// 	type Error = Error;
-
-// 	fn try_from(chr: char) -> Result<Self, Error> {
-// 		(chr as u32).try_into()
-// 	}
-// }
-
-// impl TryFrom<Integer> for char {
-// 	type Error = Error;
-
-// 	fn try_from(int: Integer) -> Result<Self, Error> {
-// 		char::from_u32(u32::try_from(int)?).ok_or(Error::DomainError("integer isn't a char"))
-// 	}
-// }

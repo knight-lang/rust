@@ -190,10 +190,12 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn parse_expression(&mut self) -> Result<(), ParseError> {
 		self.strip_whitespace_and_comments();
 
-		crate::value::Integer::parse(self)? && return Ok(());
-
-		if let Some(b) = <crate::value::Boolean as Parseable>::parse(self)? {
-			b.compile(self.compiler());
+		if let Some(x) = <crate::value::Integer as Parseable>::parse(self)? {
+			x.compile(self.compiler());
+			return Ok(());
+		}
+		if let Some(x) = <crate::value::Boolean as Parseable>::parse(self)? {
+			x.compile(self.compiler());
 			return Ok(());
 		}
 

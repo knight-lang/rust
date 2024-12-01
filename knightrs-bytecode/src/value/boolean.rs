@@ -69,18 +69,6 @@ impl ToKString for Boolean {
 	}
 }
 
-unsafe impl Parseable_OLD for Boolean {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
-		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
-			return Ok(false);
-		};
-
-		parser.strip_keyword_function();
-		parser.compiler().push_constant((chr == 'T').into());
-		Ok(true)
-	}
-}
-
 impl Parseable for Boolean {
 	type Output = Self;
 
