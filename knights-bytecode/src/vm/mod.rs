@@ -1,8 +1,10 @@
+mod error;
 mod opcode;
 pub mod parser;
 pub mod program;
 mod vm;
 
+pub use error::RuntimeError;
 pub use opcode::Opcode;
 pub use parser::{Parseable, Parser, SourceLocation};
 pub use program::{Builder, Program};
