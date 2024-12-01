@@ -154,6 +154,7 @@ impl NamedType for Value {
 
 impl Value {
 	pub fn dump(&self) {
+		// TODO: this is not actually how `dump` is specified
 		print!("{:?}", self)
 	}
 
