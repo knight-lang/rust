@@ -1,9 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::{
-	vm::{program::JumpIndex, Vm},
-	Environment, Error, Result,
-};
+use crate::{program::JumpIndex, vm::Vm, Environment, Error, Result};
 
 pub mod block;
 pub mod boolean;

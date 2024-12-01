@@ -11,7 +11,7 @@ use crate::{
 	Environment,
 };
 
-use crate::vm::program::{DeferredJump, JumpIndex};
+use crate::program::{DeferredJump, JumpIndex};
 use crate::vm::{Builder, ParseError, Program};
 
 #[derive(Debug, Clone, Default)] // DELETEME: default, just for testing stackframes

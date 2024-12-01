@@ -15,6 +15,7 @@ pub mod env;
 pub mod error;
 pub mod options;
 pub mod parser;
+pub mod program;
 pub mod strings;
 pub mod value;
 pub mod vm;

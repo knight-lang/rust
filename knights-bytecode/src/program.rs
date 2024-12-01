@@ -1,6 +1,6 @@
-use super::{Opcode, ParseErrorKind, SourceLocation};
 use crate::options::Options;
 use crate::value::KString;
+use crate::vm::{Opcode, ParseErrorKind, SourceLocation};
 use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};

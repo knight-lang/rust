@@ -1,13 +1,14 @@
 mod error;
 mod opcode;
-pub mod program;
 mod vm;
 
 #[deprecated]
 pub use crate::parser::{Parseable, Parser, SourceLocation};
 pub use error::RuntimeError;
 pub use opcode::Opcode;
-pub use program::{Builder, Program};
+
+#[deprecated]
+pub use crate::program::{Builder, Program};
 pub use vm::*;
 
 #[cfg(feature = "compliance")]
