@@ -1,6 +1,6 @@
 mod compiler;
 
-pub use compiler::Compiler;
+pub use compiler::{Compilable, Compiler};
 
 use crate::options::Options;
 use crate::value::KString;

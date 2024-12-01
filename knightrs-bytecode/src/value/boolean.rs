@@ -1,3 +1,5 @@
+use crate::parser::Parseable;
+use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
 use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
@@ -76,5 +78,24 @@ unsafe impl Parseable_OLD for Boolean {
 		parser.strip_keyword_function();
 		parser.compiler().push_constant((chr == 'T').into());
 		Ok(true)
+	}
+}
+
+impl Parseable for Boolean {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
+			return Ok(None);
+		};
+
+		parser.strip_keyword_function();
+		Ok(Some(chr == 'T'))
+	}
+}
+
+unsafe impl Compilable for Boolean {
+	fn compile(self, compiler: &mut Compiler) {
+		compiler.push_constant(self.into());
 	}
 }

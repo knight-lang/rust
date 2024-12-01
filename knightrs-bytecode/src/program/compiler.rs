@@ -7,6 +7,12 @@ use crate::vm::{Opcode, ParseErrorKind};
 
 use std::collections::HashMap;
 
+// safety: cannot do invalid things with the builder.
+pub unsafe trait Compilable {
+	// no errors returned because compiling should never fail, that's parsing
+	fn compile(self, compiler: &mut Compiler);
+}
+
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
 #[derive(Default)]
 pub struct Compiler {

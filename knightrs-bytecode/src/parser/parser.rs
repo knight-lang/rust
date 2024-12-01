@@ -16,6 +16,8 @@ use crate::program::{Compiler, DeferredJump, JumpIndex};
 use crate::vm::{ParseError, Program};
 
 // safety: cannot do invalid things with the builder.
+#[allow(non_camel_case_types)]
+#[deprecated]
 pub unsafe trait Parseable_OLD {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError>;
 }
