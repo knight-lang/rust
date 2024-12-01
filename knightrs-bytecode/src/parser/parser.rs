@@ -2,6 +2,7 @@ mod function;
 mod parens;
 mod variable;
 
+use crate::program::Compilable;
 use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use crate::{
 	Environment,
 };
 
-use crate::parser::SourceLocation;
+use crate::parser::{Parseable, SourceLocation};
 use crate::program::{Compiler, DeferredJump, JumpIndex};
 use crate::vm::{ParseError, Program};
 
@@ -190,7 +191,12 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 		self.strip_whitespace_and_comments();
 
 		crate::value::Integer::parse(self)? && return Ok(());
-		crate::value::Boolean::parse(self)? && return Ok(());
+
+		if let Some(b) = <crate::value::Boolean as Parseable>::parse(self)? {
+			b.compile(self.compiler());
+			return Ok(());
+		}
+
 		crate::value::KString::parse(self)? && return Ok(());
 		crate::value::Null::parse(self)? && return Ok(());
 		crate::value::List::parse(self)? && return Ok(());
