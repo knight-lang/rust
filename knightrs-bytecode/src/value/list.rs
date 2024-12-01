@@ -1,13 +1,9 @@
-use crate::parser::Parseable;
-use crate::program::Compilable;
-use crate::program::Compiler;
-use std::slice::Iter;
-
-use crate::options::Options;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
-use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
-use crate::{Environment, Error};
+use crate::{Environment, Error, Options};
+use std::slice::Iter;
 
 // todo: optimize
 #[derive(Clone, Debug, PartialEq)] // TODO: DEBUG

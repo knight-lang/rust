@@ -1,14 +1,10 @@
-use crate::parser::Parseable;
-use crate::program::Compilable;
-use crate::program::Compiler;
-use crate::Environment;
-use std::borrow::Borrow;
-
 use crate::container::RefCount;
-use crate::options::Options;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::program::{Compilable, Compiler};
 use crate::strings::{StringError, StringSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
+use crate::{Environment, Options};
+use std::borrow::Borrow;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);

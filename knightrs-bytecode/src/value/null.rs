@@ -1,12 +1,9 @@
-use crate::options::Options;
-use crate::parser::Parseable;
-use crate::program::Compilable;
-use crate::program::Compiler;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::program::{Compilable, Compiler};
 use crate::value::{
 	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
 };
-use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
-use crate::Environment;
+use crate::{Environment, Options};
 use std::fmt::{self, Debug, Formatter};
 
 /// Represents the `NULL` value within Knight.

@@ -1,10 +1,8 @@
-use crate::options::Options;
-use crate::parser::Parseable;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
-use crate::Environment;
+use crate::{Environment, Options};
 
 /// The boolean type within Knight.
 pub type Boolean = bool;

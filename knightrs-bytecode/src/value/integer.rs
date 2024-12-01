@@ -1,9 +1,7 @@
-use crate::parser::Parseable;
-use crate::program::Compilable;
-use crate::program::Compiler;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::program::{Compilable, Compiler};
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
-use crate::{options::Options, Environment};
+use crate::{Environment, Options};
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

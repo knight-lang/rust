@@ -22,4 +22,5 @@ pub mod value;
 pub mod vm;
 pub use env::Environment;
 pub use error::{Error, Result};
+pub use options::Options;
 pub use value::Value;
