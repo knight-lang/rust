@@ -110,16 +110,16 @@ fn parse_block(
 	// TODO: improve blocks later on by not having to jump over their definitions always.
 	let jump_after = parser.builder().defer_jump(JumpWhen::Always);
 
-	let block_start = parser.builder().jump_index();
+	let jump_index = parser.builder().jump_index();
 	parse_argument(parser, &start, 'B', 1)?;
 	unsafe {
 		parser.builder().opcode_without_offset(Opcode::Return);
 		jump_after.jump_to_current(parser.builder());
 	}
 
-	parser.builder().push_constant(crate::value::Block::new(block_start).into());
+	parser.builder().push_constant(crate::value::Block::new(jump_index).into());
 
-	parser.builder().record_function(start, block_start, name);
+	parser.builder().record_block(start, jump_index, name);
 	Ok(())
 }
 

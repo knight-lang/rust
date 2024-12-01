@@ -6,27 +6,54 @@ use crate::options::Options;
 use crate::value::KString;
 use crate::vm::{Opcode, ParseErrorKind, SourceLocation};
 use crate::{strings::StringSlice, Value};
-use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 
+// todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
+type InstructionAndOffset = u64;
+
+/// A Program represents an executable Knight program.
+///
+/// After being parsed, Knight programs become [`Program`]s, which can then be run by
+/// [`Vm`](crate::VM)s later on.
 pub struct Program {
-	code: Box<[u64]>, // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
+	// The code for the program. The bottom-most byte is the opcode, and when that's shifted away,
+	// the remainder is the offset.
+	code: Box<[InstructionAndOffset]>,
+
+	// All the constants that've been seen in the program. Used by [`Opcode::PushConstant`].
 	constants: Box<[Value]>,
+
+	// The amount of variables in the program. Note that when `debug_assertions` are enabled,
+	// `variable_names` also exists (as it's used for Debug formatting)
 	num_variables: usize,
 
-	#[cfg(feature = "knight-debugging")]
-	source_lines: HashMap<usize, SourceLocation>,
+	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
+	// the index into `code`) to a source location. Only the first bytecode from each line is added
+	// (to improve efficiency), so when looking up in `source_lines`, if a value doesn't exist you
+	// need to iterate backwards until you find one.
+	#[cfg(feature = "stacktrace")]
+	source_lines: std::collections::HashMap<usize, SourceLocation>,
 
-	#[cfg(feature = "knight-debugging")]
-	functions: HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
+	// Only enabled when stacktrace printing is enabled, this is a mapping of jump indices (which
+	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
+	// the location where the block was declared.
+	#[cfg(feature = "stacktrace")]
+	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
+	block_locations: std::collections::HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
 
+	// The list of variable names. Only enabled when `debug_assertions` are on, as it's used within
+	// the `Debug` implementation of `Program`.
 	#[cfg(debug_assertions)]
-	variable_names: Vec<Box<StringSlice>>, // since it's only needed for debugging knightrs itself
+	variable_names: Vec<Box<StringSlice>>,
 }
 
 impl Debug for Program {
+	/// Write the debug output for `Program`.
+	///
+	/// This also decodes the bytecode contained within the [`Program`], to make it easy understand
+	/// what's happening.
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		struct Bytecode<'a>(&'a [u64]);
+		struct Bytecode<'a>(&'a [InstructionAndOffset]);
 		impl Debug for Bytecode<'_> {
 			fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 				if !f.alternate() {
@@ -90,9 +117,9 @@ impl Program {
 	#[cfg(feature = "knight-debugging")]
 	pub fn function_name(
 		&self,
-		index: JumpIndex,
+		block: crate::value::Block,
 	) -> Option<(Option<&StringSlice>, &SourceLocation)> {
-		self.functions.get(&index).map(|(idx, loc)| (idx.as_deref(), loc))
+		self.block_locations.get(&block.inner()).map(|(idx, loc)| (idx.as_deref(), loc))
 	}
 }
 

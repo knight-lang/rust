@@ -2,7 +2,7 @@ use crate::program::JumpIndex;
 
 use super::NamedType;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Block(JumpIndex);
 
 impl NamedType for Block {
