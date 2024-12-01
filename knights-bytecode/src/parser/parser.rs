@@ -11,31 +11,9 @@ use crate::{
 	Environment,
 };
 
+use crate::parser::SourceLocation;
 use crate::program::{DeferredJump, JumpIndex};
 use crate::vm::{Builder, ParseError, Program};
-
-#[derive(Debug, Clone, Default)] // DELETEME: default, just for testing stackframes
-pub struct SourceLocation {
-	filename: Option<RefCount<Path>>,
-	line: usize,
-}
-
-impl SourceLocation {
-	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
-	pub fn error(self, kind: ParseErrorKind) -> ParseError {
-		ParseError { whence: self, kind }
-	}
-}
-
-impl Display for SourceLocation {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		if let Some(ref filename) = self.filename {
-			write!(f, "{}:{}", filename.display(), self.line)
-		} else {
-			write!(f, "<expr>:{}", self.line)
-		}
-	}
-}
 
 // safety: cannot do invalid things with the builder.
 pub unsafe trait Parseable {
@@ -66,7 +44,7 @@ fn validate_source<'e>(
 	// 1 + because line numbering starts at 1
 	let lineno = 1 + source.as_bytes().iter().take(err.position).filter(|&&c| c == b'\n').count();
 
-	let whence = SourceLocation { filename: filename.clone(), line: lineno };
+	let whence = SourceLocation::new(filename.clone(), lineno);
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
@@ -165,7 +143,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 	// ick,
 	pub fn location(&self) -> SourceLocation {
-		SourceLocation { filename: self.filename.clone(), line: self.lineno }
+		SourceLocation::new(self.filename.clone(), self.lineno)
 	}
 
 	/// Removes the remainder of a keyword function.
