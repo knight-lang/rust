@@ -1,6 +1,3 @@
 [workspace]
-members = [
-	"knightrs",
-	"knightrs-wasm"
-, "knights-bytecode"]
+members = ["knightrs", "knightrs-wasm", "knightrs-bytecode"]
 resolver = "1" # TODO, wats this
