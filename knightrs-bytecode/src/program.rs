@@ -1,5 +1,6 @@
 mod compiler;
 
+use crate::parser::VariableName;
 pub use compiler::{Compilable, Compiler};
 
 use crate::options::Options;
@@ -39,12 +40,12 @@ pub struct Program {
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
-	block_locations: std::collections::HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
+	block_locations: std::collections::HashMap<JumpIndex, (Option<VariableName>, SourceLocation)>,
 
 	// The list of variable names. Only enabled when `debug_assertions` are on, as it's used within
 	// the `Debug` implementation of `Program`.
 	#[cfg(debug_assertions)]
-	variable_names: Vec<Box<StringSlice>>,
+	variable_names: Vec<VariableName>,
 }
 
 impl Debug for Program {
@@ -118,8 +119,8 @@ impl Program {
 	pub fn function_name(
 		&self,
 		block: crate::value::Block,
-	) -> Option<(Option<&StringSlice>, &SourceLocation)> {
-		self.block_locations.get(&block.inner()).map(|(idx, loc)| (idx.as_deref(), loc))
+	) -> Option<(Option<&VariableName>, &SourceLocation)> {
+		self.block_locations.get(&block.inner()).map(|&(ref a, ref b)| (a.as_ref(), b))
 	}
 }
 

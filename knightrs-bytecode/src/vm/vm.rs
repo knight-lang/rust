@@ -47,9 +47,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			Err(err) => {
 				let (fn_name, loc) =
 					self.program.function_name(block).expect("<todo: when block doesnt exist>");
-				let fn_name = fn_name.unwrap_or(StringSlice::new_unvalidated("<block>"));
-
-				Err(crate::Error::Todo(format!("{loc}:(in {fn_name}): {err}",)))
+				match fn_name {
+					Some(name) => Err(crate::Error::Todo(format!("{loc}:(in {name}): {err}"))),
+					None => Err(crate::Error::Todo(format!("{loc}:(in <a block>): {err}"))),
+				}
 			}
 		}
 	}

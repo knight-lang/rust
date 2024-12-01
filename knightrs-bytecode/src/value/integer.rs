@@ -251,8 +251,9 @@ impl Parseable for Integer {
 }
 
 unsafe impl Compilable for Integer {
-	fn compile(self, compiler: &mut Compiler) {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
 		compiler.push_constant(self.into());
+		Ok(())
 	}
 }
 

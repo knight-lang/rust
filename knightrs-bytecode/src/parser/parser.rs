@@ -1,6 +1,6 @@
 mod function;
 mod parens;
-mod variable;
+// mod variable;
 
 use crate::program::Compilable;
 use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
@@ -15,6 +15,8 @@ use crate::{
 use crate::parser::{Parseable, SourceLocation};
 use crate::program::{Compiler, DeferredJump, JumpIndex};
 use crate::vm::{ParseError, Program};
+
+use super::VariableName;
 
 // safety: cannot do invalid things with the builder.
 #[allow(non_camel_case_types)]
@@ -190,19 +192,31 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn parse_expression(&mut self) -> Result<(), ParseError> {
 		self.strip_whitespace_and_comments();
 
-		if let Some(x) = <crate::value::Integer as Parseable>::parse(self)? {
-			x.compile(self.compiler());
+		if let Some(x) = crate::value::Integer::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}
-		if let Some(x) = <crate::value::Boolean as Parseable>::parse(self)? {
-			x.compile(self.compiler());
+		if let Some(x) = crate::value::Boolean::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
+			return Ok(());
+		}
+		if let Some(x) = crate::value::Null::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
+			return Ok(());
+		}
+		if let Some(x) = crate::value::List::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
+			return Ok(());
+		}
+		if let Some(x) = crate::value::KString::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
+			return Ok(());
+		}
+		if let Some(x) = VariableName::parse(self)? {
+			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}
 
-		crate::value::KString::parse(self)? && return Ok(());
-		crate::value::Null::parse(self)? && return Ok(());
-		crate::value::List::parse(self)? && return Ok(());
-		variable::Variable::parse(self)? && return Ok(());
 		function::Function::parse(self)? && return Ok(());
 		// todo: parens
 

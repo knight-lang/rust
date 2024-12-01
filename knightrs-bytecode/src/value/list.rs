@@ -1,3 +1,6 @@
+use crate::parser::Parseable;
+use crate::program::Compilable;
+use crate::program::Compiler;
 use std::slice::Iter;
 
 use crate::options::Options;
@@ -437,18 +440,28 @@ impl List {
 	}
 }
 
-unsafe impl Parseable_OLD for List {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+impl Parseable for List {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
+			// TODO: make sure that this doesn't actually strictly return a list, as that won't be
+			// compilable all the time (eg when `{DUMP 3}`)
 			todo!("list literals")
 		}
 
 		if parser.advance_if('@').is_none() {
-			return Ok(false);
+			return Ok(None);
 		}
 
-		parser.compiler().push_constant(Self::default().into());
-		Ok(true)
+		Ok(Some(Self::default()))
+	}
+}
+
+unsafe impl Compilable for List {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+		compiler.push_constant(self.into());
+		Ok(())
 	}
 }

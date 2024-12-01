@@ -1,3 +1,6 @@
+use crate::parser::Parseable;
+use crate::program::Compilable;
+use crate::program::Compiler;
 use crate::Environment;
 use std::borrow::Borrow;
 
@@ -123,18 +126,20 @@ impl KString {
 	}
 }
 
-unsafe impl Parseable_OLD for KString {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+impl Parseable for KString {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
 			todo!();
 		}
 
-		let start = parser.location();
-
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
-			return Ok(false);
+			return Ok(None);
 		};
+
+		let start = parser.location();
 
 		// empty stings are allowed to exist
 		let contents = parser.take_while(|c| c != quote).unwrap_or_default();
@@ -144,7 +149,13 @@ unsafe impl Parseable_OLD for KString {
 		}
 
 		let string = KString::new(contents, parser.opts()).map_err(|err| start.error(err.into()))?;
-		parser.compiler().push_constant(string.into());
-		Ok(true)
+		Ok(Some(string))
+	}
+}
+
+unsafe impl Compilable for KString {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+		compiler.push_constant(self.into());
+		Ok(())
 	}
 }

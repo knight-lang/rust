@@ -1,3 +1,5 @@
+use crate::parser::Parseable;
+use crate::parser::VariableName;
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
 use crate::value::KString;
@@ -64,30 +66,24 @@ fn parse_argument(
 fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
 	parser.strip_whitespace_and_comments();
 
-	match super::variable::Variable::parse_name(parser) {
+	match super::VariableName::parse(parser) {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
 			return Err(start.error(ParseErrorKind::MissingArgument('=', 1)));
 		}
 		Err(err) => return Err(err),
-		Ok(Some(name)) => {
+		Ok(Some((name, location))) => {
 			// try for a block, if so give it a name.
 			parser.strip_whitespace_and_comments();
 			if parser.peek().map_or(false, |c| c == 'B') {
 				parser.strip_keyword_function();
-				parse_block(
-					start,
-					parser,
-					Some(KString::new(name, parser.opts()).expect("<todo: this failure>")),
-				)?;
+				parse_block(start, parser, Some(name.clone()))?;
 			} else {
 				parse_argument(parser, &start, '=', 2)?;
 			}
 			// ew, cloning is not a good answer.
 			let opts = (*parser.opts()).clone();
-			// i dont like this new_unvalidated. TODO: fix it.
-			let name = StringSlice::new_unvalidated(name);
 			unsafe { parser.compiler().set_variable(name, &opts) }
-				.expect("<todo, the name should already have been checked. remove this.>");
+				.map_err(|err| location.error(err))?;
 		}
 		Ok(None) => {
 			#[cfg(feature = "extensions")]
@@ -105,7 +101,7 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 fn parse_block(
 	start: SourceLocation,
 	parser: &mut Parser<'_, '_>,
-	name: Option<KString>,
+	name: Option<VariableName>,
 ) -> Result<(), ParseError> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
 	let jump_after = parser.compiler().defer_jump(JumpWhen::Always);

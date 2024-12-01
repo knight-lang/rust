@@ -1,3 +1,7 @@
+use crate::options::Options;
+use crate::parser::Parseable;
+use crate::program::Compilable;
+use crate::program::Compiler;
 use crate::value::{
 	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
 };
@@ -58,14 +62,22 @@ impl ToKString for Null {
 	}
 }
 
-unsafe impl Parseable_OLD for Null {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+impl Parseable for Null {
+	type Output = Self;
+
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		if parser.advance_if('N').is_none() {
-			return Ok(false);
+			return Ok(None);
 		}
 
 		parser.strip_keyword_function();
-		parser.compiler().push_constant(Null.into());
-		Ok(true)
+		Ok(Some(Self))
+	}
+}
+
+unsafe impl Compilable for Null {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+		compiler.push_constant(self.into());
+		Ok(())
 	}
 }

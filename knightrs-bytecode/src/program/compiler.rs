@@ -1,6 +1,6 @@
 use super::{DeferredJump, InstructionAndOffset, JumpIndex, JumpWhen, Program};
 use crate::options::Options;
-use crate::parser::SourceLocation;
+use crate::parser::{ParseError, SourceLocation, VariableName};
 use crate::strings::StringSlice;
 use crate::value::{KString, Value};
 use crate::vm::{Opcode, ParseErrorKind};
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 // safety: cannot do invalid things with the builder.
 pub unsafe trait Compilable {
 	// no errors returned because compiling should never fail, that's parsing
-	fn compile(self, compiler: &mut Compiler);
+	fn compile(self, compiler: &mut Compiler, opts: &Options) -> Result<(), ParseError>;
 }
 
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
@@ -26,7 +26,7 @@ pub struct Compiler {
 	// The list of all variables encountered so far. (They're stored in an ordered set, as their
 	// index is the "offset" that all `Opcodes` that interact with variables (eg [`Opcode::GetVar`])
 	// will use.)
-	variables: indexmap::IndexSet<Box<StringSlice>>,
+	variables: indexmap::IndexSet<VariableName>,
 
 	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
 	// the index into `code`) to a source location; Only the first bytecode from each line is added,
@@ -38,7 +38,7 @@ pub struct Compiler {
 	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
-	block_locations: HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
+	block_locations: HashMap<JumpIndex, (Option<VariableName>, SourceLocation)>,
 }
 
 fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndOffset {
@@ -96,7 +96,12 @@ impl Compiler {
 	/// Indicates that at the offset `whence`, a block named `name` with the source location `loc`
 	/// exists. Used for stacktraces.
 	#[cfg(feature = "stacktrace")]
-	pub fn record_block(&mut self, loc: SourceLocation, whence: JumpIndex, name: Option<KString>) {
+	pub fn record_block(
+		&mut self,
+		loc: SourceLocation,
+		whence: JumpIndex,
+		name: Option<VariableName>,
+	) {
 		self.block_locations.insert(whence, (name, loc));
 	}
 
@@ -156,18 +161,11 @@ impl Compiler {
 
 	fn variable_index(
 		&mut self,
-		name: &StringSlice,
+		name: VariableName,
 		opts: &Options,
 	) -> Result<usize, ParseErrorKind> {
-		#[cfg(feature = "compliance")]
-		if opts.compliance.variable_name_length
-			&& name.len() > crate::parser::VariableName::MAX_NAME_LEN
-		{
-			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
-		}
-
 		// TODO: check for name size (also in `set`)
-		match self.variables.get_index_of(name) {
+		match self.variables.get_index_of(&name) {
 			Some(index) => Ok(index),
 			None => {
 				let i = self.variables.len();
@@ -177,8 +175,7 @@ impl Compiler {
 					return Err(ParseErrorKind::TooManyVariables);
 				}
 
-				// TODO: check `name` variable len
-				self.variables.insert(name.into_boxed());
+				self.variables.insert(name);
 				Ok(i)
 			}
 		}
@@ -186,7 +183,7 @@ impl Compiler {
 
 	pub fn get_variable(
 		&mut self,
-		name: &StringSlice,
+		name: VariableName,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
@@ -201,7 +198,7 @@ impl Compiler {
 	// SAFETY: when called, a value has to be on the stack
 	pub unsafe fn set_variable(
 		&mut self,
-		name: &StringSlice,
+		name: VariableName,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
@@ -214,9 +211,10 @@ impl Compiler {
 	}
 
 	// SAFETY: when called, a value has to be on the stack
+	#[deprecated(note = "not actually used yet, could be an optimization")]
 	pub unsafe fn set_variable_pop(
 		&mut self,
-		name: &StringSlice,
+		name: VariableName,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;

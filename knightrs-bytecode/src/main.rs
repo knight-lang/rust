@@ -15,7 +15,6 @@ fn main() {
 		Some(Path::new("main")),
 		r#"
 
-D 12a
 ; = numer 1
 ; = divide BLOCK
 	/ numer denom

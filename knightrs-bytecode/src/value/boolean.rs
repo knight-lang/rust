@@ -1,3 +1,4 @@
+use crate::options::Options;
 use crate::parser::Parseable;
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
@@ -83,7 +84,8 @@ impl Parseable for Boolean {
 }
 
 unsafe impl Compilable for Boolean {
-	fn compile(self, compiler: &mut Compiler) {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
 		compiler.push_constant(self.into());
+		Ok(())
 	}
 }
