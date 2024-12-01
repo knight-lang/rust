@@ -12,8 +12,8 @@ fn main() {
 		&mut env,
 		None,
 		r#"
-; = a 3
-; = f BLOCK + 1 a
+; = f BLOCK / 1 a
+; = a 0
 : OUTPUT CALL f
 # Fizzbuzz in Knight
 
@@ -37,7 +37,10 @@ fn main() {
 	.unwrap();
 
 	let program = parser.parse_program().map_err(|err| panic!("{}", err)).unwrap();
-	Vm::new(&program, &mut env).run().map_err(|err| panic!("{}", err));
+	match Vm::new(&program, &mut env).run() {
+		Ok(_) => {}
+		Err(err) => eprintln!("error: {err}"),
+	}
 }
 
 #[cfg(any())]

@@ -103,6 +103,8 @@ fn parse_block(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(),
 	}
 
 	parser.builder().push_constant(crate::value::Block::new(block_start).into());
+
+	parser.builder().record_function(start, block_start);
 	Ok(())
 }
 

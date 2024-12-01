@@ -1,5 +1,6 @@
 use super::{Opcode, ParseErrorKind, SourceLocation};
 use crate::options::Options;
+use crate::value::KString;
 use crate::{strings::StringSlice, Value};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
@@ -11,6 +12,9 @@ pub struct Program {
 
 	#[cfg(feature = "knight-debugging")]
 	source_lines: HashMap<usize, SourceLocation>,
+
+	#[cfg(feature = "knight-debugging")]
+	functions: HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
 
 	#[cfg(debug_assertions)]
 	variable_names: Vec<Box<StringSlice>>, // since it's only needed for debugging knightrs itself
@@ -73,6 +77,19 @@ impl Program {
 	pub fn num_variables(&self) -> usize {
 		self.num_variables
 	}
+
+	#[cfg(feature = "knight-debugging")]
+	pub fn source_location_at(offset: usize) -> SourceLocation {
+		Default::default()
+	}
+
+	#[cfg(feature = "knight-debugging")]
+	pub fn function_name(
+		&self,
+		index: JumpIndex,
+	) -> Option<(Option<&StringSlice>, &SourceLocation)> {
+		self.functions.get(&index).map(|(idx, loc)| (idx.as_deref(), loc))
+	}
 }
 
 #[derive(Default)]
@@ -83,9 +100,12 @@ pub struct Builder {
 
 	#[cfg(feature = "knight-debugging")]
 	source_lines: HashMap<usize, SourceLocation>,
+
+	#[cfg(feature = "knight-debugging")]
+	functions: HashMap<JumpIndex, (Option<KString>, SourceLocation)>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct JumpIndex(pub(super) usize);
 
 #[derive(Debug, PartialEq, Eq)]
@@ -136,6 +156,9 @@ impl Builder {
 			#[cfg(feature = "knight-debugging")]
 			source_lines: self.source_lines,
 
+			#[cfg(feature = "knight-debugging")]
+			functions: self.functions,
+
 			#[cfg(debug_assertions)]
 			variable_names: {
 				// todo: ordered hash map lol;
@@ -159,6 +182,11 @@ impl Builder {
 	#[cfg(feature = "knight-debugging")]
 	pub fn record_source_location(&mut self, loc: SourceLocation) {
 		self.source_lines.insert(self.code.len(), loc);
+	}
+
+	#[cfg(feature = "knight-debugging")]
+	pub fn record_function(&mut self, loc: SourceLocation, whence: JumpIndex) {
+		self.functions.insert(whence, (None, loc));
 	}
 
 	// safety, index has to be from this program

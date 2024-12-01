@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, Program};
+use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
 
@@ -11,6 +12,8 @@ pub struct Vm<'prog, 'env> {
 	current_index: usize,
 	stack: Vec<Value>,
 	vars: Box<[Value]>,
+	#[cfg(feature = "knight-debugging")]
+	call_stack: Vec<Block>,
 }
 
 impl<'prog, 'env> Vm<'prog, 'env> {
@@ -21,6 +24,8 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			current_index: 0,
 			stack: Vec::new(),
 			vars: vec![Value::Null; program.num_variables()].into(),
+			#[cfg(feature = "knight-debugging")]
+			call_stack: Vec::new(),
 		}
 	}
 
@@ -32,7 +37,21 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		let result = self.run();
 		debug_assert_eq!(stack_len, self.stack.len());
 		self.current_index = index;
-		result
+
+		#[cfg(not(feature = "knight-debugging"))]
+		return result;
+
+		#[cfg(feature = "knight-debugging")]
+		match result {
+			Ok(ok) => Ok(ok),
+			Err(err) => {
+				let (fn_name, loc) =
+					self.program.function_name(block.inner()).expect("<todo: when block doesnt exist>");
+				let fn_name = fn_name.unwrap_or(StringSlice::new_unvalidated("<block>"));
+
+				Err(crate::Error::Todo(format!("{loc}:{fn_name}: {err}",)))
+			}
+		}
 	}
 
 	pub fn run(&mut self) -> crate::Result<Value> {

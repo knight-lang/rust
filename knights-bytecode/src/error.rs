@@ -1,8 +1,8 @@
 // TODO: make this just runtime error and parse error?
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("todo")]
-	Todo,
+	#[error("{0}")]
+	Todo(String),
 
 	#[error("{0}")]
 	StringError(#[from] crate::strings::StringError),

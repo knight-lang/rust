@@ -14,7 +14,7 @@ use crate::{
 use super::program::{DeferredJump, JumpIndex};
 use super::{Builder, ParseError, Program};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)] // DELETEME: default, just for testing stackframes
 pub struct SourceLocation {
 	filename: Option<RefCount<Path>>,
 	line: usize,
