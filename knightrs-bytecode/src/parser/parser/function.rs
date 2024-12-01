@@ -1,7 +1,7 @@
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
 use crate::value::KString;
-use crate::vm::{Opcode, ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{Opcode, ParseError, ParseErrorKind, Parseable_OLD, Parser};
 
 use super::SourceLocation;
 
@@ -123,7 +123,7 @@ fn parse_block(
 	Ok(())
 }
 
-unsafe impl Parseable for Function {
+unsafe impl Parseable_OLD for Function {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
 		// support `X`s

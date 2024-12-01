@@ -1,6 +1,6 @@
 use crate::strings::StringSlice;
 use crate::value::KString;
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 
 pub struct Variable;
 
@@ -30,7 +30,7 @@ impl Variable {
 }
 
 // pub fn parse() {}
-unsafe impl Parseable for Variable {
+unsafe impl Parseable_OLD for Variable {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		let Some(name) = Self::parse_name(parser)? else {
 			return Ok(false);

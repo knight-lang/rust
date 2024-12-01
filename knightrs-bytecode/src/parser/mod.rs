@@ -8,9 +8,10 @@ pub use parser::*;
 pub use source_location::SourceLocation;
 pub use variable_name::VariableName;
 
-// // safety: cannot do invalid things with the builder.
-// pub trait Parseable {
-// 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError>;
+// pub trait Parseable_OLD {
+// 	type Output;
+
+// 	fn parse(parser: &mut Parser<'_, '_>) -> Result<Output, ParseError>;
 // }
 
 // // safety: cannot do invalid things with the builder.

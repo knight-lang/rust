@@ -3,7 +3,7 @@ mod opcode;
 mod vm;
 
 #[deprecated]
-pub use crate::parser::{Parseable, Parser, SourceLocation};
+pub use crate::parser::{Parseable_OLD, Parser, SourceLocation};
 pub use error::RuntimeError;
 pub use opcode::Opcode;
 

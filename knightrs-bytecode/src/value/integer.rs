@@ -1,5 +1,5 @@
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 use crate::{options::Options, Environment};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -230,7 +230,7 @@ impl Integer {
 	}
 }
 
-unsafe impl Parseable for Integer {
+unsafe impl Parseable_OLD for Integer {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(false);

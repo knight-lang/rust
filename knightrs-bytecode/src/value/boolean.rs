@@ -1,6 +1,6 @@
 use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 use crate::Environment;
 
 /// The boolean type within Knight.
@@ -67,7 +67,7 @@ impl ToKString for Boolean {
 	}
 }
 
-unsafe impl Parseable for Boolean {
+unsafe impl Parseable_OLD for Boolean {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(false);

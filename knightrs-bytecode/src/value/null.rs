@@ -1,7 +1,7 @@
 use crate::value::{
 	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
 };
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 use crate::Environment;
 use std::fmt::{self, Debug, Formatter};
 
@@ -58,7 +58,7 @@ impl ToKString for Null {
 	}
 }
 
-unsafe impl Parseable for Null {
+unsafe impl Parseable_OLD for Null {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		if parser.advance_if('N').is_none() {
 			return Ok(false);

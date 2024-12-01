@@ -5,7 +5,7 @@ use crate::container::RefCount;
 use crate::options::Options;
 use crate::strings::{StringError, StringSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);
@@ -123,7 +123,7 @@ impl KString {
 	}
 }
 
-unsafe impl Parseable for KString {
+unsafe impl Parseable_OLD for KString {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {

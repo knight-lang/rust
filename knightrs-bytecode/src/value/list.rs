@@ -3,7 +3,7 @@ use std::slice::Iter;
 use crate::options::Options;
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
-use crate::vm::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::vm::{ParseError, ParseErrorKind, Parseable_OLD, Parser};
 use crate::{Environment, Error};
 
 // todo: optimize
@@ -437,7 +437,7 @@ impl List {
 	}
 }
 
-unsafe impl Parseable for List {
+unsafe impl Parseable_OLD for List {
 	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
