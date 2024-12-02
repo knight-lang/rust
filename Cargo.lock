@@ -138,18 +138,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "knightrs-wasm"
-version = "0.9.9"
-dependencies = [
- "getrandom",
- "knightrs",
- "serde",
- "serde-wasm-bindgen",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "knights-bytecode"
+name = "knightrs-bytecode"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
@@ -158,6 +147,17 @@ dependencies = [
  "safe-transmute",
  "static_assertions",
  "thiserror",
+]
+
+[[package]]
+name = "knightrs-wasm"
+version = "0.9.9"
+dependencies = [
+ "getrandom",
+ "knightrs",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
 ]
 
 [[package]]

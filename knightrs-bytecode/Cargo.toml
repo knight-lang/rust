@@ -1,8 +1,8 @@
 [package]
-name = "knights-bytecode"
+name = "knightrs-bytecode"
 version = "0.1.0"
 edition = "2021"
-default-run = "knights-bytecode"
+default-run = "knightrs-bytecode"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

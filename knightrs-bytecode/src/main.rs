@@ -2,48 +2,48 @@
 
 use std::path::Path;
 
-use knights_bytecode::env::Environment;
-use knights_bytecode::parser::*;
-use knights_bytecode::program::*;
-use knights_bytecode::strings::StringSlice;
-use knights_bytecode::value::*;
-use knights_bytecode::vm::*;
+use knightrs_bytecode::env::Environment;
+use knightrs_bytecode::parser::*;
+use knightrs_bytecode::program::*;
+use knightrs_bytecode::strings::StringSlice;
+use knightrs_bytecode::value::*;
+use knightrs_bytecode::vm::*;
 
 fn main() {
 	let mut env = Environment::default();
+	let program = std::env::args().skip(2).next().expect("missing -e expr");
 	let mut parser = Parser::new(
 		&mut env,
-		Some(Path::new("main")),
-		r#"
+		Some(Path::new("-e")),
+		&program,
+		// 		r#"
 
-; = (numer) 1
-; = divide BLOCK
-	/ numer denom
-; = call_divide BLOCK
-	CALL divide
-; = denom 0
-: OUTPUT CALL call_divide
+		// ; = (numer) 1
+		// ; = divide BLOCK
+		// 	/ numer denom
+		// ; = call_divide BLOCK
+		// 	CALL divide
+		// ; = denom 0
+		// : OUTPUT CALL call_divide
 
+		// # Fizzbuzz in Knight
 
+		// # Initialize variables.
+		// ; = maximum 100
+		// ; = i 0
 
-# Fizzbuzz in Knight
+		// # Repeat the body while `i < maximum`.
+		// : WHILE < i maximum
+		// 	# Increment `i`
+		// 	; = i + i 1
 
-# Initialize variables.
-; = maximum 100
-; = i 0
-
-# Repeat the body while `i < maximum`.
-: WHILE < i maximum
-	# Increment `i`
-	; = i + i 1
-
-	# Use the fact that `IF` is an expression, not a statement like in some
-	# languages (eg python, javascript, etc).
-	: OUTPUT
-		: IF ! % i 15 "FizzBuzz"
-		: IF ! % i 5  "Fizz"
-		: IF ! % i 3  "Buzz" i
-"#,
+		// 	# Use the fact that `IF` is an expression, not a statement like in some
+		// 	# languages (eg python, javascript, etc).
+		// 	: OUTPUT
+		// 		: IF ! % i 15 "FizzBuzz"
+		// 		: IF ! % i 5  "Fizz"
+		// 		: IF ! % i 3  "Buzz" i
+		// "#,
 	)
 	.unwrap();
 
