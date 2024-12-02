@@ -93,12 +93,17 @@ impl ToKString for KString {
 impl ToInteger for KString {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
 		todo!()
+		// Ok(self.parse().unwrap_or_default())
 	}
 }
 
 impl ToList for KString {
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
-		todo!()
+		let chars =
+			self.chars().map(|c| Self::new_unvalidated(&c.to_string()).into()).collect::<Vec<_>>();
+
+		// VALIDATION: If `self` is within the container bounds, so is the length of its chars.
+		Ok(List::new_unvalidated(chars))
 	}
 }
 

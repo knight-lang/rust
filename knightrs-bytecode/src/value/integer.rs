@@ -282,10 +282,29 @@ impl ToKString for Integer {
 }
 
 impl ToList for Integer {
-	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		// Ok(*self != Self::ZERO)
-		todo!()
+	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
+		#[cfg(feature = "compliance")]
+		if env.opts().compliance.disallow_negative_int_to_list {
+			if *self < Self::ZERO {
+				return Err(crate::Error::Todo("negative integer for to list encountered".into()));
+			}
+		}
+
+		if *self == Self::ZERO {
+			return Ok(List::boxed((*self).into()));
+		}
+
+		let mut integer = self.0;
+		let mut digits = Vec::with_capacity(self.number_of_digits());
+
+		while integer != 0 {
+			digits.insert(0, Self(integer % 10).into());
+			integer /= 10;
+		}
+
+		// The maximum amount of digits for an Integer is vastly smaller than `i32::MAX`, so
+		// there's no need to do a check.
+		Ok(List::new_unvalidated(digits))
 	}
 }

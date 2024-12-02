@@ -44,6 +44,7 @@ pub struct Compliance {
 	pub limit_rand_range: bool,
 	pub cant_dump_blocks: bool,
 	pub check_quit_status_codes: bool,
+	pub disallow_negative_int_to_list: bool,
 }
 
 cfg_if! {

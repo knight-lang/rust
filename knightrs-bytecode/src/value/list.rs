@@ -6,7 +6,7 @@ use crate::{Environment, Error, Options};
 use std::slice::Iter;
 
 // todo: optimize
-#[derive(Clone, Debug, PartialEq)] // TODO: DEBUG
+#[derive(Debug, Clone, PartialEq)] // TODO: DEBUG
 pub struct List(Option<Box<[Value]>>);
 
 pub trait ToList {
@@ -110,12 +110,12 @@ impl List {
 	/// Returns whether `self` is empty.
 	#[inline]
 	pub fn is_empty(&self) -> bool {
-		todo!()
+		self.0.is_none()
 	}
 
 	/// Gets the length of `self`.
 	pub fn len(&self) -> usize {
-		todo!()
+		self.0.as_ref().map_or(0, |c| c.len())
 	}
 
 	/// Returns the first element in `self`.
@@ -158,14 +158,14 @@ impl List {
 	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
 	/// returned.
 	pub fn concat(&self, rhs: &Self, opts: &Options) -> crate::Result<Self> {
-		todo!()
-		// if self.is_empty() {
-		// 	return Ok(rhs.clone());
-		// }
+		if self.is_empty() {
+			return Ok(rhs.clone());
+		}
 
-		// if rhs.is_empty() {
-		// 	return Ok(self.clone());
-		// }
+		if rhs.is_empty() {
+			return Ok(self.clone());
+		}
+		todo!()
 
 		// #[cfg(feature = "compliance")]
 		// if flags.compliance.check_container_length && Self::MAX_LEN < self.len() + rhs.len() {
