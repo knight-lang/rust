@@ -50,11 +50,8 @@ impl KString {
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn new(
-		source: impl AsRef<str>,
-		opts: &Options,
-	) -> Result<Self, crate::strings::StringError> {
-		StringSlice::new(source, opts).map(Self::from_slice)
+	pub fn new(source: String, opts: &Options) -> Result<Self, crate::strings::StringError> {
+		StringSlice::new(&source, opts).map(Self::from_slice)
 	}
 }
 
@@ -118,7 +115,8 @@ impl KString {
 			return Ok(self.clone());
 		}
 
-		Self::new(self.as_str().to_owned() + rhs.as_str(), opts)
+		let str = self.as_str().to_owned() + rhs.as_str();
+		Self::new(str, opts)
 	}
 
 	pub fn remove_substr(&self, substr: &StringSlice) -> Self {
@@ -149,7 +147,8 @@ impl Parseable for KString {
 			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
 		}
 
-		let string = KString::new(contents, parser.opts()).map_err(|err| start.error(err.into()))?;
+		let string = KString::new(contents.to_string(), parser.opts())
+			.map_err(|err| start.error(err.into()))?;
 		Ok(Some(string))
 	}
 }

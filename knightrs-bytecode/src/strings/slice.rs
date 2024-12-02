@@ -68,9 +68,8 @@ impl StringSlice {
 	/// Creates a new [`StringSlice`] for the given options. Note that unless the `compliance`
 	/// feature is enabled, this function will never fail.
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
-	pub fn new<'a>(source: impl AsRef<str>, opts: &Options) -> Result<&'a Self, StringError> {
+	pub fn new<'a>(source: &str, opts: &Options) -> Result<&'a Self, StringError> {
 		// TODO: Combine with new_validate_length ?
-		let source = source.as_ref();
 
 		#[cfg(feature = "compliance")]
 		{
@@ -134,6 +133,7 @@ impl StringSlice {
 
 	/// Concatenates two strings together
 	pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<KString, StringError> {
+		panic!();
 		// let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
 
 		todo!()
