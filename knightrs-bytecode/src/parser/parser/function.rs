@@ -170,6 +170,10 @@ unsafe impl Parseable_OLD for Function {
 				} else {
 					JumpWhen::True
 				});
+				unsafe {
+					// delete the value we dont want
+					parser.compiler().opcode_without_offset(Opcode::Pop);
+				}
 				parse_argument(parser, &start, fn_name, 2)?;
 				unsafe {
 					end.jump_to_current(parser.compiler());
