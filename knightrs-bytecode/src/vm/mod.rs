@@ -2,6 +2,11 @@ mod error;
 mod opcode;
 mod vm;
 
+#[cfg(feature = "stacktrace")]
+mod stacktrace;
+#[cfg(feature = "stacktrace")]
+pub use stacktrace::Stacktrace;
+
 pub use error::RuntimeError;
 pub use opcode::Opcode;
 

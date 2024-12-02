@@ -15,12 +15,13 @@ fn main() {
 		&mut env,
 		Some(Path::new("main")),
 		r#"
-D [ "ABC"
 ; = (numer) 1
 ; = divide BLOCK
 	/ numer denom
+; = call_divide BLOCK
+	CALL divide
 ; = denom 0
-: OUTPUT CALL divide
+: OUTPUT CALL call_divide
 
 
 

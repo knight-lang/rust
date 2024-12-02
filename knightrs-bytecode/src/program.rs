@@ -119,8 +119,13 @@ impl Program {
 	pub fn function_name(
 		&self,
 		block: crate::value::Block,
-	) -> Option<(Option<&VariableName>, &SourceLocation)> {
-		self.block_locations.get(&block.inner()).map(|&(ref a, ref b)| (a.as_ref(), b))
+	) -> (Option<&VariableName>, &SourceLocation) {
+		let src = self
+			.block_locations
+			.get(&block.inner())
+			.expect("<bug: every block should have a source location>");
+
+		(src.0.as_ref(), &src.1)
 	}
 }
 

@@ -4,10 +4,10 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
 pub struct RuntimeError {
-	err: crate::Error,
+	pub(super) err: crate::Error,
 
 	#[cfg(feature = "stacktrace")]
-	stacktrace: Vec<(Option<KString>, SourceLocation)>,
+	pub(super) stacktrace: super::Stacktrace,
 }
 
 impl Display for RuntimeError {
@@ -15,13 +15,7 @@ impl Display for RuntimeError {
 		write!(f, "runtime error: {}", self.err)?;
 
 		#[cfg(feature = "stacktrace")]
-		for arg in &self.stacktrace {
-			if let Some(name) = arg.0.as_deref() {
-				write!(f, "\n\tin {} (function {})", arg.1, name)?;
-			} else {
-				write!(f, "\n\tin {}", arg.1)?;
-			}
-		}
+		write!(f, "{}", self.stacktrace)?;
 
 		Ok(())
 	}

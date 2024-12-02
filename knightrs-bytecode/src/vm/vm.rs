@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::mem::MaybeUninit;
 
-use super::{Opcode, Program};
+use super::{Opcode, Program, RuntimeError};
 use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
@@ -34,25 +34,43 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		let stack_len = self.stack.len();
 
 		self.current_index = block.inner().0;
+		self.call_stack.push(block);
 		let result = self.run();
 		debug_assert_eq!(stack_len, self.stack.len());
 		self.current_index = index;
+		let popped = self.call_stack.pop();
+		debug_assert_eq!(popped, Some(block));
 
-		#[cfg(not(feature = "stacktrace"))]
+		// #[cfg(not(feature = "stacktrace"))]
 		return result;
 
-		#[cfg(feature = "stacktrace")]
-		match result {
-			Ok(ok) => Ok(ok),
-			Err(err) => {
-				let (fn_name, loc) =
-					self.program.function_name(block).expect("<todo: when block doesnt exist>");
-				match fn_name {
-					Some(name) => Err(crate::Error::Todo(format!("{loc}:(in {name}): {err}"))),
-					None => Err(crate::Error::Todo(format!("{loc}:(in <a block>): {err}"))),
-				}
-			}
+		// #[cfg(feature = "stacktrace")]
+		// match result {
+		// 	Ok(ok) => Ok(ok),
+		// 	Err(err) => {
+		// 		let (fn_name, loc) = self.program.function_name(block);
+		// 		match fn_name {
+		// 			Some(name) => Err(crate::Error::Todo(format!("{loc}:(in {name}): {err}"))),
+		// 			None => Err(crate::Error::Todo(format!("{loc}:(in <a block>): {err}"))),
+		// 		}
+		// 	}
+		// }
+	}
+
+	pub fn error(&mut self, err: crate::Error) -> RuntimeError {
+		RuntimeError {
+			err,
+			#[cfg(feature = "stacktrace")]
+			stacktrace: self.stacktrace(),
 		}
+	}
+
+	#[cfg(feature = "stacktrace")]
+	pub fn stacktrace(&self) -> super::Stacktrace {
+		super::Stacktrace::new(self.call_stack.iter().map(|block| {
+			let (name, loc) = self.program.function_name(*block);
+			(name.cloned(), loc.clone())
+		}))
 	}
 
 	pub fn run(&mut self) -> crate::Result<Value> {
@@ -162,7 +180,12 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Add => self.stack.push(arg![0].kn_plus(arg![1], self.env)?),
 				Sub => self.stack.push(arg![0].kn_minus(arg![1], self.env)?),
 				Mul => self.stack.push(arg![0].kn_asterisk(arg![1], self.env)?),
-				Div => self.stack.push(arg![0].kn_slash(arg![1], self.env)?),
+				Div => {
+					let val = arg![0]
+						.kn_slash(arg![1], self.env)
+						.map_err(|err| crate::Error::Todo(self.error(err).to_string()))?;
+					self.stack.push(val);
+				}
 				Mod => self.stack.push(arg![0].kn_percent(arg![1], self.env)?),
 				Pow => self.stack.push(arg![0].kn_caret(arg![1], self.env)?),
 				Lth => self

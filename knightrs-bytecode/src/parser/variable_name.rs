@@ -34,7 +34,7 @@ impl Parseable for VariableName {
 		let start = parser.location();
 
 		let name = parser
-			.take_while(|c| c.is_lowercase() || c.is_digit(10))
+			.take_while(|c| c.is_lowercase() || c.is_digit(10) || c == '_')
 			.expect("we just checked for this");
 
 		// i dont like this new_unvalidated. TODO: fix it.
