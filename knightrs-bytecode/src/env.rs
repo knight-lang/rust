@@ -21,7 +21,30 @@ impl Environment {
 	}
 
 	pub fn prompt(&mut self) -> crate::Result<Option<KString>> {
-		todo!()
+		let mut line = String::new();
+		let amnt = std::io::stdin()
+			.read_line(&mut line)
+			.map_err(|err| crate::Error::IoError { func: "PROMPT", err })?;
+
+		if amnt == 0 {
+			return Ok(None);
+		}
+
+		if line.chars().last().map_or(false, |c| c == '\n') {
+			line.pop();
+		}
+
+		if cfg!(feature = "knight_2_0_1") {
+			while line.chars().last().map_or(false, |c| c == '\r') {
+				line.pop();
+			}
+		} else {
+			if line.chars().last().map_or(false, |c| c == '\r') {
+				line.pop();
+			}
+		}
+
+		Ok(Some(KString::new(line, &self.opts)?))
 	}
 
 	pub fn output(&mut self) -> impl io::Write {
