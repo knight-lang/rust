@@ -15,7 +15,8 @@ fn main() {
 		&mut env,
 		Some(Path::new("main")),
 		r#"
-; (= numer 1
+D [ "ABC"
+; = (numer) 1
 ; = divide BLOCK
 	/ numer denom
 ; = denom 0

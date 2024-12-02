@@ -18,12 +18,12 @@ multithreaded = []
 extensions = []
 compliance = []
 custom-types = ["extensions"]
-knight-debugging = []
 stacktrace = [] # TODO: remove knight-debugging
+convenience = ["stacktrace"] # Enables debugging infromation fro knight
 
 all-extensions = ["extensions", "custom-types"]
 iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
-default = ["extensions", "compliance", "knight-debugging", "stacktrace"] # knight-debugging should be default
+default = ["extensions", "compliance","convenience"] # convenience should be default

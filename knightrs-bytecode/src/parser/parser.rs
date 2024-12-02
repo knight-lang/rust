@@ -133,10 +133,24 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'expr str> {
 		let start = self.source;
 
+		#[cfg(feature = "convenience")]
+		let check_parens = self.opts().convenience.check_parens;
+
 		// TODO: when not in stacktrace mode, consider (, ), and : as whitespace
 		loop {
 			// strip all leading whitespace, if any.
-			self.take_while(|c| c.is_whitespace() || c == ':'); // TODO: THIS WON'T HANDLE `(:)` PROPERLY!
+			self.take_while(|c| {
+				if c.is_whitespace() {
+					return true;
+				}
+
+				#[cfg(feature = "convenience")]
+				if check_parens {
+					return false;
+				}
+
+				matches!(c, '(' | ')' | ':')
+			});
 
 			// If we're not at the start of a comment, break out
 			if self.advance_if('#').is_none() {
@@ -220,24 +234,9 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 		parens::parse_parens(self)? && return Ok(());
 		function::Function::parse(self)? && return Ok(());
-		// todo: parens
 
 		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;
-
-		match chr {
-			_ if chr == '#' || chr.is_whitespace() => unreachable!("<already handled>"),
-			'(' | ')' => todo!(),
-
-			_ => Err(self.error(ParseErrorKind::UnknownTokenStart(chr))),
-		}
-	}
-
-	fn parse_variable(&mut self) -> Result<(), ParseError> {
-		todo!() // todo: check for int overflow
-	}
-
-	fn parse_string(&mut self) -> Result<(), ParseError> {
-		todo!() // todo: check for int overflow
+		Err(self.error(ParseErrorKind::UnknownTokenStart(chr)))
 	}
 }
 

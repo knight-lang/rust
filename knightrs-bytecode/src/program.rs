@@ -109,12 +109,13 @@ impl Program {
 		self.num_variables
 	}
 
-	#[cfg(feature = "knight-debugging")]
+	#[cfg(feature = "stacktrace")]
 	pub fn source_location_at(offset: usize) -> SourceLocation {
+		// TODO
 		Default::default()
 	}
 
-	#[cfg(feature = "knight-debugging")]
+	#[cfg(feature = "stacktrace")]
 	pub fn function_name(
 		&self,
 		block: crate::value::Block,

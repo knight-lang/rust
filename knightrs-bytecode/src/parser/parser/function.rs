@@ -159,6 +159,13 @@ unsafe impl Parseable_OLD for Function {
 				parse_argument(parser, &start, fn_name, 1)?;
 				Ok(true)
 			}
+
+			// technically not needed, as it wont ever get here. same with the if
+			#[cfg(feature = "convenience")]
+			':' if parser.opts().convenience.check_parens => {
+				parse_argument(parser, &start, fn_name, 1)?;
+				return Ok(true);
+			}
 			'=' => parse_assignment(start, parser).and(Ok(true)),
 			'B' => parse_block(start, parser, None).and(Ok(true)),
 			'&' | '|' => {

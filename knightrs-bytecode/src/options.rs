@@ -9,6 +9,16 @@ pub struct Options {
 
 	#[cfg(feature = "extensions")]
 	pub extensions: Extensions,
+
+	#[cfg(feature = "convenience")]
+	pub convenience: Convenience,
+}
+
+#[derive(Default, Clone)]
+#[cfg(feature = "convenience")]
+pub struct Convenience {
+	pub stacktrace: bool,
+	pub check_parens: bool,
 }
 
 #[derive(Default, Clone)]

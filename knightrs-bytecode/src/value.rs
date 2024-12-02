@@ -206,6 +206,21 @@ impl Value {
 				Ok(Integer::new_unvalidated(list.len() as i64))
 			}
 
+			// pub fn length(&self, env: &mut Environment) -> Result<Self> {
+			// 	let _ = env;
+			// 	match self {
+			// 		Self::List(list) => Integer::try_from(list.len()).map(Self::from),
+			// 		Self::Text(text) => Integer::try_from(text.len()).map(Self::from),
+			// 		Self::Integer(int) => Ok(Integer::try_from(int.number_of_digits()).unwrap().into()),
+			// 		Self::Boolean(true) => Ok(Integer::ONE.into()),
+			// 		Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
+
+			// 		#[cfg(feature = "custom-types")]
+			// 		Self::Custom(custom) => Integer::try_from(custom.length(env)?).map(Self::from),
+
+			// 		other => Err(Error::TypeError(other.typename(), "LENGTH")),
+			// 	}
+			// }
 			// TODO: Knight 2.0.1 extensions?
 			other => Err(Error::TypeError { type_name: other.type_name(), function: "LENGTH" }),
 		}
@@ -388,5 +403,84 @@ impl Value {
 
 			other => Err(Error::TypeError { type_name: other.type_name(), function: "^" }),
 		}
+	}
+
+	/// Gets the first element of `self`.
+	///
+	/// # Extensions
+	/// If [integer extensions](crate::env::flags::Types::integer) are enabled, and `self` is an
+	/// integer, the most significant digit is returned
+	///
+	/// # Errors
+	/// If `self` is either a [`Text`] or a [`List`] and is empty, an [`Error::DomainError`] is
+	/// returned. If `self`
+	pub fn head(&self, env: &mut Environment) -> Result<Self> {
+		todo!()
+		// let _ = env;
+		// match self {
+		// 	Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
+		// 	Self::Text(text) => text
+		// 		.head()
+		// 		.ok_or(Error::DomainError("empty text"))
+		// 		.map(|chr| unsafe { KString::new_unchecked(chr) }.into()),
+
+		// 	#[cfg(feature = "extensions")]
+		// 	Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
+
+		// 	#[cfg(feature = "custom-types")]
+		// 	Self::Custom(custom) => custom.head(env),
+
+		// 	other => Err(Error::TypeError(other.typename(), "[")),
+		// }
+	}
+
+	pub fn tail(&self, env: &mut Environment) -> Result<Self> {
+		todo!()
+		// let _ = env;
+		// match self {
+		// 	Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
+		// 	Self::Text(text) => {
+		// 		text.tail().ok_or(Error::DomainError("empty text")).map(|x| KString::from(x).into())
+		// 	}
+
+		// 	#[cfg(feature = "extensions")]
+		// 	Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.tail().into()),
+
+		// 	#[cfg(feature = "custom-types")]
+		// 	Self::Custom(custom) => custom.tail(env),
+
+		// 	other => Err(Error::TypeError(other.typename(), "]")),
+		// }
+	}
+
+	pub fn ascii(&self, env: &mut Environment) -> Result<Self> {
+		todo!()
+		// let _ = env;
+		// match self {
+		// 	Self::Integer(integer) => Ok({
+		// 		let chr = integer.chr(env.flags())?;
+		// 		unsafe { Text::new_unchecked(chr) }.into()
+		// 	}),
+		// 	Self::Text(text) => Ok(text.ord()?.into()),
+
+		// 	#[cfg(feature = "custom-types")]
+		// 	Self::Custom(custom) => custom.ascii(env),
+
+		// 	other => Err(Error::TypeError(other.typename(), "ASCII")),
+		// }
+	}
+
+	pub fn get(&self, start: &Value, length: &Value, env: &mut Environment) -> Result<Self> {
+		todo!()
+	}
+
+	pub fn set(
+		&self,
+		start: &Value,
+		length: &Value,
+		repl: &Value,
+		env: &mut Environment,
+	) -> Result<Self> {
+		todo!()
 	}
 }

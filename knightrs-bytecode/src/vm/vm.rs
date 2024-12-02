@@ -12,7 +12,7 @@ pub struct Vm<'prog, 'env> {
 	current_index: usize,
 	stack: Vec<Value>,
 	vars: Box<[Value]>,
-	#[cfg(feature = "knight-debugging")]
+	#[cfg(feature = "stacktrace")]
 	call_stack: Vec<Block>,
 }
 
@@ -24,7 +24,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			current_index: 0,
 			stack: Vec::new(),
 			vars: vec![Value::Null; program.num_variables()].into(),
-			#[cfg(feature = "knight-debugging")]
+			#[cfg(feature = "stacktrace")]
 			call_stack: Vec::new(),
 		}
 	}
@@ -38,10 +38,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		debug_assert_eq!(stack_len, self.stack.len());
 		self.current_index = index;
 
-		#[cfg(not(feature = "knight-debugging"))]
+		#[cfg(not(feature = "stacktrace"))]
 		return result;
 
-		#[cfg(feature = "knight-debugging")]
+		#[cfg(feature = "stacktrace")]
 		match result {
 			Ok(ok) => Ok(ok),
 			Err(err) => {
@@ -125,8 +125,8 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				SetVarPop => self.vars[offset] = arg![0].clone(),
 
 				// Arity 0
-				Prompt => todo!(),
-				Random => todo!(),
+				Prompt => self.stack.push(self.env.prompt()?.map(Value::from).unwrap_or_default()),
+				Random => self.stack.push(self.env.random()?.into()),
 				Dup => self.stack.push(self.stack.last().unwrap().clone()),
 				Return => return Ok(self.stack.pop().unwrap()),
 
@@ -152,10 +152,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Length => self.stack.push(arg![0].length(self.env)?.into()),
 				Not => self.stack.push((!arg![0].to_boolean(self.env)?).into()),
 				Negate => self.stack.push(arg![0].negate(self.env)?.into()),
-				Ascii => todo!(),
+				Ascii => self.stack.push(arg![0].ascii(self.env)?),
 				Box => self.stack.push(List::boxed(arg![0].clone()).into()),
-				Head => todo!(),
-				Tail => todo!(),
+				Head => self.stack.push(arg![0].head(self.env)?),
+				Tail => self.stack.push(arg![0].tail(self.env)?),
 				Pop => { /* do nothing, the arity already popped */ }
 
 				// Arity 2
@@ -172,10 +172,10 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Eql => self.stack.push((arg![0].is_equal(arg![1], self.env)?).into()),
 
 				// Arity 3
-				Get => todo!(),
+				Get => self.stack.push(arg![0].get(arg![1], arg![2], self.env)?),
 
 				// Arity 4
-				Set => todo!(),
+				Set => self.stack.push(arg![0].set(arg![1], arg![2], arg![3], self.env)?),
 			}
 		}
 	}
