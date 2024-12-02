@@ -35,6 +35,14 @@ pub enum ParseErrorKind {
 	#[error("there were additional tokens in the source")]
 	TrailingTokens,
 
+	#[cfg(feature = "stacktrace")]
+	#[error("missing matching `)` for paren found at {0}")]
+	MissingClosingParen(SourceLocation),
+
+	#[cfg(feature = "stacktrace")]
+	#[error("unmatched `)` found")]
+	UnmatchedClosingParen,
+
 	// There was nothing to parse
 	#[error("there was nothing to parse.")]
 	EmptySource,

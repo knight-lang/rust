@@ -133,6 +133,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'expr str> {
 		let start = self.source;
 
+		// TODO: when not in stacktrace mode, consider (, ), and : as whitespace
 		loop {
 			// strip all leading whitespace, if any.
 			self.take_while(|c| c.is_whitespace() || c == ':'); // TODO: THIS WON'T HANDLE `(:)` PROPERLY!
@@ -217,6 +218,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 			return Ok(());
 		}
 
+		parens::parse_parens(self)? && return Ok(());
 		function::Function::parse(self)? && return Ok(());
 		// todo: parens
 

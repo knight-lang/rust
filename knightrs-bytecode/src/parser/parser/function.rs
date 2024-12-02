@@ -64,6 +64,7 @@ fn parse_argument(
 fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
 	parser.strip_whitespace_and_comments();
 
+	// TODO: handle `()` around variable name.
 	match super::VariableName::parse(parser) {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
 			return Err(start.error(ParseErrorKind::MissingArgument('=', 1)));
