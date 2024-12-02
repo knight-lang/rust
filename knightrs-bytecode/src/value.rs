@@ -153,33 +153,88 @@ impl NamedType for Value {
 }
 
 impl Value {
-	pub fn dump(&self) {
+	pub fn kn_dump(&self) {
 		// TODO: this is not actually how `dump` is specified
 		print!("{:?}", self)
 	}
 
-	pub fn compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
+	pub fn kn_compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
 		match self {
 			Self::Integer(int) => Ok(int.cmp(&rhs.to_integer(env)?)),
+
+			// pub fn compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
+			// 	match self {
+			// 		Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),
+			// 		Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean(env)?)),
+			// 		Value::Text(text) => Ok(text.cmp(&rhs.to_text(env)?)),
+			// 		Value::List(list) => {
+			// 			let rhs = rhs.to_list(env)?;
+
+			// 			for (left, right) in list.iter().zip(&rhs) {
+			// 				match left.compare(right, env)? {
+			// 					Ordering::Equal => {}
+			// 					other => return Ok(other),
+			// 				}
+			// 			}
+
+			// 			Ok(list.len().cmp(&rhs.len()))
+			// 		}
+
+			// 		#[cfg(feature = "custom-types")]
+			// 		Self::Custom(custom) => custom.compare(rhs, env),
+
+			// 		other => Err(Error::TypeError(other.typename(), "<cmp>")),
+			// 	}
+			// }
 			_ => todo!(),
 		}
 	}
 
-	pub fn is_equal(&self, rhs: &Self, env: &mut Environment) -> Result<bool> {
-		match self {
-			Self::Integer(int) => Ok(*int == rhs.to_integer(env)?),
-			_ => todo!(),
+	/// Checks to see if two arguments are equal.
+	///
+	/// When `compliance.check_equals_params` is enabled, this can return an error if either argument
+	/// is a block, or a list containing a block. Without `compliance.check_equals_params`, this
+	/// never fails.
+	#[cfg_attr(not(feature = "compliance"), inline)]
+	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment) -> Result<bool> {
+		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
+
+		// In strict compliance mode, we can't use Blocks for `?`.
+		#[cfg(feature = "compliance")]
+		{
+			fn forbid_block_params_in_is_equal(value: &Value) -> Result<()> {
+				match value {
+					Value::List(list) => {
+						for ele in list {
+							forbid_block_params_in_is_equal(ele)?;
+						}
+						Ok(())
+					}
+					Value::Block(_) => {
+						Err(Error::TypeError { type_name: value.type_name(), function: "?" })
+					}
+					_ => Ok(()),
+				}
+			}
+
+			if env.opts().compliance.check_equals_params {
+				forbid_block_params_in_is_equal(self)?;
+				forbid_block_params_in_is_equal(rhs)?;
+			}
 		}
+
+		let _ = env;
+		Ok(self == rhs)
 	}
 
-	pub fn call(&self, vm: &mut Vm) -> Result<Value> {
+	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
 		match self {
 			Self::Block(block) => vm.child_stackframe(*block),
 			_ => todo!(),
 		}
 	}
 
-	pub fn length(&self, env: &mut Environment) -> Result<Integer> {
+	pub fn kn_length(&self, env: &mut Environment) -> Result<Integer> {
 		match self {
 			Self::String(string) => {
 				// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
@@ -226,7 +281,7 @@ impl Value {
 		}
 	}
 
-	pub fn negate(&self, env: &mut Environment) -> Result<Integer> {
+	pub fn kn_negate(&self, env: &mut Environment) -> Result<Integer> {
 		#[cfg(feature = "extensions")]
 		if env.opts().extensions.breaking.negate_reverses_collections {
 			todo!();
@@ -235,7 +290,7 @@ impl Value {
 		Ok(self.to_integer(env)?.negate(env.opts())?)
 	}
 
-	pub fn op_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),
 			Self::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
@@ -252,7 +307,7 @@ impl Value {
 		}
 	}
 
-	pub fn op_minus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into()),
 
@@ -273,7 +328,7 @@ impl Value {
 		}
 	}
 
-	pub fn op_asterisk(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.multiply(rhs.to_integer(env)?, env.opts())?.into()),
 
@@ -317,7 +372,7 @@ impl Value {
 		}
 	}
 
-	pub fn op_slash(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into()),
 
@@ -338,7 +393,7 @@ impl Value {
 		}
 	}
 
-	pub fn op_percent(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.remainder(rhs.to_integer(env)?, env.opts())?.into()),
 
@@ -393,7 +448,7 @@ impl Value {
 		}
 	}
 
-	pub fn op_caret(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
 		match self {
 			Self::Integer(integer) => Ok(integer.power(rhs.to_integer(env)?, env.opts())?.into()),
 			Self::List(list) => list.join(&rhs.to_kstring(env)?, env).map(Self::from),
@@ -414,7 +469,7 @@ impl Value {
 	/// # Errors
 	/// If `self` is either a [`Text`] or a [`List`] and is empty, an [`Error::DomainError`] is
 	/// returned. If `self`
-	pub fn head(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_head(&self, env: &mut Environment) -> Result<Self> {
 		todo!()
 		// let _ = env;
 		// match self {
@@ -434,7 +489,7 @@ impl Value {
 		// }
 	}
 
-	pub fn tail(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_tail(&self, env: &mut Environment) -> Result<Self> {
 		todo!()
 		// let _ = env;
 		// match self {
@@ -453,7 +508,7 @@ impl Value {
 		// }
 	}
 
-	pub fn ascii(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_ascii(&self, env: &mut Environment) -> Result<Self> {
 		todo!()
 		// let _ = env;
 		// match self {
@@ -470,11 +525,11 @@ impl Value {
 		// }
 	}
 
-	pub fn get(&self, start: &Value, length: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn kn_get(&self, start: &Value, length: &Value, env: &mut Environment) -> Result<Self> {
 		todo!()
 	}
 
-	pub fn set(
+	pub fn kn_set(
 		&self,
 		start: &Value,
 		length: &Value,

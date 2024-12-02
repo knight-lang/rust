@@ -132,7 +132,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 
 				// Arity 1
 				Call => {
-					let result = arg![0].call(self)?;
+					let result = arg![0].kn_call(self)?;
 					self.stack.push(result)
 				}
 				Quit => {
@@ -142,40 +142,42 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 					return Err(Error::Exit(status));
 				}
 				Dump => {
-					arg![0].dump();
+					arg![0].kn_dump();
 					self.stack.push(arg![0].clone());
 				}
 				Output => {
 					println!("{}", arg![0].to_kstring(self.env)?.as_str());
 					self.stack.push(Value::Null);
 				}
-				Length => self.stack.push(arg![0].length(self.env)?.into()),
+				Length => self.stack.push(arg![0].kn_length(self.env)?.into()),
 				Not => self.stack.push((!arg![0].to_boolean(self.env)?).into()),
-				Negate => self.stack.push(arg![0].negate(self.env)?.into()),
-				Ascii => self.stack.push(arg![0].ascii(self.env)?),
+				Negate => self.stack.push(arg![0].kn_negate(self.env)?.into()),
+				Ascii => self.stack.push(arg![0].kn_ascii(self.env)?),
 				Box => self.stack.push(List::boxed(arg![0].clone()).into()),
-				Head => self.stack.push(arg![0].head(self.env)?),
-				Tail => self.stack.push(arg![0].tail(self.env)?),
+				Head => self.stack.push(arg![0].kn_head(self.env)?),
+				Tail => self.stack.push(arg![0].kn_tail(self.env)?),
 				Pop => { /* do nothing, the arity already popped */ }
 
 				// Arity 2
-				Add => self.stack.push(arg![0].op_plus(arg![1], self.env)?),
-				Sub => self.stack.push(arg![0].op_minus(arg![1], self.env)?),
-				Mul => self.stack.push(arg![0].op_asterisk(arg![1], self.env)?),
-				Div => self.stack.push(arg![0].op_slash(arg![1], self.env)?),
-				Mod => self.stack.push(arg![0].op_percent(arg![1], self.env)?),
-				Pow => self.stack.push(arg![0].op_caret(arg![1], self.env)?),
-				Lth => self.stack.push((arg![0].compare(arg![1], self.env)? == Ordering::Less).into()),
-				Gth => {
-					self.stack.push((arg![0].compare(arg![1], self.env)? == Ordering::Greater).into())
+				Add => self.stack.push(arg![0].kn_plus(arg![1], self.env)?),
+				Sub => self.stack.push(arg![0].kn_minus(arg![1], self.env)?),
+				Mul => self.stack.push(arg![0].kn_asterisk(arg![1], self.env)?),
+				Div => self.stack.push(arg![0].kn_slash(arg![1], self.env)?),
+				Mod => self.stack.push(arg![0].kn_percent(arg![1], self.env)?),
+				Pow => self.stack.push(arg![0].kn_caret(arg![1], self.env)?),
+				Lth => {
+					self.stack.push((arg![0].kn_compare(arg![1], self.env)? == Ordering::Less).into())
 				}
-				Eql => self.stack.push((arg![0].is_equal(arg![1], self.env)?).into()),
+				Gth => {
+					self.stack.push((arg![0].kn_compare(arg![1], self.env)? == Ordering::Greater).into())
+				}
+				Eql => self.stack.push((arg![0].kn_equals(arg![1], self.env)?).into()),
 
 				// Arity 3
-				Get => self.stack.push(arg![0].get(arg![1], arg![2], self.env)?),
+				Get => self.stack.push(arg![0].kn_get(arg![1], arg![2], self.env)?),
 
 				// Arity 4
-				Set => self.stack.push(arg![0].set(arg![1], arg![2], arg![3], self.env)?),
+				Set => self.stack.push(arg![0].kn_set(arg![1], arg![2], arg![3], self.env)?),
 			}
 		}
 	}

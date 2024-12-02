@@ -31,6 +31,7 @@ pub struct Compliance {
 	pub variable_name_length: bool,
 	pub variable_count: bool,
 	pub forbid_trailing_tokens: bool,
+	pub check_equals_params: bool,
 }
 
 cfg_if! {
