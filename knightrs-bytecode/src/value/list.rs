@@ -53,6 +53,7 @@ impl ToList for List {
 	}
 }
 
+#[derive(Clone)]
 pub struct ListRefIter<'a>(Iter<'a, Value>);
 impl<'a> Iterator for ListRefIter<'a> {
 	type Item = &'a Value;
@@ -165,15 +166,10 @@ impl List {
 		if rhs.is_empty() {
 			return Ok(self.clone());
 		}
-		todo!()
 
-		// #[cfg(feature = "compliance")]
-		// if flags.compliance.check_container_length && Self::MAX_LEN < self.len() + rhs.len() {
-		// 	return Err(Error::DomainError("length of concatenation is out of bounds"));
-		// }
+		// TODO: should we do a check for length before doing this?
 
-		// let _ = flags;
-		// Ok(Self::_new(Inner::Cons(self.clone(), rhs.clone())))
+		Self::new(self.iter().cloned().chain(rhs.into_iter().cloned()), opts)
 	}
 
 	/// Returns a new list where `self` is repeated `amount` times.
@@ -185,26 +181,22 @@ impl List {
 	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
 	/// returned.
 	pub fn repeat(&self, amount: usize, opts: &Options) -> crate::Result<Self> {
-		todo!()
+		if self.is_empty() {
+			return Ok(self.clone());
+		}
 
-		// #[cfg(feature = "compliance")]
-		// if flags.compliance.check_container_length
-		// 	&& self.len().checked_mul(amount).map_or(true, |x| Self::MAX_LEN < x)
-		// {
-		// 	return Err(Error::DomainError("length of repetition is out of bounds"));
-		// }
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_container_length
+			&& self.len().checked_mul(amount).map_or(true, |x| Self::MAXIMUM_LENGTH < x)
+		{
+			return Err(Error::DomainError("length of repetition is out of bounds"));
+		}
 
-		// let _ = flags;
-
-		// if self.is_empty() {
-		// 	return Ok(Self::EMPTY);
-		// }
-
-		// match amount {
-		// 	0 => Ok(Self::EMPTY),
-		// 	1 => Ok(self.clone()),
-		// 	_ => Ok(Self::_new(Inner::Repeat(self.clone(), amount))),
-		// }
+		match amount {
+			0 => Ok(Self::default()),
+			1 => Ok(self.clone()),
+			_ => Self::new(self.iter().cycle().cloned().take(self.len() * amount), opts),
+		}
 	}
 
 	/// Converts each element of `self` to a string,and inserts `sep` between them.
@@ -212,21 +204,21 @@ impl List {
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
 	pub fn join(&self, sep: &StringSlice, env: &mut Environment) -> crate::Result<KString> {
-		todo!()
+		if self.is_empty() {
+			return Ok(KString::default());
+		}
 
-		// let mut joined = Text::builder();
+		let mut joined = String::new();
 
-		// let mut is_first = true;
-		// for ele in self {
-		// 	if !is_first {
-		// 		joined.push(sep);
-		// 	}
-		// 	is_first = false;
+		let mut is_first = false;
+		for ele in self {
+			if !is_first {
+				joined.push_str(sep.as_str());
+			}
+			joined.push_str(&ele.to_kstring(env)?.as_str());
+		}
 
-		// 	joined.push(&ele.to_text(env)?);
-		// }
-
-		// Ok(joined.finish(env.flags())?)
+		KString::new(joined, env.opts()).map_err(From::from)
 	}
 
 	/// Returns an [`ListRefIter`] instance, which iterates over borrowed references.
@@ -259,7 +251,11 @@ impl<'a> ListGet<'a> for usize {
 	type Output = &'a Value;
 
 	fn get(self, list: &'a List) -> Option<Self::Output> {
-		todo!()
+		if list.is_empty() {
+			return None;
+		}
+
+		return list.0.as_ref().unwrap().get(self);
 		// match list.inner()? {
 		// 	Inner::Boxed(ele) => (self == 0).then_some(ele),
 		// 	Inner::Slice(slice) => slice.get(self),

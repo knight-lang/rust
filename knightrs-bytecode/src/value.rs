@@ -167,9 +167,8 @@ impl Value {
 			Self::Integer(i) => {
 				write!(env.output(), "{i}").map_err(|err| Error::IoError { func: "OUTPUT", err })
 			}
-			Self::String(s) => {
-				write!(env.output(), "{s:?}").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
+			Self::String(s) => write!(env.output(), "{:?}", s.as_str())
+				.map_err(|err| Error::IoError { func: "OUTPUT", err }),
 			Self::List(l) => {
 				write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
 				for (idx, arg) in l.iter().enumerate() {
@@ -494,59 +493,53 @@ impl Value {
 	/// If `self` is either a [`Text`] or a [`List`] and is empty, an [`Error::DomainError`] is
 	/// returned. If `self`
 	pub fn kn_head(&self, env: &mut Environment) -> Result<Self> {
-		todo!()
-		// let _ = env;
-		// match self {
-		// 	Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
-		// 	Self::Text(text) => text
-		// 		.head()
-		// 		.ok_or(Error::DomainError("empty text"))
-		// 		.map(|chr| unsafe { KString::new_unchecked(chr) }.into()),
+		let _ = env;
+		match self {
+			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
+			Self::String(string) => string
+				.head()
+				.ok_or(Error::DomainError("empty string"))
+				.map(|chr| KString::new_unvalidated(&chr.to_string()).into()),
 
-		// 	#[cfg(feature = "extensions")]
-		// 	Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
+			// #[cfg(feature = "extensions")]
+			// Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
 
-		// 	#[cfg(feature = "custom-types")]
-		// 	Self::Custom(custom) => custom.head(env),
-
-		// 	other => Err(Error::TypeError(other.typename(), "[")),
-		// }
+			// #[cfg(feature = "custom-types")]
+			// Self::Custom(custom) => custom.head(env),
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "[" }),
+		}
 	}
 
 	pub fn kn_tail(&self, env: &mut Environment) -> Result<Self> {
-		todo!()
-		// let _ = env;
-		// match self {
-		// 	Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
-		// 	Self::Text(text) => {
-		// 		text.tail().ok_or(Error::DomainError("empty text")).map(|x| KString::from(x).into())
-		// 	}
+		let _ = env;
+		match self {
+			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
+			Self::String(string) => {
+				string.tail().ok_or(Error::DomainError("empty string")).map(|x| KString::from(x).into())
+			}
 
-		// 	#[cfg(feature = "extensions")]
-		// 	Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.tail().into()),
+			// #[cfg(feature = "extensions")]
+			// Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.tail().into()),
 
-		// 	#[cfg(feature = "custom-types")]
-		// 	Self::Custom(custom) => custom.tail(env),
-
-		// 	other => Err(Error::TypeError(other.typename(), "]")),
-		// }
+			// #[cfg(feature = "custom-types")]
+			// Self::Custom(custom) => custom.tail(env),
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "]" }),
+		}
 	}
 
 	pub fn kn_ascii(&self, env: &mut Environment) -> Result<Self> {
-		todo!()
-		// let _ = env;
-		// match self {
-		// 	Self::Integer(integer) => Ok({
-		// 		let chr = integer.chr(env.flags())?;
-		// 		unsafe { Text::new_unchecked(chr) }.into()
-		// 	}),
-		// 	Self::Text(text) => Ok(text.ord()?.into()),
+		match self {
+			Self::Integer(integer) => {
+				let chr = integer.chr(env.opts())?;
+				Ok(KString::new_unvalidated(&chr.to_string()).into())
+			}
+			Self::String(string) => Ok(string.ord()?.into()),
 
-		// 	#[cfg(feature = "custom-types")]
-		// 	Self::Custom(custom) => custom.ascii(env),
+			#[cfg(feature = "custom-types")]
+			Self::Custom(custom) => custom.ascii(env),
 
-		// 	other => Err(Error::TypeError(other.typename(), "ASCII")),
-		// }
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "ASCII" }),
+		}
 	}
 
 	pub fn kn_get(&self, start: &Value, length: &Value, env: &mut Environment) -> Result<Self> {
