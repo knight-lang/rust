@@ -146,20 +146,31 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				// Arity 1
 				Call => {
 					let result = arg![0].kn_call(self)?;
-					self.stack.push(result)
+					self.stack.push(result);
 				}
 				Quit => {
 					let status = arg![0].to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
-
-					return Err(Error::Exit(status));
+					self.env.quit(status)?;
 				}
 				Dump => {
-					arg![0].kn_dump();
+					arg![0].kn_dump(self.env);
 					self.stack.push(arg![0].clone());
 				}
 				Output => {
-					println!("{}", arg![0].to_kstring(self.env)?.as_str());
+					use std::io::Write;
+					let kstring = arg![0].to_kstring(self.env)?;
+					let strref = kstring.as_str();
+
+					let mut output = self.env.output();
+
+					if let Some(stripped) = strref.strip_suffix('\\') {
+						write!(output, "{stripped}")
+					} else {
+						writeln!(output, "{strref}")
+					}
+					.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+
 					self.stack.push(Value::Null);
 				}
 				Length => self.stack.push(arg![0].kn_length(self.env)?.into()),

@@ -133,8 +133,8 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'expr str> {
 		let start = self.source;
 
-		#[cfg(feature = "convenience")]
-		let check_parens = self.opts().convenience.check_parens;
+		#[cfg(feature = "qol")]
+		let check_parens = self.opts().qol.check_parens;
 
 		// TODO: when not in stacktrace mode, consider (, ), and : as whitespace
 		loop {
@@ -144,7 +144,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 					return true;
 				}
 
-				#[cfg(feature = "convenience")]
+				#[cfg(feature = "qol")]
 				if check_parens {
 					return false;
 				}

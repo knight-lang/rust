@@ -161,8 +161,8 @@ unsafe impl Parseable_OLD for Function {
 			}
 
 			// technically not needed, as it wont ever get here. same with the if
-			#[cfg(feature = "convenience")]
-			':' if parser.opts().convenience.check_parens => {
+			#[cfg(feature = "qol")]
+			':' if parser.opts().qol.check_parens => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				return Ok(true);
 			}

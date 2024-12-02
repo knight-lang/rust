@@ -10,15 +10,24 @@ pub struct Options {
 	#[cfg(feature = "extensions")]
 	pub extensions: Extensions,
 
-	#[cfg(feature = "convenience")]
-	pub convenience: Convenience,
+	#[cfg(feature = "qol")]
+	pub qol: QualityOfLife,
+
+	#[cfg(feature = "embedded")]
+	pub embedded: Embedded,
 }
 
 #[derive(Default, Clone)]
-#[cfg(feature = "convenience")]
-pub struct Convenience {
+#[cfg(feature = "qol")]
+pub struct QualityOfLife {
 	pub stacktrace: bool,
-	pub check_parens: bool,
+	pub check_parens: bool, // TODO: also make this strict compliance
+}
+
+#[derive(Default, Clone)]
+#[cfg(feature = "qol")]
+pub struct Embedded {
+	pub dont_exit_when_quitting: bool,
 }
 
 #[derive(Default, Clone)]
@@ -32,6 +41,9 @@ pub struct Compliance {
 	pub variable_count: bool,
 	pub forbid_trailing_tokens: bool,
 	pub check_equals_params: bool,
+	pub limit_rand_range: bool,
+	pub cant_dump_blocks: bool,
+	pub check_quit_status_codes: bool,
 }
 
 cfg_if! {
@@ -54,6 +66,7 @@ if #[cfg(feature = "extensions")] {
 	#[derive(Default, Clone)]
 	pub struct BreakingChanges {
 		pub negate_reverses_collections: bool, // not working, potential future idea.
+		pub random_can_be_negative: bool,
 	}
 
 	#[derive(Default, Clone)]

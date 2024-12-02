@@ -12,6 +12,7 @@ safe-transmute = "0.11"
 thiserror = "2.0"
 static_assertions = "1.1"
 indexmap = "2.7"
+rand = "0.8"
 
 [features]
 multithreaded = []
@@ -19,7 +20,8 @@ extensions = []
 compliance = []
 custom-types = ["extensions"]
 stacktrace = [] # TODO: remove knight-debugging
-convenience = ["stacktrace"] # Enables debugging infromation fro knight
+qol = ["stacktrace"] # Enables debugging information fro knight
+embedded = []
 
 # If enabled, support knight-2.0.1 features
 knight_2_0_1 = []
@@ -29,4 +31,5 @@ iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
-default = ["extensions", "compliance","convenience"] # convenience should be default
+# default = ["qol"]
+default = ["extensions", "compliance", "qol", "embedded"] # the defaults just when testing

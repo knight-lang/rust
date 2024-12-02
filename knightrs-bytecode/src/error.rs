@@ -27,10 +27,14 @@ pub enum Error {
 	ListIsTooLarge,
 
 	#[error("(quit with exit status {0})")]
+	#[cfg(feature = "embedded")]
 	Exit(i32),
 
 	#[error("Conversion to {to} not defined for {from}")]
 	ConversionNotDefined { to: &'static str, from: &'static str },
+
+	#[error("I/O error happened during {func}: {err}")]
+	IoError { func: &'static str, err: std::io::Error },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

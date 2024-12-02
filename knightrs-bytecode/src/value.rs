@@ -153,9 +153,43 @@ impl NamedType for Value {
 }
 
 impl Value {
-	pub fn kn_dump(&self) {
-		// TODO: this is not actually how `dump` is specified
-		print!("{:?}", self)
+	pub fn kn_dump(&self, env: &mut Environment) -> Result<()> {
+		use std::io::Write;
+
+		// TODO: move this into each type, so they can control it
+		match self {
+			Self::Null => {
+				write!(env.output(), "null").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+			Self::Boolean(b) => {
+				write!(env.output(), "{b}").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+			Self::Integer(i) => {
+				write!(env.output(), "{i}").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+			Self::String(s) => {
+				write!(env.output(), "{s:?}").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+			Self::List(l) => {
+				write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+				for (idx, arg) in l.iter().enumerate() {
+					if idx != 0 {
+						write!(env.output(), ", ")
+							.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+					}
+					arg.kn_dump(env)?;
+				}
+				write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+			#[cfg(feature = "compliance")]
+			Self::Block(b) if env.opts().compliance.cant_dump_blocks => {
+				Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" })
+			}
+
+			Self::Block(b) => {
+				write!(env.output(), "{b:?}").map_err(|err| Error::IoError { func: "OUTPUT", err })
+			}
+		}
 	}
 
 	/// Compares to arguments, knight-style. Coerces them too.
