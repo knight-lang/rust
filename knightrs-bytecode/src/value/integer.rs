@@ -229,6 +229,25 @@ impl Integer {
 			.and_then(|chr| opts.encoding.is_char_valid(chr).then_some(chr))
 			.ok_or(IntegerError::DomainError("number isn't a valid char"))
 	}
+
+	pub fn parse_from_str(source: &str, opts: &Options) -> crate::Result<Self> {
+		let source = source.trim_start();
+
+		let mut chars = source.chars();
+		let mut start = match chars.next() {
+			None => return Ok(Self::default()),
+			Some('+' | '-') => chars.as_str(),
+			_ => source,
+		};
+
+		if let Some(bad) = start.find(|c: char| !c.is_ascii_digit()) {
+			start = &source[..bad + (start != source) as usize];
+		} else if start != source {
+			start = source;
+		}
+
+		Ok(<i64 as std::str::FromStr>::from_str(start).map(Self).unwrap_or_default())
+	}
 }
 
 impl Parseable for Integer {

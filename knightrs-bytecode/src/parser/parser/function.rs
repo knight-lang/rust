@@ -220,6 +220,7 @@ unsafe impl Parseable_OLD for Function {
 						deferred.jump_to_current(parser.compiler());
 					}
 				}
+				parser.compiler().push_constant(crate::Value::Null);
 
 				Ok(true)
 			}

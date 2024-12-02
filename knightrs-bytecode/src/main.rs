@@ -48,6 +48,7 @@ fn main() {
 	.unwrap();
 
 	let program = parser.parse_program().map_err(|err| panic!("{}", err)).unwrap();
+
 	match Vm::new(&program, &mut env).run() {
 		Ok(_) => {}
 		Err(err) => eprintln!("error: {err}"),

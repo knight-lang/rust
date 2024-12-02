@@ -28,7 +28,7 @@ impl Default for List {
 
 impl ToBoolean for List {
 	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
-		Ok(self.is_empty())
+		Ok(!self.is_empty())
 	}
 }
 
@@ -210,9 +210,11 @@ impl List {
 
 		let mut joined = String::new();
 
-		let mut is_first = false;
+		let mut is_first = true;
 		for ele in self {
-			if !is_first {
+			if is_first {
+				is_first = false;
+			} else {
 				joined.push_str(sep.as_str());
 			}
 			joined.push_str(&ele.to_kstring(env)?.as_str());

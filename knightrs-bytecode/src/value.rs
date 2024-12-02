@@ -292,7 +292,7 @@ impl Value {
 			}
 
 			#[cfg(feature = "knight_2_0_1")]
-			Self::Integer(int) => Ok(Integer::new_unvalidated(int.number_of_digits())),
+			Self::Integer(int) => Ok(Integer::new_unvalidated(int.number_of_digits() as _)),
 
 			#[cfg(feature = "knight_2_0_1")]
 			Self::Boolean(true) => Ok(Integer::new_unvalidated(1)),
@@ -533,7 +533,7 @@ impl Value {
 				let chr = integer.chr(env.opts())?;
 				Ok(KString::new_unvalidated(&chr.to_string()).into())
 			}
-			Self::String(string) => Ok(string.ord()?.into()),
+			Self::String(string) => Ok(string.ord(env.opts())?.into()),
 
 			#[cfg(feature = "custom-types")]
 			Self::Custom(custom) => custom.ascii(env),
@@ -542,17 +542,93 @@ impl Value {
 		}
 	}
 
-	pub fn kn_get(&self, start: &Value, length: &Value, env: &mut Environment) -> Result<Self> {
-		todo!()
+	pub fn kn_get(&self, start: &Value, len: &Value, env: &mut Environment) -> Result<Self> {
+		#[cfg(feature = "custom-types")]
+		if let Self::Custom(custom) = self {
+			return custom.get(start, len, env);
+		}
+
+		let start = fix_len(self, start.to_integer(env)?, "GET", env)?;
+		let len = usize::try_from(len.to_integer(env)?.inner())
+			.or(Err(Error::DomainError("negative length")))?;
+
+		match self {
+			Self::List(list) => list.try_get(start..start + len).map(Self::from),
+
+			Self::String(text) => text
+				.get(start..start + len)
+				.ok_or(Error::IndexOutOfBounds { len: text.len(), index: start + len })
+				.map(ToOwned::to_owned)
+				.map(Self::from),
+
+			other => return Err(Error::TypeError { type_name: other.type_name(), function: "GET" }),
+		}
 	}
 
 	pub fn kn_set(
 		&self,
 		start: &Value,
-		length: &Value,
-		repl: &Value,
+		len: &Value,
+		replacement: &Value,
 		env: &mut Environment,
 	) -> Result<Self> {
-		todo!()
+		#[cfg(feature = "custom-types")]
+		if let Self::Custom(custom) = self {
+			return custom.set(start, len, replacement, env);
+		}
+
+		let start = fix_len(self, start.to_integer(env)?, "SET", env)?;
+		let len = usize::try_from(len.to_integer(env)?.inner())
+			.or(Err(Error::DomainError("negative length")))?;
+
+		match self {
+			Self::List(list) => {
+				let replacement = replacement.to_list(env)?;
+				let mut ret = Vec::new();
+
+				ret.extend(list.iter().take(start).cloned());
+				ret.extend(replacement.iter().cloned());
+				ret.extend(list.iter().skip((start) + len).cloned());
+
+				List::new(ret, env.opts()).map(Self::from)
+			}
+			Self::String(string) => {
+				let replacement = replacement.to_kstring(env)?;
+
+				// lol, todo, optimize me
+				let mut builder = String::new();
+				builder.push_str(string.get(..start).unwrap().as_str());
+				builder.push_str(&replacement.as_str());
+				builder.push_str(string.get(start + len..).unwrap().as_str());
+				Ok(KString::new(builder, env.opts())?.into())
+			}
+
+			other => return Err(Error::TypeError { type_name: other.type_name(), function: "SET" }),
+		}
 	}
+}
+
+fn fix_len(
+	container: &Value,
+	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer,
+	function: &'static str,
+	env: &mut Environment,
+) -> Result<usize> {
+	#[cfg(feature = "extensions")]
+	if env.opts().extensions.negative_indexing && start < Integer::ZERO {
+		let len = match container {
+			Value::String(string) => string.len(),
+			Value::List(list) => list.len(),
+
+			#[cfg(feature = "custom-types")]
+			Value::Custom(custom) => custom.length(env)?,
+
+			other => return Err(Error::TypeError { type_name: other.type_name(), function }),
+		};
+
+		start = start.add(Integer::new(len as _, env.opts())?, env.opts())?;
+	}
+
+	let _ = (container, env);
+	usize::try_from(start.inner()).or(Err(Error::DomainError("negative start position")))
 }

@@ -157,9 +157,10 @@ impl StringSlice {
 		)
 	}
 
-	pub fn ord(&self) -> crate::Result<Integer> {
-		todo!()
-		// Integer::try_from(self.chars().next().ok_or(crate::Error::DomainError("empty string"))?)
+	pub fn ord(&self, opts: &Options) -> crate::Result<Integer> {
+		let chr = self.chars().next().ok_or(crate::Error::DomainError("empty string"))?;
+		// technically not redundant in case checking for ints is enabled but not strings.
+		Integer::new(u32::from(chr) as _, opts).map_err(From::from)
 	}
 
 	/// Gets the first character of `self`, if it exists.

@@ -89,8 +89,7 @@ impl ToKString for KString {
 
 impl ToInteger for KString {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
-		todo!()
-		// Ok(self.parse().unwrap_or_default())
+		Integer::parse_from_str(self.as_str(), env.opts())
 	}
 }
 
