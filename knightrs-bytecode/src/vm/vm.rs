@@ -36,25 +36,20 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		self.current_index = block.inner().0;
 		self.call_stack.push(block);
 		let result = self.run();
+
+		#[cfg(feature = "stacktrace")]
+		let result = match result {
+			Ok(ok) => Ok(ok),
+			Err(todo @ crate::Error::Stacktrace(_)) => Err(todo),
+			Err(err) => Err(crate::Error::Stacktrace(self.error(err).to_string())),
+		};
+
 		debug_assert_eq!(stack_len, self.stack.len());
 		self.current_index = index;
 		let popped = self.call_stack.pop();
 		debug_assert_eq!(popped, Some(block));
 
-		// #[cfg(not(feature = "stacktrace"))]
-		return result;
-
-		// #[cfg(feature = "stacktrace")]
-		// match result {
-		// 	Ok(ok) => Ok(ok),
-		// 	Err(err) => {
-		// 		let (fn_name, loc) = self.program.function_name(block);
-		// 		match fn_name {
-		// 			Some(name) => Err(crate::Error::Todo(format!("{loc}:(in {name}): {err}"))),
-		// 			None => Err(crate::Error::Todo(format!("{loc}:(in <a block>): {err}"))),
-		// 		}
-		// 	}
-		// }
+		result
 	}
 
 	pub fn error(&mut self, err: crate::Error) -> RuntimeError {
@@ -180,12 +175,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Add => self.stack.push(arg![0].kn_plus(arg![1], self.env)?),
 				Sub => self.stack.push(arg![0].kn_minus(arg![1], self.env)?),
 				Mul => self.stack.push(arg![0].kn_asterisk(arg![1], self.env)?),
-				Div => {
-					let val = arg![0]
-						.kn_slash(arg![1], self.env)
-						.map_err(|err| crate::Error::Todo(self.error(err).to_string()))?;
-					self.stack.push(val);
-				}
+				Div => self.stack.push(arg![0].kn_slash(arg![1], self.env)?),
 				Mod => self.stack.push(arg![0].kn_percent(arg![1], self.env)?),
 				Pow => self.stack.push(arg![0].kn_caret(arg![1], self.env)?),
 				Lth => self

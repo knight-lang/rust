@@ -5,6 +5,9 @@ pub enum Error {
 	Todo(String),
 
 	#[error("{0}")]
+	Stacktrace(String),
+
+	#[error("{0}")]
 	StringError(#[from] crate::strings::StringError),
 
 	#[error("{0}")]
