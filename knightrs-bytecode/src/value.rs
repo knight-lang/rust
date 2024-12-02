@@ -158,35 +158,31 @@ impl Value {
 		print!("{:?}", self)
 	}
 
-	pub fn kn_compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
+	/// Compares to arguments, knight-style. Coerces them too.
+	pub fn kn_compare(
+		&self,
+		rhs: &Self,
+		fn_name: &'static str,
+		env: &mut Environment,
+	) -> Result<Ordering> {
 		match self {
-			Self::Integer(int) => Ok(int.cmp(&rhs.to_integer(env)?)),
+			Self::Integer(lhs) => Ok(lhs.cmp(&rhs.to_integer(env)?)),
+			Self::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_boolean(env)?)),
+			Self::String(lhs) => Ok(lhs.cmp(&rhs.to_kstring(env)?)),
+			Self::List(lhs) => {
+				let rhs = rhs.to_list(env)?;
 
-			// pub fn compare(&self, rhs: &Self, env: &mut Environment) -> Result<Ordering> {
-			// 	match self {
-			// 		Value::Integer(integer) => Ok(integer.cmp(&rhs.to_integer(env)?)),
-			// 		Value::Boolean(boolean) => Ok(boolean.cmp(&rhs.to_boolean(env)?)),
-			// 		Value::Text(text) => Ok(text.cmp(&rhs.to_text(env)?)),
-			// 		Value::List(list) => {
-			// 			let rhs = rhs.to_list(env)?;
+				for (left, right) in lhs.iter().zip(&rhs) {
+					match left.kn_compare(right, fn_name, env)? {
+						Ordering::Equal => continue,
+						other => return Ok(other),
+					}
+				}
 
-			// 			for (left, right) in list.iter().zip(&rhs) {
-			// 				match left.compare(right, env)? {
-			// 					Ordering::Equal => {}
-			// 					other => return Ok(other),
-			// 				}
-			// 			}
+				Ok(lhs.len().cmp(&rhs.len()))
+			}
 
-			// 			Ok(list.len().cmp(&rhs.len()))
-			// 		}
-
-			// 		#[cfg(feature = "custom-types")]
-			// 		Self::Custom(custom) => custom.compare(rhs, env),
-
-			// 		other => Err(Error::TypeError(other.typename(), "<cmp>")),
-			// 	}
-			// }
-			_ => todo!(),
+			other => Err(Error::TypeError { type_name: self.type_name(), function: fn_name }),
 		}
 	}
 
@@ -211,6 +207,7 @@ impl Value {
 						Ok(())
 					}
 					Value::Block(_) => {
+						// todo: better error message?
 						Err(Error::TypeError { type_name: value.type_name(), function: "?" })
 					}
 					_ => Ok(()),
@@ -230,7 +227,7 @@ impl Value {
 	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
 		match self {
 			Self::Block(block) => vm.child_stackframe(*block),
-			_ => todo!(),
+			other => Err(Error::TypeError { type_name: other.type_name(), function: "CALL" }),
 		}
 	}
 
@@ -261,22 +258,15 @@ impl Value {
 				Ok(Integer::new_unvalidated(list.len() as i64))
 			}
 
-			// pub fn length(&self, env: &mut Environment) -> Result<Self> {
-			// 	let _ = env;
-			// 	match self {
-			// 		Self::List(list) => Integer::try_from(list.len()).map(Self::from),
-			// 		Self::Text(text) => Integer::try_from(text.len()).map(Self::from),
-			// 		Self::Integer(int) => Ok(Integer::try_from(int.number_of_digits()).unwrap().into()),
-			// 		Self::Boolean(true) => Ok(Integer::ONE.into()),
-			// 		Self::Boolean(false) | Self::Null => Ok(Integer::ZERO.into()),
+			#[cfg(feature = "knight_2_0_1")]
+			Self::Integer(int) => Ok(Integer::new_unvalidated(int.number_of_digits())),
 
-			// 		#[cfg(feature = "custom-types")]
-			// 		Self::Custom(custom) => Integer::try_from(custom.length(env)?).map(Self::from),
+			#[cfg(feature = "knight_2_0_1")]
+			Self::Boolean(true) => Ok(Integer::new_unvalidated(1)),
 
-			// 		other => Err(Error::TypeError(other.typename(), "LENGTH")),
-			// 	}
-			// }
-			// TODO: Knight 2.0.1 extensions?
+			#[cfg(feature = "knight_2_0_1")]
+			Self::Boolean(false) | Self::Null => Ok(Integer::new_unvalidated(0)),
+
 			other => Err(Error::TypeError { type_name: other.type_name(), function: "LENGTH" }),
 		}
 	}

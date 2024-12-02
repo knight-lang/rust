@@ -165,12 +165,12 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Div => self.stack.push(arg![0].kn_slash(arg![1], self.env)?),
 				Mod => self.stack.push(arg![0].kn_percent(arg![1], self.env)?),
 				Pow => self.stack.push(arg![0].kn_caret(arg![1], self.env)?),
-				Lth => {
-					self.stack.push((arg![0].kn_compare(arg![1], self.env)? == Ordering::Less).into())
-				}
-				Gth => {
-					self.stack.push((arg![0].kn_compare(arg![1], self.env)? == Ordering::Greater).into())
-				}
+				Lth => self
+					.stack
+					.push((arg![0].kn_compare(arg![1], "<", self.env)? == Ordering::Less).into()),
+				Gth => self
+					.stack
+					.push((arg![0].kn_compare(arg![1], ">", self.env)? == Ordering::Greater).into()),
 				Eql => self.stack.push((arg![0].kn_equals(arg![1], self.env)?).into()),
 
 				// Arity 3

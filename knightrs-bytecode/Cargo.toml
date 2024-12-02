@@ -21,6 +21,9 @@ custom-types = ["extensions"]
 stacktrace = [] # TODO: remove knight-debugging
 convenience = ["stacktrace"] # Enables debugging infromation fro knight
 
+# If enabled, support knight-2.0.1 features
+knight_2_0_1 = []
+
 all-extensions = ["extensions", "custom-types"]
 iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
