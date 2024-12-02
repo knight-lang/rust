@@ -24,7 +24,6 @@ fn main() {
 
 
 
-
 # Fizzbuzz in Knight
 
 # Initialize variables.
