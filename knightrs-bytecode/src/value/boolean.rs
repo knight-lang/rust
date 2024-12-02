@@ -1,4 +1,4 @@
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{Ast, ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Integer, KString, List, NamedType, ToInteger, ToKString, ToList};
@@ -69,15 +69,13 @@ impl ToKString for Boolean {
 }
 
 impl Parseable for Boolean {
-	type Output = Self;
-
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Ast>, ParseError> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(None);
 		};
 
 		parser.strip_keyword_function();
-		Ok(Some(chr == 'T'))
+		Ok(Some(Ast::new(crate::Value::from(chr == 'T'), parser.location())))
 	}
 }
 

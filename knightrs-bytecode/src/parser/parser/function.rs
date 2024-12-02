@@ -1,3 +1,5 @@
+use crate::parser::Ast;
+use crate::parser::AstKind;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parseable_OLD, Parser, VariableName};
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
@@ -69,7 +71,7 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 			return Err(start.error(ParseErrorKind::MissingArgument('=', 1)));
 		}
 		Err(err) => return Err(err),
-		Ok(Some((name, location))) => {
+		Ok(Some(Ast { kind: AstKind::Variable(name), loc })) => {
 			// try for a block, if so give it a name.
 			parser.strip_whitespace_and_comments();
 			if parser.peek().map_or(false, |c| c == 'B') {
@@ -80,9 +82,9 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 			}
 			// ew, cloning is not a good answer.
 			let opts = (*parser.opts()).clone();
-			unsafe { parser.compiler().set_variable(name, &opts) }
-				.map_err(|err| location.error(err))?;
+			unsafe { parser.compiler().set_variable(name, &opts) }.map_err(|err| loc.error(err))?;
 		}
+		Ok(Some(_)) => unreachable!("variable always returns variables"),
 		Ok(None) => {
 			#[cfg(feature = "extensions")]
 			{

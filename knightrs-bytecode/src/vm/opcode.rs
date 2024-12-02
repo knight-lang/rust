@@ -58,6 +58,8 @@ pub enum Opcode {
 
 // If it goes higher than this, we need to rework the structure of the opcode.
 sa::const_assert!(Opcode::MAX_ARITY <= 0b111);
+
+// helper to construct opcodes
 const fn opcode(id: u8, arity: u8, takes_offset: bool) -> u8 {
 	assert!(arity as usize <= Opcode::MAX_ARITY, "update MAX_ARITY if arity increases");
 	assert!(id <= 0b1111, "too many IDs of a given arity will clobber stuff");

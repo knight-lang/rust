@@ -1,6 +1,6 @@
 use super::{ParseErrorKind, Parseable, SourceLocation};
 use crate::options::Options;
-use crate::parser::{ParseError, Parser};
+use crate::parser::{Ast, AstKind, ParseError, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::KString;
@@ -24,9 +24,7 @@ impl VariableName {
 }
 
 impl Parseable for VariableName {
-	type Output = (Self, SourceLocation);
-
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Ast>, ParseError> {
 		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
 			return Ok(None);
 		}
@@ -40,7 +38,7 @@ impl Parseable for VariableName {
 		// i dont like this new_unvalidated. TODO: fix it.
 		Self::new(StringSlice::new_unvalidated(name), parser.opts())
 			.map_err(|err| parser.error(err))
-			.map(|name| Some((name, start)))
+			.map(|name| Some(Ast::new(AstKind::Variable(name), start)))
 	}
 }
 

@@ -1,4 +1,4 @@
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{Ast, ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
@@ -437,9 +437,7 @@ impl List {
 }
 
 impl Parseable for List {
-	type Output = Self;
-
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Ast>, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
 			// TODO: make sure that this doesn't actually strictly return a list, as that won't be
@@ -451,7 +449,7 @@ impl Parseable for List {
 			return Ok(None);
 		}
 
-		Ok(Some(Self::default()))
+		Ok(Some(Ast::new(crate::value::Value::from(Self::default()), parser.location())))
 	}
 }
 

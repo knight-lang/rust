@@ -1,4 +1,4 @@
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{Ast, ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::value::{Boolean, KString, List, NamedType, ToBoolean, ToKString, ToList};
 use crate::{Environment, Options};
@@ -232,9 +232,7 @@ impl Integer {
 }
 
 impl Parseable for Integer {
-	type Output = Self;
-
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Ast>, ParseError> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(None);
 		};
@@ -243,8 +241,8 @@ impl Parseable for Integer {
 			.parse::<IntegerInner>()
 			.ok()
 			.and_then(|int| Integer::new(int, parser.opts()).ok())
-			.map(Some)
 			.ok_or_else(|| parser.error(ParseErrorKind::IntegerLiteralOverflow))
+			.map(|int| Some(Ast::new(crate::value::Value::from(int), parser.location())))
 	}
 }
 

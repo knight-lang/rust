@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{Ast, ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::{StringError, StringSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
@@ -123,9 +123,7 @@ impl KString {
 }
 
 impl Parseable for KString {
-	type Output = Self;
-
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Ast>, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
 			todo!();
@@ -144,8 +142,9 @@ impl Parseable for KString {
 			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
 		}
 
+		let s = start.clone();
 		let string = KString::new(contents, parser.opts()).map_err(|err| start.error(err.into()))?;
-		Ok(Some(string))
+		Ok(Some(Ast::new(crate::value::Value::from(string), s)))
 	}
 }
 
