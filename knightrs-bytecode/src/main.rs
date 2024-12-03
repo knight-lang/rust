@@ -16,10 +16,16 @@ fn main() {
 		#[cfg(feature = "extensions")]
 		{
 			opts.extensions.negative_indexing = true;
+			opts.extensions.eval = true;
 		}
 		opts
 	});
 	let program = std::env::args().skip(2).next().expect("missing -e expr");
+	let program2 = r#"; = f BLOCK / 1 0     # 1
+						  ; = g BLOCK CALL f    # 2
+						  ; = h BLOCK (CALL g)  # 3
+						  : CALL h              # 4
+"#;
 	let mut parser = Parser::new(&mut env, Some(Path::new("-e")), &program).unwrap();
 
 	let program = parser.parse_program().map_err(|err| panic!("{}", err)).unwrap();

@@ -2,12 +2,13 @@ use crate::parser::{ParseError, ParseErrorKind, Parseable, Parseable_OLD, Parser
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
 use crate::vm::Opcode;
+use crate::Options;
 
 use super::SourceLocation;
 
 pub struct Function;
 
-fn simple_opcode_for(func: char) -> Option<Opcode> {
+fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 	match func {
 		// arity 0
 		'P' => Some(Opcode::Prompt),
@@ -36,6 +37,8 @@ fn simple_opcode_for(func: char) -> Option<Opcode> {
 		'<' => Some(Opcode::Lth),
 		'>' => Some(Opcode::Gth),
 		'?' => Some(Opcode::Eql),
+		#[cfg(feature = "extensions")]
+		'E' if opts.extensions.eval => Some(Opcode::Eval),
 
 		// arity 3
 		'G' => Some(Opcode::Get),
@@ -135,7 +138,7 @@ unsafe impl Parseable_OLD for Function {
 		let start = parser.location();
 
 		// Handle opcodes without anything special
-		if let Some(simple_opcode) = simple_opcode_for(fn_name) {
+		if let Some(simple_opcode) = simple_opcode_for(fn_name, parser.opts()) {
 			debug_assert!(!simple_opcode.takes_offset()); // no simple opcodes take offsets
 
 			for arg in 0..simple_opcode.arity() {

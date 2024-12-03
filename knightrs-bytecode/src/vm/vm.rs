@@ -231,6 +231,14 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				Tail => self.stack.push(arg![0].kn_tail(self.env)?),
 				Pop => { /* do nothing, the arity already popped */ }
 
+				#[cfg(feature = "extensions")]
+				Eval => {
+					let program = arg![0].to_kstring(self.env)?;
+					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
+					let program = parser.parse_program()?;
+					self.stack.push(Vm::new(&program, self.env).run_entire_program()?);
+				}
+
 				// Arity 2
 				Add => self.stack.push(arg![0].kn_plus(arg![1], self.env)?),
 				Sub => self.stack.push(arg![0].kn_minus(arg![1], self.env)?),
