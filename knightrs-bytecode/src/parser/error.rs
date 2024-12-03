@@ -4,8 +4,7 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
 pub struct ParseError<'path> {
-	pub whence: SourceLocation,
-	pub _ignored: &'path (),
+	pub whence: SourceLocation<'path>,
 	pub kind: ParseErrorKind,
 }
 
@@ -38,7 +37,7 @@ pub enum ParseErrorKind {
 
 	#[cfg(feature = "stacktrace")]
 	#[error("missing matching `)` for paren found at {0}")]
-	MissingClosingParen(SourceLocation),
+	MissingClosingParen(SourceLocation<'static>),
 
 	#[cfg(feature = "stacktrace")]
 	#[error("unmatched `)` found")]
@@ -73,7 +72,7 @@ pub enum ParseErrorKind {
 
 impl ParseErrorKind {
 	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
-	pub fn error(self, whence: SourceLocation) -> ParseError<'static> {
-		ParseError { whence, kind: self, _ignored: &() }
+	pub fn error<'path>(self, whence: SourceLocation<'path>) -> ParseError<'path> {
+		ParseError { whence, kind: self }
 	}
 }

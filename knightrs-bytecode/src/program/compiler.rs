@@ -10,11 +10,15 @@ use std::collections::HashMap;
 // safety: cannot do invalid things with the builder.
 pub unsafe trait Compilable<'path> {
 	// no errors returned because compiling should never fail, that's parsing
-	fn compile(self, compiler: &mut Compiler, opts: &Options) -> Result<(), ParseError<'path>>;
+	fn compile(
+		self,
+		compiler: &mut Compiler<'path>,
+		opts: &Options,
+	) -> Result<(), ParseError<'path>>;
 }
 
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
-pub struct Compiler {
+pub struct Compiler<'path> {
 	// The current code so far; The bottom-most byte is the opcode, and when that's shifted away, the
 	// remainder is the offset.
 	code: Vec<InstructionAndOffset>,
@@ -31,13 +35,13 @@ pub struct Compiler {
 	// the index into `code`) to a source location; Only the first bytecode from each line is added,
 	// so when looking up in the `source_lines`, you need to
 	#[cfg(feature = "stacktrace")]
-	source_lines: HashMap<usize, SourceLocation>,
+	source_lines: HashMap<usize, SourceLocation<'path>>,
 
 	// Only enabled when stacktrace printing is enabled, this is a mapping of jump indices (which
 	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
-	block_locations: HashMap<JumpIndex, (Option<VariableName>, SourceLocation)>,
+	block_locations: HashMap<JumpIndex, (Option<VariableName>, SourceLocation<'path>)>,
 }
 
 fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndOffset {
@@ -45,8 +49,8 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 }
 
 // TODO: Make a "build-a-block" function
-impl Compiler {
-	pub fn new(start: SourceLocation) -> Self {
+impl<'path> Compiler<'path> {
+	pub fn new(start: SourceLocation<'path>) -> Self {
 		Self {
 			code: vec![],
 			constants: vec![],
@@ -72,7 +76,7 @@ impl Compiler {
 	/// value on top of its stack whenever it returns, which is the return value of the program.
 	///
 	/// Additionally, the caller must enure that all deferred jumps have been `jump_to`'d
-	pub unsafe fn build(mut self) -> Program {
+	pub unsafe fn build(mut self) -> Program<'path> {
 		// SAFETY: The caller guarantees that we'll always have exactly one opcode on the top when
 		// the program is finished executing, so we know
 		unsafe {
@@ -107,7 +111,7 @@ impl Compiler {
 
 	/// Indicates that a new line of code, located at `loc`, is about to begin. Used for stacktraces.
 	#[cfg(feature = "stacktrace")]
-	pub fn record_source_location(&mut self, loc: SourceLocation) {
+	pub fn record_source_location(&mut self, loc: SourceLocation<'path>) {
 		self.source_lines.insert(self.code.len(), loc);
 	}
 
@@ -116,7 +120,7 @@ impl Compiler {
 	#[cfg(feature = "stacktrace")]
 	pub fn record_block(
 		&mut self,
-		loc: SourceLocation,
+		loc: SourceLocation<'path>,
 		whence: JumpIndex,
 		name: Option<VariableName>,
 	) {

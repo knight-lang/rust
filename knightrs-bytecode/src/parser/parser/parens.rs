@@ -14,7 +14,7 @@ pub fn parse_parens<'path>(parser: &mut Parser<'_, '_, 'path>) -> Result<bool, P
 
 	parser.strip_whitespace_and_comments();
 	if parser.advance_if(')').is_none() {
-		return Err(parser.error(ParseErrorKind::MissingClosingParen(start)));
+		return Err(parser.error(ParseErrorKind::MissingClosingParen(todo!())));
 	}
 
 	return Ok(true);

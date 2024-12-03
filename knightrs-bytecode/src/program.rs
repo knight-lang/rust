@@ -15,7 +15,7 @@ type InstructionAndOffset = u64;
 ///
 /// After being parsed, Knight programs become [`Program`]s, which can then be run by
 /// [`Vm`](crate::VM)s later on.
-pub struct Program {
+pub struct Program<'path> {
 	// The code for the program. The bottom-most byte is the opcode, and when that's shifted away,
 	// the remainder is the offset.
 	code: Box<[InstructionAndOffset]>,
@@ -32,21 +32,22 @@ pub struct Program {
 	// (to improve efficiency), so when looking up in `source_lines`, if a value doesn't exist you
 	// need to iterate backwards until you find one.
 	#[cfg(feature = "stacktrace")]
-	source_lines: std::collections::HashMap<usize, SourceLocation>,
+	source_lines: std::collections::HashMap<usize, SourceLocation<'path>>,
 
 	// Only enabled when stacktrace printing is enabled, this is a mapping of jump indices (which
 	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
-	block_locations: std::collections::HashMap<JumpIndex, (Option<VariableName>, SourceLocation)>,
+	block_locations:
+		std::collections::HashMap<JumpIndex, (Option<VariableName>, SourceLocation<'path>)>,
 
 	// The list of variable names.
 	#[cfg(any(feature = "stacktrace", debug_assertions))]
 	variable_names: Vec<VariableName>,
 }
 
-impl Debug for Program {
+impl Debug for Program<'_> {
 	/// Write the debug output for `Program`.
 	///
 	/// This also decodes the bytecode contained within the [`Program`], to make it easy understand
@@ -85,7 +86,7 @@ impl Debug for Program {
 	}
 }
 
-impl Program {
+impl<'path> Program<'path> {
 	// SAFETY: `offset` needs to be <= the code length.
 	pub unsafe fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
 		debug_assert!(offset < self.code.len());
@@ -114,7 +115,7 @@ impl Program {
 	}
 
 	#[cfg(feature = "stacktrace")]
-	pub fn sourcelocation_at(&self, mut offset: usize) -> SourceLocation {
+	pub fn sourcelocation_at(&self, mut offset: usize) -> SourceLocation<'path> {
 		loop {
 			// Note that this will never go below zero, as the first line is always recorded
 			match self.source_lines.get(&offset) {
@@ -128,7 +129,7 @@ impl Program {
 	pub fn function_name(
 		&self,
 		block: crate::value::Block,
-	) -> (Option<&VariableName>, &SourceLocation) {
+	) -> (Option<&VariableName>, &SourceLocation<'path>) {
 		let src = self
 			.block_locations
 			.get(&block.inner())

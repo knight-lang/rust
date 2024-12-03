@@ -23,12 +23,10 @@ impl VariableName {
 	}
 }
 
-impl Parseable for VariableName {
-	type Output = (Self, SourceLocation);
+impl<'path> Parseable<'path> for VariableName {
+	type Output = (Self, SourceLocation<'path>);
 
-	fn parse<'path>(
-		parser: &mut Parser<'_, '_, 'path>,
-	) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
 		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
 			return Ok(None);
 		}
@@ -46,7 +44,7 @@ impl Parseable for VariableName {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for (VariableName, SourceLocation) {
+unsafe impl<'path> Compilable<'path> for (VariableName, SourceLocation<'path>) {
 	fn compile(
 		self,
 		compiler: &mut Compiler,

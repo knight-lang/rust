@@ -4,15 +4,15 @@ use crate::parser::VariableName;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone)]
-pub struct Stacktrace(Vec<Callsite>);
+pub struct Stacktrace<'path>(Vec<Callsite<'path>>);
 
-impl Stacktrace {
-	pub fn new(iter: impl IntoIterator<Item = Callsite>) -> Self {
+impl<'path> Stacktrace<'path> {
+	pub fn new(iter: impl IntoIterator<Item = Callsite<'path>>) -> Self {
 		Self(iter.into_iter().collect())
 	}
 }
 
-impl Display for Stacktrace {
+impl Display for Stacktrace<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		for callsite in &self.0 {
 			write!(f, "\n\tin {callsite}")?;

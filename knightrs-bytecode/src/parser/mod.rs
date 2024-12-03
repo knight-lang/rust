@@ -8,10 +8,8 @@ pub use parser::*;
 pub use source_location::SourceLocation;
 pub use variable_name::VariableName;
 
-pub trait Parseable {
+pub trait Parseable<'path> {
 	type Output;
 
-	fn parse<'path>(
-		parser: &mut Parser<'_, '_, 'path>,
-	) -> Result<Option<Self::Output>, ParseError<'path>>;
+	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>>;
 }

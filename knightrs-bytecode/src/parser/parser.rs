@@ -16,7 +16,7 @@ pub struct Parser<'env, 'expr, 'path> {
 	env: &'env mut Environment,
 	filename: Option<RefCount<Path>>, // TODO: dont use refcount
 	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
-	compiler: Compiler,
+	compiler: Compiler<'path>,
 	lineno: usize,
 
 	_ignored: &'path (),
@@ -65,7 +65,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 		})
 	}
 
-	pub fn compiler(&mut self) -> &mut Compiler {
+	pub fn compiler(&mut self) -> &mut Compiler<'path> {
 		&mut self.compiler
 	}
 
@@ -162,7 +162,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	}
 
 	// ick,
-	pub fn location(&self) -> SourceLocation {
+	pub fn location(&self) -> SourceLocation<'path> {
 		SourceLocation::new(self.filename.clone(), self.lineno)
 	}
 
@@ -181,7 +181,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Program, ParseError<'path>> {
+	pub fn parse_program(mut self) -> Result<Program<'path>, ParseError<'path>> {
 		self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.

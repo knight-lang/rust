@@ -52,7 +52,7 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 
 fn parse_argument<'path>(
 	parser: &mut Parser<'_, '_, 'path>,
-	start: &SourceLocation,
+	start: &SourceLocation<'path>,
 	fn_name: char,
 	arg: usize,
 ) -> Result<(), ParseError<'path>> {
@@ -65,7 +65,7 @@ fn parse_argument<'path>(
 }
 
 fn parse_assignment<'path>(
-	start: SourceLocation,
+	start: SourceLocation<'path>,
 	parser: &mut Parser<'_, '_, 'path>,
 ) -> Result<(), ParseError<'path>> {
 	parser.strip_whitespace_and_comments();
@@ -104,7 +104,7 @@ fn parse_assignment<'path>(
 }
 
 fn parse_block<'path>(
-	start: SourceLocation,
+	start: SourceLocation<'path>,
 	parser: &mut Parser<'_, '_, 'path>,
 	name: Option<VariableName>,
 ) -> Result<(), ParseError<'path>> {

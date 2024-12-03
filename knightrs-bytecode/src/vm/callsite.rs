@@ -2,18 +2,18 @@ use crate::parser::{SourceLocation, VariableName};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone)]
-pub struct Callsite {
-	src: SourceLocation,
+pub struct Callsite<'path> {
+	src: SourceLocation<'path>,
 	fn_name: Option<VariableName>,
 }
 
-impl Callsite {
-	pub fn new(fn_name: Option<VariableName>, src: SourceLocation) -> Self {
+impl<'path> Callsite<'path> {
+	pub fn new(fn_name: Option<VariableName>, src: SourceLocation<'path>) -> Self {
 		Self { src, fn_name }
 	}
 }
 
-impl Display for Callsite {
+impl Display for Callsite<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		write!(f, "{}", self.src)?;
 

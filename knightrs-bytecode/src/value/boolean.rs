@@ -67,12 +67,10 @@ impl ToKString for Boolean {
 	}
 }
 
-impl Parseable for Boolean {
+impl<'path> Parseable<'path> for Boolean {
 	type Output = Self;
 
-	fn parse<'path>(
-		parser: &mut Parser<'_, '_, 'path>,
-	) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(None);
 		};
@@ -83,7 +81,7 @@ impl Parseable for Boolean {
 }
 
 unsafe impl<'path> Compilable<'path> for Boolean {
-	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError<'path>> {
+	fn compile(self, compiler: &mut Compiler<'path>, _: &Options) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}
