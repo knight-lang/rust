@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 pub struct Parser<'env, 'expr, 'path> {
 	env: &'env mut Environment,
-	filename: Option<RefCount<Path>>, // TODO: dont use refcount
-	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
+	filename: Option<&'path Path>,
+	source: &'expr str, // can't use `StringSlice` b/c it has a length limit.
 	compiler: Compiler<'path>,
 	lineno: usize,
 
@@ -28,7 +28,7 @@ pub struct Parser<'env, 'expr, 'path> {
 #[cfg(feature = "compliance")]
 fn validate_source<'e, 'path>(
 	source: &'e str,
-	filename: &Option<RefCount<Path>>,
+	filename: Option<&'path Path>,
 	opts: &Options,
 ) -> Result<(), ParseError<'path>> {
 	let Err(err) = opts.encoding.validate(source) else {
@@ -39,24 +39,22 @@ fn validate_source<'e, 'path>(
 	// 1 + because line numbering starts at 1
 	let lineno = 1 + source.as_bytes().iter().take(err.position).filter(|&&c| c == b'\n').count();
 
-	let whence = SourceLocation::new(filename.clone(), lineno);
+	let whence = SourceLocation::new(filename, lineno);
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
 impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	pub fn new(
 		env: &'env mut Environment,
-		filename: Option<&Path>,
+		filename: Option<&'path Path>,
 		source: &'expr str,
 	) -> Result<Self, ParseError<'path>> {
-		let filename = filename.map(|c| c.to_owned().into());
-
 		#[cfg(feature = "compliance")]
-		validate_source(source, &filename, env.opts())?;
+		validate_source(source, filename, env.opts())?;
 
 		Ok(Self {
 			env,
-			compiler: Compiler::new(SourceLocation::new(filename.clone(), 1)),
+			compiler: Compiler::new(SourceLocation::new(filename, 1)),
 			filename,
 			source,
 			_ignored: &(),

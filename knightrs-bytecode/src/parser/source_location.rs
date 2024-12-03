@@ -7,14 +7,13 @@ use std::path::Path;
 pub struct SourceLocation<'path> {
 	// TODO: don't refcount this. maybe have all parser errors be lifetime-bounded? And then have
 	// the `eval` somehow leak them or something?
-	filename: Option<RefCount<Path>>,
-	_ignored: &'path (),
+	filename: Option<&'path Path>,
 	lineno: usize,
 }
 
 impl<'path> SourceLocation<'path> {
-	pub fn new(filename: Option<RefCount<Path>>, lineno: usize) -> Self {
-		Self { filename, lineno, _ignored: &() }
+	pub fn new(filename: Option<&'path Path>, lineno: usize) -> Self {
+		Self { filename, lineno }
 	}
 
 	pub fn error(self, kind: ParseErrorKind) -> ParseError<'path> {
