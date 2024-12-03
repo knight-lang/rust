@@ -192,13 +192,21 @@ impl Integer {
 	/// If `opts.compliance.check_overflow` is on, overflows yield [`IntegerError::MethodOverflow`].
 	#[cfg_attr(not(feature = "compliance"), inline)]
 	pub fn negate(self, opts: &Options) -> Result<Self, IntegerError> {
-		match () {
-			#[cfg(feature = "compliance")]
-			_ if opts.compliance.check_overflow => self.0.checked_neg(),
-			_ => Some(self.0.wrapping_neg()),
+		#[cfg(feature = "compliance")]
+		{
+			match () {
+				#[cfg(feature = "compliance")]
+				_ if opts.compliance.check_overflow => self.0.checked_neg(),
+				_ => Some(self.0.wrapping_neg()),
+			}
+			.and_then(|int| Self::new(int, opts))
+			.ok_or(IntegerError::MethodOverflow('~'))
 		}
-		.and_then(|int| Self::new(int, opts))
-		.ok_or(IntegerError::MethodOverflow('-'))
+
+		#[cfg(not(feature = "compliance"))]
+		{
+			Ok(Self::new_unvalidated_unchecked(self.0.wrapping_neg()))
+		}
 	}
 
 	fn binary_op<T>(
@@ -209,13 +217,21 @@ impl Integer {
 		#[allow(unused)] checked: fn(i64, T) -> Option<i64>,
 		wrapping: fn(i64, T) -> i64,
 	) -> Result<Self, IntegerError> {
-		match () {
-			#[cfg(feature = "compliance")]
-			_ if opts.compliance.check_overflow => checked(self.0, rhs),
-			_ => Some(wrapping(self.0, rhs)),
+		#[cfg(feature = "compliance")]
+		{
+			match () {
+				#[cfg(feature = "compliance")]
+				_ if opts.compliance.check_overflow => checked(self.0, rhs),
+				_ => Some(wrapping(self.0, rhs)),
+			}
+			.and_then(|int| Self::new(int, opts))
+			.ok_or(IntegerError::MethodOverflow(func))
 		}
-		.and_then(|int| Self::new(int, opts))
-		.ok_or(IntegerError::MethodOverflow(func))
+
+		#[cfg(not(feature = "compliance"))]
+		{
+			Ok(Self::new_unvalidated_unchecked(wrapping(self.0, rhs)))
+		}
 	}
 
 	/// Adds `augend` to `self`, wrapping unless `opts.compliance.check_overflow` is on.

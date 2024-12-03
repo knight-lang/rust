@@ -13,7 +13,10 @@ use knightrs_bytecode::Options;
 fn main() {
 	let mut env = Environment::new({
 		let mut opts = Options::default();
-		opts.extensions.negative_indexing = true;
+		#[cfg(feature = "extensions")]
+		{
+			opts.extensions.negative_indexing = true;
+		}
 		opts
 	});
 	let program = std::env::args().skip(2).next().expect("missing -e expr");

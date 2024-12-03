@@ -1,4 +1,5 @@
 mod function;
+#[cfg(feature = "qol")]
 mod parens;
 // mod variable;
 
@@ -36,6 +37,7 @@ pub struct Parser<'env, 'expr> {
 	loops: Vec<(JumpIndex, Vec<DeferredJump>)>,
 }
 
+#[cfg(feature = "compliance")]
 fn validate_source<'e>(
 	source: &'e str,
 	filename: &Option<RefCount<Path>>,
@@ -100,6 +102,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 		if head == '\n' {
 			self.lineno += 1;
+			#[cfg(feature = "qol")]
 			self.compiler.record_source_location(self.location());
 		}
 
@@ -233,7 +236,11 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 			return Ok(());
 		}
 
-		parens::parse_parens(self)? && return Ok(());
+		#[cfg(feature = "qol")]
+		if parens::parse_parens(self)? {
+			return Ok(());
+		}
+
 		function::Function::parse(self)? && return Ok(());
 
 		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;

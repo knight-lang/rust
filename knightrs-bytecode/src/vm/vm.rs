@@ -50,7 +50,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		#[cfg(feature = "stacktrace")]
 		self.callstack.push(self.current_index);
 
-		// Used for debugigng later
+		// Used for debugging later
 		#[cfg(debug_assertions)]
 		let stack_len = self.stack.len();
 
@@ -67,15 +67,13 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		};
 
 		#[cfg(feature = "stacktrace")]
-		self.callstack.pop();
-
-		// TODO: why'd i separate this out originally?
-		if result.is_ok() {
-			debug_assert_eq!(stack_len, self.stack.len());
-			self.current_index = index;
-			// let popped = self.call_stack_old.pop();
-			// debug_assert_eq!(popped, Some(block));
+		{
+			let result = self.callstack.pop();
+			debug_assert_eq!(result, Some(index));
 		}
+
+		debug_assert_eq!(stack_len, self.stack.len());
+		self.current_index = index;
 
 		result
 	}
@@ -98,6 +96,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		}))
 	}
 
+	#[cfg(feature = "stacktrace")]
 	fn block_name_at(&self, mut idx: usize) -> Option<VariableName> {
 		while idx != 0 {
 			if let Some(&name) = self.known_blocks.get(&idx) {

@@ -108,7 +108,8 @@ impl StringSlice {
 		// Make sure `str.repeat()` won't panic
 		if amount.checked_mul(self.len()).map_or(true, |c| isize::MAX as usize <= c) {
 			// TODO: maybe we don't have the length in `LengthTooLong` ?
-			return Err(StringError::LengthTooLong(self.len().wrapping_mul(amount)));
+			// return Err(StringError::LengthTooLong(self.len().wrapping_mul(amount)));
+			todo!();
 		}
 
 		#[cfg(feature = "compliance")]
