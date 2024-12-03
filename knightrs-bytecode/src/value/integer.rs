@@ -129,6 +129,12 @@ impl Integer {
 		Self(int)
 	}
 
+	#[inline]
+	#[doc(hidden)]
+	pub const fn new_unvalidated_unchecked(int: IntegerInner) -> Self {
+		Self(int)
+	}
+
 	/// Tries to create a new [`Integer`], with the given options.
 	///
 	/// Without `compliance.i32_integer` enabled, this function never fails. When it's enabled, an

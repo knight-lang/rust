@@ -1,3 +1,4 @@
+mod callsite;
 mod error;
 mod opcode;
 mod vm;
@@ -7,6 +8,7 @@ mod stacktrace;
 #[cfg(feature = "stacktrace")]
 pub use stacktrace::Stacktrace;
 
+pub use callsite::Callsite;
 pub use error::RuntimeError;
 pub use opcode::Opcode;
 

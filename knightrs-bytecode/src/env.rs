@@ -88,6 +88,6 @@ impl Environment {
 		};
 
 		// We can do `new_unvalidated` as we clamp the min/max based on compliance.
-		Ok(Integer::new_unvalidated(self.rng.gen_range(min..=max)))
+		Ok(Integer::new_unvalidated_unchecked(self.rng.gen_range(min..=max)))
 	}
 }

@@ -211,6 +211,7 @@ unsafe impl Parseable_OLD for Function {
 
 				parse_argument(parser, &start, fn_name, 3)?;
 				unsafe {
+					parser.compiler().opcode_without_offset(Opcode::Pop);
 					parser.compiler().jump_to(JumpWhen::Always, while_start);
 				}
 

@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, Program, RuntimeError};
+use crate::parser::SourceLocation;
 use crate::program::JumpIndex;
 use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
@@ -13,8 +14,12 @@ pub struct Vm<'prog, 'env> {
 	current_index: usize,
 	stack: Vec<Value>,
 	vars: Box<[Value]>,
+
 	#[cfg(feature = "stacktrace")]
-	call_stack: Vec<Block>,
+	callstack: Vec<usize>,
+
+	#[cfg(feature = "stacktrace")]
+	call_stack_old: Vec<Block>,
 }
 
 impl<'prog, 'env> Vm<'prog, 'env> {
@@ -25,8 +30,12 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			current_index: 0,
 			stack: Vec::new(),
 			vars: vec![Value::Null; program.num_variables()].into(),
+
 			#[cfg(feature = "stacktrace")]
-			call_stack: Vec::new(),
+			callstack: Vec::new(),
+
+			#[cfg(feature = "stacktrace")]
+			call_stack_old: Vec::new(),
 		}
 	}
 
@@ -35,11 +44,47 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 	}
 
 	pub fn run(&mut self, block: Block) -> crate::Result<Value> {
+		// Save previous index
+		let index = self.current_index;
+		#[cfg(feature = "stacktrace")]
+		self.callstack.push(self.current_index);
+
+		// Used for debugigng later
+		#[cfg(debug_assertions)]
+		let stack_len = self.stack.len();
+
+		// Actually call the functoin
+		self.current_index = block.inner().0;
+		let result = self.run_inner();
+
+		// Add the stacktrace to the lsit
+		#[cfg(feature = "stacktrace")]
+		let result = match result {
+			Ok(ok) => Ok(ok),
+			Err(todo @ crate::Error::Stacktrace(_)) => Err(todo),
+			Err(err) => Err(crate::Error::Stacktrace(self.error(err).to_string())),
+		};
+
+		#[cfg(feature = "stacktrace")]
+		self.callstack.pop();
+
+		// TODO: why'd i separate this out originally?
+		if result.is_ok() {
+			debug_assert_eq!(stack_len, self.stack.len());
+			self.current_index = index;
+			// let popped = self.call_stack_old.pop();
+			// debug_assert_eq!(popped, Some(block));
+		}
+
+		result
+	}
+
+	pub fn run3(&mut self, block: Block) -> crate::Result<Value> {
 		let index = self.current_index;
 		let stack_len = self.stack.len();
 
 		self.current_index = block.inner().0;
-		self.call_stack.push(block);
+		self.call_stack_old.push(block);
 		let result = self.run_inner();
 
 		#[cfg(feature = "stacktrace")]
@@ -53,7 +98,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		if result.is_ok() {
 			debug_assert_eq!(stack_len, self.stack.len());
 			self.current_index = index;
-			let popped = self.call_stack.pop();
+			let popped = self.call_stack_old.pop();
 			debug_assert_eq!(popped, Some(block));
 		}
 
@@ -70,9 +115,11 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 
 	#[cfg(feature = "stacktrace")]
 	pub fn stacktrace(&self) -> super::Stacktrace {
-		super::Stacktrace::new(self.call_stack.iter().map(|block| {
-			let (name, loc) = self.program.function_name(*block);
-			(name.cloned(), loc.clone())
+		use super::Callsite;
+
+		super::Stacktrace::new(self.callstack.iter().map(|&idx| {
+			let loc = self.program.sourcelocation_at(idx);
+			Callsite::new(None, loc)
 		}))
 	}
 

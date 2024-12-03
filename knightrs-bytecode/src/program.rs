@@ -3,7 +3,7 @@ mod compiler;
 use crate::parser::{ParseErrorKind, SourceLocation, VariableName};
 use crate::strings::StringSlice;
 use crate::value::{KString, Value};
-use crate::vm::Opcode;
+use crate::vm::{Callsite, Opcode};
 use crate::Options;
 pub use compiler::{Compilable, Compiler};
 use std::fmt::{self, Debug, Formatter};
@@ -110,10 +110,14 @@ impl Program {
 	}
 
 	#[cfg(feature = "stacktrace")]
-	pub fn source_location_at(offset: usize) -> SourceLocation {
-		todo!();
-		// TODO
-		// Default::default()
+	pub fn sourcelocation_at(&self, mut offset: usize) -> SourceLocation {
+		loop {
+			// Note that this will never go below zero, as the first line is always recorded
+			match self.source_lines.get(&offset) {
+				Some(loc) => return loc.clone(),
+				None => offset -= 1,
+			}
+		}
 	}
 
 	#[cfg(feature = "stacktrace")]

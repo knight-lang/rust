@@ -52,7 +52,11 @@ impl Compiler {
 			constants: vec![],
 			variables: indexmap::IndexSet::new(),
 			#[cfg(feature = "stacktrace")]
-			source_lines: HashMap::new(),
+			source_lines: {
+				let mut sl = HashMap::new();
+				sl.insert(0, start.clone());
+				sl
+			},
 			#[cfg(feature = "stacktrace")]
 			block_locations: {
 				let mut bl = HashMap::new();
