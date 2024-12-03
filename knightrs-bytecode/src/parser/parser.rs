@@ -12,11 +12,11 @@ use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 
-pub struct Parser<'env, 'expr, 'path> {
+pub struct Parser<'env, 'src, 'path> {
 	env: &'env mut Environment,
 	filename: Option<&'path Path>,
-	source: &'expr str, // can't use `StringSlice` b/c it has a length limit.
-	compiler: Compiler<'path>,
+	source: &'src str, // can't use `StringSlice` b/c it has a length limit.
+	compiler: Compiler<'src, 'path>,
 	lineno: usize,
 
 	_ignored: &'path (),
@@ -43,11 +43,11 @@ fn validate_source<'e, 'path>(
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
-impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
+impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 	pub fn new(
 		env: &'env mut Environment,
 		filename: Option<&'path Path>,
-		source: &'expr str,
+		source: &'src str,
 	) -> Result<Self, ParseError<'path>> {
 		#[cfg(feature = "compliance")]
 		validate_source(source, filename, env.opts())?;
@@ -63,7 +63,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 		})
 	}
 
-	pub fn compiler(&mut self) -> &mut Compiler<'path> {
+	pub fn compiler(&mut self) -> &mut Compiler<'src, 'path> {
 		&mut self.compiler
 	}
 
@@ -103,7 +103,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	}
 
 	/// Takes characters from while `func` returns true. `None` is returned if nothing was parsed.
-	pub fn take_while<F>(&mut self, mut func: F) -> Option<&'expr str>
+	pub fn take_while<F>(&mut self, mut func: F) -> Option<&'src str>
 	where
 		F: FnMut(char) -> bool,
 	{
@@ -121,7 +121,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	}
 
 	/// Removes leading whitespace and comments, returning whether anything _was_ stripped.
-	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'expr str> {
+	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'src str> {
 		let start = self.source;
 
 		#[cfg(feature = "qol")]
@@ -165,7 +165,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	}
 
 	/// Removes the remainder of a keyword function.
-	pub fn strip_keyword_function(&mut self) -> Option<&'expr str> {
+	pub fn strip_keyword_function(&mut self) -> Option<&'src str> {
 		self.take_while(|c| c.is_uppercase() || c == '_')
 	}
 

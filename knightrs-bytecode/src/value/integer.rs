@@ -411,7 +411,7 @@ impl Integer {
 	}
 }
 
-impl<'path> Parseable<'path> for Integer {
+impl<'path> Parseable<'_, 'path> for Integer {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -433,8 +433,12 @@ impl<'path> Parseable<'path> for Integer {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for Integer {
-	fn compile(self, compiler: &mut Compiler<'path>, _: &Options) -> Result<(), ParseError<'path>> {
+unsafe impl<'path> Compilable<'_, 'path> for Integer {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

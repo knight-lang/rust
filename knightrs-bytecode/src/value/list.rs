@@ -453,7 +453,7 @@ impl List {
 	}
 }
 
-impl<'path> Parseable<'path> for List {
+impl<'path> Parseable<'_, 'path> for List {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -472,8 +472,12 @@ impl<'path> Parseable<'path> for List {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for List {
-	fn compile(self, compiler: &mut Compiler<'path>, _: &Options) -> Result<(), ParseError<'path>> {
+unsafe impl<'path> Compilable<'_, 'path> for List {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

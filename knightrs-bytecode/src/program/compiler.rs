@@ -8,17 +8,17 @@ use crate::vm::Opcode;
 use std::collections::HashMap;
 
 // safety: cannot do invalid things with the builder.
-pub unsafe trait Compilable<'path> {
+pub unsafe trait Compilable<'src, 'path> {
 	// no errors returned because compiling should never fail, that's parsing
 	fn compile(
 		self,
-		compiler: &mut Compiler<'path>,
+		compiler: &mut Compiler<'src, 'path>,
 		opts: &Options,
 	) -> Result<(), ParseError<'path>>;
 }
 
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
-pub struct Compiler<'path> {
+pub struct Compiler<'src, 'path> {
 	// The current code so far; The bottom-most byte is the opcode, and when that's shifted away, the
 	// remainder is the offset.
 	code: Vec<InstructionAndOffset>,
@@ -30,6 +30,8 @@ pub struct Compiler<'path> {
 	// index is the "offset" that all `Opcodes` that interact with variables (eg [`Opcode::GetVar`])
 	// will use.)
 	variables: indexmap::IndexSet<VariableName>,
+
+	_tmp: &'src (),
 
 	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
 	// the index into `code`) to a source location; Only the first bytecode from each line is added,
@@ -49,11 +51,12 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 }
 
 // TODO: Make a "build-a-block" function
-impl<'path> Compiler<'path> {
+impl<'src, 'path> Compiler<'src, 'path> {
 	pub fn new(start: SourceLocation<'path>) -> Self {
 		Self {
 			code: vec![],
 			constants: vec![],
+			_tmp: &(),
 			variables: indexmap::IndexSet::new(),
 			#[cfg(feature = "stacktrace")]
 			source_lines: {

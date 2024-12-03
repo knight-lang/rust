@@ -59,7 +59,7 @@ impl ToKString for Null {
 	}
 }
 
-impl<'path> Parseable<'path> for Null {
+impl<'path> Parseable<'_, 'path> for Null {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -72,8 +72,12 @@ impl<'path> Parseable<'path> for Null {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for Null {
-	fn compile(self, compiler: &mut Compiler<'path>, _: &Options) -> Result<(), ParseError<'path>> {
+unsafe impl<'path> Compilable<'_, 'path> for Null {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

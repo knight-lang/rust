@@ -129,7 +129,7 @@ impl KString {
 	}
 }
 
-impl<'path> Parseable<'path> for KString {
+impl<'path> Parseable<'_, 'path> for KString {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -157,8 +157,12 @@ impl<'path> Parseable<'path> for KString {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for KString {
-	fn compile(self, compiler: &mut Compiler<'path>, _: &Options) -> Result<(), ParseError<'path>> {
+unsafe impl<'path> Compilable<'_, 'path> for KString {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

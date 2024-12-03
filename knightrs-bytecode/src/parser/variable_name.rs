@@ -23,7 +23,7 @@ impl VariableName {
 	}
 }
 
-impl<'path> Parseable<'path> for VariableName {
+impl<'path> Parseable<'_, 'path> for VariableName {
 	type Output = (Self, SourceLocation<'path>);
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -44,7 +44,7 @@ impl<'path> Parseable<'path> for VariableName {
 	}
 }
 
-unsafe impl<'path> Compilable<'path> for (VariableName, SourceLocation<'path>) {
+unsafe impl<'path> Compilable<'_, 'path> for (VariableName, SourceLocation<'path>) {
 	fn compile(
 		self,
 		compiler: &mut Compiler,
