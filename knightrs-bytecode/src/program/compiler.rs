@@ -14,7 +14,6 @@ pub unsafe trait Compilable {
 }
 
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
-#[derive(Default)]
 pub struct Compiler {
 	// The current code so far; The bottom-most byte is the opcode, and when that's shifted away, the
 	// remainder is the offset.
@@ -47,6 +46,21 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 
 // TODO: Make a "build-a-block" function
 impl Compiler {
+	pub fn new(start: SourceLocation) -> Self {
+		Self {
+			code: vec![],
+			constants: vec![],
+			variables: indexmap::IndexSet::new(),
+			#[cfg(feature = "stacktrace")]
+			source_lines: HashMap::new(),
+			#[cfg(feature = "stacktrace")]
+			block_locations: {
+				let mut bl = HashMap::new();
+				bl.insert(JumpIndex(0), (None, start));
+				bl
+			},
+		}
+	}
 	/// Finished building the [`Program`], and returns it
 	///
 	/// # Safety

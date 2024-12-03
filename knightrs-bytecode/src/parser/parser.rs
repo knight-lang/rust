@@ -66,9 +66,9 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 		Ok(Self {
 			env,
+			compiler: Compiler::new(SourceLocation::new(filename.clone(), 1)),
 			filename,
 			source,
-			compiler: Compiler::default(),
 			lineno: 1,
 			loops: Vec::new(),
 		})
@@ -100,6 +100,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 
 		if head == '\n' {
 			self.lineno += 1;
+			self.compiler.record_source_location(self.location());
 		}
 
 		self.source = chars.as_str();

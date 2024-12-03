@@ -259,7 +259,7 @@ impl Value {
 
 	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
 		match self {
-			Self::Block(block) => vm.child_stackframe(*block),
+			Self::Block(block) => vm.run(*block),
 			other => Err(Error::TypeError { type_name: other.type_name(), function: "CALL" }),
 		}
 	}

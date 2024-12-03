@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, Program, RuntimeError};
+use crate::program::JumpIndex;
 use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
@@ -29,13 +30,17 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		}
 	}
 
-	pub fn child_stackframe(&mut self, block: Block) -> crate::Result<Value> {
+	pub fn run_entire_program(&mut self) -> crate::Result<Value> {
+		self.run(Block::new(JumpIndex(0)))
+	}
+
+	pub fn run(&mut self, block: Block) -> crate::Result<Value> {
 		let index = self.current_index;
 		let stack_len = self.stack.len();
 
 		self.current_index = block.inner().0;
 		self.call_stack.push(block);
-		let result = self.run();
+		let result = self.run_inner();
 
 		#[cfg(feature = "stacktrace")]
 		let result = match result {
@@ -44,10 +49,13 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			Err(err) => Err(crate::Error::Stacktrace(self.error(err).to_string())),
 		};
 
-		debug_assert_eq!(stack_len, self.stack.len());
-		self.current_index = index;
-		let popped = self.call_stack.pop();
-		debug_assert_eq!(popped, Some(block));
+		// TODO: why'd i separate this out originally?
+		if result.is_ok() {
+			debug_assert_eq!(stack_len, self.stack.len());
+			self.current_index = index;
+			let popped = self.call_stack.pop();
+			debug_assert_eq!(popped, Some(block));
+		}
 
 		result
 	}
@@ -68,7 +76,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		}))
 	}
 
-	pub fn run(&mut self) -> crate::Result<Value> {
+	pub fn run_inner(&mut self) -> crate::Result<Value> {
 		const NULL: Value = Value::Null;
 
 		use Opcode::*;
