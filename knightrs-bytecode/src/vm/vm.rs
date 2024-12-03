@@ -71,7 +71,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			debug_assert_eq!(result, Some(index));
 		}
 
-		debug_assert_eq!(stack_len, self.stack.len());
+		debug_assert_eq!(stack_len, self.stack.len(), "{:?}", result);
 		self.current_index = index;
 
 		result
@@ -143,16 +143,22 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 			let args = self.stack.spare_capacity_mut();
 
+			macro_rules! last {
+				() => {
+					self.stack.last().unwrap_unchecked()
+				};
+			}
+
 			macro_rules! arg {
-				(& $idx:expr) => {{
+				(*$idx:expr) => {{
 					let idx = $idx;
 					debug_assert!(idx < opcode.arity());
-					unsafe { args[idx].assume_init_ref() }
+					unsafe { args[idx].assume_init_read() }
 				}};
 				($idx:expr) => {{
 					let idx = $idx;
 					debug_assert!(idx < opcode.arity());
-					unsafe { args[idx].assume_init_read() }
+					unsafe { args[idx].assume_init_ref() }
 				}};
 			}
 
@@ -184,7 +190,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				GetVar => self.vars[offset].as_ref().expect("todo: UndefinedVariable").clone(),
 
 				SetVar => {
-					let value = self.stack.last().unwrap().clone();
+					let value = unsafe { last!() }.clone();
 
 					#[cfg(feature = "stacktrace")]
 					if let Value::Block(ref block) = value {
@@ -201,12 +207,19 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				// Arity 0
 				Prompt => self.env.prompt()?.map(Value::from).unwrap_or_default(),
 				Random => self.env.random()?.into(),
-				Dup => self.stack.last().unwrap().clone(),
-				Return => return Ok(self.stack.pop().unwrap()),
+				Dup => unsafe { last!() }.clone(),
+				Dump => {
+					// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
+					// its arity is 0
+					unsafe { last!() }.kn_dump(self.env)?;
+					continue;
+				}
 
 				// Arity 1
+				Return => return Ok(arg![*0]),
+
 				Call => {
-					let result = arg![0].kn_call(self)?;
+					let result = arg![*0].kn_call(self)?;
 					result
 				}
 				Quit => {
@@ -214,10 +227,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
 					self.env.quit(status)?;
 					unreachable!()
-				}
-				Dump => {
-					arg![0].kn_dump(self.env)?;
-					arg![0].clone()
 				}
 				Output => {
 					use std::io::Write;
@@ -254,21 +263,21 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				}
 
 				// Arity 2
-				Add => arg![0].kn_plus(&arg![1], self.env)?,
-				Sub => arg![0].kn_minus(&arg![1], self.env)?,
-				Mul => arg![0].kn_asterisk(&arg![1], self.env)?,
-				Div => arg![0].kn_slash(&arg![1], self.env)?,
-				Mod => arg![0].kn_percent(&arg![1], self.env)?,
-				Pow => arg![0].kn_caret(&arg![1], self.env)?,
-				Lth => (arg![0].kn_compare(&arg![1], "<", self.env)? == Ordering::Less).into(),
-				Gth => (arg![0].kn_compare(&arg![1], ">", self.env)? == Ordering::Greater).into(),
-				Eql => (arg![0].kn_equals(&arg![1], self.env)?).into(),
+				Add => arg![0].kn_plus(arg![1], self.env)?,
+				Sub => arg![0].kn_minus(arg![1], self.env)?,
+				Mul => arg![0].kn_asterisk(arg![1], self.env)?,
+				Div => arg![0].kn_slash(arg![1], self.env)?,
+				Mod => arg![0].kn_percent(arg![1], self.env)?,
+				Pow => arg![0].kn_caret(arg![1], self.env)?,
+				Lth => (arg![0].kn_compare(arg![1], "<", self.env)? == Ordering::Less).into(),
+				Gth => (arg![0].kn_compare(arg![1], ">", self.env)? == Ordering::Greater).into(),
+				Eql => (arg![0].kn_equals(arg![1], self.env)?).into(),
 
 				// Arity 3
-				Get => arg![0].kn_get(&arg![1], &arg![2], self.env)?,
+				Get => arg![0].kn_get(arg![1], arg![2], self.env)?,
 
 				// Arity 4
-				Set => arg![0].kn_set(&arg![1], &arg![2], &arg![3], self.env)?,
+				Set => arg![0].kn_set(arg![1], arg![2], arg![3], self.env)?,
 			};
 			self.stack.push(value);
 		}

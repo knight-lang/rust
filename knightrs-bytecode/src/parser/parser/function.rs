@@ -17,7 +17,6 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 		// arity 1
 		'C' => Some(Opcode::Call),
 		'Q' => Some(Opcode::Quit),
-		'D' => Some(Opcode::Dump),
 		'O' => Some(Opcode::Output),
 		'L' => Some(Opcode::Length),
 		'!' => Some(Opcode::Not),
@@ -153,6 +152,16 @@ impl Function {
 				parser.compiler.opcode_without_offset(simple_opcode);
 			}
 
+			return Ok(true);
+		}
+
+		// This is a simple op, except its arity is 0 so it never pops.
+		if fn_name == 'D' {
+			parse_argument(parser, &start, fn_name, 1)?;
+			unsafe {
+				// todo: rename to simple opcode?
+				parser.compiler.opcode_without_offset(Opcode::Dump);
+			}
 			return Ok(true);
 		}
 

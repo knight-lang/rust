@@ -21,13 +21,13 @@ pub enum Opcode {
 	// Arity 0
 	Prompt = opcode(1, 0, false),
 	Random = opcode(2, 0, false),
-	Dup = opcode(3, 0, false), // doesnt have an arity cause that pops
-	Return = opcode(4, 0, false),
+	Dup = opcode(3, 0, false),  // doesnt have an arity cause that pops
+	Dump = opcode(5, 0, false), // special-cased in `function.rs` so it doesn't pop.
 
 	// Arity 1
-	Call = opcode(0, 1, false),
-	Quit = opcode(1, 1, false),
-	Dump = opcode(2, 1, false),
+	Return = opcode(0, 1, false),
+	Call = opcode(1, 1, false),
+	Quit = opcode(2, 1, false),
 	Output = opcode(3, 1, false),
 	Length = opcode(4, 1, false),
 	Not = opcode(5, 1, false),
