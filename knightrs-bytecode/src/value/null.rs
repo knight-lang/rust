@@ -62,7 +62,7 @@ impl ToKString for Null {
 impl Parseable for Null {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);
 		}

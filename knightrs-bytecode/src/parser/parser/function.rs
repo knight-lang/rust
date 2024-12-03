@@ -51,7 +51,7 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 }
 
 fn parse_argument(
-	parser: &mut Parser<'_, '_>,
+	parser: &mut Parser<'_, '_, '_>,
 	start: &SourceLocation,
 	fn_name: char,
 	arg: usize,
@@ -64,7 +64,10 @@ fn parse_argument(
 	}
 }
 
-fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Result<(), ParseError> {
+fn parse_assignment(
+	start: SourceLocation,
+	parser: &mut Parser<'_, '_, '_>,
+) -> Result<(), ParseError> {
 	parser.strip_whitespace_and_comments();
 
 	// TODO: handle `()` around variable name.
@@ -102,7 +105,7 @@ fn parse_assignment(start: SourceLocation, parser: &mut Parser<'_, '_>) -> Resul
 
 fn parse_block(
 	start: SourceLocation,
-	parser: &mut Parser<'_, '_>,
+	parser: &mut Parser<'_, '_, '_>,
 	name: Option<VariableName>,
 ) -> Result<(), ParseError> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
@@ -123,7 +126,7 @@ fn parse_block(
 }
 
 unsafe impl Parseable_OLD for Function {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
 		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
 		// support `X`s
 

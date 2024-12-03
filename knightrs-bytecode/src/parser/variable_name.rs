@@ -26,7 +26,7 @@ impl VariableName {
 impl Parseable for VariableName {
 	type Output = (Self, SourceLocation);
 
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
 			return Ok(None);
 		}

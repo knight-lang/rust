@@ -23,15 +23,17 @@ use super::VariableName;
 #[allow(non_camel_case_types)]
 #[deprecated]
 pub unsafe trait Parseable_OLD {
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError>;
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError>;
 }
 
-pub struct Parser<'env, 'expr> {
+pub struct Parser<'env, 'expr, 'path> {
 	env: &'env mut Environment,
 	filename: Option<RefCount<Path>>, // TODO: dont use refcount
 	source: &'expr str,               // can't use `StringSlice` b/c it has a length limit.
 	compiler: Compiler,
 	lineno: usize,
+
+	_ignored: &'path (),
 
 	// Start is loop begin, vec is those to jump to loop end
 	loops: Vec<(JumpIndex, Vec<DeferredJump>)>,
@@ -55,7 +57,7 @@ fn validate_source<'e>(
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
-impl<'env, 'expr> Parser<'env, 'expr> {
+impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	pub fn new(
 		env: &'env mut Environment,
 		filename: Option<&Path>,
@@ -71,6 +73,7 @@ impl<'env, 'expr> Parser<'env, 'expr> {
 			compiler: Compiler::new(SourceLocation::new(filename.clone(), 1)),
 			filename,
 			source,
+			_ignored: &(),
 			lineno: 1,
 			loops: Vec::new(),
 		})

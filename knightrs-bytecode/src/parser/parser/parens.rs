@@ -1,6 +1,6 @@
 use crate::parser::{ParseError, ParseErrorKind, Parser};
 
-pub fn parse_parens(parser: &mut Parser<'_, '_>) -> Result<bool, ParseError> {
+pub fn parse_parens(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
 	if parser.advance_if(')').is_some() {
 		return Err(parser.error(ParseErrorKind::UnmatchedClosingParen));
 	}

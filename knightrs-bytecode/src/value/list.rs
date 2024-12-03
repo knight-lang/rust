@@ -456,7 +456,7 @@ impl List {
 impl Parseable for List {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
 			// TODO: make sure that this doesn't actually strictly return a list, as that won't be

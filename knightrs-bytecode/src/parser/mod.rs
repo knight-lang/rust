@@ -11,5 +11,5 @@ pub use variable_name::VariableName;
 pub trait Parseable {
 	type Output;
 
-	fn parse(parser: &mut Parser<'_, '_>) -> Result<Option<Self::Output>, ParseError>;
+	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError>;
 }
