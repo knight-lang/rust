@@ -95,7 +95,7 @@ impl Compiler {
 			#[cfg(feature = "stacktrace")]
 			block_locations: self.block_locations,
 
-			#[cfg(debug_assertions)]
+			#[cfg(any(feature = "stacktrace", debug_assertions))]
 			variable_names: self.variables.into_iter().collect(),
 		}
 	}

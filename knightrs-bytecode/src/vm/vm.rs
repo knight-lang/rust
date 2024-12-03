@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, Program, RuntimeError};
-use crate::parser::SourceLocation;
+use crate::parser::{SourceLocation, VariableName};
 use crate::program::JumpIndex;
 use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
@@ -19,7 +20,7 @@ pub struct Vm<'prog, 'env> {
 	callstack: Vec<usize>,
 
 	#[cfg(feature = "stacktrace")]
-	call_stack_old: Vec<Block>,
+	known_blocks: std::collections::HashMap<usize, &'prog VariableName>,
 }
 
 impl<'prog, 'env> Vm<'prog, 'env> {
@@ -35,7 +36,7 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 			callstack: Vec::new(),
 
 			#[cfg(feature = "stacktrace")]
-			call_stack_old: Vec::new(),
+			known_blocks: Default::default(),
 		}
 	}
 
@@ -79,32 +80,6 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 		result
 	}
 
-	pub fn run3(&mut self, block: Block) -> crate::Result<Value> {
-		let index = self.current_index;
-		let stack_len = self.stack.len();
-
-		self.current_index = block.inner().0;
-		self.call_stack_old.push(block);
-		let result = self.run_inner();
-
-		#[cfg(feature = "stacktrace")]
-		let result = match result {
-			Ok(ok) => Ok(ok),
-			Err(todo @ crate::Error::Stacktrace(_)) => Err(todo),
-			Err(err) => Err(crate::Error::Stacktrace(self.error(err).to_string())),
-		};
-
-		// TODO: why'd i separate this out originally?
-		if result.is_ok() {
-			debug_assert_eq!(stack_len, self.stack.len());
-			self.current_index = index;
-			let popped = self.call_stack_old.pop();
-			debug_assert_eq!(popped, Some(block));
-		}
-
-		result
-	}
-
 	pub fn error(&mut self, err: crate::Error) -> RuntimeError {
 		RuntimeError {
 			err,
@@ -119,8 +94,20 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 
 		super::Stacktrace::new(self.callstack.iter().map(|&idx| {
 			let loc = self.program.sourcelocation_at(idx);
-			Callsite::new(None, loc)
+			Callsite::new(self.block_name_at(idx), loc)
 		}))
+	}
+
+	fn block_name_at(&self, mut idx: usize) -> Option<VariableName> {
+		while idx != 0 {
+			if let Some(&name) = self.known_blocks.get(&idx) {
+				return Some(name.clone());
+			}
+
+			idx -= 1;
+		}
+
+		None
 	}
 
 	pub fn run_inner(&mut self) -> crate::Result<Value> {
@@ -187,10 +174,18 @@ impl<'prog, 'env> Vm<'prog, 'env> {
 				}
 
 				SetVar => {
-					self.vars[offset] = self.stack.last().unwrap().clone();
+					let value = self.stack.last().unwrap().clone();
+
+					#[cfg(feature = "stacktrace")]
+					if let Value::Block(ref block) = value {
+						let varname = self.program.variable_name(offset);
+						self.known_blocks.insert(block.inner().0, varname);
+					}
+
+					self.vars[offset] = value;
 				}
 
-				SetVarPop => self.vars[offset] = arg![0].clone(),
+				SetVarPop => todo!(), //self.vars[offset] = arg![0].clone(),
 
 				// Arity 0
 				Prompt => self.stack.push(self.env.prompt()?.map(Value::from).unwrap_or_default()),

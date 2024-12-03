@@ -385,11 +385,11 @@ impl Integer {
 		match <IntegerInner as std::str::FromStr>::from_str(start) {
 			Ok(value) => Ok(Self::new_error(value, opts)?),
 			Err(err) => match err.kind() {
-				std::num::IntErrorKind::Empty => Ok(Self::ZERO),
+				std::num::IntErrorKind::Empty | std::num::IntErrorKind::InvalidDigit => Ok(Self::ZERO),
 				std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow => {
 					todo!("integer overflow error")
 				}
-				_ => todo!(),
+				other => todo!("{:?}", other),
 			},
 		}
 	}

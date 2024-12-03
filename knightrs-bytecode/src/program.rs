@@ -41,9 +41,8 @@ pub struct Program {
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
 	block_locations: std::collections::HashMap<JumpIndex, (Option<VariableName>, SourceLocation)>,
 
-	// The list of variable names. Only enabled when `debug_assertions` are on, as it's used within
-	// the `Debug` implementation of `Program`.
-	#[cfg(debug_assertions)]
+	// The list of variable names.
+	#[cfg(any(feature = "stacktrace", debug_assertions))]
 	variable_names: Vec<VariableName>,
 }
 
@@ -107,6 +106,11 @@ impl Program {
 
 	pub fn num_variables(&self) -> usize {
 		self.num_variables
+	}
+
+	#[cfg(feature = "stacktrace")]
+	pub fn variable_name(&self, idx: usize) -> &VariableName {
+		self.variable_names.get(idx).expect("variable_name should only be called with actual names")
 	}
 
 	#[cfg(feature = "stacktrace")]

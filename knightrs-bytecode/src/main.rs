@@ -17,40 +17,7 @@ fn main() {
 		opts
 	});
 	let program = std::env::args().skip(2).next().expect("missing -e expr");
-	let mut parser = Parser::new(
-		&mut env,
-		Some(Path::new("-e")),
-		&program,
-		// 		r#"
-
-		// ; = (numer) 1
-		// ; = divide BLOCK
-		// 	/ numer denom
-		// ; = call_divide BLOCK
-		// 	CALL divide
-		// ; = denom 0
-		// : OUTPUT CALL call_divide
-
-		// # Fizzbuzz in Knight
-
-		// # Initialize variables.
-		// ; = maximum 100
-		// ; = i 0
-
-		// # Repeat the body while `i < maximum`.
-		// : WHILE < i maximum
-		// 	# Increment `i`
-		// 	; = i + i 1
-
-		// 	# Use the fact that `IF` is an expression, not a statement like in some
-		// 	# languages (eg python, javascript, etc).
-		// 	: OUTPUT
-		// 		: IF ! % i 15 "FizzBuzz"
-		// 		: IF ! % i 5  "Fizz"
-		// 		: IF ! % i 3  "Buzz" i
-		// "#,
-	)
-	.unwrap();
+	let mut parser = Parser::new(&mut env, Some(Path::new("-e")), &program).unwrap();
 
 	let program = parser.parse_program().map_err(|err| panic!("{}", err)).unwrap();
 
