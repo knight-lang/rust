@@ -1,9 +1,9 @@
 use super::{DeferredJump, InstructionAndOffset, JumpIndex, JumpWhen, Program};
 use crate::options::Options;
-use crate::parser::{ParseError, SourceLocation, VariableName};
+use crate::parser::{ParseError, ParseErrorKind, SourceLocation, VariableName};
 use crate::strings::StringSlice;
 use crate::value::{KString, Value};
-use crate::vm::{Opcode, ParseErrorKind};
+use crate::vm::Opcode;
 
 use std::collections::HashMap;
 

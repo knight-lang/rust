@@ -3,7 +3,7 @@ use crate::parser::{ParseError, ParseErrorKind};
 use std::fmt::{self, Display, Formatter};
 use std::path::Path;
 
-#[derive(Debug, Clone, Default)] // DELETEME: default, just for testing stackframes
+#[derive(Debug, Clone)]
 pub struct SourceLocation {
 	// TODO: don't refcount this. maybe have all parser errors be lifetime-bounded? And then have
 	// the `eval` somehow leak them or something?

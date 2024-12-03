@@ -3,21 +3,14 @@ mod function;
 mod parens;
 // mod variable;
 
-use crate::program::Compilable;
-use crate::{container::RefCount, options::Options, vm::ParseErrorKind, Value};
+use super::VariableName;
+use crate::container::RefCount;
+use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
+use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
+use crate::strings::{StringError, StringSlice};
+use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
-
-use crate::{
-	strings::{StringError, StringSlice},
-	Environment,
-};
-
-use crate::parser::{Parseable, SourceLocation};
-use crate::program::{Compiler, DeferredJump, JumpIndex};
-use crate::vm::{ParseError, Program};
-
-use super::VariableName;
 
 // safety: cannot do invalid things with the builder.
 #[allow(non_camel_case_types)]

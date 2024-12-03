@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::MaybeUninit;
 
-use super::{Opcode, Program, RuntimeError};
+use super::{Opcode, RuntimeError};
 use crate::parser::{SourceLocation, VariableName};
-use crate::program::JumpIndex;
+use crate::program::{JumpIndex, Program};
 use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
