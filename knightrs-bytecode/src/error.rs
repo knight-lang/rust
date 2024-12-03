@@ -36,11 +36,9 @@ pub enum Error {
 	#[error("I/O error happened during {func}: {err}")]
 	IoError { func: &'static str, err: std::io::Error },
 
+	/// The types to a function were correct, but their values weren't somehow.
 	#[error("domain error: {0}")]
 	DomainError(&'static str),
-
-	#[error("non-compliant behaviour encountered: ")]
-	ComplianceError(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

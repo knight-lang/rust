@@ -8,9 +8,14 @@ use knightrs_bytecode::program::*;
 use knightrs_bytecode::strings::StringSlice;
 use knightrs_bytecode::value::*;
 use knightrs_bytecode::vm::*;
+use knightrs_bytecode::Options;
 
 fn main() {
-	let mut env = Environment::default();
+	let mut env = Environment::new({
+		let mut opts = Options::default();
+		opts.extensions.negative_indexing = true;
+		opts
+	});
 	let program = std::env::args().skip(2).next().expect("missing -e expr");
 	let mut parser = Parser::new(
 		&mut env,

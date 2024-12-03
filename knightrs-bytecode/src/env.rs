@@ -11,11 +11,16 @@ pub struct Environment {
 
 impl Default for Environment {
 	fn default() -> Self {
-		Self { opts: Options::default(), rng: StdRng::from_entropy() }
+		Self::new(Options::default())
 	}
 }
 
 impl Environment {
+	pub fn new(opts: Options) -> Self {
+		// TODO: allow `rng` to be supplied by callers
+		Self { opts, rng: StdRng::from_entropy() }
+	}
+
 	pub fn opts(&self) -> &Options {
 		&self.opts
 	}

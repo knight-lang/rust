@@ -5,11 +5,14 @@ use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, T
 use crate::{Environment, Error, Options};
 use std::slice::Iter;
 
-// todo: optimize
-#[derive(Debug, Clone, PartialEq)] // TODO: DEBUG
+/// A List represents a list of [`Value`]s within Knight.
+// todo: optimize me!
+#[derive(Debug, Clone, PartialEq)]
 pub struct List(Option<Box<[Value]>>);
 
+/// Represents the ability to be converted to a [`List`].
 pub trait ToList {
+	/// Converts `self` to a [`List`].
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List>;
 }
 
@@ -21,19 +24,23 @@ impl NamedType for List {
 }
 
 impl Default for List {
+	#[inline]
 	fn default() -> Self {
 		Self(None)
 	}
 }
 
 impl ToBoolean for List {
+	#[inline]
 	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
 impl ToKString for List {
+	#[inline]
 	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString> {
+		// COMPLIANCE: `\n` is always a valid string character.
 		static NEWLINE: &'static StringSlice = StringSlice::new_unvalidated("\n");
 
 		self.join(&NEWLINE, env)
@@ -42,17 +49,31 @@ impl ToKString for List {
 
 impl ToInteger for List {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
-		// todo: check for cast failures
-		Ok(Integer::new_error(self.len() as i64, env.opts())?)
+		// Note we never need to check for len -> i64 bounds, as we're guaranteed by Rust that our
+		// underlying `Box<[Value]>` can hold no more than `isize::MAX`, which at worst is `i64::MAX`.
+		// Thus, we can safely convert between the two without worrying about truncation.
+
+		// If `check_container_length` is enabled, then any list's length can already be represented
+		// by an `Integer`. It's only if we aren't checking list length but _are_ checking integer
+		// bounds that we need this check.
+		#[cfg(feature = "compliance")]
+		if !env.opts().compliance.check_container_length && env.opts().compliance.i32_integer {
+			return Ok(Integer::new_error(self.len() as i64, env.opts())?);
+		}
+
+		Ok(Integer::new(self.len() as i64, env.opts()).expect("(this will never fail)"))
 	}
 }
 
 impl ToList for List {
+	/// Simply returns `self`
+	#[inline]
 	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
 		Ok(self.clone())
 	}
 }
 
+/// TODO
 #[derive(Clone)]
 pub struct ListRefIter<'a>(Iter<'a, Value>);
 impl<'a> Iterator for ListRefIter<'a> {
@@ -72,40 +93,46 @@ impl<'a> IntoIterator for &'a List {
 }
 
 impl List {
-	/// The maximum length a string can be when compliance checking is enabled.
-	#[cfg(feature = "compliance")]
-	pub const MAXIMUM_LENGTH: usize = i32::MAX as usize;
+	/// The maximum length a list can be when compliance checking is enabled.
+	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
 
+	/// Creates a new [`List`] from the given `iter`, with the given options.
 	pub fn new(iter: impl IntoIterator<Item = Value>, opts: &Options) -> crate::Result<Self> {
-		let iter = iter.into_iter();
-		let v = iter.collect::<Vec<_>>();
+		let v = iter.into_iter().collect::<Vec<_>>();
 
 		#[cfg(feature = "compliance")]
-		if opts.compliance.check_container_length && Self::MAXIMUM_LENGTH < v.len() {
+		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < v.len() {
 			return Err(Error::ListIsTooLarge);
 		}
 
-		if v.len() == 0 {
-			Ok(Self(None))
-		} else {
-			Ok(Self(Some(v.into())))
-		}
+		Ok(Self::_new(v))
 	}
 
 	/// Creates a new `list` from `slice`, without ensuring its length is correct.
+	///
+	/// # Compliance
+	/// Callers to this must ensure that `iter` will always have fewer than
+	/// [`List::COMPLIANCE_MAX_LEN`] elements.
 	pub fn new_unvalidated(iter: impl IntoIterator<Item = Value>) -> Self {
 		let v = iter.into_iter().collect::<Vec<_>>();
 
-		if v.len() == 0 {
+		debug_assert!(v.len() <= Self::COMPLIANCE_MAX_LEN);
+
+		Self::_new(v)
+	}
+
+	fn _new(vec: Vec<Value>) -> Self {
+		if vec.len() == 0 {
 			Self(None)
 		} else {
-			Self(Some(v.into()))
+			Self(Some(vec.into()))
 		}
 	}
 
 	/// Returns a new [`List`] with the only element being `value`.
 	pub fn boxed(value: Value) -> Self {
-		Self(Some(vec![value].into()))
+		// COMPLIANCE: We always have exactly 1 element, which is within bounds.
+		Self::new_unvalidated([value])
 	}
 
 	/// Returns whether `self` is empty.
@@ -138,19 +165,11 @@ impl List {
 		index.get(self)
 	}
 
+	#[deprecated(note = "is this ever used?")]
 	pub fn try_get<'a, F: ListGet<'a>>(&'a self, index: F) -> crate::Result<F::Output> {
 		let last_index = index.last_index();
 		self.get(index).ok_or(Error::IndexOutOfBounds { len: self.len(), index: last_index })
 	}
-
-	/*
-	/// Sets the value(s) at `index`.
-	///
-	/// This is syntactic sugar for `index.set(self)`.
-	pub fn set<'a, F: ListSet<'a>>(&'a self, index: F, value: F::Value) {
-		index.set(self, value)
-	}
-	*/
 
 	/// Returns a new list with both `self` and `rhs` concatenated.
 	///
@@ -187,7 +206,7 @@ impl List {
 
 		#[cfg(feature = "compliance")]
 		if opts.compliance.check_container_length
-			&& self.len().checked_mul(amount).map_or(true, |x| Self::MAXIMUM_LENGTH < x)
+			&& self.len().checked_mul(amount).map_or(true, |x| Self::COMPLIANCE_MAX_LEN < x)
 		{
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}

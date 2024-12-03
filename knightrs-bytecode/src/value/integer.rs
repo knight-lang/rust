@@ -118,7 +118,7 @@ impl Integer {
 
 	/// Creates a new [`Integer`] without doing compliance validations.
 	///
-	/// # Knight Compliance
+	/// # Compliance
 	/// This should only be called with `int`s known to be within the range of `i32`s; Calling it
 	/// with integers outside `i32`'s bounds can make non-spec-compliant programs seem compliant.
 	#[inline]
