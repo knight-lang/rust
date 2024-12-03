@@ -8,6 +8,9 @@ pub struct RuntimeError<'src, 'path> {
 
 	#[cfg(feature = "stacktrace")]
 	pub(super) stacktrace: super::Stacktrace<'src, 'path>,
+
+	// used for when `stacktrace` isn't enabled
+	pub(super) _ignored: (&'src (), &'path ()),
 }
 
 impl Display for RuntimeError<'_, '_> {

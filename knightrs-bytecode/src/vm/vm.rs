@@ -14,7 +14,7 @@ pub struct Vm<'prog, 'src, 'path, 'env> {
 	env: &'env mut Environment,
 	current_index: usize,
 	stack: Vec<Value>,
-	vars: Box<[Value]>,
+	vars: Box<[Option<Value>]>,
 
 	#[cfg(feature = "stacktrace")]
 	callstack: Vec<usize>,
@@ -30,7 +30,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			env,
 			current_index: 0,
 			stack: Vec::new(),
-			vars: vec![Value::Null; program.num_variables()].into(),
+			vars: vec![None; program.num_variables()].into(),
 
 			#[cfg(feature = "stacktrace")]
 			callstack: Vec::new(),
@@ -51,7 +51,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		self.callstack.push(self.current_index);
 
 		// Used for debugging later
-		#[cfg(debug_assertions)]
 		let stack_len = self.stack.len();
 
 		// Actually call the functoin
@@ -83,6 +82,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			err,
 			#[cfg(feature = "stacktrace")]
 			stacktrace: self.stacktrace(),
+			_ignored: (&(), &()),
 		}
 	}
 
@@ -91,7 +91,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		use super::Callsite;
 
 		super::Stacktrace::new(self.callstack.iter().map(|&idx| {
-			let loc = self.program.sourcelocation_at(idx);
+			let loc = self.program.source_location_at(idx);
 			Callsite::new(self.block_name_at(idx), loc)
 		}))
 	}
@@ -149,7 +149,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			match opcode {
 				// Builtins
 				PushConstant => {
-					self.stack.push(self.program.constant_at(offset).clone());
+					self.stack.push(unsafe { self.program.constant_at(offset) }.clone());
 				}
 
 				Jump => {
@@ -169,7 +169,9 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				}
 
 				GetVar => {
-					self.stack.push(self.vars[offset].clone());
+					self
+						.stack
+						.push(self.vars[offset].as_ref().expect("todo: UndefinedVariable").clone());
 				}
 
 				SetVar => {
@@ -181,7 +183,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 						self.known_blocks.insert(block.inner().0, varname);
 					}
 
-					self.vars[offset] = value;
+					self.vars[offset] = Some(value);
 				}
 
 				SetVarPop => todo!(), //self.vars[offset] = arg![0].clone(),
@@ -203,7 +205,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					self.env.quit(status)?;
 				}
 				Dump => {
-					arg![0].kn_dump(self.env);
+					arg![0].kn_dump(self.env)?;
 					self.stack.push(arg![0].clone());
 				}
 				Output => {
@@ -231,6 +233,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				Tail => self.stack.push(arg![0].kn_tail(self.env)?),
 				Pop => { /* do nothing, the arity already popped */ }
 
+				// TODO: the `vm` evals in its entirely own vm, which isnt what we wnat
 				#[cfg(feature = "extensions")]
 				Eval => {
 					let program = arg![0].to_kstring(self.env)?;

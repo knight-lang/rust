@@ -10,7 +10,6 @@ use std::fmt::{self, Display, Formatter};
 pub struct VariableName<'src>(&'src StringSlice);
 
 impl<'src> VariableName<'src> {
-	#[cfg(feature = "compliance")]
 	pub const MAX_NAME_LEN: usize = 127;
 
 	pub fn new(name: &'src StringSlice, opts: &Options) -> Result<Self, ParseErrorKind> {

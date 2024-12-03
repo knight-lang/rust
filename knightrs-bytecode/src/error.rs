@@ -16,6 +16,9 @@ pub enum Error {
 	#[error("{0}")]
 	ParseError(String),
 
+	#[error("undefined variable {0} accessed")]
+	UndefinedVariable(String),
+
 	#[error("bad type {type_name} to function {function:?}")]
 	TypeError { type_name: &'static str, function: &'static str },
 

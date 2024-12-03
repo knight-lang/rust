@@ -25,7 +25,7 @@ pub struct QualityOfLife {
 }
 
 #[derive(Default, Clone)]
-#[cfg(feature = "qol")]
+#[cfg(feature = "embedded")]
 pub struct Embedded {
 	pub dont_exit_when_quitting: bool,
 }
@@ -45,6 +45,7 @@ pub struct Compliance {
 	pub cant_dump_blocks: bool,
 	pub check_quit_status_codes: bool,
 	pub disallow_negative_int_to_list: bool,
+	pub disable_all_extensions: bool, // TODO
 }
 
 cfg_if! {

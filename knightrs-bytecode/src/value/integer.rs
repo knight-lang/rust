@@ -143,7 +143,7 @@ impl Integer {
 	#[deprecated(note = "use `new` as it returns `Option` and the caller can do errors themselves")]
 	pub fn new_error(int: IntegerInner, opts: &Options) -> Result<Self, IntegerError> {
 		#[cfg(feature = "compliance")]
-		if opts.compliance.i32_integer && !(Self::min(opts).0..Self::max(opts).0).contains(&int) {
+		if opts.compliance.i32_integer && !(Self::min(opts).0..=Self::max(opts).0).contains(&int) {
 			return Err(IntegerError::IntegerOutOfBounds(int));
 		}
 
@@ -157,7 +157,7 @@ impl Integer {
 	#[cfg_attr(not(feature = "compliance"), inline)]
 	pub fn new(int: IntegerInner, opts: &Options) -> Option<Self> {
 		#[cfg(feature = "compliance")]
-		if opts.compliance.i32_integer && !(Self::min(opts).0..Self::max(opts).0).contains(&int) {
+		if opts.compliance.i32_integer && !(Self::min(opts).0..=Self::max(opts).0).contains(&int) {
 			return None;
 		}
 

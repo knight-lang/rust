@@ -45,6 +45,32 @@ pub struct Program<'src, 'path> {
 	// The list of variable names.
 	#[cfg(any(feature = "stacktrace", debug_assertions))]
 	variable_names: Vec<VariableName<'src>>,
+
+	// Needed for `'src` when stacktrace isn't enabled
+	_ignored: (&'src (), &'path ()),
+}
+
+/// A type that represents a place programs can jump to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct JumpIndex(pub(super) usize);
+
+/// Represents a jump that's been deferred---it'll be reified once we know the target destination.
+///
+/// It's usually used when jumping forward to a location that's yet to be determined.
+#[derive(Debug, PartialEq, Eq)] // Not `Clone` or `Copy` so we can't accidentally jump twice.
+pub struct DeferredJump(usize, JumpWhen);
+
+/// The condition for when to jump.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JumpWhen {
+	/// Jump only when the topmost element on the stack is truthy. (This'll pop the stack.)
+	True,
+
+	/// Jump only when the topmost element on the stack is falsey. (This'll pop the stack.)
+	False,
+
+	/// Always jump.
+	Always,
 }
 
 impl Debug for Program<'_, '_> {
@@ -87,35 +113,56 @@ impl Debug for Program<'_, '_> {
 }
 
 impl<'src, 'path> Program<'src, 'path> {
-	// SAFETY: `offset` needs to be <= the code length.
-	pub unsafe fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
-		debug_assert!(offset < self.code.len());
-		// SAFETY: caller ensures offset is correct
-		let number = unsafe { *self.code.get_unchecked(offset) };
+	/// Gets the opcode, and its offset, at `offset`.
+	///
+	/// # Safety
+	/// `location` must be `<` the source code's length.
+	#[inline]
+	pub unsafe fn opcode_at(&self, location: usize) -> (Opcode, usize) {
+		debug_assert!(location < self.code.len());
+
+		// SAFETY: caller ensures the locationis correct.
+		let number = unsafe { *self.code.get_unchecked(location) };
 
 		// SAFETY: we know as this type was constructed that all programs result
 		// in valid opcodes
 		let opcode = unsafe { Opcode::from_byte_unchecked((number as u8)) };
-		let offset = (number >> 0o10) as usize;
+		let location = (number >> 0o10) as usize;
 
-		(opcode, offset)
+		(opcode, location)
 	}
 
-	pub fn constant_at(&self, offset: usize) -> &Value {
-		&self.constants[offset]
+	/// Gets constant constant at `offset`.
+	///
+	/// # Safety
+	/// `offset` must be a valid offset into the list of constants.
+	pub unsafe fn constant_at(&self, offset: usize) -> &Value {
+		debug_assert!(offset < self.constants.len());
+		unsafe { self.constants.get_unchecked(offset) }
 	}
 
+	/// The number of variables that're defined in this program.
+	#[inline]
 	pub fn num_variables(&self) -> usize {
 		self.num_variables
 	}
 
+	/// Gets the variable at `idx`.
+	///
+	/// # Safety
+	/// The caller must ensure that `var_idx` is `<` [`num_variables`].
 	#[cfg(feature = "stacktrace")]
-	pub fn variable_name(&self, idx: usize) -> VariableName<'src> {
-		*self.variable_names.get(idx).expect("variable_name should only be called with actual names")
+	pub fn variable_name(&self, var_idx: usize) -> VariableName<'src> {
+		debug_assert!(var_idx < self.variable_names.len());
+		*unsafe { self.variable_names.get_unchecked(var_idx) }
 	}
 
+	/// Gets the source location at the program offset `offset`.
+	///
+	/// If `offset` doesn't directly map to a known source location, [`source_location_at`] works
+	/// backwards until one is found. (Offset of `0` always has a source location.)
 	#[cfg(feature = "stacktrace")]
-	pub fn sourcelocation_at(&self, mut offset: usize) -> SourceLocation<'path> {
+	pub fn source_location_at(&self, mut offset: usize) -> SourceLocation<'path> {
 		loop {
 			// Note that this will never go below zero, as the first line is always recorded
 			match self.source_lines.get(&offset) {
@@ -124,30 +171,4 @@ impl<'src, 'path> Program<'src, 'path> {
 			}
 		}
 	}
-
-	#[cfg(feature = "stacktrace")]
-	pub fn function_name(
-		&self,
-		block: crate::value::Block,
-	) -> (Option<VariableName<'src>>, &SourceLocation<'path>) {
-		let src = self
-			.block_locations
-			.get(&block.inner())
-			.expect("<bug: every block should have a source location>");
-
-		(src.0, &src.1)
-	}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct JumpIndex(pub(super) usize);
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct DeferredJump(usize, JumpWhen);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JumpWhen {
-	True,
-	False,
-	Always,
 }

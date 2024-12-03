@@ -152,6 +152,23 @@ impl NamedType for Value {
 	}
 }
 
+#[cfg(feature = "compliance")]
+fn forbid_block_arguments(value: &Value, function: &'static str) -> Result<()> {
+	match value {
+		Value::List(list) => {
+			for ele in list {
+				forbid_block_arguments(ele, function)?;
+			}
+			Ok(())
+		}
+		Value::Block(_) => {
+			// todo: better error message? like "cant have nested types"
+			Err(Error::TypeError { type_name: value.type_name(), function })
+		}
+		_ => Ok(()),
+	}
+}
+
 impl Value {
 	pub fn kn_dump(&self, env: &mut Environment) -> Result<()> {
 		use std::io::Write;
@@ -205,6 +222,14 @@ impl Value {
 			Self::List(lhs) => {
 				let rhs = rhs.to_list(env)?;
 
+				#[cfg(feature = "compliance")]
+				if env.opts().compliance.check_equals_params {
+					forbid_block_arguments(self, fn_name)?;
+					forbid_block_arguments(&Value::List(rhs.clone()), fn_name)?;
+				}
+
+				// check each operand before comparing, otherwise it might mask potential errors
+
 				for (left, right) in lhs.iter().zip(&rhs) {
 					match left.kn_compare(right, fn_name, env)? {
 						Ordering::Equal => continue,
@@ -230,27 +255,9 @@ impl Value {
 
 		// In strict compliance mode, we can't use Blocks for `?`.
 		#[cfg(feature = "compliance")]
-		{
-			fn forbid_block_params_in_is_equal(value: &Value) -> Result<()> {
-				match value {
-					Value::List(list) => {
-						for ele in list {
-							forbid_block_params_in_is_equal(ele)?;
-						}
-						Ok(())
-					}
-					Value::Block(_) => {
-						// todo: better error message?
-						Err(Error::TypeError { type_name: value.type_name(), function: "?" })
-					}
-					_ => Ok(()),
-				}
-			}
-
-			if env.opts().compliance.check_equals_params {
-				forbid_block_params_in_is_equal(self)?;
-				forbid_block_params_in_is_equal(rhs)?;
-			}
+		if env.opts().compliance.check_equals_params {
+			forbid_block_arguments(self, "?")?;
+			forbid_block_arguments(rhs, "?")?;
 		}
 
 		let _ = env;

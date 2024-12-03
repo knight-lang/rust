@@ -134,6 +134,7 @@ impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 
 				#[cfg(feature = "qol")]
 				if check_parens {
+					// TODO: strict compliance
 					return false;
 				}
 

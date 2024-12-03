@@ -42,6 +42,9 @@ pub struct Compiler<'src, 'path> {
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
 	block_locations: HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
+
+	// Needed for when `stacktrace` is disabled
+	_ignored: &'path (),
 }
 
 fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndOffset {
@@ -55,18 +58,21 @@ impl<'src, 'path> Compiler<'src, 'path> {
 			code: vec![],
 			constants: vec![],
 			variables: indexmap::IndexSet::new(),
+
 			#[cfg(feature = "stacktrace")]
 			source_lines: {
 				let mut sl = HashMap::new();
 				sl.insert(0, start.clone());
 				sl
 			},
+
 			#[cfg(feature = "stacktrace")]
 			block_locations: {
 				let mut bl = HashMap::new();
 				bl.insert(JumpIndex(0), (None, start));
 				bl
 			},
+			_ignored: &(),
 		}
 	}
 	/// Finished building the [`Program`], and returns it
@@ -101,6 +107,8 @@ impl<'src, 'path> Compiler<'src, 'path> {
 
 			#[cfg(any(feature = "stacktrace", debug_assertions))]
 			variable_names: self.variables.into_iter().collect(),
+
+			_ignored: (&(), &()),
 		}
 	}
 
@@ -250,13 +258,19 @@ impl<'src, 'path> Compiler<'src, 'path> {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Compiler<'_, '_>) {
+	/// Reify `self` by jumping to the current position in `compiler` .
+	///
+	/// # Safety
+	/// Same as [`DeferredJump::jump_to`].
+	pub unsafe fn jump_to_current(self, compiler: &mut Compiler<'_, '_>) {
 		// SAFETY: TODO
-		unsafe { self.jump_to(builder, builder.jump_index()) }
+		unsafe { self.jump_to(compiler, compiler.jump_index()) }
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Compiler<'_, '_>, index: JumpIndex) {
-		assert_eq!(0, builder.code[self.0]);
+	/// Reify `self` by jumping to the position `index` in `compiler`.
+
+	pub unsafe fn jump_to(self, compiler: &mut Compiler<'_, '_>, index: JumpIndex) {
+		assert_eq!(0, compiler.code[self.0]);
 
 		let opcode = match self.1 {
 			JumpWhen::True => Opcode::JumpIfTrue,
@@ -264,6 +278,6 @@ impl DeferredJump {
 			JumpWhen::Always => Opcode::Jump,
 		};
 
-		builder.code[self.0] = code_from_opcode_and_offset(opcode, index.0);
+		compiler.code[self.0] = code_from_opcode_and_offset(opcode, index.0);
 	}
 }
