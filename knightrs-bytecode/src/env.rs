@@ -56,7 +56,9 @@ impl Environment {
 		#[cfg(feature = "compliance")]
 		if self.opts.compliance.check_quit_status_codes && !(0..=127).contains(&status) {
 			// TODO: Mauybe have a custom error for this?
-			return Err(crate::value::integer::IntegerError::Overflow('Q').into());
+			return Err(
+				crate::value::integer::IntegerError::DomainError("QUIT: argument too large").into(),
+			);
 		}
 
 		#[cfg(feature = "embedded")]

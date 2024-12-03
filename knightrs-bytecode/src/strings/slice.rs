@@ -153,14 +153,18 @@ impl StringSlice {
 
 		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
 		List::new_unvalidated(
-			self.as_str().split(sep.as_str()).map(KString::new_unvalidated).map(Value::from),
+			self
+				.as_str()
+				.split(sep.as_str())
+				.map(|s| KString::new_unvalidated(s.to_string()))
+				.map(Value::from),
 		)
 	}
 
 	pub fn ord(&self, opts: &Options) -> crate::Result<Integer> {
 		let chr = self.chars().next().ok_or(crate::Error::DomainError("empty string"))?;
 		// technically not redundant in case checking for ints is enabled but not strings.
-		Integer::new(u32::from(chr) as _, opts).map_err(From::from)
+		Integer::new_error(u32::from(chr) as _, opts).map_err(From::from)
 	}
 
 	/// Gets the first character of `self`, if it exists.

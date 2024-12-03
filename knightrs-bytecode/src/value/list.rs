@@ -43,7 +43,7 @@ impl ToKString for List {
 impl ToInteger for List {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
 		// todo: check for cast failures
-		Ok(Integer::new(self.len() as i64, env.opts())?)
+		Ok(Integer::new_error(self.len() as i64, env.opts())?)
 	}
 }
 

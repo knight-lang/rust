@@ -265,6 +265,16 @@ impl Value {
 	}
 
 	pub fn kn_length(&self, env: &mut Environment) -> Result<Integer> {
+		cfg_if! {
+			if #[cfg(feature = "knight_2_0_1")] {
+				let length_of_anything = true;
+			} else if #[cfg(feature = "extensions")] {
+				let length_of_anything = env.opts().extensions.builtin_fns.length_of_anything;
+			} else {
+				let length_of_anything = false;
+			}
+		};
+
 		match self {
 			Self::String(string) => {
 				// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
@@ -275,7 +285,7 @@ impl Value {
 				// integer bounds, and not on string lengths, so we do have to check in compliance mode.
 				#[cfg(feature = "compliance")]
 				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-					return Ok(Integer::new(string.len() as i64, env.opts())?);
+					return Ok(Integer::new_error(string.len() as i64, env.opts())?);
 				}
 
 				Ok(Integer::new_unvalidated(string.len() as i64))
@@ -285,20 +295,22 @@ impl Value {
 				// (same guarantees as `Self::String`)
 				#[cfg(feature = "compliance")]
 				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-					return Ok(Integer::new(list.len() as i64, env.opts())?);
+					return Ok(Integer::new_error(list.len() as i64, env.opts())?);
 				}
 
 				Ok(Integer::new_unvalidated(list.len() as i64))
 			}
 
-			#[cfg(feature = "knight_2_0_1")]
-			Self::Integer(int) => Ok(Integer::new_unvalidated(int.number_of_digits() as _)),
+			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+			Self::Integer(int) if length_of_anything => {
+				Ok(Integer::new_unvalidated(int.number_of_digits() as _))
+			}
 
-			#[cfg(feature = "knight_2_0_1")]
-			Self::Boolean(true) => Ok(Integer::new_unvalidated(1)),
+			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+			Self::Boolean(true) if length_of_anything => Ok(Integer::new_unvalidated(1)),
 
-			#[cfg(feature = "knight_2_0_1")]
-			Self::Boolean(false) | Self::Null => Ok(Integer::new_unvalidated(0)),
+			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+			Self::Boolean(false) | Self::Null if length_of_anything => Ok(Integer::new_unvalidated(0)),
 
 			other => Err(Error::TypeError { type_name: other.type_name(), function: "LENGTH" }),
 		}
@@ -499,7 +511,7 @@ impl Value {
 			Self::String(string) => string
 				.head()
 				.ok_or(Error::DomainError("empty string"))
-				.map(|chr| KString::new_unvalidated(&chr.to_string()).into()),
+				.map(|chr| KString::new_unvalidated(chr.to_string()).into()),
 
 			// #[cfg(feature = "extensions")]
 			// Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
@@ -531,7 +543,7 @@ impl Value {
 		match self {
 			Self::Integer(integer) => {
 				let chr = integer.chr(env.opts())?;
-				Ok(KString::new_unvalidated(&chr.to_string()).into())
+				Ok(KString::new_unvalidated(chr.to_string()).into())
 			}
 			Self::String(string) => Ok(string.ord(env.opts())?.into()),
 
@@ -626,7 +638,7 @@ fn fix_len(
 			other => return Err(Error::TypeError { type_name: other.type_name(), function }),
 		};
 
-		start = start.add(Integer::new(len as _, env.opts())?, env.opts())?;
+		start = start.add(Integer::new_error(len as _, env.opts())?, env.opts())?;
 	}
 
 	let _ = (container, env);

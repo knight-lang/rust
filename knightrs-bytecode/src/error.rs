@@ -38,6 +38,9 @@ pub enum Error {
 
 	#[error("domain error: {0}")]
 	DomainError(&'static str),
+
+	#[error("non-compliant behaviour encountered: ")]
+	ComplianceError(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

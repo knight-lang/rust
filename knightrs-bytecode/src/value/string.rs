@@ -45,8 +45,13 @@ impl KString {
 		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
 	}
 
-	pub fn new_unvalidated(source: &str) -> Self {
-		Self::from_slice(StringSlice::new_unvalidated(source))
+	/// Creates a new `KString` without validating it.
+	///
+	/// # Validation
+	/// The `source` must only contain bytes valid in all encodings, and must be less than the max
+	/// length for containers.
+	pub fn new_unvalidated(source: String) -> Self {
+		Self::from_slice(StringSlice::new_unvalidated(&source))
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
@@ -96,9 +101,9 @@ impl ToInteger for KString {
 impl ToList for KString {
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
 		let chars =
-			self.chars().map(|c| Self::new_unvalidated(&c.to_string()).into()).collect::<Vec<_>>();
+			self.chars().map(|c| Self::new_unvalidated(c.to_string()).into()).collect::<Vec<_>>();
 
-		// VALIDATION: If `self` is within the container bounds, so is the length of its chars.
+		// COMPLIANCE: If `self` is within the container bounds, so is the length of its chars.
 		Ok(List::new_unvalidated(chars))
 	}
 }

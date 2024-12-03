@@ -85,5 +85,7 @@ if #[cfg(feature = "extensions")] {
 		pub list: bool,
 		pub integer: bool,
 		pub null: bool,
+
+		pub length_of_anything: bool,
 	}
 }}

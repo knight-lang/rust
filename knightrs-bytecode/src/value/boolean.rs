@@ -32,11 +32,7 @@ impl ToInteger for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
-		if *self {
-			Ok(Integer::ONE)
-		} else {
-			Ok(Integer::ZERO)
-		}
+		Ok(Integer::new_unvalidated(*self as i64))
 	}
 }
 
