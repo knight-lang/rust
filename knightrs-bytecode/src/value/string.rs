@@ -157,7 +157,7 @@ impl Parseable for KString {
 	}
 }
 
-unsafe impl Compilable for KString {
+unsafe impl<'path> Compilable<'path> for KString {
 	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
 		compiler.push_constant(self.into());
 		Ok(())

@@ -8,7 +8,7 @@ use crate::vm::Opcode;
 use std::collections::HashMap;
 
 // safety: cannot do invalid things with the builder.
-pub unsafe trait Compilable {
+pub unsafe trait Compilable<'path> {
 	// no errors returned because compiling should never fail, that's parsing
 	fn compile(self, compiler: &mut Compiler, opts: &Options) -> Result<(), ParseError>;
 }

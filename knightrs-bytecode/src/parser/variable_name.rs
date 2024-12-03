@@ -44,7 +44,7 @@ impl Parseable for VariableName {
 	}
 }
 
-unsafe impl Compilable for (VariableName, SourceLocation) {
+unsafe impl<'path> Compilable<'path> for (VariableName, SourceLocation) {
 	fn compile(
 		self,
 		compiler: &mut Compiler,

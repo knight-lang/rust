@@ -72,7 +72,7 @@ impl Parseable for Null {
 	}
 }
 
-unsafe impl Compilable for Null {
+unsafe impl<'path> Compilable<'path> for Null {
 	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
 		compiler.push_constant(self.into());
 		Ok(())

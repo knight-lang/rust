@@ -472,7 +472,7 @@ impl Parseable for List {
 	}
 }
 
-unsafe impl Compilable for List {
+unsafe impl<'path> Compilable<'path> for List {
 	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
 		compiler.push_constant(self.into());
 		Ok(())
