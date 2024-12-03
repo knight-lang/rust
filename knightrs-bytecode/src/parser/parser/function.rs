@@ -103,10 +103,10 @@ fn parse_assignment<'path>(
 	Ok(())
 }
 
-fn parse_block<'path>(
+fn parse_block<'src, 'path>(
 	start: SourceLocation<'path>,
-	parser: &mut Parser<'_, '_, 'path>,
-	name: Option<VariableName>,
+	parser: &mut Parser<'_, 'src, 'path>,
+	name: Option<VariableName<'src>>,
 ) -> Result<(), ParseError<'path>> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
 	let jump_after = parser.compiler().defer_jump(JumpWhen::Always);

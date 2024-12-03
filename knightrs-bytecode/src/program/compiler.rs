@@ -29,9 +29,7 @@ pub struct Compiler<'src, 'path> {
 	// The list of all variables encountered so far. (They're stored in an ordered set, as their
 	// index is the "offset" that all `Opcodes` that interact with variables (eg [`Opcode::GetVar`])
 	// will use.)
-	variables: indexmap::IndexSet<VariableName>,
-
-	_tmp: &'src (),
+	variables: indexmap::IndexSet<VariableName<'src>>,
 
 	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
 	// the index into `code`) to a source location; Only the first bytecode from each line is added,
@@ -43,7 +41,7 @@ pub struct Compiler<'src, 'path> {
 	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
-	block_locations: HashMap<JumpIndex, (Option<VariableName>, SourceLocation<'path>)>,
+	block_locations: HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
 }
 
 fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndOffset {
@@ -56,7 +54,6 @@ impl<'src, 'path> Compiler<'src, 'path> {
 		Self {
 			code: vec![],
 			constants: vec![],
-			_tmp: &(),
 			variables: indexmap::IndexSet::new(),
 			#[cfg(feature = "stacktrace")]
 			source_lines: {
@@ -79,7 +76,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 	/// value on top of its stack whenever it returns, which is the return value of the program.
 	///
 	/// Additionally, the caller must enure that all deferred jumps have been `jump_to`'d
-	pub unsafe fn build(mut self) -> Program<'path> {
+	pub unsafe fn build(mut self) -> Program<'src, 'path> {
 		// SAFETY: The caller guarantees that we'll always have exactly one opcode on the top when
 		// the program is finished executing, so we know
 		unsafe {
@@ -125,7 +122,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 		&mut self,
 		loc: SourceLocation<'path>,
 		whence: JumpIndex,
-		name: Option<VariableName>,
+		name: Option<VariableName<'src>>,
 	) {
 		self.block_locations.insert(whence, (name, loc));
 	}
@@ -186,7 +183,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 
 	fn variable_index(
 		&mut self,
-		name: VariableName,
+		name: VariableName<'src>,
 		opts: &Options,
 	) -> Result<usize, ParseErrorKind> {
 		// TODO: check for name size (also in `set`)
@@ -208,7 +205,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 
 	pub fn get_variable(
 		&mut self,
-		name: VariableName,
+		name: VariableName<'src>,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
@@ -223,7 +220,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 	// SAFETY: when called, a value has to be on the stack
 	pub unsafe fn set_variable(
 		&mut self,
-		name: VariableName,
+		name: VariableName<'src>,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
@@ -239,7 +236,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 	#[deprecated(note = "not actually used yet, could be an optimization")]
 	pub unsafe fn set_variable_pop(
 		&mut self,
-		name: VariableName,
+		name: VariableName<'src>,
 		opts: &Options,
 	) -> Result<(), ParseErrorKind> {
 		let index = self.variable_index(name, opts)?;
@@ -253,12 +250,12 @@ impl<'src, 'path> Compiler<'src, 'path> {
 }
 
 impl DeferredJump {
-	pub unsafe fn jump_to_current(self, builder: &mut Compiler) {
+	pub unsafe fn jump_to_current(self, builder: &mut Compiler<'_, '_>) {
 		// SAFETY: TODO
 		unsafe { self.jump_to(builder, builder.jump_index()) }
 	}
 
-	pub unsafe fn jump_to(self, builder: &mut Compiler, index: JumpIndex) {
+	pub unsafe fn jump_to(self, builder: &mut Compiler<'_, '_>, index: JumpIndex) {
 		assert_eq!(0, builder.code[self.0]);
 
 		let opcode = match self.1 {

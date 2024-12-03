@@ -19,8 +19,6 @@ pub struct Parser<'env, 'src, 'path> {
 	compiler: Compiler<'src, 'path>,
 	lineno: usize,
 
-	_ignored: &'path (),
-
 	// Start is loop begin, vec is those to jump to loop end
 	loops: Vec<(JumpIndex, Vec<DeferredJump>)>,
 }
@@ -57,7 +55,6 @@ impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 			compiler: Compiler::new(SourceLocation::new(filename, 1)),
 			filename,
 			source,
-			_ignored: &(),
 			lineno: 1,
 			loops: Vec::new(),
 		})
@@ -179,7 +176,7 @@ impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Program<'path>, ParseError<'path>> {
+	pub fn parse_program(mut self) -> Result<Program<'src, 'path>, ParseError<'path>> {
 		self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.

@@ -9,8 +9,8 @@ use crate::strings::StringSlice;
 use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
 
-pub struct Vm<'prog, 'path, 'env> {
-	program: &'prog Program<'path>,
+pub struct Vm<'prog, 'src, 'path, 'env> {
+	program: &'prog Program<'src, 'path>,
 	env: &'env mut Environment,
 	current_index: usize,
 	stack: Vec<Value>,
@@ -20,11 +20,11 @@ pub struct Vm<'prog, 'path, 'env> {
 	callstack: Vec<usize>,
 
 	#[cfg(feature = "stacktrace")]
-	known_blocks: std::collections::HashMap<usize, &'prog VariableName>,
+	known_blocks: std::collections::HashMap<usize, VariableName<'src>>,
 }
 
-impl<'prog, 'path, 'env> Vm<'prog, 'path, 'env> {
-	pub fn new(program: &'prog Program<'path>, env: &'env mut Environment) -> Self {
+impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
+	pub fn new(program: &'prog Program<'src, 'path>, env: &'env mut Environment) -> Self {
 		Self {
 			program,
 			env,

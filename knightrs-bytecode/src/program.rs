@@ -15,7 +15,7 @@ type InstructionAndOffset = u64;
 ///
 /// After being parsed, Knight programs become [`Program`]s, which can then be run by
 /// [`Vm`](crate::VM)s later on.
-pub struct Program<'path> {
+pub struct Program<'src, 'path> {
 	// The code for the program. The bottom-most byte is the opcode, and when that's shifted away,
 	// the remainder is the offset.
 	code: Box<[InstructionAndOffset]>,
@@ -40,14 +40,14 @@ pub struct Program<'path> {
 	#[cfg(feature = "stacktrace")]
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
 	block_locations:
-		std::collections::HashMap<JumpIndex, (Option<VariableName>, SourceLocation<'path>)>,
+		std::collections::HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
 
 	// The list of variable names.
 	#[cfg(any(feature = "stacktrace", debug_assertions))]
-	variable_names: Vec<VariableName>,
+	variable_names: Vec<VariableName<'src>>,
 }
 
-impl Debug for Program<'_> {
+impl Debug for Program<'_, '_> {
 	/// Write the debug output for `Program`.
 	///
 	/// This also decodes the bytecode contained within the [`Program`], to make it easy understand
@@ -86,7 +86,7 @@ impl Debug for Program<'_> {
 	}
 }
 
-impl<'path> Program<'path> {
+impl<'src, 'path> Program<'src, 'path> {
 	// SAFETY: `offset` needs to be <= the code length.
 	pub unsafe fn opcode_at(&self, offset: usize) -> (Opcode, usize) {
 		debug_assert!(offset < self.code.len());
@@ -110,8 +110,8 @@ impl<'path> Program<'path> {
 	}
 
 	#[cfg(feature = "stacktrace")]
-	pub fn variable_name(&self, idx: usize) -> &VariableName {
-		self.variable_names.get(idx).expect("variable_name should only be called with actual names")
+	pub fn variable_name(&self, idx: usize) -> VariableName<'src> {
+		*self.variable_names.get(idx).expect("variable_name should only be called with actual names")
 	}
 
 	#[cfg(feature = "stacktrace")]
@@ -129,13 +129,13 @@ impl<'path> Program<'path> {
 	pub fn function_name(
 		&self,
 		block: crate::value::Block,
-	) -> (Option<&VariableName>, &SourceLocation<'path>) {
+	) -> (Option<VariableName<'src>>, &SourceLocation<'path>) {
 		let src = self
 			.block_locations
 			.get(&block.inner())
 			.expect("<bug: every block should have a source location>");
 
-		(src.0.as_ref(), &src.1)
+		(src.0, &src.1)
 	}
 }
 
