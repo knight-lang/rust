@@ -456,7 +456,9 @@ impl List {
 impl Parseable for List {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse<'path>(
+		parser: &mut Parser<'_, '_, 'path>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
 			// TODO: make sure that this doesn't actually strictly return a list, as that won't be
@@ -473,7 +475,7 @@ impl Parseable for List {
 }
 
 unsafe impl<'path> Compilable<'path> for List {
-	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

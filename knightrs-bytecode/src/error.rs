@@ -14,7 +14,7 @@ pub enum Error {
 	IntegerError(#[from] crate::value::integer::IntegerError),
 
 	#[error("{0}")]
-	ParseError(#[from] crate::parser::ParseError),
+	ParseError(String),
 
 	#[error("bad type {type_name} to function {function:?}")]
 	TypeError { type_name: &'static str, function: &'static str },
@@ -42,3 +42,9 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<crate::parser::ParseError<'_>> for Error {
+	fn from(err: crate::parser::ParseError<'_>) -> Self {
+		Self::ParseError(err.to_string())
+	}
+}

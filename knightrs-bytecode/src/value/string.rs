@@ -132,7 +132,9 @@ impl KString {
 impl Parseable for KString {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse<'path>(
+		parser: &mut Parser<'_, '_, 'path>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
 			todo!();
@@ -158,7 +160,7 @@ impl Parseable for KString {
 }
 
 unsafe impl<'path> Compilable<'path> for KString {
-	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

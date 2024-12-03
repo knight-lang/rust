@@ -414,7 +414,9 @@ impl Integer {
 impl Parseable for Integer {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse<'path>(
+		parser: &mut Parser<'_, '_, 'path>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(None);
 		};
@@ -434,7 +436,7 @@ impl Parseable for Integer {
 }
 
 unsafe impl<'path> Compilable<'path> for Integer {
-	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

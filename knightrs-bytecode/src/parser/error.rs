@@ -3,18 +3,19 @@ use crate::strings::{Encoding, StringError};
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
-pub struct ParseError {
+pub struct ParseError<'path> {
 	pub whence: SourceLocation,
+	pub _ignored: &'path (),
 	pub kind: ParseErrorKind,
 }
 
-impl Display for ParseError {
+impl Display for ParseError<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		write!(f, "{}: {}", self.whence, self.kind)
 	}
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for ParseError<'_> {}
 
 #[derive(Error, Debug)]
 pub enum ParseErrorKind {
@@ -72,7 +73,7 @@ pub enum ParseErrorKind {
 
 impl ParseErrorKind {
 	// this tuple is a huge hack. maybe when i remove it i can also remove `'filename`
-	pub fn error(self, whence: SourceLocation) -> ParseError {
-		ParseError { whence, kind: self }
+	pub fn error(self, whence: SourceLocation) -> ParseError<'static> {
+		ParseError { whence, kind: self, _ignored: &() }
 	}
 }

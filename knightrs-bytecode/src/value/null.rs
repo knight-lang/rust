@@ -62,7 +62,9 @@ impl ToKString for Null {
 impl Parseable for Null {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<Option<Self::Output>, ParseError> {
+	fn parse<'path>(
+		parser: &mut Parser<'_, '_, 'path>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);
 		}
@@ -73,7 +75,7 @@ impl Parseable for Null {
 }
 
 unsafe impl<'path> Compilable<'path> for Null {
-	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError> {
+	fn compile(self, compiler: &mut Compiler, _: &Options) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}

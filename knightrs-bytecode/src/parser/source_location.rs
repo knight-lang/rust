@@ -16,8 +16,8 @@ impl SourceLocation {
 		Self { filename, lineno }
 	}
 
-	pub fn error(self, kind: ParseErrorKind) -> ParseError {
-		ParseError { whence: self, kind }
+	pub fn error(self, kind: ParseErrorKind) -> ParseError<'static> {
+		ParseError { whence: self, kind, _ignored: &() }
 	}
 }
 

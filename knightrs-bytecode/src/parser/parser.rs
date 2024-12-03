@@ -12,13 +12,6 @@ use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 
-// safety: cannot do invalid things with the builder.
-#[allow(non_camel_case_types)]
-#[deprecated]
-pub unsafe trait Parseable_OLD {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError>;
-}
-
 pub struct Parser<'env, 'expr, 'path> {
 	env: &'env mut Environment,
 	filename: Option<RefCount<Path>>, // TODO: dont use refcount
@@ -33,11 +26,11 @@ pub struct Parser<'env, 'expr, 'path> {
 }
 
 #[cfg(feature = "compliance")]
-fn validate_source<'e>(
+fn validate_source<'e, 'path>(
 	source: &'e str,
 	filename: &Option<RefCount<Path>>,
 	opts: &Options,
-) -> Result<(), ParseError> {
+) -> Result<(), ParseError<'path>> {
 	let Err(err) = opts.encoding.validate(source) else {
 		return Ok(());
 	};
@@ -55,7 +48,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 		env: &'env mut Environment,
 		filename: Option<&Path>,
 		source: &'expr str,
-	) -> Result<Self, ParseError> {
+	) -> Result<Self, ParseError<'path>> {
 		let filename = filename.map(|c| c.to_owned().into());
 
 		#[cfg(feature = "compliance")]
@@ -180,7 +173,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 
 	/// Creates an error at the current source code position.
 	#[must_use]
-	pub fn error(&self, kind: ParseErrorKind) -> ParseError {
+	pub fn error(&self, kind: ParseErrorKind) -> ParseError<'path> {
 		kind.error(self.location())
 	}
 
@@ -188,7 +181,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Program, ParseError> {
+	pub fn parse_program(mut self) -> Result<Program, ParseError<'path>> {
 		self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.
@@ -204,7 +197,7 @@ impl<'env, 'expr, 'path> Parser<'env, 'expr, 'path> {
 	}
 
 	/// Parses a single expression and returns it.
-	pub fn parse_expression(&mut self) -> Result<(), ParseError> {
+	pub fn parse_expression(&mut self) -> Result<(), ParseError<'path>> {
 		self.strip_whitespace_and_comments();
 
 		if let Some(x) = crate::value::Integer::parse(self)? {

@@ -1,4 +1,4 @@
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parseable_OLD, Parser, VariableName};
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName};
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
 use crate::vm::Opcode;
@@ -50,12 +50,12 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 	}
 }
 
-fn parse_argument(
-	parser: &mut Parser<'_, '_, '_>,
+fn parse_argument<'path>(
+	parser: &mut Parser<'_, '_, 'path>,
 	start: &SourceLocation,
 	fn_name: char,
 	arg: usize,
-) -> Result<(), ParseError> {
+) -> Result<(), ParseError<'path>> {
 	match parser.parse_expression() {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
 			return Err(start.clone().error(ParseErrorKind::MissingArgument(fn_name, arg)));
@@ -64,10 +64,10 @@ fn parse_argument(
 	}
 }
 
-fn parse_assignment(
+fn parse_assignment<'path>(
 	start: SourceLocation,
-	parser: &mut Parser<'_, '_, '_>,
-) -> Result<(), ParseError> {
+	parser: &mut Parser<'_, '_, 'path>,
+) -> Result<(), ParseError<'path>> {
 	parser.strip_whitespace_and_comments();
 
 	// TODO: handle `()` around variable name.
@@ -103,11 +103,11 @@ fn parse_assignment(
 	Ok(())
 }
 
-fn parse_block(
+fn parse_block<'path>(
 	start: SourceLocation,
-	parser: &mut Parser<'_, '_, '_>,
+	parser: &mut Parser<'_, '_, 'path>,
 	name: Option<VariableName>,
-) -> Result<(), ParseError> {
+) -> Result<(), ParseError<'path>> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
 	let jump_after = parser.compiler().defer_jump(JumpWhen::Always);
 
@@ -125,8 +125,8 @@ fn parse_block(
 	Ok(())
 }
 
-unsafe impl Parseable_OLD for Function {
-	fn parse(parser: &mut Parser<'_, '_, '_>) -> Result<bool, ParseError> {
+impl Function {
+	pub fn parse<'path>(parser: &mut Parser<'_, '_, 'path>) -> Result<bool, ParseError<'path>> {
 		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
 		// support `X`s
 
