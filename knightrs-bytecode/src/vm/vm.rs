@@ -111,11 +111,13 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 	pub fn run_inner(&mut self) -> crate::Result<Value> {
 		use std::mem::MaybeUninit;
-		const NULL: MaybeUninit<Value> = MaybeUninit::uninit();
-
 		use Opcode::*;
 
+		const NULL: MaybeUninit<Value> = MaybeUninit::uninit();
+
+		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
+
 		let mut args = [NULL; Opcode::MAX_ARITY];
 
 		loop {
@@ -230,17 +232,23 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					}
 				}
 
+				#[cfg(not(feature = "stacktrace"))]
 				Call => {
-					#[cfg(not(feature = "stacktrace"))]
-					if let Value::Block(bl) = arg![0] {
-						jumpstack.push(self.current_index);
-						self.current_index = bl.inner().0;
-						continue;
-					}
+					let Value::Block(bl) = arg![0] else {
+						return Err(Error::TypeError {
+							type_name: crate::value::NamedType::type_name(arg![0]),
+							function: "CALL",
+						});
+					};
 
-					let result = arg![*0].kn_call(self)?;
-					result
+					// TODO: allow for calling `arg![0]` here, with a likely/not likely hint in stacktrace
+
+					jumpstack.push(self.current_index);
+					self.current_index = bl.inner().0;
+					continue;
 				}
+				#[cfg(feature = "stacktrace")]
+				Call => arg![*0].kn_call(self)?,
 				Quit => {
 					let status = arg![0].to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
