@@ -193,10 +193,10 @@ impl List {
 			ListInner::Slice(ref sl) => Some({
 				Self(Some(ListInner::Offset { start: 1, len: sl.len() - 1, slice: sl.clone() }))
 			}),
-			ListInner::Offset { start, len, .. } if start + 1 == *len => None,
+			ListInner::Offset { start, len, .. } if start + 1 >= *len - 1 => Some(Self::default()),
 			ListInner::Offset { start, len, ref slice } => Some(Self(Some(ListInner::Offset {
 				start: start + 1,
-				len: *len,
+				len: *len - 1,
 				slice: slice.clone(),
 			}))),
 		}
@@ -296,6 +296,9 @@ impl List {
 			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
 			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
 			Some(ListInner::Offset { start, len, ref slice }) => {
+				if slice.get(start..start + len).is_none() {
+					dbg!(self.len(), &self.0);
+				}
 				ListRefIter::Slice(slice[start..start + len].iter())
 			}
 		}
@@ -317,15 +320,17 @@ impl<'a> ListGet<'a> for usize {
 	type Output = &'a Value;
 
 	fn get(self, list: &'a List) -> Option<Self::Output> {
-		if list.is_empty() {
-			return None;
-		}
+		// if list.is_empty() {
+		// 	return None;
+		// }
 
-		match list.0.as_ref()? {
-			ListInner::Boxed(ele) => (self == 0).then_some(ele),
-			ListInner::Slice(sl) => sl.get(self),
-			ListInner::Offset { start, len, slice } => slice.get(self + start),
-		}
+		list.iter().nth(self)
+
+		// match list.0.as_ref()? {
+		// 	ListInner::Boxed(ele) => (self == 0).then_some(ele),
+		// 	ListInner::Slice(sl) => sl.get(self),
+		// 	ListInner::Offset { start, len, slice } => slice.get(self + start),
+		// }
 
 		// match list.inner()? {
 		// 	Inner::Boxed(ele) => (self == 0).then_some(ele),

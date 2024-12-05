@@ -514,7 +514,7 @@ impl Value {
 	pub fn kn_head(&self, env: &mut Environment) -> Result<Self> {
 		let _ = env;
 		match self {
-			Self::List(list) => list.head().ok_or(Error::DomainError("empty list")),
+			Self::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
 			Self::String(string) => string
 				.head()
 				.ok_or(Error::DomainError("empty string"))
@@ -532,7 +532,8 @@ impl Value {
 	pub fn kn_tail(&self, env: &mut Environment) -> Result<Self> {
 		let _ = env;
 		match self {
-			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list")).map(Self::from),
+			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list ]")).map(Self::from),
+
 			Self::String(string) => {
 				string.tail().ok_or(Error::DomainError("empty string")).map(|x| KString::from(x).into())
 			}
