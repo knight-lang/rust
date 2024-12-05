@@ -324,13 +324,13 @@ impl<'a> ListGet<'a> for usize {
 		// 	return None;
 		// }
 
-		list.iter().nth(self)
+		// list.iter().nth(self)
 
-		// match list.0.as_ref()? {
-		// 	ListInner::Boxed(ele) => (self == 0).then_some(ele),
-		// 	ListInner::Slice(sl) => sl.get(self),
-		// 	ListInner::Offset { start, len, slice } => slice.get(self + start),
-		// }
+		match list.0.as_ref()? {
+			ListInner::Boxed(ele) => (self == 0).then_some(ele),
+			ListInner::Slice(sl) => sl.get(self),
+			ListInner::Offset { start, len, slice } => slice.get(self + start),
+		}
 
 		// match list.inner()? {
 		// 	Inner::Boxed(ele) => (self == 0).then_some(ele),

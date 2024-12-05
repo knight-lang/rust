@@ -47,10 +47,12 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 	pub fn run(&mut self, block: Block) -> crate::Result<Value> {
 		// Save previous index
 		let index = self.current_index;
+
 		#[cfg(feature = "stacktrace")]
 		self.callstack.push(self.current_index);
 
 		// Used for debugging later
+		#[cfg(debug_assertions)]
 		let stack_len = self.stack.len();
 
 		// Actually call the functoin
@@ -71,7 +73,9 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			debug_assert_eq!(result, Some(index));
 		}
 
+		#[cfg(debug_assertions)]
 		debug_assert_eq!(stack_len, self.stack.len(), "{:?}", result);
+
 		self.current_index = index;
 
 		result
@@ -109,7 +113,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		None
 	}
 
-	pub fn run_inner(&mut self) -> crate::Result<Value> {
+	fn run_inner(&mut self) -> crate::Result<Value> {
 		use std::mem::MaybeUninit;
 		use Opcode::*;
 
@@ -117,8 +121,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
-
-		let mut args = [NULL; Opcode::MAX_ARITY];
 
 		loop {
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
@@ -130,38 +132,29 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			unsafe {
 				debug_assert!(opcode.arity() <= self.stack.len());
 
-				// // Copy arguments from the stack into the arguments buffer
-				// args.as_mut_ptr().copy_from_nonoverlapping(
-				// 	self
-				// 		.stack
-				// 		.as_mut_ptr()
-				// 		.offset(self.stack.len() as isize - opcode.arity() as isize)
-				// 		.cast(),
-				// 	opcode.arity(),
-				// );
-
-				// Pop the arguments off the stack.
+				// Pop the arguments off the stack. The remaining arguments are in `spare_capacity_mut`.
+				// This does mean that we cannot modify `self.stack` until we've interacted with all the
+				// individual arguments.
 				self.stack.set_len(self.stack.len() - opcode.arity());
 			}
 
 			let args = self.stack.spare_capacity_mut();
 
+			// Get the last argument on the stack. Requires an `unsafe` block in case the stack is
+			// empty for some reason.
 			macro_rules! last {
-				() => {
+				() => {{
+					debug_assert_ne!(self.stack.len(), 0);
 					self.stack.last().unwrap_unchecked()
-				};
+				}};
 			}
 
+			// Gets an argument from the argument stack
 			macro_rules! arg {
-				(*$idx:expr) => {{
-					let idx = $idx;
-					debug_assert!(idx < opcode.arity());
-					unsafe { args[idx].assume_init_read() }
-				}};
 				($idx:expr) => {{
 					let idx = $idx;
 					debug_assert!(idx < opcode.arity());
-					unsafe { args[idx].assume_init_ref() }
+					args[idx].assume_init_read()
 				}};
 			}
 
@@ -177,14 +170,14 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				}
 
 				JumpIfTrue => {
-					if arg![0].to_boolean(self.env)? {
+					if unsafe { arg![0] }.to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 					continue;
 				}
 
 				JumpIfFalse => {
-					if !arg![0].to_boolean(self.env)? {
+					if !unsafe { arg![0] }.to_boolean(self.env)? {
 						self.current_index = offset;
 					}
 					continue;
@@ -205,7 +198,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					continue;
 				}
 
-				SetVarPop => todo!(), //self.vars[offset] = arg![0].clone(),
+				SetVarPop => todo!(), //self.vars[offset] = unsafe{arg![0]}.clone(),
 
 				// Arity 0
 				Prompt => self.env.prompt()?.map(Value::from).unwrap_or_default(),
@@ -220,7 +213,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 				// Arity 1
 				#[cfg(feature = "stacktrace")]
-				Return => return Ok(arg![*0]),
+				Return => return Ok(unsafe { arg![0] }),
 
 				#[cfg(not(feature = "stacktrace"))]
 				Return => {
@@ -234,30 +227,31 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 				#[cfg(not(feature = "stacktrace"))]
 				Call => {
-					let Value::Block(bl) = arg![0] else {
+					let arg = unsafe { arg![0] };
+					let Value::Block(bl) = arg else {
 						return Err(Error::TypeError {
-							type_name: crate::value::NamedType::type_name(arg![0]),
+							type_name: crate::value::NamedType::type_name(&arg),
 							function: "CALL",
 						});
 					};
 
-					// TODO: allow for calling `arg![0]` here, with a likely/not likely hint in stacktrace
+					// TODO: allow for calling `unsafe{arg![0]}` here, with a likely/not likely hint in stacktrace
 
 					jumpstack.push(self.current_index);
 					self.current_index = bl.inner().0;
 					continue;
 				}
 				#[cfg(feature = "stacktrace")]
-				Call => arg![*0].kn_call(self)?,
+				Call => unsafe { arg![0] }.kn_call(self)?,
 				Quit => {
-					let status = arg![0].to_integer(self.env)?;
+					let status = unsafe { arg![0] }.to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
 					self.env.quit(status)?;
 					unreachable!()
 				}
 				Output => {
 					use std::io::Write;
-					let kstring = arg![0].to_kstring(self.env)?;
+					let kstring = unsafe { arg![0] }.to_kstring(self.env)?;
 					let strref = kstring.as_str();
 
 					let mut output = self.env.output();
@@ -272,40 +266,49 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 					Value::Null
 				}
-				Length => arg![0].kn_length(self.env)?.into(),
-				Not => (!arg![0].to_boolean(self.env)?).into(),
-				Negate => arg![0].kn_negate(self.env)?.into(),
-				Ascii => arg![0].kn_ascii(self.env)?,
-				Box => List::boxed(arg![0].clone()).into(),
-				Head => arg![0].kn_head(self.env)?,
-				Tail => arg![0].kn_tail(self.env)?,
+				Length => unsafe { arg![0] }.kn_length(self.env)?.into(),
+				Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
+				Negate => unsafe { arg![0] }.kn_negate(self.env)?.into(),
+				Ascii => unsafe { arg![0] }.kn_ascii(self.env)?,
+				Box => List::boxed(unsafe { arg![0] }.clone()).into(),
+				Head => unsafe { arg![0] }.kn_head(self.env)?,
+				Tail => unsafe { arg![0] }.kn_tail(self.env)?,
 				Pop => continue, /* do nothing, the arity already popped */
 
 				// TODO: the `vm` evals in its entirely own vm, which isnt what we wnat
 				#[cfg(feature = "extensions")]
 				Eval => {
-					let program = arg![0].to_kstring(self.env)?;
+					let program = unsafe { arg![0] }.to_kstring(self.env)?;
 					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
 					let program = parser.parse_program()?;
 					Vm::new(&program, self.env).run_entire_program()?
 				}
 
 				// Arity 2
-				Add => arg![0].kn_plus(arg![1], self.env)?,
-				Sub => arg![0].kn_minus(arg![1], self.env)?,
-				Mul => arg![0].kn_asterisk(arg![1], self.env)?,
-				Div => arg![0].kn_slash(arg![1], self.env)?,
-				Mod => arg![0].kn_percent(arg![1], self.env)?,
-				Pow => arg![0].kn_caret(arg![1], self.env)?,
-				Lth => (arg![0].kn_compare(arg![1], "<", self.env)? == Ordering::Less).into(),
-				Gth => (arg![0].kn_compare(arg![1], ">", self.env)? == Ordering::Greater).into(),
-				Eql => (arg![0].kn_equals(arg![1], self.env)?).into(),
+				Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,
+				Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
+				Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
+				Div => unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?,
+				Mod => unsafe { arg![0] }.kn_percent(&unsafe { arg![1] }, self.env)?,
+				Pow => unsafe { arg![0] }.kn_caret(&unsafe { arg![1] }, self.env)?,
+				Lth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, "<", self.env)?
+					== Ordering::Less)
+					.into(),
+				Gth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, ">", self.env)?
+					== Ordering::Greater)
+					.into(),
+				Eql => (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into(),
 
 				// Arity 3
-				Get => arg![0].kn_get(arg![1], arg![2], self.env)?,
+				Get => unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?,
 
 				// Arity 4
-				Set => arg![0].kn_set(arg![1], arg![2], arg![3], self.env)?,
+				Set => unsafe { arg![0] }.kn_set(
+					&unsafe { arg![1] },
+					&unsafe { arg![2] },
+					&unsafe { arg![3] },
+					self.env,
+				)?,
 			};
 			self.stack.push(value);
 		}

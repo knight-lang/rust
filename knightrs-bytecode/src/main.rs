@@ -55,6 +55,9 @@ fn main() {
 
 	match run(&mut env, &program) {
 		Ok(()) => {}
-		Err(err) => eprintln!("error: {err}"),
+		Err(err) => {
+			eprintln!("error: {err}");
+			std::process::exit(1)
+		}
 	}
 }
