@@ -4,7 +4,7 @@ use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
 use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error, Options};
-use std::slice::Iter;
+use std::slice::Iter; // todo: multithreaded
 
 /// A List represents a list of [`Value`]s within Knight.
 // todo: optimize me!
@@ -15,7 +15,8 @@ pub struct List(Option<ListInner>);
 enum ListInner {
 	Boxed(Box<Value>),
 	Slice(RefCount<[Value]>),
-	Offset { start: usize, len: usize, slice: RefCount<[Value]> },
+	// Concat(RefCount<[Value]>, RefCount<[Value]>),
+	Sublist { start: usize, len: usize, slice: RefCount<[Value]> },
 }
 
 impl PartialEq for List {
@@ -173,7 +174,7 @@ impl List {
 			None => 0,
 			Some(ListInner::Boxed(_)) => 1,
 			Some(ListInner::Slice(ref sl)) => sl.len(),
-			Some(ListInner::Offset { len, .. }) => len,
+			Some(ListInner::Sublist { len, .. }) => len,
 		}
 	}
 
@@ -191,12 +192,12 @@ impl List {
 			ListInner::Boxed(_) => Some(Self::default()),
 			ListInner::Slice(ref sl) if sl.is_empty() => unreachable!("todo: can this be reached?"),
 			ListInner::Slice(ref sl) => Some({
-				Self(Some(ListInner::Offset { start: 1, len: sl.len() - 1, slice: sl.clone() }))
+				Self(Some(ListInner::Sublist { start: 1, len: sl.len() - 1, slice: sl.clone() }))
 			}),
-			ListInner::Offset { start, len, ref slice } if *len == 1 || start + 1 > slice.len() => {
+			ListInner::Sublist { start, len, ref slice } if *len == 1 || start + 1 > slice.len() => {
 				Some(Self::default())
 			}
-			ListInner::Offset { start, len, ref slice } => Some(Self(Some(ListInner::Offset {
+			ListInner::Sublist { start, len, ref slice } => Some(Self(Some(ListInner::Sublist {
 				start: start + 1,
 				len: *len - 1,
 				slice: slice.clone(),
@@ -297,7 +298,7 @@ impl List {
 			Some(ListInner::Boxed(ref b)) => ListRefIter::Boxed(b),
 			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
 			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
-			Some(ListInner::Offset { start, len, ref slice }) => {
+			Some(ListInner::Sublist { start, len, ref slice }) => {
 				if slice.get(start..start + len).is_none() {
 					dbg!(self.len(), &self.0);
 				}
@@ -331,7 +332,7 @@ impl<'a> ListGet<'a> for usize {
 		match list.0.as_ref()? {
 			ListInner::Boxed(ele) => (self == 0).then_some(ele),
 			ListInner::Slice(sl) => sl.get(self),
-			ListInner::Offset { start, len, slice } => slice.get(self + start),
+			ListInner::Sublist { start, len, slice } => slice.get(self + start),
 		}
 
 		// match list.inner()? {
@@ -357,6 +358,33 @@ impl ListGet<'_> for std::ops::Range<usize> {
 			return None;
 		}
 
+		/*
+		match list.0.as_ref()? {
+			ListInner::Slice(sl) => Some(List(Some(ListInner::Sublist {
+				start: self.start,
+				len: self.end - self.start,
+				slice: sl.clone(),
+			}))),
+			ListInner::Sublist { start, len, slice } => Some(List(Some(ListInner::Sublist {
+				start: self.start + start,
+				len: self.end - self.start,
+				slice: slice.clone(),
+			}))),
+			_ => {
+				// TODO
+				// FIXME: use optimizations, including maybe a "sublist" variant?
+				let sublist = list
+					.iter()
+					.skip(self.start)
+					.take(self.end - self.start)
+					.cloned()
+					.collect::<Vec<_>>();
+
+				// it's a sublist, so no need to check for length
+				Some(List::new_unvalidated(sublist))
+			}
+		}
+		*/
 		// FIXME: use optimizations, including maybe a "sublist" variant?
 		let sublist =
 			list.iter().skip(self.start).take(self.end - self.start).cloned().collect::<Vec<_>>();

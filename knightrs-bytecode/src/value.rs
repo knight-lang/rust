@@ -201,17 +201,15 @@ impl Value {
 			Self::String(s) => write!(env.output(), "{:?}", s.as_str())
 				.map_err(|err| Error::IoError { func: "OUTPUT", err }),
 			Self::List(l) => {
-				write!(env.output(), "{:#?}", l).unwrap();
-				Ok(())
-				// write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-				// for (idx, arg) in l.iter().enumerate() {
-				// 	if idx != 0 {
-				// 		write!(env.output(), ", ")
-				// 			.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-				// 	}
-				// 	arg.kn_dump(env)?;
-				// }
-				// write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
+				write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+				for (idx, arg) in l.iter().enumerate() {
+					if idx != 0 {
+						write!(env.output(), ", ")
+							.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+					}
+					arg.kn_dump(env)?;
+				}
+				write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
 			}
 			#[cfg(feature = "compliance")]
 			Self::Block(b) if env.opts().compliance.cant_dump_blocks => {
