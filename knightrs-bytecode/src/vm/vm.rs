@@ -241,6 +241,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 						writeln!(output, "{strref}")
 					}
 					.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+					let _ = output.flush(); // explicitly ignore errors with flushing
 
 					Value::Null
 				}
