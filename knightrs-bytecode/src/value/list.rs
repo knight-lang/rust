@@ -1,3 +1,4 @@
+use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::StringSlice;
@@ -8,7 +9,14 @@ use std::slice::Iter;
 /// A List represents a list of [`Value`]s within Knight.
 // todo: optimize me!
 #[derive(Debug, Clone, PartialEq)]
-pub struct List(Option<Box<[Value]>>);
+pub struct List(Option<ListInner>);
+
+#[derive(Debug, Clone, PartialEq)]
+enum ListInner {
+	Boxed(Box<Value>),
+	Slice(RefCount<[Value]>),
+	// Concat(Box<ListInner< )
+}
 
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList {
@@ -73,14 +81,27 @@ impl ToList for List {
 	}
 }
 
-/// TODO
+/// TODO: make it not a pub enum
 #[derive(Clone)]
-pub struct ListRefIter<'a>(Iter<'a, Value>);
+pub enum ListRefIter<'a> {
+	Empty,
+	Boxed(&'a Value),
+	Slice(Iter<'a, Value>),
+}
+
 impl<'a> Iterator for ListRefIter<'a> {
 	type Item = &'a Value;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.0.next()
+		match self {
+			Self::Empty => None,
+			Self::Boxed(value) => {
+				let result = *value;
+				*self = Self::Empty;
+				Some(result)
+			}
+			Self::Slice(iter) => iter.next(),
+		}
 	}
 }
 
@@ -125,7 +146,7 @@ impl List {
 		if vec.len() == 0 {
 			Self(None)
 		} else {
-			Self(Some(vec.into()))
+			Self(Some(ListInner::Slice(vec.into())))
 		}
 	}
 
@@ -143,7 +164,11 @@ impl List {
 
 	/// Gets the length of `self`.
 	pub fn len(&self) -> usize {
-		self.0.as_ref().map_or(0, |c| c.len())
+		match self.0 {
+			None => 0,
+			Some(ListInner::Boxed(_)) => 1,
+			Some(ListInner::Slice(ref sl)) => sl.len(),
+		}
 	}
 
 	/// Returns the first element in `self`.
@@ -244,16 +269,11 @@ impl List {
 
 	/// Returns an [`ListRefIter`] instance, which iterates over borrowed references.
 	pub fn iter(&self) -> ListRefIter<'_> {
-		ListRefIter(self.0.as_ref().map(|x| x.iter()).unwrap_or_default())
-		// ListRefIter(match self.inner() {
-		// 	None => IterInner::Empty,
-		// 	Some(Inner::Boxed(val)) => IterInner::Boxed(val),
-		// 	Some(Inner::Slice(slice)) => IterInner::Slice(slice.iter()),
-		// 	Some(Inner::Cons(lhs, rhs)) => IterInner::Cons(lhs.iter().into(), rhs),
-		// 	Some(Inner::Repeat(list, amount)) => {
-		// 		IterInner::Repeat(Box::new(list.iter()).cycle().take(list.len() * *amount))
-		// 	}
-		// })
+		match self.0 {
+			None => ListRefIter::Empty,
+			Some(ListInner::Boxed(ref b)) => ListRefIter::Boxed(b),
+			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
+		}
 	}
 }
 
@@ -276,7 +296,11 @@ impl<'a> ListGet<'a> for usize {
 			return None;
 		}
 
-		return list.0.as_ref().unwrap().get(self);
+		match list.0.as_ref()? {
+			ListInner::Boxed(ele) => (self == 0).then_some(ele),
+			ListInner::Slice(sl) => sl.get(self),
+		}
+
 		// match list.inner()? {
 		// 	Inner::Boxed(ele) => (self == 0).then_some(ele),
 		// 	Inner::Slice(slice) => slice.get(self),

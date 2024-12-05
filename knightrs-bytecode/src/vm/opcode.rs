@@ -25,7 +25,10 @@ pub enum Opcode {
 	Dump = opcode(5, 0, false), // special-cased in `function.rs` so it doesn't pop.
 
 	// Arity 1
+	#[cfg(feature = "stacktrace")]
 	Return = opcode(0, 1, false),
+	#[cfg(not(feature = "stacktrace"))]
+	Return = opcode(6, 0, false),
 	Call = opcode(1, 1, false),
 	Quit = opcode(2, 1, false),
 	Output = opcode(3, 1, false),

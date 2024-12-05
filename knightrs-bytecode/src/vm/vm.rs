@@ -115,6 +115,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 		use Opcode::*;
 
+		let mut jumpstack = Vec::new();
 		let mut args = [NULL; Opcode::MAX_ARITY];
 
 		loop {
@@ -216,9 +217,27 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				}
 
 				// Arity 1
+				#[cfg(feature = "stacktrace")]
 				Return => return Ok(arg![*0]),
 
+				#[cfg(not(feature = "stacktrace"))]
+				Return => {
+					if let Some(ip) = jumpstack.pop() {
+						self.current_index = ip;
+						continue;
+					} else {
+						return Ok(self.stack.pop().expect("<bug: pop when nothing left>"));
+					}
+				}
+
 				Call => {
+					#[cfg(not(feature = "stacktrace"))]
+					if let Value::Block(bl) = arg![0] {
+						jumpstack.push(self.current_index);
+						self.current_index = bl.inner().0;
+						continue;
+					}
+
 					let result = arg![*0].kn_call(self)?;
 					result
 				}
