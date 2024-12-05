@@ -8,14 +8,20 @@ use std::slice::Iter;
 
 /// A List represents a list of [`Value`]s within Knight.
 // todo: optimize me!
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct List(Option<ListInner>);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 enum ListInner {
 	Boxed(Box<Value>),
 	Slice(RefCount<[Value]>),
-	// Concat(Box<ListInner< )
+	Offset { start: usize, len: usize, slice: RefCount<[Value]> },
+}
+
+impl PartialEq for List {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.iter().eq(rhs.iter())
+	}
 }
 
 /// Represents the ability to be converted to a [`List`].
@@ -152,8 +158,7 @@ impl List {
 
 	/// Returns a new [`List`] with the only element being `value`.
 	pub fn boxed(value: Value) -> Self {
-		// COMPLIANCE: We always have exactly 1 element, which is within bounds.
-		Self::new_unvalidated([value])
+		Self(Some(ListInner::Boxed(value.into())))
 	}
 
 	/// Returns whether `self` is empty.
@@ -168,6 +173,7 @@ impl List {
 			None => 0,
 			Some(ListInner::Boxed(_)) => 1,
 			Some(ListInner::Slice(ref sl)) => sl.len(),
+			Some(ListInner::Offset { len, .. }) => len,
 		}
 	}
 
@@ -180,7 +186,22 @@ impl List {
 	/// Returns everything but the first element in `self`.
 	#[inline]
 	pub fn tail(&self) -> Option<Self> {
-		self.get(1..)
+		// TODO: make this `self.get(1..)` when it's more optimized
+		match self.0.as_ref()? {
+			ListInner::Boxed(_) => Some(Self::default()),
+			ListInner::Slice(ref sl) if sl.is_empty() => unreachable!("todo: can this be reached?"),
+			ListInner::Slice(ref sl) => Some({
+				Self(Some(ListInner::Offset { start: 1, len: sl.len() - 1, slice: sl.clone() }))
+			}),
+			ListInner::Offset { start, len, .. } if start + 1 == *len => None,
+			ListInner::Offset { start, len, ref slice } => Some(Self(Some(ListInner::Offset {
+				start: start + 1,
+				len: *len,
+				slice: slice.clone(),
+			}))),
+		}
+		// Self(Some(ListInner::Boxed(value.into())))
+		// self.get(1..)
 	}
 
 	/// Gets the value(s) at `index`.
@@ -273,6 +294,10 @@ impl List {
 			None => ListRefIter::Empty,
 			Some(ListInner::Boxed(ref b)) => ListRefIter::Boxed(b),
 			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
+			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
+			Some(ListInner::Offset { start, len, ref slice }) => {
+				ListRefIter::Slice(slice[start..start + len].iter())
+			}
 		}
 	}
 }
@@ -299,6 +324,7 @@ impl<'a> ListGet<'a> for usize {
 		match list.0.as_ref()? {
 			ListInner::Boxed(ele) => (self == 0).then_some(ele),
 			ListInner::Slice(sl) => sl.get(self),
+			ListInner::Offset { start, len, slice } => slice.get(self + start),
 		}
 
 		// match list.inner()? {
