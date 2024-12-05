@@ -126,7 +126,8 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
 			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
 			self.current_index += 1;
-			// println!("{:?}: {:?} / {:?}: {:?}", self.current_index, offset, opcode, self.vars);
+			//println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
+			// println!("{opcode:?}");
 
 			// Read arguments in
 			unsafe {
@@ -153,8 +154,11 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			macro_rules! arg {
 				($idx:expr) => {{
 					let idx = $idx;
+
 					debug_assert!(idx < opcode.arity());
-					debug_assert!(args.len() <= idx);
+					// realistically shouldnt ever happen as args is also the values past the end too
+					debug_assert!(idx <= args.len());
+
 					args.get_unchecked(idx).assume_init_read()
 				}};
 			}

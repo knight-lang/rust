@@ -10,7 +10,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// It's internally always represented by an `i64`. However, constructing new [`Integer`]s via
 /// the [`new`] function requires passing in an [`Option`], which allows us to do `i32`-bound
 /// checking for compliance.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(IntegerInner);
 
 type IntegerInner = i64;
@@ -25,13 +25,6 @@ impl NamedType for Integer {
 	#[inline]
 	fn type_name(&self) -> &'static str {
 		"Integer"
-	}
-}
-
-impl Debug for Integer {
-	#[inline]
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(&self.0, f)
 	}
 }
 

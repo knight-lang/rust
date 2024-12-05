@@ -14,6 +14,7 @@ use integer::IntegerError;
 pub use integer::{Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;
+use std::fmt::{self, Debug, Formatter};
 pub use string::{KString, ToKString};
 
 /// A trait indicating a type has a name.
@@ -23,7 +24,7 @@ pub trait NamedType {
 }
 
 // Todo: more
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Value {
 	#[default]
@@ -33,6 +34,19 @@ pub enum Value {
 	String(KString),
 	List(List),
 	Block(Block),
+}
+
+impl Debug for Value {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			Self::Null => Debug::fmt(&Null, f),
+			Self::Boolean(boolean) => Debug::fmt(&boolean, f),
+			Self::Integer(integer) => Debug::fmt(&integer, f),
+			Self::String(string) => Debug::fmt(&string, f),
+			Self::List(list) => Debug::fmt(&list, f),
+			Self::Block(block) => Debug::fmt(&block, f),
+		}
+	}
 }
 
 impl From<Boolean> for Value {
@@ -187,15 +201,17 @@ impl Value {
 			Self::String(s) => write!(env.output(), "{:?}", s.as_str())
 				.map_err(|err| Error::IoError { func: "OUTPUT", err }),
 			Self::List(l) => {
-				write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-				for (idx, arg) in l.iter().enumerate() {
-					if idx != 0 {
-						write!(env.output(), ", ")
-							.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-					}
-					arg.kn_dump(env)?;
-				}
-				write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
+				write!(env.output(), "{:#?}", l).unwrap();
+				Ok(())
+				// write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+				// for (idx, arg) in l.iter().enumerate() {
+				// 	if idx != 0 {
+				// 		write!(env.output(), ", ")
+				// 			.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+				// 	}
+				// 	arg.kn_dump(env)?;
+				// }
+				// write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
 			}
 			#[cfg(feature = "compliance")]
 			Self::Block(b) if env.opts().compliance.cant_dump_blocks => {

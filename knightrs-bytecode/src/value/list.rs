@@ -193,7 +193,9 @@ impl List {
 			ListInner::Slice(ref sl) => Some({
 				Self(Some(ListInner::Offset { start: 1, len: sl.len() - 1, slice: sl.clone() }))
 			}),
-			ListInner::Offset { start, len, .. } if start + 1 >= *len - 1 => Some(Self::default()),
+			ListInner::Offset { start, len, ref slice } if *len == 1 || start + 1 > slice.len() => {
+				Some(Self::default())
+			}
 			ListInner::Offset { start, len, ref slice } => Some(Self(Some(ListInner::Offset {
 				start: start + 1,
 				len: *len - 1,

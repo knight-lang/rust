@@ -15,6 +15,8 @@ fn run(env: &mut Environment, program: &str) -> Result<(), String> {
 
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
 
+	// dbg!(&program);
+
 	Vm::new(&program, env).run_entire_program().map_err(|e| e.to_string()).and(Ok(()))
 }
 
@@ -37,7 +39,7 @@ fn main() {
 			opts.compliance.forbid_trailing_tokens = true;
 			opts.compliance.check_equals_params = true;
 			opts.compliance.limit_rand_range = true;
-			opts.compliance.cant_dump_blocks = true;
+			// opts.compliance.cant_dump_blocks = true;
 			opts.compliance.check_quit_status_codes = true;
 			opts.compliance.disallow_negative_int_to_list = true;
 			opts.qol.check_parens = true;
