@@ -13,6 +13,7 @@ thiserror = "2.0"
 static_assertions = "1.1"
 indexmap = "2.7"
 rand = "0.8"
+likely_stable = "0.1.2"
 
 [features]
 multithreaded = []

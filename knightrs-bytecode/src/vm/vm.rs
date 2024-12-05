@@ -154,7 +154,8 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				($idx:expr) => {{
 					let idx = $idx;
 					debug_assert!(idx < opcode.arity());
-					args[idx].assume_init_read()
+					debug_assert!(args.len() <= idx);
+					args.get_unchecked(idx).assume_init_read()
 				}};
 			}
 
@@ -163,38 +164,31 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			let value = match opcode {
 				// Builtins
 				PushConstant => unsafe { self.program.constant_at(offset) }.clone(),
-
 				Jump => {
-					self.current_index = offset;
+					// SAFETY: program is well-defined, so jumps are always correct
+					unsafe { self.jump_to(offset) };
 					continue;
 				}
-
 				JumpIfTrue => {
 					if unsafe { arg![0] }.to_boolean(self.env)? {
-						self.current_index = offset;
+						// SAFETY: program is well-defined, so jumps are always correct
+						unsafe { self.jump_to(offset) };
 					}
 					continue;
 				}
-
 				JumpIfFalse => {
 					if !unsafe { arg![0] }.to_boolean(self.env)? {
-						self.current_index = offset;
+						// SAFETY: program is well-defined, so jumps are always correct
+						unsafe { self.jump_to(offset) }
 					}
 					continue;
 				}
 
-				GetVar => self.vars[offset].as_ref().expect("todo: UndefinedVariable").clone(),
+				GetVar => unsafe { self.get_variable(offset) }?,
 
 				SetVar => {
 					let value = unsafe { last!() }.clone();
-
-					#[cfg(feature = "stacktrace")]
-					if let Value::Block(ref block) = value {
-						let varname = self.program.variable_name(offset);
-						self.known_blocks.insert(block.inner().0, varname);
-					}
-
-					self.vars[offset] = Some(value);
+					unsafe { self.set_variable(offset, value) };
 					continue;
 				}
 
@@ -217,32 +211,32 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 				#[cfg(not(feature = "stacktrace"))]
 				Return => {
+					// There's somewhere to jump to, go there.
 					if let Some(ip) = jumpstack.pop() {
-						self.current_index = ip;
+						likely_stable::likely(false);
+						unsafe { self.jump_to(ip) };
 						continue;
-					} else {
-						return Ok(self.stack.pop().expect("<bug: pop when nothing left>"));
 					}
+
+					// There's nowhere to jump to, return the block of code.
+					return Ok(self.stack.pop().unwrap_or_else(|| {
+						#[cfg(debug_assertions)]
+						unreachable!("<bug: pop when nothing left>");
+						unsafe { std::hint::unreachable_unchecked() }
+					}));
 				}
 
-				#[cfg(not(feature = "stacktrace"))]
-				Call => {
-					let arg = unsafe { arg![0] };
-					let Value::Block(bl) = arg else {
-						return Err(Error::TypeError {
-							type_name: crate::value::NamedType::type_name(&arg),
-							function: "CALL",
-						});
-					};
+				Call => match unsafe { arg![0] } {
+					#[cfg(not(feature = "stacktrace"))]
+					Value::Block(block) => {
+						likely_stable::likely(true);
+						jumpstack.push(self.current_index);
+						unsafe { self.jump_to(block.inner().0) };
+						continue;
+					}
+					other => other.kn_call(self)?,
+				},
 
-					// TODO: allow for calling `unsafe{arg![0]}` here, with a likely/not likely hint in stacktrace
-
-					jumpstack.push(self.current_index);
-					self.current_index = bl.inner().0;
-					continue;
-				}
-				#[cfg(feature = "stacktrace")]
-				Call => unsafe { arg![0] }.kn_call(self)?,
 				Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
@@ -264,7 +258,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
 					let _ = output.flush(); // explicitly ignore errors with flushing
 
-					Value::Null
+					Value::default()
 				}
 				Length => unsafe { arg![0] }.kn_length(self.env)?.into(),
 				Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
@@ -284,7 +278,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					Vm::new(&program, self.env).run_entire_program()?
 				}
 
-				// Arity 2
 				Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,
 				Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
 				Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
@@ -299,10 +292,8 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					.into(),
 				Eql => (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into(),
 
-				// Arity 3
 				Get => unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?,
 
-				// Arity 4
 				Set => unsafe { arg![0] }.kn_set(
 					&unsafe { arg![1] },
 					&unsafe { arg![2] },
@@ -312,5 +303,34 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			};
 			self.stack.push(value);
 		}
+	}
+
+	// SAFETY: offset must be a valid place to jump to
+	unsafe fn jump_to(&mut self, offset: usize) {
+		self.current_index = offset
+	}
+
+	// SAFETY: the `offset` must be a valid variable offset
+	unsafe fn get_variable(&mut self, offset: usize) -> crate::Result<Value> {
+		debug_assert!(offset <= self.vars.len());
+
+		if let Some(value) = unsafe { self.vars.get_unchecked(offset) } {
+			return Ok(value.clone());
+		}
+
+		todo!("todo: error case for undefined variables")
+	}
+
+	// SAFETY: the `offset` must be a valid variable offset
+	unsafe fn set_variable(&mut self, offset: usize, value: Value) {
+		debug_assert!(offset <= self.vars.len());
+
+		#[cfg(feature = "stacktrace")]
+		if let Value::Block(ref block) = value {
+			let varname = self.program.variable_name(offset);
+			self.known_blocks.insert(block.inner().0, varname);
+		}
+
+		*unsafe { self.vars.get_unchecked_mut(offset) } = Some(value);
 	}
 }
