@@ -23,18 +23,78 @@ pub trait NamedType {
 	fn type_name(&self) -> &'static str;
 }
 
-#[derive(Default, Clone, PartialEq)]
-pub struct Value(ValueEnum);
+/*
+ * Storage format:
+ * 000...0000 # -> Null
+ * 000...0010 # -> False
+ * 000...0110 # -> True
+ * XXX...X100 # -> Block
+ * XXX...XXX1 # -> Integer
+ * XXX...X000 # -> Pointer
+*/
+pub struct Value(*const ());
+// #[derive(Default, Clone, PartialEq)]
+
+impl Default for Value {
+	#[inline]
+	fn default() -> Self {
+		Self(std::ptr::null())
+	}
+}
+
+impl Clone for Value {
+	fn clone(&self) -> Self {
+		self.as_enum().clone().into()
+	}
+}
+
+impl PartialEq for Value {
+	fn eq(&self, other: &Value) -> bool {
+		self.as_enum() == other.as_enum()
+	}
+}
 
 impl From<ValueEnum> for Value {
 	fn from(venum: ValueEnum) -> Self {
-		Self(venum)
+		match venum {
+			ValueEnum::Null => Self(0b0000 as _),
+			ValueEnum::Boolean(false) => Self(0b0010 as _),
+			ValueEnum::Boolean(true) => Self(0b0110 as _),
+			ValueEnum::Block(block) => {
+				debug_assert_eq!(((block.inner().0 << 3) >> 3), block.inner().0);
+				Self(((block.inner().0 << 3) | 0b100) as *const ())
+			}
+			ValueEnum::Integer(integer) => {
+				debug_assert_eq!((integer.inner() << 1) >> 1, integer.inner());
+				Self((((integer.inner() as usize) << 1) | 1) as *const ())
+			}
+			_ => todo!(),
+			// Todo: more
+			// #[derive(Default, Clone, PartialEq)]
+			// #[non_exhaustive]
+			// pub enum ValueEnum {
+			// 	#[default]
+			// 	Null,
+			// 	Boolean(Boolean),
+			// 	Integer(Integer),
+			// 	String(KString),
+			// 	List(List),
+			// 	Block(Block),
+			// }
+		}
 	}
 }
 
 impl Value {
-	pub fn as_enum(&self) -> &ValueEnum {
-		&self.0
+	pub fn as_enum(&self) -> ValueEnum {
+		match self.0 as usize {
+			0b0000 => ValueEnum::Null,
+			0b0010 => ValueEnum::Boolean(false),
+			0b0110 => ValueEnum::Boolean(true),
+			x if x & 1 == 1 => ValueEnum::Integer(Integer::new_unvalidated_unchecked((x as i64) >> 1)),
+			x if x & 0b111 == 0b100 => ValueEnum::Block(Block::new(JumpIndex(x >> 3))),
+			_ => todo!(),
+		}
 	}
 }
 
@@ -184,7 +244,7 @@ impl NamedType for Value {
 #[cfg(feature = "compliance")]
 fn forbid_block_arguments(value: &Value, function: &'static str) -> Result<()> {
 	match value.as_enum() {
-		ValueEnum::List(list) => {
+		ValueEnum::List(ref list) => {
 			for ele in list {
 				forbid_block_arguments(ele, function)?;
 			}
@@ -295,7 +355,7 @@ impl Value {
 
 	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
 		match self.as_enum() {
-			ValueEnum::Block(block) => vm.run(*block),
+			ValueEnum::Block(block) => vm.run(block),
 			other => Err(Error::TypeError { type_name: self.type_name(), function: "CALL" }),
 		}
 	}
