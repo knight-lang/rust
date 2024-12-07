@@ -217,7 +217,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				Return => {
 					// There's somewhere to jump to, go there.
 					if let Some(ip) = jumpstack.pop() {
-						likely_stable::likely(false);
+						likely_stable::likely(true);
 						unsafe { self.jump_to(ip) };
 						continue;
 					}
