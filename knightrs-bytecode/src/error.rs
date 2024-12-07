@@ -1,3 +1,5 @@
+use crate::parser::VariableName;
+
 // TODO: make this just runtime error and parse error?
 #[derive(Error, Debug)]
 pub enum Error {
@@ -17,7 +19,7 @@ pub enum Error {
 	ParseError(String),
 
 	#[error("undefined variable {0} accessed")]
-	UndefinedVariable(String),
+	UndefinedVariable(VariableName<'static>),
 
 	#[error("bad type {type_name} to function {function:?}")]
 	TypeError { type_name: &'static str, function: &'static str },

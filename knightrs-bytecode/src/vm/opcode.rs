@@ -8,15 +8,16 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 #[non_exhaustive]
+#[rustfmt::skip]
 pub enum Opcode {
 	// Builtins
 	PushConstant = opcode(0, 0, true),
-	Jump = opcode(1, 0, true),
-	JumpIfTrue = opcode(2, 1, true),
-	JumpIfFalse = opcode(3, 1, true),
-	GetVar = opcode(4, 0, true),
-	SetVar = opcode(5, 0, true),    // no opcode cause top of stack
-	SetVarPop = opcode(6, 1, true), // same as setvar but it pips
+	Jump         = opcode(1, 0, true),
+	JumpIfTrue   = opcode(2, 1, true),
+	JumpIfFalse  = opcode(3, 1, true),
+	GetVar       = opcode(4, 0, true),
+	SetVar       = opcode(5, 0, true),    // no opcode cause top of stack
+	SetVarPop    = opcode(6, 1, true), // same as setvar but it pips
 
 	// Arity 0
 	Prompt = opcode(1, 0, false),
@@ -30,33 +31,36 @@ pub enum Opcode {
 	#[cfg(not(feature = "stacktrace"))]
 	Return = opcode(6, 0, false),
 
-	Call = opcode(1, 1, false),
-	Quit = opcode(2, 1, false),
+	Call   = opcode(1, 1, false),
+	Quit   = opcode(2, 1, false),
 	Output = opcode(3, 1, false),
 	Length = opcode(4, 1, false),
-	Not = opcode(5, 1, false),
+	Not    = opcode(5, 1, false),
 	Negate = opcode(6, 1, false),
-	Ascii = opcode(7, 1, false),
-	Box = opcode(8, 1, false),
-	Head = opcode(9, 1, false),
-	Tail = opcode(10, 1, false),
-	Pop = opcode(11, 1, false),
+	Ascii  = opcode(7, 1, false),
+	Box    = opcode(8, 1, false),
+	Head   = opcode(9, 1, false),
+	Tail   = opcode(10, 1, false),
+	Pop    = opcode(11, 1, false),
 
 	#[cfg(feature = "extensions")]
-	Eval = opcode(12, 1, false),
+	Eval   = opcode(12, 1, false),
 	#[cfg(feature = "extensions")]
-	Value = opcode(13, 1, false),
+	Value  = opcode(13, 1, false),
 
 	// Arity 2
-	Add = opcode(0, 2, false),
-	Sub = opcode(1, 2, false),
-	Mul = opcode(2, 2, false),
-	Div = opcode(3, 2, false),
-	Mod = opcode(4, 2, false),
-	Pow = opcode(5, 2, false),
-	Lth = opcode(6, 2, false),
-	Gth = opcode(7, 2, false),
-	Eql = opcode(8, 2, false),
+	Add           = opcode(0, 2, false),
+	Sub           = opcode(1, 2, false),
+	Mul           = opcode(2, 2, false),
+	Div           = opcode(3, 2, false),
+	Mod           = opcode(4, 2, false),
+	Pow           = opcode(5, 2, false),
+	Lth           = opcode(6, 2, false),
+	Gth           = opcode(7, 2, false),
+	Eql           = opcode(8, 2, false),
+	#[cfg(feature = "extensions")]
+	SetDynamicVar = opcode(9, 2, false),
+
 
 	// Arity 3
 	Get = opcode(0, 3, false),
@@ -125,7 +129,8 @@ impl Opcode {
 				|| byte == Self::Head as u8
 				|| byte == Self::Tail as u8
 				|| byte == Self::Pop as u8
-				|| { #[cfg(feature = "extensions")] { byte == Self::Eval as u8 || byte == Self::Value as u8 }
+				|| { #[cfg(feature = "extensions")] { byte == Self::Eval as u8
+					|| byte == Self::Value as u8 ||  byte == Self::SetDynamicVar as u8 }
 				#[cfg(not(feature = "extensions"))] { false } }
 
 			// Arity 2

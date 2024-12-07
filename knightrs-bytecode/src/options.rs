@@ -96,5 +96,6 @@ if #[cfg(feature = "extensions")] {
 		pub null: bool,
 
 		pub length_of_anything: bool,
+		pub assign_to_strings: bool,
 	}
 }}

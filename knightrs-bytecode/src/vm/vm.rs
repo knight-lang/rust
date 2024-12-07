@@ -22,7 +22,10 @@ pub struct Vm<'prog, 'src, 'path, 'env> {
 	callstack: Vec<usize>,
 
 	#[cfg(feature = "stacktrace")]
-	known_blocks: std::collections::HashMap<usize, VariableName<'src>>,
+	known_blocks: HashMap<usize, VariableName<'src>>,
+
+	#[cfg(feature = "extensions")]
+	dynamic_variables: HashMap<VariableName<'static>, Value>,
 }
 
 impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
@@ -38,7 +41,10 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			callstack: Vec::new(),
 
 			#[cfg(feature = "stacktrace")]
-			known_blocks: Default::default(),
+			known_blocks: HashMap::default(),
+
+			#[cfg(feature = "extensions")]
+			dynamic_variables: HashMap::default(),
 		}
 	}
 
@@ -231,6 +237,26 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					continue;
 				}
 
+				#[cfg(feature = "extensions")]
+				Opcode::SetDynamicVar => {
+					let value = unsafe { arg![1] }; // read in case `.to_kstring` in the next line modifies args
+					let name = unsafe { arg![0] }.to_kstring(self.env)?;
+					let varname = VariableName::new(&name, self.env.opts())
+						.map_err(|err| crate::Error::Todo(err.to_string()))?;
+
+					// If it already exists, then just use that
+					if let Some(index) = self.program.variable_index(&varname) {
+						unsafe {
+							self.set_variable(index, value.clone());
+						}
+					} else {
+						self.dynamic_variables.insert(varname.become_owned(), value.clone());
+					}
+
+					self.stack.push(value);
+					continue;
+				}
+
 				Opcode::SetVarPop => todo!(), //self.variables[offset] = unsafe{arg![0]}.clone(),
 
 				// Arity 0
@@ -346,16 +372,20 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 				#[cfg(feature = "extensions")]
 				Opcode::Value => {
 					let variable_name = unsafe { arg![0] }.to_kstring(self.env)?;
-					let var = VariableName::new(&variable_name, self.env.opts())
+
+					let varname = VariableName::new(&variable_name, self.env.opts())
 						.map_err(|err| crate::Error::Todo(err.to_string()))?;
 
-					let offset = self
-						.program
-						.variable_index(var)
-						.ok_or_else(|| crate::Error::UndefinedVariable(variable_name.to_string()))?;
-
-					// SAFETY: `variable_index` ensures it always returns a valid index., i think
-					unsafe { self.get_variable(offset)? }
+					if let Some(compiletime_variable_offset) = self.program.variable_index(&varname) {
+						// SAFETY: `variable_index` ensures it always returns a valid index., i think
+						unsafe { self.get_variable(offset)? }
+					} else {
+						self
+							.dynamic_variables
+							.get(&varname)
+							.ok_or_else(|| crate::Error::UndefinedVariable(varname.become_owned()))?
+							.clone()
+					}
 				}
 			};
 			self.stack.push(value);
@@ -372,7 +402,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		debug_assert!(offset <= self.variables.len());
 
 		unsafe { self.variables.get_unchecked(offset) }.clone().ok_or_else(|| {
-			crate::Error::UndefinedVariable(self.program.variable_name(offset).to_string())
+			crate::Error::UndefinedVariable(self.program.variable_name(offset).clone().become_owned())
 		})
 	}
 

@@ -96,7 +96,19 @@ fn parse_assignment<'path>(
 		Ok(None) => {
 			#[cfg(feature = "extensions")]
 			{
-				todo!("Assign to OUTPUT, PROMPT, RANDOM, strings, $, and more.");
+				parser.strip_whitespace_and_comments();
+				match parser.peek() {
+					Some('O') | Some('P') | Some('R') | Some('$') => todo!("assign to builtins"),
+					_ if parser.opts().extensions.builtin_fns.assign_to_strings => {
+						parse_argument(parser, &start, '=', 1)?;
+						parse_argument(parser, &start, '=', 2)?;
+						unsafe {
+							parser.compiler().opcode_without_offset(Opcode::SetDynamicVar);
+						}
+						return Ok(());
+					}
+					_ => {}
+				}
 			}
 
 			return Err(start.error(ParseErrorKind::CanOnlyAssignToVariables));

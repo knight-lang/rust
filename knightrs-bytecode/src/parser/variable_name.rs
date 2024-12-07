@@ -7,10 +7,7 @@ use crate::value::KnValueString;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VariableName<'src>(
-	#[cfg(feature = "extensions")] crate::container::RcOrRef<'src, KnStr>,
-	#[cfg(not(feature = "extensions"))] &'src KnStr,
-);
+pub struct VariableName<'src>(crate::container::RcOrRef<'src, KnStr>);
 
 impl<'src> VariableName<'src> {
 	pub const MAX_NAME_LEN: usize = 127;
@@ -31,7 +28,6 @@ impl<'src> VariableName<'src> {
 		Ok(Self(name.into()))
 	}
 
-	#[cfg(feature = "extensions")]
 	pub fn become_owned(self) -> VariableName<'static> {
 		VariableName(self.0.into_owned_a().into())
 	}

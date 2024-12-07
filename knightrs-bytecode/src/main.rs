@@ -33,6 +33,7 @@ fn main() {
 			opts.extensions.argv = true;
 			opts.extensions.functions.eval = true;
 			opts.extensions.functions.value = true;
+			opts.extensions.builtin_fns.assign_to_strings = true;
 		}
 		#[cfg(feature = "compliance")]
 		{

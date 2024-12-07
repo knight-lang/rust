@@ -147,8 +147,8 @@ impl<'src, 'path> Program<'src, 'path> {
 
 	/// Gets the variable at `idx`.
 	#[cfg(feature = "extensions")]
-	pub fn variable_index(&self, name: VariableName<'_>) -> Option<usize> {
-		self.variables.get_index_of(&name)
+	pub fn variable_index(&self, name: &VariableName<'_>) -> Option<usize> {
+		self.variables.get_index_of(name)
 	}
 
 	/// Gets the source location at the program offset `offset`.
