@@ -2,9 +2,10 @@
 // Implementation note: They're intentionally constructed in a special way, so as to make accessing
 // information like their arity super easy. More precisely, they're structured like:
 //
-//   opcode := `AAAIIIIO`
+//   opcode := `AAIIIIIO`
 //
-// where `A` is the arity (with a )
+// where `A` is the arity, `I` is index, and `O` is if it takes an offset. Note that functions which
+// take more than 3 arguments need to pop their arguments off manually.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 #[non_exhaustive]
@@ -18,6 +19,8 @@ pub enum Opcode {
 	GetVar       = opcode(4, 0, true),
 	SetVar       = opcode(5, 0, true),    // no opcode cause top of stack
 	SetVarPop    = opcode(6, 1, true), // same as setvar but it pips
+	#[cfg(feature = "extensions")]
+	AssignDynamic = opcode(7, 0, true), // offset is the type to use
 
 	// Arity 0
 	Prompt = opcode(1, 0, false),
@@ -61,7 +64,6 @@ pub enum Opcode {
 	#[cfg(feature = "extensions")]
 	SetDynamicVar = opcode(9, 2, false),
 
-
 	// Arity 3
 	Get = opcode(0, 3, false),
 
@@ -69,19 +71,25 @@ pub enum Opcode {
 	Set = opcode(0, 4, false),
 }
 
+#[cfg(feature = "extensions")]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum DynamicAssignment {
+	Output,
+	Prompt,
+	Random,
+	System,
+}
+
 // If it goes higher than this, we need to rework the structure of the opcode.
-sa::const_assert!(Opcode::MAX_ARITY <= 0b111);
 const fn opcode(id: u8, arity: u8, takes_offset: bool) -> u8 {
-	assert!(arity as usize <= Opcode::MAX_ARITY, "update MAX_ARITY if arity increases");
-	assert!(id <= 0b1111, "too many IDs of a given arity will clobber stuff");
+	assert!(arity as usize <= 0b111, "7 is max arity that can be taken");
+	assert!(id <= 0b11111, "too many IDs of a given arity will clobber stuff");
 
 	(arity << 5) | (id << 1) | (takes_offset as u8)
 }
 
 impl Opcode {
-	/// The maximum [`arity`] any opcode will ever have.
-	pub const MAX_ARITY: usize = 4;
-
 	/// The amount of arguments the opcode expects the stack to have.
 	#[inline]
 	pub const fn arity(self) -> usize {
@@ -129,8 +137,12 @@ impl Opcode {
 				|| byte == Self::Head as u8
 				|| byte == Self::Tail as u8
 				|| byte == Self::Pop as u8
-				|| { #[cfg(feature = "extensions")] { byte == Self::Eval as u8
-					|| byte == Self::Value as u8 ||  byte == Self::SetDynamicVar as u8 }
+				|| { #[cfg(feature = "extensions")] {
+					   byte == Self::Eval as u8
+					|| byte == Self::Value as u8
+					|| byte == Self::SetDynamicVar as u8
+					|| byte == Self::AssignDynamic as u8
+				}
 				#[cfg(not(feature = "extensions"))] { false } }
 
 			// Arity 2

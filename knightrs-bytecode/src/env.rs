@@ -74,6 +74,11 @@ impl Environment {
 		std::process::exit(status);
 	}
 
+	#[cfg(feature = "extensions")]
+	pub fn seed_random(&mut self, seed: Integer) {
+		self.rng = StdRng::seed_from_u64(seed.inner() as u64)
+	}
+
 	pub fn random(&mut self) -> crate::Result<Integer> {
 		let min = match () {
 			#[cfg(feature = "extensions")]

@@ -34,6 +34,7 @@ fn main() {
 			opts.extensions.functions.eval = true;
 			opts.extensions.functions.value = true;
 			opts.extensions.builtin_fns.assign_to_strings = true;
+			opts.extensions.builtin_fns.assign_to_random = true;
 		}
 		#[cfg(feature = "compliance")]
 		{

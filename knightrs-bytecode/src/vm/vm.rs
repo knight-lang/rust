@@ -359,6 +359,15 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					self.env,
 				)?,
 				// EXTENSIONS
+				#[cfg(feature = "extensions")]
+				Opcode::AssignDynamic => match offset {
+					_ if offset == super::opcode::DynamicAssignment::Random as _ => {
+						let seed = unsafe { last!() }.to_integer(self.env)?;
+						self.env.seed_random(seed);
+						continue;
+					}
+					_ => todo!("{:?}", offset),
+				},
 
 				// TODO: the `vm` evals in its entirely own vm, which isnt what we wnat
 				#[cfg(feature = "extensions")]

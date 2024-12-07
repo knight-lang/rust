@@ -1,7 +1,7 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName};
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::KnStr;
-use crate::vm::Opcode;
+use crate::vm::{opcode::DynamicAssignment, Opcode};
 use crate::Options;
 
 use super::SourceLocation;
@@ -98,7 +98,21 @@ fn parse_assignment<'path>(
 			{
 				parser.strip_whitespace_and_comments();
 				match parser.peek() {
-					Some('O') | Some('P') | Some('R') | Some('$') => todo!("assign to builtins"),
+					Some('R') => {
+						if parser.opts().extensions.builtin_fns.assign_to_random {
+							parser.strip_keyword_function();
+							parse_argument(parser, &start, '=', 2)?;
+							unsafe {
+								parser.compiler.opcode_with_offset(
+									Opcode::AssignDynamic,
+									DynamicAssignment::Random as _,
+								);
+							}
+							return Ok(());
+						}
+						// no else so we fallthru to the end
+					}
+					Some('O') | Some('P') | Some('$') => todo!("assign to builtins"),
 					_ if parser.opts().extensions.builtin_fns.assign_to_strings => {
 						parse_argument(parser, &start, '=', 1)?;
 						parse_argument(parser, &start, '=', 2)?;

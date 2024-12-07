@@ -169,7 +169,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 	}
 
 	// SAFETY: `opcode` must take an offset and `offset` must be a valid offset for it.
-	unsafe fn opcode_with_offset(&mut self, opcode: Opcode, offset: usize) {
+	pub unsafe fn opcode_with_offset(&mut self, opcode: Opcode, offset: usize) {
 		debug_assert!(opcode.takes_offset());
 
 		// No need to check if `offset as InstructionAndOffset`'s topbit is nonzero, as that's so massive it'll never happen

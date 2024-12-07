@@ -1,6 +1,6 @@
 mod callsite;
 mod error;
-mod opcode;
+pub mod opcode;
 mod vm;
 
 #[cfg(feature = "stacktrace")]
