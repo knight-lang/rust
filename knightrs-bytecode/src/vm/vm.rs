@@ -335,6 +335,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 	unsafe fn set_variable(&mut self, offset: usize, value: Value) {
 		debug_assert!(offset <= self.vars.len());
 
+		// TODO: rework how stacktraces work
 		#[cfg(feature = "stacktrace")]
 		if let Value::Block(ref block) = value {
 			let varname = self.program.variable_name(offset);
