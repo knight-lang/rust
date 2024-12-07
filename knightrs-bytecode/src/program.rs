@@ -6,6 +6,7 @@ use crate::value::{KString, Value};
 use crate::vm::{Callsite, Opcode};
 use crate::Options;
 pub use compiler::{Compilable, Compiler};
+use indexmap::IndexSet;
 use std::fmt::{self, Debug, Formatter};
 
 // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
@@ -23,9 +24,8 @@ pub struct Program<'src, 'path> {
 	// All the constants that've been seen in the program. Used by [`Opcode::PushConstant`].
 	constants: Box<[Value]>,
 
-	// The amount of variables in the program. Note that when `debug_assertions` are enabled,
-	// `variable_names` also exists (as it's used for Debug formatting)
-	num_variables: usize,
+	// The list of variable names.
+	variables: IndexSet<VariableName<'src>>,
 
 	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
 	// the index into `code`) to a source location. Only the first bytecode from each line is added
@@ -41,10 +41,6 @@ pub struct Program<'src, 'path> {
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
 	block_locations:
 		std::collections::HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
-
-	// The list of variable names.
-	#[cfg(any(feature = "qol", debug_assertions))]
-	variable_names: Vec<VariableName<'src>>,
 
 	// Needed for `'src` when qol and stacktrace aren't enabled.
 	_ignored: (&'src (), &'path ()),
@@ -101,12 +97,9 @@ impl Debug for Program<'_, '_> {
 		}
 
 		let mut prog = f.debug_struct("Program");
-		prog.field("num_variables", &self.num_variables);
 		prog.field("constants", &self.constants);
 		prog.field("bytecode", &Bytecode(&self.code));
-
-		#[cfg(debug_assertions)]
-		prog.field("variables", &self.variable_names);
+		prog.field("variables", &self.variables);
 
 		prog.finish()
 	}
@@ -144,13 +137,18 @@ impl<'src, 'path> Program<'src, 'path> {
 	/// The number of variables that're defined in this program.
 	#[inline]
 	pub fn num_variables(&self) -> usize {
-		self.num_variables
+		self.variables.len()
 	}
 
 	/// Gets the variable at `idx`.
-	#[cfg(feature = "qol")]
 	pub fn variable_name(&self, var_idx: usize) -> VariableName<'src> {
-		self.variable_names[var_idx]
+		self.variables[var_idx]
+	}
+
+	/// Gets the variable at `idx`.
+	#[cfg(feature = "extensions")]
+	pub fn variable_index(&self, name: VariableName<'_>) -> Option<usize> {
+		self.variables.get_index_of(&name)
 	}
 
 	/// Gets the source location at the program offset `offset`.

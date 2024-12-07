@@ -36,14 +36,18 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 		'<' => Some(Opcode::Lth),
 		'>' => Some(Opcode::Gth),
 		'?' => Some(Opcode::Eql),
-		#[cfg(feature = "extensions")]
-		'E' if opts.extensions.eval => Some(Opcode::Eval),
 
 		// arity 3
 		'G' => Some(Opcode::Get),
 
 		// arity 4
 		'S' => Some(Opcode::Set),
+
+		// Extensions
+		#[cfg(feature = "extensions")]
+		'E' if opts.extensions.functions.eval => Some(Opcode::Eval),
+		#[cfg(feature = "extensions")]
+		'V' if opts.extensions.functions.value => Some(Opcode::Value),
 
 		_ => None,
 	}

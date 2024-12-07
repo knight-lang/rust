@@ -41,8 +41,11 @@ pub enum Opcode {
 	Head = opcode(9, 1, false),
 	Tail = opcode(10, 1, false),
 	Pop = opcode(11, 1, false),
+
 	#[cfg(feature = "extensions")]
 	Eval = opcode(12, 1, false),
+	#[cfg(feature = "extensions")]
+	Value = opcode(13, 1, false),
 
 	// Arity 2
 	Add = opcode(0, 2, false),
@@ -122,7 +125,7 @@ impl Opcode {
 				|| byte == Self::Head as u8
 				|| byte == Self::Tail as u8
 				|| byte == Self::Pop as u8
-				|| { #[cfg(feature = "extensions")] { byte == Self::Eval as u8 }
+				|| { #[cfg(feature = "extensions")] { byte == Self::Eval as u8 || byte == Self::Value as u8 }
 				#[cfg(not(feature = "extensions"))] { false } }
 
 			// Arity 2

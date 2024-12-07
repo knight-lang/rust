@@ -16,13 +16,8 @@ pub enum Error {
 	#[error("{0}")]
 	ParseError(String),
 
-	#[cfg(feature = "qol")]
 	#[error("undefined variable {0} accessed")]
 	UndefinedVariable(String),
-
-	#[cfg(not(feature = "qol"))]
-	#[error("an undefined variable accessed [enable \"qol\" for names]")]
-	UndefinedVariable,
 
 	#[error("bad type {type_name} to function {function:?}")]
 	TypeError { type_name: &'static str, function: &'static str },

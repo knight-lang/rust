@@ -30,8 +30,9 @@ fn main() {
 		#[cfg(feature = "extensions")]
 		{
 			// opts.extensions.negative_indexing = true;
-			opts.extensions.eval = true;
 			opts.extensions.argv = true;
+			opts.extensions.functions.eval = true;
+			opts.extensions.functions.value = true;
 		}
 		#[cfg(feature = "compliance")]
 		{

@@ -5,6 +5,7 @@ use crate::strings::StringSlice;
 use crate::value::{KString, Value};
 use crate::vm::Opcode;
 
+use indexmap::IndexSet;
 use std::collections::HashMap;
 
 // safety: cannot do invalid things with the builder.
@@ -29,7 +30,7 @@ pub struct Compiler<'src, 'path> {
 	// The list of all variables encountered so far. (They're stored in an ordered set, as their
 	// index is the "offset" that all `Opcodes` that interact with variables (eg [`Opcode::GetVar`])
 	// will use.)
-	variables: indexmap::IndexSet<VariableName<'src>>,
+	variables: IndexSet<VariableName<'src>>,
 
 	// Only enabled when stacktrace printing is enabled, this is a map from the bytecode offset (ie
 	// the index into `code`) to a source location; Only the first bytecode from each line is added,
@@ -61,7 +62,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 			code: vec![],
 			constants: vec![],
 			variables: {
-				let mut variables = indexmap::IndexSet::new();
+				let mut variables = IndexSet::new();
 
 				// Always add `_argv` in so that in `vm` we can always `set_variable` and not have UB
 				// if the user didn't make  acompiler with argv
@@ -109,16 +110,13 @@ impl<'src, 'path> Compiler<'src, 'path> {
 		Program {
 			code: self.code.into_boxed_slice(),
 			constants: self.constants.into_boxed_slice(),
-			num_variables: self.variables.len(),
+			variables: self.variables,
 
 			#[cfg(feature = "stacktrace")]
 			source_lines: self.source_lines,
 
 			#[cfg(feature = "stacktrace")]
 			block_locations: self.block_locations,
-
-			#[cfg(any(feature = "stacktrace", debug_assertions))]
-			variable_names: self.variables.into_iter().collect(),
 
 			_ignored: (&(), &()),
 		}

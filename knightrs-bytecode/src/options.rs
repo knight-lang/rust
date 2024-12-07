@@ -56,8 +56,8 @@ if #[cfg(feature = "extensions")] {
 		pub syntax: Syntax,
 		pub types: Types,
 		pub breaking: BreakingChanges,
+		pub functions: Functions,
 		pub negative_indexing: bool,
-		pub eval: bool,
 		pub argv: bool,
 	}
 
@@ -66,6 +66,12 @@ if #[cfg(feature = "extensions")] {
 		pub floats: bool, // not working, potential future idea.
 		pub hashmaps: bool, // not working, potential future idea.
 		pub classes: bool, // not working, potential future idea.
+	}
+
+	#[derive(Default, Clone)]
+	pub struct Functions {
+		pub eval: bool,
+		pub value: bool,
 	}
 
 	#[derive(Default, Clone)]

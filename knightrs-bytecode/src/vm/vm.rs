@@ -14,7 +14,7 @@ pub struct Vm<'prog, 'src, 'path, 'env> {
 	env: &'env mut Environment,
 	current_index: usize,
 	stack: Vec<Value>,
-	vars: Box<[Option<Value>]>,
+	variables: Vec<Option<Value>>, // It's a vec for extensions; without extensions this could be a box, but i see no need to
 
 	#[cfg(feature = "stacktrace")]
 	callstack: Vec<usize>,
@@ -30,7 +30,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			env,
 			current_index: 0,
 			stack: Vec::new(),
-			vars: vec![None; program.num_variables()].into(),
+			variables: vec![None; program.num_variables()].into(),
 
 			#[cfg(feature = "stacktrace")]
 			callstack: Vec::new(),
@@ -65,7 +65,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			// SAFETY: if extensions are enabled, argv is always added, regardless of whether or not it
 			// was specified, so this is valid. Also, TODO: make sure `VALUE`, when implemented, fails
 			// for undefined variables on `argv` if argv isn't set
-			debug_assert_ne!(self.vars.len(), 0);
+			debug_assert_ne!(self.variables.len(), 0);
 			unsafe {
 				self.set_variable(crate::program::Compiler::ARGV_VARIABLE_INDEX, argv);
 			}
@@ -149,7 +149,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 	fn run_inner(&mut self) -> crate::Result<Value> {
 		use std::mem::MaybeUninit;
-		use Opcode::*;
 
 		const NULL: MaybeUninit<Value> = MaybeUninit::uninit();
 
@@ -201,20 +200,20 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			// else memory issues will crop up (such as memory leaks or double reads).
 			let value = match opcode {
 				// Builtins
-				PushConstant => unsafe { self.program.constant_at(offset) }.clone(),
-				Jump => {
+				Opcode::PushConstant => unsafe { self.program.constant_at(offset) }.clone(),
+				Opcode::Jump => {
 					// SAFETY: program is well-defined, so jumps are always correct
 					unsafe { self.jump_to(offset) };
 					continue;
 				}
-				JumpIfTrue => {
+				Opcode::JumpIfTrue => {
 					if unsafe { arg![0] }.to_boolean(self.env)? {
 						// SAFETY: program is well-defined, so jumps are always correct
 						unsafe { self.jump_to(offset) };
 					}
 					continue;
 				}
-				JumpIfFalse => {
+				Opcode::JumpIfFalse => {
 					if !unsafe { arg![0] }.to_boolean(self.env)? {
 						// SAFETY: program is well-defined, so jumps are always correct
 						unsafe { self.jump_to(offset) }
@@ -222,21 +221,21 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					continue;
 				}
 
-				GetVar => unsafe { self.get_variable(offset) }?,
+				Opcode::GetVar => unsafe { self.get_variable(offset) }?,
 
-				SetVar => {
+				Opcode::SetVar => {
 					let value = unsafe { last!() }.clone();
 					unsafe { self.set_variable(offset, value) };
 					continue;
 				}
 
-				SetVarPop => todo!(), //self.vars[offset] = unsafe{arg![0]}.clone(),
+				Opcode::SetVarPop => todo!(), //self.variables[offset] = unsafe{arg![0]}.clone(),
 
 				// Arity 0
-				Prompt => self.env.prompt()?.map(Value::from).unwrap_or_default(),
-				Random => self.env.random()?.into(),
-				Dup => unsafe { last!() }.clone(),
-				Dump => {
+				Opcode::Prompt => self.env.prompt()?.map(Value::from).unwrap_or_default(),
+				Opcode::Random => self.env.random()?.into(),
+				Opcode::Dup => unsafe { last!() }.clone(),
+				Opcode::Dump => {
 					// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
 					// its arity is 0
 					unsafe { last!() }.kn_dump(self.env)?;
@@ -245,10 +244,10 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 				// Arity 1
 				#[cfg(feature = "stacktrace")]
-				Return => return Ok(unsafe { arg![0] }),
+				Opcode::Return => return Ok(unsafe { arg![0] }),
 
 				#[cfg(not(feature = "stacktrace"))]
-				Return => {
+				Opcode::Return => {
 					// There's somewhere to jump to, go there.
 					if let Some(ip) = jumpstack.pop() {
 						likely_stable::likely(true);
@@ -264,7 +263,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					}));
 				}
 
-				Call => match unsafe { arg![0] } {
+				Opcode::Call => match unsafe { arg![0] } {
 					#[cfg(not(feature = "stacktrace"))]
 					Value::Block(block) => {
 						likely_stable::likely(true);
@@ -275,13 +274,13 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					other => other.kn_call(self)?,
 				},
 
-				Quit => {
+				Opcode::Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
 					self.env.quit(status)?;
 					unreachable!()
 				}
-				Output => {
+				Opcode::Output => {
 					use std::io::Write;
 					let kstring = unsafe { arg![0] }.to_kstring(self.env)?;
 					let strref = kstring.as_str();
@@ -298,46 +297,64 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 					Value::default()
 				}
-				Length => unsafe { arg![0] }.kn_length(self.env)?.into(),
-				Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
-				Negate => unsafe { arg![0] }.kn_negate(self.env)?.into(),
-				Ascii => unsafe { arg![0] }.kn_ascii(self.env)?,
-				Box => List::boxed(unsafe { arg![0] }.clone()).into(),
-				Head => unsafe { arg![0] }.kn_head(self.env)?,
-				Tail => unsafe { arg![0] }.kn_tail(self.env)?,
-				Pop => continue, /* do nothing, the arity already popped */
+				Opcode::Length => unsafe { arg![0] }.kn_length(self.env)?.into(),
+				Opcode::Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
+				Opcode::Negate => unsafe { arg![0] }.kn_negate(self.env)?.into(),
+				Opcode::Ascii => unsafe { arg![0] }.kn_ascii(self.env)?,
+				Opcode::Box => List::boxed(unsafe { arg![0] }.clone()).into(),
+				Opcode::Head => unsafe { arg![0] }.kn_head(self.env)?,
+				Opcode::Tail => unsafe { arg![0] }.kn_tail(self.env)?,
+				Opcode::Pop => continue, /* do nothing, the arity already popped */
+
+				Opcode::Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,
+				Opcode::Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
+				Opcode::Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
+				Opcode::Div => unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?,
+				Opcode::Mod => unsafe { arg![0] }.kn_percent(&unsafe { arg![1] }, self.env)?,
+				Opcode::Pow => unsafe { arg![0] }.kn_caret(&unsafe { arg![1] }, self.env)?,
+				Opcode::Lth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, "<", self.env)?
+					== Ordering::Less)
+					.into(),
+				Opcode::Gth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, ">", self.env)?
+					== Ordering::Greater)
+					.into(),
+				Opcode::Eql => (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into(),
+
+				Opcode::Get => {
+					unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?
+				}
+
+				Opcode::Set => unsafe { arg![0] }.kn_set(
+					&unsafe { arg![1] },
+					&unsafe { arg![2] },
+					&unsafe { arg![3] },
+					self.env,
+				)?,
+				// EXTENSIONS
 
 				// TODO: the `vm` evals in its entirely own vm, which isnt what we wnat
 				#[cfg(feature = "extensions")]
-				Eval => {
+				Opcode::Eval => {
 					let program = unsafe { arg![0] }.to_kstring(self.env)?;
 					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
 					let program = parser.parse_program()?;
 					Vm::new(&program, self.env).run_entire_program_without_argv()?
 				}
 
-				Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,
-				Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
-				Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
-				Div => unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?,
-				Mod => unsafe { arg![0] }.kn_percent(&unsafe { arg![1] }, self.env)?,
-				Pow => unsafe { arg![0] }.kn_caret(&unsafe { arg![1] }, self.env)?,
-				Lth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, "<", self.env)?
-					== Ordering::Less)
-					.into(),
-				Gth => (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, ">", self.env)?
-					== Ordering::Greater)
-					.into(),
-				Eql => (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into(),
+				#[cfg(feature = "extensions")]
+				Opcode::Value => {
+					let variable_name = unsafe { arg![0] }.to_kstring(self.env)?;
+					let var = VariableName::new(&variable_name, self.env.opts())
+						.map_err(|err| crate::Error::Todo(err.to_string()))?;
 
-				Get => unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?,
+					let offset = self
+						.program
+						.variable_index(var)
+						.ok_or_else(|| crate::Error::UndefinedVariable(variable_name.to_string()))?;
 
-				Set => unsafe { arg![0] }.kn_set(
-					&unsafe { arg![1] },
-					&unsafe { arg![2] },
-					&unsafe { arg![3] },
-					self.env,
-				)?,
+					// SAFETY: `variable_index` ensures it always returns a valid index., i think
+					unsafe { self.get_variable(offset)? }
+				}
 			};
 			self.stack.push(value);
 		}
@@ -350,24 +367,16 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 	// SAFETY: the `offset` must be a valid variable offset
 	unsafe fn get_variable(&mut self, offset: usize) -> crate::Result<Value> {
-		debug_assert!(offset <= self.vars.len());
+		debug_assert!(offset <= self.variables.len());
 
-		if let Some(value) = unsafe { self.vars.get_unchecked(offset) } {
-			return Ok(value.clone());
-		}
-
-		cfg_if! {
-			if #[cfg(feature = "qol")] {
-				Err(crate::Error::UndefinedVariable(self.program.variable_name(offset).to_string()))
-			} else {
-				Err(crate::Error::UndefinedVariable)
-			}
-		}
+		unsafe { self.variables.get_unchecked(offset) }.clone().ok_or_else(|| {
+			crate::Error::UndefinedVariable(self.program.variable_name(offset).to_string())
+		})
 	}
 
 	// SAFETY: the `offset` must be a valid variable offset
 	unsafe fn set_variable(&mut self, offset: usize, value: Value) {
-		debug_assert!(offset <= self.vars.len());
+		debug_assert!(offset <= self.variables.len());
 
 		// TODO: rework how stacktraces work
 		#[cfg(feature = "stacktrace")]
@@ -376,6 +385,6 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			self.known_blocks.insert(block.inner().0, varname);
 		}
 
-		*unsafe { self.vars.get_unchecked_mut(offset) } = Some(value);
+		*unsafe { self.variables.get_unchecked_mut(offset) } = Some(value);
 	}
 }
