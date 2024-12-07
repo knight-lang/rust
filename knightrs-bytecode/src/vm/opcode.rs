@@ -90,6 +90,9 @@ const fn opcode(id: u8, arity: u8, takes_offset: bool) -> u8 {
 }
 
 impl Opcode {
+	// TODO: check for things
+	pub const MAX_ARITY: usize = 4;
+
 	/// The amount of arguments the opcode expects the stack to have.
 	#[inline]
 	pub const fn arity(self) -> usize {

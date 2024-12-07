@@ -44,6 +44,9 @@ pub struct Compiler<'src, 'path> {
 	#[cfg(feature = "stacktrace")]
 	block_locations: HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
 
+	// TODO: not public
+	pub loops: Vec<(JumpIndex, Vec<DeferredJump>)>,
+
 	// Needed for when `stacktrace` is disabled
 	_ignored: &'path (),
 }
@@ -86,6 +89,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 				bl
 			},
 			_ignored: &(),
+			loops: vec![],
 		}
 	}
 	/// Finished building the [`Program`], and returns it

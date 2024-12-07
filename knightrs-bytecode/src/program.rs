@@ -10,7 +10,7 @@ use indexmap::IndexSet;
 use std::fmt::{self, Debug, Formatter};
 
 // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
-type InstructionAndOffset = u64;
+type InstructionAndOffset = i64;
 
 /// A Program represents an executable Knight program.
 ///

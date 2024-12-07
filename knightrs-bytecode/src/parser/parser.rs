@@ -1,3 +1,4 @@
+mod ast;
 mod function;
 #[cfg(feature = "qol")]
 mod parens;
