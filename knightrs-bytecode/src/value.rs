@@ -15,7 +15,7 @@ pub use integer::{Integer, ToInteger};
 pub use list::{List, ToList};
 pub use null::Null;
 use std::fmt::{self, Debug, Formatter};
-pub use string::{KString, ToKString};
+pub use string::{KnValueString, ToKnValueString};
 
 /// A trait indicating a type has a name.
 pub trait NamedType {
@@ -31,7 +31,7 @@ pub enum Value {
 	Null,
 	Boolean(Boolean),
 	Integer(Integer),
-	String(KString),
+	String(KnValueString),
 	List(List),
 	Block(Block),
 }
@@ -67,8 +67,8 @@ impl From<Integer> for Value {
 	}
 }
 
-impl From<KString> for Value {
-	fn from(string: KString) -> Self {
+impl From<KnValueString> for Value {
+	fn from(string: KnValueString) -> Self {
 		Self::String(string)
 	}
 }
@@ -117,8 +117,8 @@ impl ToInteger for Value {
 	}
 }
 
-impl ToKString for Value {
-	fn to_kstring(&self, env: &mut Environment) -> Result<KString> {
+impl ToKnValueString for Value {
+	fn to_kstring(&self, env: &mut Environment) -> Result<KnValueString> {
 		match self {
 			Self::Null => Null.to_kstring(env),
 			Self::Boolean(boolean) => boolean.to_kstring(env),
@@ -126,7 +126,7 @@ impl ToKString for Value {
 			Self::String(string) => string.to_kstring(env),
 			Self::List(list) => list.to_kstring(env),
 			_ => Err(Error::ConversionNotDefined {
-				to: KString::default().type_name(),
+				to: KnValueString::default().type_name(),
 				from: self.type_name(),
 			}),
 		}
@@ -532,7 +532,7 @@ impl Value {
 			Self::String(string) => string
 				.head()
 				.ok_or(Error::DomainError("empty string"))
-				.map(|chr| KString::new_unvalidated(chr.to_string()).into()),
+				.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
 
 			// #[cfg(feature = "extensions")]
 			// Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
@@ -548,9 +548,10 @@ impl Value {
 		match self {
 			Self::List(list) => list.tail().ok_or(Error::DomainError("empty list ]")).map(Self::from),
 
-			Self::String(string) => {
-				string.tail().ok_or(Error::DomainError("empty string")).map(|x| KString::from(x).into())
-			}
+			Self::String(string) => string
+				.tail()
+				.ok_or(Error::DomainError("empty string"))
+				.map(|x| KnValueString::from(x).into()),
 
 			// #[cfg(feature = "extensions")]
 			// Self::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.tail().into()),
@@ -565,7 +566,7 @@ impl Value {
 		match self {
 			Self::Integer(integer) => {
 				let chr = integer.chr(env.opts())?;
-				Ok(KString::new_unvalidated(chr.to_string()).into())
+				Ok(KnValueString::new_unvalidated(chr.to_string()).into())
 			}
 			Self::String(string) => Ok(string.ord(env.opts())?.into()),
 
@@ -634,7 +635,7 @@ impl Value {
 				builder.push_str(string.get(..start).unwrap().as_str());
 				builder.push_str(&replacement.as_str());
 				builder.push_str(string.get(start + len..).unwrap().as_str());
-				Ok(KString::new(builder, env.opts())?.into())
+				Ok(KnValueString::new(builder, env.opts())?.into())
 			}
 
 			other => return Err(Error::TypeError { type_name: other.type_name(), function: "SET" }),

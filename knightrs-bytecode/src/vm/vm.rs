@@ -5,8 +5,10 @@ use std::mem::MaybeUninit;
 use super::{Opcode, RuntimeError};
 use crate::parser::{SourceLocation, VariableName};
 use crate::program::{JumpIndex, Program};
-use crate::strings::StringSlice;
-use crate::value::{Block, Integer, KString, List, ToBoolean, ToInteger, ToKString, Value};
+use crate::strings::KnStr;
+use crate::value::{
+	Block, Integer, KnValueString, List, ToBoolean, ToInteger, ToKnValueString, Value,
+};
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'src, 'path, 'env> {
@@ -57,7 +59,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 						false
 					}
 				})
-				.map(|str| KString::new(str, self.env.opts()).map(Value::from))
+				.map(|str| KnValueString::new(str, self.env.opts()).map(Value::from))
 				.collect::<Result<Vec<_>, _>>()?;
 
 			let argv = List::new(argv, self.env.opts())?.into();

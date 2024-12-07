@@ -1,8 +1,8 @@
 use super::{DeferredJump, InstructionAndOffset, JumpIndex, JumpWhen, Program};
 use crate::options::Options;
 use crate::parser::{ParseError, ParseErrorKind, SourceLocation, VariableName};
-use crate::strings::StringSlice;
-use crate::value::{KString, Value};
+use crate::strings::KnStr;
+use crate::value::{KnValueString, Value};
 use crate::vm::Opcode;
 
 use indexmap::IndexSet;
@@ -67,7 +67,7 @@ impl<'src, 'path> Compiler<'src, 'path> {
 				// Always add `_argv` in so that in `vm` we can always `set_variable` and not have UB
 				// if the user didn't make  acompiler with argv
 				#[cfg(feature = "extensions")]
-				variables.insert(VariableName::new_unvalidated(&StringSlice::new_unvalidated("_argv")));
+				variables.insert(VariableName::new_unvalidated(&KnStr::new_unvalidated("_argv")));
 
 				variables
 			},

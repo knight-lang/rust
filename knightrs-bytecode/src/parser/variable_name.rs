@@ -2,27 +2,27 @@ use super::{ParseErrorKind, Parseable, SourceLocation};
 use crate::options::Options;
 use crate::parser::{ParseError, Parser};
 use crate::program::{Compilable, Compiler};
-use crate::strings::StringSlice;
-use crate::value::KString;
+use crate::strings::KnStr;
+use crate::value::KnValueString;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariableName<'src>(
-	#[cfg(feature = "extensions")] crate::container::RcOrRef<'src, StringSlice>,
-	#[cfg(not(feature = "extensions"))] &'src StringSlice,
+	#[cfg(feature = "extensions")] crate::container::RcOrRef<'src, KnStr>,
+	#[cfg(not(feature = "extensions"))] &'src KnStr,
 );
 
 impl<'src> VariableName<'src> {
 	pub const MAX_NAME_LEN: usize = 127;
 
 	/// Caller must ensure that the variable name is always <= MAX_NAME_LEN.
-	pub fn new_unvalidated(name: &'src StringSlice) -> Self {
+	pub fn new_unvalidated(name: &'src KnStr) -> Self {
 		debug_assert!(name.len() <= Self::MAX_NAME_LEN);
 
 		Self(name.into())
 	}
 
-	pub fn new(name: &'src StringSlice, opts: &Options) -> Result<Self, ParseErrorKind> {
+	pub fn new(name: &'src KnStr, opts: &Options) -> Result<Self, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.variable_name_length && Self::MAX_NAME_LEN < name.len() {
 			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
@@ -54,7 +54,7 @@ impl<'src, 'path> Parseable<'src, 'path> for VariableName<'src> {
 			.expect("we just checked for this");
 
 		// i dont like this new_unvalidated. TODO: fix it.
-		Self::new(StringSlice::new_unvalidated(name), parser.opts())
+		Self::new(KnStr::new_unvalidated(name), parser.opts())
 			.map_err(|err| parser.error(err))
 			.map(|name| Some((name, start)))
 	}

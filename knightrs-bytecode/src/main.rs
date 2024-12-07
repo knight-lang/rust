@@ -5,7 +5,7 @@ use std::path::Path;
 use knightrs_bytecode::env::Environment;
 use knightrs_bytecode::parser::*;
 use knightrs_bytecode::program::*;
-use knightrs_bytecode::strings::StringSlice;
+use knightrs_bytecode::strings::KnStr;
 use knightrs_bytecode::value::*;
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;

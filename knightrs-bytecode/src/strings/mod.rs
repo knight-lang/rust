@@ -1,9 +1,9 @@
 mod character;
 mod encoding;
-mod slice;
+mod knstr;
 // mod string;
 
 pub use character::Character;
 pub use encoding::{Encoding, EncodingError};
-pub use slice::{StringError, StringSlice};
+pub use knstr::{KnStr, StringError};
 // pub use string::String;

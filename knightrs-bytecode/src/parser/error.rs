@@ -21,7 +21,7 @@ pub enum ParseErrorKind {
 	#[cfg(feature = "compliance")]
 	#[error("variable name too long ({len} > {max}): {0:?}", len=.0.len(),
 		max = crate::parser::VariableName::MAX_NAME_LEN)]
-	VariableNameTooLong(crate::value::KString),
+	VariableNameTooLong(crate::value::KnValueString),
 
 	#[cfg(feature = "compliance")]
 	#[error("too many variables encountered (only {} allowed)", crate::vm::MAX_VARIABLE_COUNT)]

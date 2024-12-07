@@ -7,7 +7,7 @@ use super::VariableName;
 use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
 use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
-use crate::strings::{StringError, StringSlice};
+use crate::strings::{KnStr, StringError};
 use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 pub struct Parser<'env, 'src, 'path> {
 	env: &'env mut Environment,
 	filename: Option<&'path Path>,
-	source: &'src str, // can't use `StringSlice` b/c it has a length limit.
+	source: &'src str, // can't use `KnStr` b/c it has a length limit.
 	compiler: Compiler<'src, 'path>,
 	lineno: usize,
 
@@ -212,7 +212,7 @@ impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}
-		if let Some(x) = crate::value::KString::parse(self)? {
+		if let Some(x) = crate::value::KnValueString::parse(self)? {
 			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}

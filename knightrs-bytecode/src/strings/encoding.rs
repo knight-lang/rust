@@ -55,7 +55,7 @@ impl Encoding {
 	/// Validate checks to see if `source` only contains valid bytes within the encoding.
 	///
 	/// Note that this doesn't check for the length of the `source`, which is also required by Knight
-	/// compliance, as that's done within [`StringSlice`](crate::StringSlice).
+	/// compliance, as that's done within [`KnStr`](crate::KnStr).
 	///
 	/// This will always return `Ok(())` unless the `compliance` feature is enabled (as the only
 	/// encoding is [`Encoding::Utf8`]).

@@ -1,5 +1,5 @@
 use crate::parser::SourceLocation;
-use crate::value::KString;
+use crate::value::KnValueString;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]

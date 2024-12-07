@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 
-use crate::strings::StringSlice;
+use crate::strings::KnStr;
 
 cfg_if! {
 if #[cfg(feature = "multithreaded")] {
@@ -110,14 +110,13 @@ impl<'a, T> RcOrRef<'a, T> {
 	}
 }
 
-impl RcOrRef<'_, StringSlice> {
-	pub fn into_owned_a(self) -> RcOrRef<'static, StringSlice> {
+impl RcOrRef<'_, KnStr> {
+	pub fn into_owned_a(self) -> RcOrRef<'static, KnStr> {
 		match self.0 {
 			RcOrRefInner::Ref(slice) => {
 				let refcounted = RefCount::<str>::from(slice.as_str());
 				// SAFETY: tood, but it is valid i think lol
-				unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) }
-					.into()
+				unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const KnStr) }.into()
 			}
 			RcOrRefInner::Rc(rc) => rc.clone().into(),
 		}

@@ -1,7 +1,7 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::value::{
-	Boolean, Integer, KString, List, NamedType, ToBoolean, ToInteger, ToKString, ToList,
+	Boolean, Integer, KnValueString, List, NamedType, ToBoolean, ToInteger, ToKnValueString, ToList,
 };
 use crate::{Environment, Options};
 use std::fmt::{self, Debug, Formatter};
@@ -51,11 +51,11 @@ impl ToList for Null {
 	}
 }
 
-impl ToKString for Null {
-	/// Simply returns an empty [`KString`].
+impl ToKnValueString for Null {
+	/// Simply returns an empty [`KnValueString`].
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
-		Ok(KString::default())
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
+		Ok(KnValueString::default())
 	}
 }
 

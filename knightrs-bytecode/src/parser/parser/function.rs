@@ -1,6 +1,6 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName};
 use crate::program::{DeferredJump, JumpWhen};
-use crate::strings::StringSlice;
+use crate::strings::KnStr;
 use crate::vm::Opcode;
 use crate::Options;
 

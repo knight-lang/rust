@@ -1,7 +1,7 @@
 use std::io;
 
 use crate::options::Options;
-use crate::value::{Integer, KString};
+use crate::value::{Integer, KnValueString};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 pub struct Environment {
@@ -25,7 +25,7 @@ impl Environment {
 		&self.opts
 	}
 
-	pub fn prompt(&mut self) -> crate::Result<Option<KString>> {
+	pub fn prompt(&mut self) -> crate::Result<Option<KnValueString>> {
 		let mut line = String::new();
 		let amnt = std::io::stdin()
 			.read_line(&mut line)
@@ -49,7 +49,7 @@ impl Environment {
 			}
 		}
 
-		Ok(Some(KString::new(line, &self.opts)?))
+		Ok(Some(KnValueString::new(line, &self.opts)?))
 	}
 
 	pub fn output(&mut self) -> impl io::Write {

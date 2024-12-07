@@ -1,104 +1,104 @@
 use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
-use crate::strings::{StringError, StringSlice};
+use crate::strings::{KnStr, StringError};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
 use std::borrow::{Borrow, Cow};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
-pub struct KString(RefCount<StringSlice>);
+pub struct KnValueString(RefCount<KnStr>);
 
-pub trait ToKString {
-	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString>;
+pub trait ToKnValueString {
+	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KnValueString>;
 }
 
-impl NamedType for KString {
+impl NamedType for KnValueString {
 	#[inline]
 	fn type_name(&self) -> &'static str {
 		"String"
 	}
 }
 
-impl Default for KString {
+impl Default for KnValueString {
 	fn default() -> Self {
 		Self::from_slice(Default::default())
 	}
 }
 
-impl From<&StringSlice> for KString {
-	fn from(slice: &StringSlice) -> Self {
+impl From<&KnStr> for KnValueString {
+	fn from(slice: &KnStr) -> Self {
 		Self::from_slice(slice)
 	}
 }
 
-impl KString {
-	pub fn from_slice(slice: &StringSlice) -> Self {
+impl KnValueString {
+	pub fn from_slice(slice: &KnStr) -> Self {
 		let refcounted = RefCount::<str>::from(slice.as_str());
 		// SAFETY: tood, but it is valid i think lol
-		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
+		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const KnStr) })
 	}
 
 	pub fn from_string_unchecked(source: String) -> Self {
 		let refcounted = RefCount::<str>::from(source);
 		// SAFETY: tood, but it is valid i think lol
-		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const StringSlice) })
+		Self(unsafe { RefCount::from_raw(RefCount::into_raw(refcounted) as *const KnStr) })
 	}
 
-	/// Creates a new `KString` without validating it.
+	/// Creates a new `KnValueString` without validating it.
 	///
 	/// # Validation
 	/// The `source` must only contain bytes valid in all encodings, and must be less than the max
 	/// length for containers.
 	pub fn new_unvalidated(source: String) -> Self {
-		Self::from_slice(StringSlice::new_unvalidated(&source))
+		Self::from_slice(KnStr::new_unvalidated(&source))
 	}
 
 	#[cfg_attr(not(feature = "compliance"), inline)]
 	pub fn new(source: String, opts: &Options) -> Result<Self, crate::strings::StringError> {
-		StringSlice::new(&source, opts).map(Self::from_slice)
+		KnStr::new(&source, opts).map(Self::from_slice)
 	}
 }
 
-impl Borrow<StringSlice> for KString {
-	fn borrow(&self) -> &StringSlice {
+impl Borrow<KnStr> for KnValueString {
+	fn borrow(&self) -> &KnStr {
 		&self
 	}
 }
 
-impl std::ops::Deref for KString {
-	type Target = StringSlice;
+impl std::ops::Deref for KnValueString {
+	type Target = KnStr;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
-impl AsRef<StringSlice> for KString {
-	fn as_ref(&self) -> &StringSlice {
+impl AsRef<KnStr> for KnValueString {
+	fn as_ref(&self) -> &KnStr {
 		&self
 	}
 }
 
-impl ToBoolean for KString {
+impl ToBoolean for KnValueString {
 	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl ToKString for KString {
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KString> {
+impl ToKnValueString for KnValueString {
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
 		Ok(self.clone())
 	}
 }
 
-impl ToInteger for KString {
+impl ToInteger for KnValueString {
 	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
 		Integer::parse_from_str(self.as_str(), env.opts())
 	}
 }
 
-impl ToList for KString {
+impl ToList for KnValueString {
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
 		let chars =
 			self.chars().map(|c| Self::new_unvalidated(c.to_string()).into()).collect::<Vec<_>>();
@@ -108,9 +108,9 @@ impl ToList for KString {
 	}
 }
 
-impl KString {
+impl KnValueString {
 	/// Concatenates two strings together
-	pub fn concat(&self, rhs: &StringSlice, opts: &Options) -> Result<Self, StringError> {
+	pub fn concat(&self, rhs: &KnStr, opts: &Options) -> Result<Self, StringError> {
 		if self.is_empty() {
 			return Ok(rhs.to_owned());
 		}
@@ -123,13 +123,13 @@ impl KString {
 		Self::new(str, opts)
 	}
 
-	pub fn remove_substr(&self, substr: &StringSlice) -> Self {
+	pub fn remove_substr(&self, substr: &KnStr) -> Self {
 		let _ = substr;
 		todo!();
 	}
 }
 
-impl<'path> Parseable<'_, 'path> for KString {
+impl<'path> Parseable<'_, 'path> for KnValueString {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
@@ -151,13 +151,13 @@ impl<'path> Parseable<'_, 'path> for KString {
 			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
 		}
 
-		let string = KString::new(contents.to_string(), parser.opts())
+		let string = KnValueString::new(contents.to_string(), parser.opts())
 			.map_err(|err| start.error(err.into()))?;
 		Ok(Some(string))
 	}
 }
 
-unsafe impl<'path> Compilable<'_, 'path> for KString {
+unsafe impl<'path> Compilable<'_, 'path> for KnValueString {
 	fn compile(
 		self,
 		compiler: &mut Compiler<'_, 'path>,

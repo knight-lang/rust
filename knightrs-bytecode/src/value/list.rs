@@ -1,8 +1,10 @@
 use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
-use crate::strings::StringSlice;
-use crate::value::{Boolean, Integer, KString, NamedType, ToBoolean, ToInteger, ToKString, Value};
+use crate::strings::KnStr;
+use crate::value::{
+	Boolean, Integer, KnValueString, NamedType, ToBoolean, ToInteger, ToKnValueString, Value,
+};
 use crate::{Environment, Error, Options};
 use std::slice::Iter; // todo: multithreaded
 
@@ -52,11 +54,11 @@ impl ToBoolean for List {
 	}
 }
 
-impl ToKString for List {
+impl ToKnValueString for List {
 	#[inline]
-	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KString> {
+	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KnValueString> {
 		// COMPLIANCE: `\n` is always a valid string character.
-		static NEWLINE: &'static StringSlice = StringSlice::new_unvalidated("\n");
+		static NEWLINE: &'static KnStr = KnStr::new_unvalidated("\n");
 
 		self.join(&NEWLINE, env)
 	}
@@ -271,9 +273,9 @@ impl List {
 	///
 	/// # Errors
 	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &StringSlice, env: &mut Environment) -> crate::Result<KString> {
+	pub fn join(&self, sep: &KnStr, env: &mut Environment) -> crate::Result<KnValueString> {
 		if self.is_empty() {
-			return Ok(KString::default());
+			return Ok(KnValueString::default());
 		}
 
 		let mut joined = String::new();
@@ -288,7 +290,7 @@ impl List {
 			joined.push_str(&ele.to_kstring(env)?.as_str());
 		}
 
-		KString::new(joined, env.opts()).map_err(From::from)
+		KnValueString::new(joined, env.opts()).map_err(From::from)
 	}
 
 	/// Returns an [`ListRefIter`] instance, which iterates over borrowed references.
