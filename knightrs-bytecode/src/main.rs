@@ -10,14 +10,18 @@ use knightrs_bytecode::value::*;
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
 
-fn run(env: &mut Environment, program: &str) -> Result<(), String> {
+fn run(
+	env: &mut Environment,
+	program: &str,
+	argv: impl Iterator<Item = String>,
+) -> Result<(), String> {
 	let mut parser = Parser::new(env, Some(Path::new("-e")), &program).map_err(|s| s.to_string())?;
 
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
 
 	// dbg!(&program);
 
-	Vm::new(&program, env).run_entire_program().map_err(|e| e.to_string()).and(Ok(()))
+	Vm::new(&program, env).run_entire_program(argv).map_err(|e| e.to_string()).and(Ok(()))
 }
 
 fn main() {
@@ -27,6 +31,7 @@ fn main() {
 		{
 			// opts.extensions.negative_indexing = true;
 			opts.extensions.eval = true;
+			opts.extensions.argv = true;
 		}
 		#[cfg(feature = "compliance")]
 		{
@@ -39,7 +44,7 @@ fn main() {
 			opts.compliance.forbid_trailing_tokens = true;
 			opts.compliance.check_equals_params = true;
 			opts.compliance.limit_rand_range = true;
-			// opts.compliance.cant_dump_blocks = true;
+			opts.compliance.cant_dump_blocks = true;
 			opts.compliance.check_quit_status_codes = true;
 			opts.compliance.disallow_negative_int_to_list = true;
 			opts.qol.check_parens = true;
@@ -47,6 +52,7 @@ fn main() {
 
 		opts
 	});
+
 	let mut args = std::env::args().skip(1);
 	let program = match args.next().as_deref() {
 		Some("-f") => std::fs::read_to_string(args.next().expect("missing expr for -f"))
@@ -55,7 +61,7 @@ fn main() {
 		_ => panic!("invalid option: -e or -f only"),
 	};
 
-	match run(&mut env, &program) {
+	match run(&mut env, &program, args) {
 		Ok(()) => {}
 		Err(err) => {
 			eprintln!("error: {err}");

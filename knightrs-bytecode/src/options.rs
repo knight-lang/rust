@@ -58,6 +58,7 @@ if #[cfg(feature = "extensions")] {
 		pub breaking: BreakingChanges,
 		pub negative_indexing: bool,
 		pub eval: bool,
+		pub argv: bool,
 	}
 
 	#[derive(Default, Clone)]

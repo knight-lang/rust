@@ -12,6 +12,12 @@ pub struct VariableName<'src>(&'src StringSlice);
 impl<'src> VariableName<'src> {
 	pub const MAX_NAME_LEN: usize = 127;
 
+	/// Caller must ensure that the variable name is always <= MAX_NAME_LEN.
+	pub fn new_unvalidated(name: &'src StringSlice) -> Self {
+		debug_assert!(name.len() <= Self::MAX_NAME_LEN);
+		Self(name)
+	}
+
 	pub fn new(name: &'src StringSlice, opts: &Options) -> Result<Self, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.variable_name_length && Self::MAX_NAME_LEN < name.len() {

@@ -6,7 +6,7 @@ use super::{Opcode, RuntimeError};
 use crate::parser::{SourceLocation, VariableName};
 use crate::program::{JumpIndex, Program};
 use crate::strings::StringSlice;
-use crate::value::{Block, Integer, List, ToBoolean, ToInteger, ToKString, Value};
+use crate::value::{Block, Integer, KString, List, ToBoolean, ToInteger, ToKString, Value};
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'src, 'path, 'env> {
@@ -40,7 +40,41 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		}
 	}
 
-	pub fn run_entire_program(&mut self) -> crate::Result<Value> {
+	pub fn run_entire_program(
+		&mut self,
+		argv: impl IntoIterator<Item = String>,
+	) -> crate::Result<Value> {
+		#[cfg(feature = "extensions")]
+		if self.env.opts().extensions.argv {
+			let mut first = true;
+			let argv = argv
+				.into_iter()
+				.skip_while(|ele| {
+					if first {
+						first = false;
+						ele == "--"
+					} else {
+						false
+					}
+				})
+				.map(|str| KString::new(str, self.env.opts()).map(Value::from))
+				.collect::<Result<Vec<_>, _>>()?;
+
+			let argv = List::new(argv, self.env.opts())?.into();
+
+			// SAFETY: if extensions are enabled, argv is always added, regardless of whether or not it
+			// was specified, so this is valid. Also, TODO: make sure `VALUE`, when implemented, fails
+			// for undefined variables on `argv` if argv isn't set
+			debug_assert_ne!(self.vars.len(), 0);
+			unsafe {
+				self.set_variable(crate::program::Compiler::ARGV_VARIABLE_INDEX, argv);
+			}
+		}
+
+		self.run_entire_program_without_argv()
+	}
+
+	pub fn run_entire_program_without_argv(&mut self) -> crate::Result<Value> {
 		self.run(Block::new(JumpIndex(0)))
 	}
 
@@ -279,7 +313,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					let program = unsafe { arg![0] }.to_kstring(self.env)?;
 					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
 					let program = parser.parse_program()?;
-					Vm::new(&program, self.env).run_entire_program()?
+					Vm::new(&program, self.env).run_entire_program_without_argv()?
 				}
 
 				Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,

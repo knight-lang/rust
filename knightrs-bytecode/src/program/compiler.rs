@@ -53,11 +53,23 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 
 // TODO: Make a "build-a-block" function
 impl<'src, 'path> Compiler<'src, 'path> {
+	#[cfg(feature = "extensions")]
+	pub const ARGV_VARIABLE_INDEX: usize = 0;
+
 	pub fn new(start: SourceLocation<'path>) -> Self {
 		Self {
 			code: vec![],
 			constants: vec![],
-			variables: indexmap::IndexSet::new(),
+			variables: {
+				let mut variables = indexmap::IndexSet::new();
+
+				// Always add `_argv` in so that in `vm` we can always `set_variable` and not have UB
+				// if the user didn't make  acompiler with argv
+				#[cfg(feature = "extensions")]
+				variables.insert(VariableName::new_unvalidated(&StringSlice::new_unvalidated("_argv")));
+
+				variables
+			},
 
 			#[cfg(feature = "stacktrace")]
 			source_lines: {

@@ -51,8 +51,8 @@ impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
 		validate_source(source, filename, env.opts())?;
 
 		Ok(Self {
-			env,
 			compiler: Compiler::new(SourceLocation::new(filename, 1)),
+			env,
 			filename,
 			source,
 			lineno: 1,
