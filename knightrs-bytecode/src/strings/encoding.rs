@@ -21,7 +21,7 @@ pub enum Encoding {
 }
 
 /// The error that's returned from [`Encoding::validate`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct EncodingError {
 	pub encoding: Encoding, // todo: dont make pub lol make fns
 	pub position: usize,
@@ -60,7 +60,7 @@ impl Encoding {
 	/// This will always return `Ok(())` unless the `compliance` feature is enabled (as the only
 	/// encoding is [`Encoding::Utf8`]).
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline it when it can never fail.
-	pub fn validate(self, source: &str) -> Result<(), EncodingError> {
+	pub const fn validate(self, source: &str) -> Result<(), EncodingError> {
 		match self {
 			// all `str`s are valid utf8
 			Self::Utf8 => Ok(()),
@@ -68,7 +68,13 @@ impl Encoding {
 			// Ascii and Knight have to check
 			#[cfg(feature = "compliance")]
 			Self::Ascii | Self::Knight => {
-				for (idx, chr) in source.bytes().enumerate() {
+				let mut idx = 0;
+				let bytes = source.as_bytes();
+
+				// Gotta do it this way b/c we're in a const function
+				while idx < bytes.len() {
+					let chr = bytes[idx];
+
 					if !self.is_char_valid(chr as char) {
 						return Err(EncodingError {
 							encoding: self,
@@ -76,6 +82,8 @@ impl Encoding {
 							character: chr as char,
 						});
 					}
+
+					idx += 1;
 				}
 
 				Ok(())

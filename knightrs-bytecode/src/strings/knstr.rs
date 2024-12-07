@@ -36,39 +36,39 @@ impl KnStr {
 	/// The maximum length a string can be when compliance checking is enabled.
 	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
 
-	/// Returns a new [`KnStr`] without doing any forms of validation.
+	/// Creates a new [`KnStr`] without doing any forms of validation.
 	///
-	/// This should only be done for strings which were previously validated, or which are always
-	/// valid regardless of the string that's used.
+	/// # Compliance
+	/// The `source` that's passed in should be a valid Knight string under all compliance features.
+	/// More specifically, that means that its length must never be more than [`COMPLIANCE_MAX_LEN`],
+	/// and that [`Encoding::Knight::validate`] should pass for it.
+	///
+	/// [`COMPLIANCE_MAX_LEN`]: Self::COMPLIANCE_MAX_LEN
+	/// [`Encoding::Knight::validate`]: super::Encoding::Knight::validate
 	#[inline]
 	pub const fn new_unvalidated(source: &str) -> &Self {
-		debug_assert!(source.len() <= Self::COMPLIANCE_MAX_LEN);
-		// SAFETY: layout is the same
+		#[cfg(feature = "compliance")] // Only enable debug checks in compliance mode
+		{
+			debug_assert!(source.len() <= Self::COMPLIANCE_MAX_LEN);
+			debug_assert!(super::Encoding::Knight.validate(source).is_ok());
+		}
+
+		// SAFETY: `KnStr`s are `#[repr(transparent)]` around `str`s
 		unsafe { &*(source as *const str as *const Self) }
 	}
 
-	/// Creates a new [`KnStr`] for the given options. Note that unless the `compliance`
-	/// feature is enabled, this function will never fail.
+	/// Creates a new [`KnStr`] without doing any forms of validation.
+	///
+	/// # Errors
+	/// If the `compliance` option is disabled, this function never fails.
+	///
+	/// If `opts.compliance.check_container_length` is enabled, and `source.len()` is greater than
+	/// [`COMPLIANCE_MAX_LEN`](Self::COMPLIANCE_MAX_LEN), an [`StringError::LengthTooLong`] is
+	/// returned.
+	///
+	/// The `opts.encoding` also validates the source.
 	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
-	pub fn new_validate_length<'a>(
-		source: impl AsRef<str>,
-		opts: &Options,
-	) -> Result<&'a Self, StringError> {
-		let source = source.as_ref();
-
-		#[cfg(feature = "compliance")]
-		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
-			return Err(StringError::LengthTooLong(source.len()));
-		}
-
-		// SAFETY:
-		Ok(unsafe { &*(source as *const str as *const Self) })
-	}
-
-	/// Creates a new [`KnStr`] for the given options. Note that unless the `compliance`
-	/// feature is enabled, this function will never fail.
-	#[cfg_attr(not(feature = "compliance"), inline)] // inline when we don't have compliance checks.
-	pub fn new<'a>(source: &str, opts: &Options) -> Result<&'a Self, StringError> {
+	pub fn new<'a>(source: &'a str, opts: &Options) -> Result<&'a Self, StringError> {
 		// TODO: Combine with new_validate_length ?
 
 		#[cfg(feature = "compliance")]
@@ -80,7 +80,7 @@ impl KnStr {
 			opts.encoding.validate(source)?;
 		}
 
-		// SAFETY:
+		// SAFETY: `KnStr`s are `#[repr(transparent)]` around `str`s
 		Ok(unsafe { &*(source as *const str as *const Self) })
 	}
 
