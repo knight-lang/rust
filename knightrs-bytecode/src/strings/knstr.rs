@@ -4,9 +4,31 @@ use crate::{Environment, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// KnStr represents a slice of a Knight string, akin to rust's `str`
+///
+/// This is actually just a wrapper around rust's [`str`], except it's only able to be created if
+/// compliance is checked (or `new_unvalidated` is used).
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct KnStr(str);
+
+impl Display for KnStr {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Display::fmt(&self.0, f)
+	}
+}
+
+impl Debug for KnStr {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
+}
+
+impl Default for &'_ KnStr {
+	#[inline]
+	fn default() -> Self {
+		KnStr::new_unvalidated("")
+	}
+}
 
 /// The error that can arise when [creating new KnStr](KnStr::new)s.
 ///
@@ -84,121 +106,34 @@ impl KnStr {
 		Ok(unsafe { &*(source as *const str as *const Self) })
 	}
 
-	pub fn into_boxed(&self) -> Box<Self> {
-		let rawbox = Box::into_raw(self.as_str().to_string().into_boxed_str());
-
-		// SAFETY: same layout
-		unsafe { Box::from_raw(rawbox as *mut Self) }
-	}
-
+	/// Returns the underlying `str`.
 	#[inline]
-	pub fn as_str(&self) -> &str {
+	pub const fn as_str(&self) -> &str {
 		&self.0
 	}
 
-	pub fn is_empty(&self) -> bool {
+	/// Returns whether this string is empty.
+	#[inline]
+	pub const fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
 
-	pub fn len(&self) -> usize {
+	/// Returns the length of this string, in bytes.
+	#[inline]
+	pub const fn len(&self) -> usize {
 		self.0.len()
 	}
 
-	pub fn repeat(&self, amount: usize, opts: &Options) -> Result<KnValueString, StringError> {
-		// Make sure `str.repeat()` won't panic
-		if amount.checked_mul(self.len()).map_or(true, |c| isize::MAX as usize <= c) {
-			// TODO: maybe we don't have the length in `LengthTooLong` ?
-			// return Err(StringError::LengthTooLong(self.len().wrapping_mul(amount)));
-			todo!();
-		}
-
-		#[cfg(feature = "compliance")]
-		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < self.len() * amount {
-			return Err(StringError::LengthTooLong(self.len() * amount));
-		}
-
-		Ok(KnValueString::from_string_unchecked(self.as_str().repeat(amount)))
+	/// Returns a subslice of the `KnStr`, or `None` if the range is out of bounds.
+	pub fn get(&self, range: impl std::slice::SliceIndex<str, Output = str>) -> Option<&Self> {
+		// COMPLIANCE: We're getting a substr of a valid KnStr, so we know it must contain valid chars
+		// and be the correct length..
+		self.0.get(range).map(Self::new_unvalidated)
 	}
 
 	/// Gets an iterate over [`Character`]s.
 	pub fn chars(&self) -> std::str::Chars<'_> {
 		self.0.chars()
-	}
-
-	pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-		let substring = self.0.get(range)?;
-
-		// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
-		Some(Self::new_unvalidated(substring))
-	}
-
-	/// Concatenates two strings together
-	pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<KnValueString, StringError> {
-		panic!();
-		// let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
-
-		todo!()
-		// builder.push(self);
-		// builder.push(rhs);
-
-		// builder.finish(flags)
-	}
-
-	#[cfg(feature = "extensions")]
-	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split(&self, sep: &Self, env: &mut Environment) -> List {
-		if sep.is_empty() {
-			// TODO: optimize me
-			return Value::from(self.to_owned()).to_list(env).unwrap();
-		}
-
-		// SAFETY: If `self` is within the container bounds, so is the length of its chars.
-		List::new_unvalidated(
-			self
-				.as_str()
-				.split(sep.as_str())
-				.map(|s| KnValueString::new_unvalidated(s.to_string()))
-				.map(Value::from),
-		)
-	}
-
-	pub fn ord(&self, opts: &Options) -> crate::Result<Integer> {
-		let chr = self.chars().next().ok_or(crate::Error::DomainError("empty string"))?;
-		// technically not redundant in case checking for ints is enabled but not strings.
-		Integer::new_error(u32::from(chr) as _, opts).map_err(From::from)
-	}
-
-	/// Gets the first character of `self`, if it exists.
-	pub fn head(&self) -> Option<char> {
-		self.chars().next()
-	}
-
-	/// Gets everything _but_ the first character of `self`, if it exists.
-	pub fn tail(&self) -> Option<&Self> {
-		self.get(1..)
-	}
-
-	pub fn remove_substr(&self, substr: &Self) -> KnValueString {
-		let _ = substr;
-		todo!();
-	}
-}
-
-impl Display for KnStr {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Display::fmt(&self.0, f)
-	}
-}
-
-impl Debug for KnStr {
-	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(&self.0, f)
-	}
-}
-
-impl Default for &'_ KnStr {
-	fn default() -> Self {
-		KnStr::new_unvalidated("")
 	}
 }
 
