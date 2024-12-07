@@ -43,10 +43,10 @@ pub struct Program<'src, 'path> {
 		std::collections::HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
 
 	// The list of variable names.
-	#[cfg(any(feature = "stacktrace", debug_assertions))]
+	#[cfg(any(feature = "qol", debug_assertions))]
 	variable_names: Vec<VariableName<'src>>,
 
-	// Needed for `'src` when stacktrace isn't enabled
+	// Needed for `'src` when qol and stacktrace aren't enabled.
 	_ignored: (&'src (), &'path ()),
 }
 
@@ -148,13 +148,9 @@ impl<'src, 'path> Program<'src, 'path> {
 	}
 
 	/// Gets the variable at `idx`.
-	///
-	/// # Safety
-	/// The caller must ensure that `var_idx` is `<` [`num_variables`].
-	#[cfg(feature = "stacktrace")]
+	#[cfg(feature = "qol")]
 	pub fn variable_name(&self, var_idx: usize) -> VariableName<'src> {
-		debug_assert!(var_idx < self.variable_names.len());
-		*unsafe { self.variable_names.get_unchecked(var_idx) }
+		self.variable_names[var_idx]
 	}
 
 	/// Gets the source location at the program offset `offset`.

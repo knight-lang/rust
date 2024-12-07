@@ -322,7 +322,13 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 			return Ok(value.clone());
 		}
 
-		todo!("todo: error case for undefined variables")
+		cfg_if! {
+			if #[cfg(feature = "qol")] {
+				Err(crate::Error::UndefinedVariable(self.program.variable_name(offset).to_string()))
+			} else {
+				Err(crate::Error::UndefinedVariable)
+			}
+		}
 	}
 
 	// SAFETY: the `offset` must be a valid variable offset
