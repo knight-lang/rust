@@ -6,8 +6,12 @@ use crate::strings::StringSlice;
 use crate::value::KString;
 use std::fmt::{self, Display, Formatter};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct VariableName<'src>(&'src StringSlice);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VariableName<'src>(
+	// #[cfg(feature = "extensions")] std::borrow::Cow<'src, StringSlice>,
+	// #[cfg(not(feature = "extensions"))]
+	&'src StringSlice,
+);
 
 impl<'src> VariableName<'src> {
 	pub const MAX_NAME_LEN: usize = 127;

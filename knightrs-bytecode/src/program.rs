@@ -141,8 +141,8 @@ impl<'src, 'path> Program<'src, 'path> {
 	}
 
 	/// Gets the variable at `idx`.
-	pub fn variable_name(&self, var_idx: usize) -> VariableName<'src> {
-		self.variables[var_idx]
+	pub fn variable_name(&self, var_idx: usize) -> &VariableName<'src> {
+		&self.variables[var_idx]
 	}
 
 	/// Gets the variable at `idx`.

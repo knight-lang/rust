@@ -137,7 +137,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 	#[cfg(feature = "stacktrace")]
 	fn block_name_at(&self, mut idx: usize) -> Option<VariableName> {
 		while idx != 0 {
-			if let Some(&name) = self.known_blocks.get(&idx) {
+			if let Some(name) = self.known_blocks.get(&idx) {
 				return Some(name.clone());
 			}
 
@@ -382,7 +382,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		#[cfg(feature = "stacktrace")]
 		if let Value::Block(ref block) = value {
 			let varname = self.program.variable_name(offset);
-			self.known_blocks.insert(block.inner().0, varname);
+			self.known_blocks.insert(block.inner().0, varname.clone());
 		}
 
 		*unsafe { self.variables.get_unchecked_mut(offset) } = Some(value);
