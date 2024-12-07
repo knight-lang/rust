@@ -2,7 +2,7 @@ use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName}
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::StringSlice;
 use crate::vm::Opcode;
-use crate::Options;
+use crate::{Options, Value};
 
 use super::SourceLocation;
 
@@ -237,7 +237,7 @@ impl Function {
 						deferred.jump_to_current(parser.compiler());
 					}
 				}
-				parser.compiler().push_constant(crate::Value::Null);
+				parser.compiler().push_constant(Value::default());
 
 				Ok(true)
 			}

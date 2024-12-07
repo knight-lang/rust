@@ -230,16 +230,19 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					}));
 				}
 
-				Call => match unsafe { arg![0] } {
-					#[cfg(not(feature = "stacktrace"))]
-					Value::Block(block) => {
-						likely_stable::likely(true);
-						jumpstack.push(self.current_index);
-						unsafe { self.jump_to(block.inner().0) };
-						continue;
+				Call => {
+					let tmp = unsafe { arg![0] };
+					match tmp.as_enum() {
+						#[cfg(not(feature = "stacktrace"))]
+						crate::value::ValueEnum::Block(block) => {
+							likely_stable::likely(true);
+							jumpstack.push(self.current_index);
+							unsafe { self.jump_to(block.inner().0) };
+							continue;
+						}
+						_ => tmp.kn_call(self)?,
 					}
-					other => other.kn_call(self)?,
-				},
+				}
 
 				Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;
@@ -330,7 +333,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 		debug_assert!(offset <= self.vars.len());
 
 		#[cfg(feature = "stacktrace")]
-		if let Value::Block(ref block) = value {
+		if let crate::value::ValueEnum::Block(ref block) = value.as_enum() {
 			let varname = self.program.variable_name(offset);
 			self.known_blocks.insert(block.inner().0, varname);
 		}
