@@ -4,7 +4,7 @@ use crate::program::{Compilable, Compiler};
 use crate::strings::{StringError, StringSlice};
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
 pub struct KString(RefCount<StringSlice>);

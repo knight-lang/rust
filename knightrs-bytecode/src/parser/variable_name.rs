@@ -8,9 +8,8 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariableName<'src>(
-	// #[cfg(feature = "extensions")] std::borrow::Cow<'src, StringSlice>,
-	// #[cfg(not(feature = "extensions"))]
-	&'src StringSlice,
+	#[cfg(feature = "extensions")] crate::container::RcOrRef<'src, StringSlice>,
+	#[cfg(not(feature = "extensions"))] &'src StringSlice,
 );
 
 impl<'src> VariableName<'src> {
@@ -19,7 +18,8 @@ impl<'src> VariableName<'src> {
 	/// Caller must ensure that the variable name is always <= MAX_NAME_LEN.
 	pub fn new_unvalidated(name: &'src StringSlice) -> Self {
 		debug_assert!(name.len() <= Self::MAX_NAME_LEN);
-		Self(name)
+
+		Self(name.into())
 	}
 
 	pub fn new(name: &'src StringSlice, opts: &Options) -> Result<Self, ParseErrorKind> {
@@ -28,7 +28,12 @@ impl<'src> VariableName<'src> {
 			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
 		}
 
-		Ok(Self(name))
+		Ok(Self(name.into()))
+	}
+
+	#[cfg(feature = "extensions")]
+	pub fn become_owned(self) -> VariableName<'static> {
+		VariableName(self.0.into_owned_a().into())
 	}
 }
 
