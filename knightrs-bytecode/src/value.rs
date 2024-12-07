@@ -33,7 +33,6 @@ pub trait NamedType {
  * XXX...X000 # -> Pointer
 */
 pub struct Value(*const ());
-// #[derive(Default, Clone, PartialEq)]
 
 impl Default for Value {
 	#[inline]
@@ -51,6 +50,12 @@ impl Clone for Value {
 impl PartialEq for Value {
 	fn eq(&self, other: &Value) -> bool {
 		self.as_enum() == other.as_enum()
+	}
+}
+
+impl Drop for Value {
+	fn drop(&mut self) {
+		// todo
 	}
 }
 
