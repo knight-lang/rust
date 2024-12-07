@@ -131,7 +131,7 @@ impl KnStr {
 		self.0.get(range).map(Self::new_unvalidated)
 	}
 
-	/// Gets an iterate over [`Character`]s.
+	/// Gets an iterate over [`chars`]s.
 	pub fn chars(&self) -> std::str::Chars<'_> {
 		self.0.chars()
 	}
@@ -143,68 +143,4 @@ impl ToOwned for KnStr {
 	fn to_owned(&self) -> crate::value::KnValueString {
 		crate::value::KnValueString::from_slice(self)
 	}
-}
-
-impl KnStr {
-	// /// Gets an iterate over [`Character`]s.
-	// pub fn chars(&self) -> Chars<'_> {
-	// 	Chars(self.0.chars())
-	// }
-
-	// pub fn get<T: std::slice::SliceIndex<str, Output = str>>(&self, range: T) -> Option<&Self> {
-	// 	let substring = self.0.get(range)?;
-
-	// 	// SAFETY: We're getting a substring of a valid TextSlice, which thus will itself be valid.
-	// 	Some(unsafe { Self::new_unchecked(substring) })
-	// }
-
-	// /// Concatenates two strings together
-	// pub fn concat(&self, rhs: &Self, opts: &Options) -> Result<KnValueString, NewTextError> {
-	// 	let mut builder = super::Builder::with_capacity(self.len() + rhs.len());
-
-	// 	builder.push(self);
-	// 	builder.push(rhs);
-
-	// 	builder.finish(flags)
-	// }
-
-	// pub fn repeat(&self, amount: usize, opts: &Options) -> Result<KnValueString, NewTextError> {
-	// 	unsafe { KnValueString::new_len_unchecked((**self).repeat(amount), flags) }
-	// }
-
-	// #[cfg(feature = "extensions")]
-	// #[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	// pub fn split(&self, sep: &Self, env: &mut Environment) -> List {
-	// 	if sep.is_empty() {
-	// 		// TODO: optimize me
-	// 		return Value::from(self.to_owned()).to_list(env).unwrap();
-	// 	}
-
-	// 	let chars = (**self)
-	// 		.split(&**sep)
-	// 		.map(|x| unsafe { KnValueString::new_unchecked(x) }.into())
-	// 		.collect::<Vec<_>>();
-
-	// 	// SAFETY: If `self` is within the container bounds, so is the length of its chars.
-	// 	unsafe { List::new_unchecked(chars) }
-	// }
-
-	// pub fn ord(&self) -> crate::Result<Integer> {
-	// 	Integer::try_from(self.chars().next().ok_or(crate::Error::DomainError("empty string"))?)
-	// }
-
-	// /// Gets the first character of `self`, if it exists.
-	// pub fn head(&self) -> Option<char> {
-	// 	self.chars().next()
-	// }
-
-	// /// Gets everything _but_ the first character of `self`, if it exists.
-	// pub fn tail(&self) -> Option<&TextSlice> {
-	// 	self.get(1..)
-	// }
-
-	// pub fn remove_substr(&self, substr: &Self) -> KnValueString {
-	// 	let _ = substr;
-	// 	todo!();
-	// }
 }
