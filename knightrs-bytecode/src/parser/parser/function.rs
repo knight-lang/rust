@@ -1,7 +1,9 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName};
 use crate::program::{DeferredJump, JumpWhen};
 use crate::strings::KnStr;
-use crate::vm::{opcode::DynamicAssignment, Opcode};
+#[cfg(feature = "extensions")]
+use crate::vm::opcode::DynamicAssignment;
+use crate::vm::Opcode;
 use crate::Options;
 
 use super::SourceLocation;
