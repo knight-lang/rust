@@ -7,7 +7,7 @@ use crate::parser::{SourceLocation, VariableName};
 use crate::program::{JumpIndex, Program};
 use crate::strings::KnStr;
 use crate::value::{
-	Block, Integer, KnValueString, List, ToBoolean, ToInteger, ToKnValueString, Value,
+	Block, Integer, KnValueString, List, ToBoolean, ToInteger, ToKnValueString, Value, ValueEnum,
 };
 use crate::{Environment, Error};
 
@@ -421,7 +421,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 
 		// TODO: rework how stacktraces work
 		#[cfg(feature = "stacktrace")]
-		if let Value::Block(ref block) = value {
+		if let ValueEnum::Block(ref block) = value.__inner_ref() {
 			let varname = self.program.variable_name(offset);
 			self.known_blocks.insert(block.inner().0, varname.clone());
 		}

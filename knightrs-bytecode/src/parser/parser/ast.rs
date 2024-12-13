@@ -132,7 +132,7 @@ unsafe impl<'s, 'p> Compilable<'s, 'p> for Ast<'s, 'p> {
 						deferred.jump_to_current(compiler);
 					}
 				}
-				compiler.push_constant(crate::Value::Null);
+				compiler.push_constant(crate::Value::NULL);
 				Ok(())
 			}
 			AstInner::Custom(custom) => todo!(), //custom.compile(compiler, opts),

@@ -269,7 +269,7 @@ impl Function {
 						deferred.jump_to_current(parser.compiler());
 					}
 				}
-				parser.compiler().push_constant(crate::Value::Null);
+				parser.compiler().push_constant(crate::Value::NULL);
 
 				Ok(true)
 			}
