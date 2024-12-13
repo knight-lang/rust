@@ -323,7 +323,7 @@ impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
 					.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
 					let _ = output.flush(); // explicitly ignore errors with flushing
 
-					Value::default()
+					Value::NULL
 				}
 				Opcode::Length => unsafe { arg![0] }.kn_length(self.env)?.into(),
 				Opcode::Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),

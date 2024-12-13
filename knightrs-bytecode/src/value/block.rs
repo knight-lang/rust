@@ -12,7 +12,7 @@ impl NamedType for Block {
 }
 
 impl Block {
-	pub fn new(idx: JumpIndex) -> Self {
+	pub const fn new(idx: JumpIndex) -> Self {
 		Self(idx)
 	}
 

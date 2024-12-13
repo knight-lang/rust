@@ -19,6 +19,7 @@ pub mod parser;
 pub mod program;
 pub mod strings;
 pub mod value;
+pub mod value2;
 pub mod vm;
 pub use env::Environment;
 pub use error::{Error, Result};

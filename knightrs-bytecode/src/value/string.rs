@@ -7,6 +7,7 @@ use crate::{Environment, Options};
 use std::borrow::{Borrow, Cow};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)] // TODO, debug
+#[repr(align(16))] // DELETEME, used when testing `value2`
 pub struct KnValueString(RefCount<KnStr>);
 
 pub trait ToKnValueString {

@@ -13,7 +13,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Integer(IntegerInner);
 
-type IntegerInner = i64;
+pub type IntegerInner = i64;
 
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
