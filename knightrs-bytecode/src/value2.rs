@@ -2,14 +2,19 @@ use std::cmp::Ordering;
 
 use crate::{program::JumpIndex, vm::Vm, Environment, Error, Result};
 
-pub use crate::value::block::Block;
-pub use crate::value::boolean::{Boolean, ToBoolean};
-use crate::value::integer::IntegerError;
-pub use crate::value::integer::{Integer, ToInteger};
-pub use crate::value::list::{List, ToList};
-pub use crate::value::null::Null;
-pub use crate::value::string::{KnValueString, ToKnValueString};
+mod block;
+mod boolean;
+mod integer;
+mod list;
+mod null;
+
+pub use block::Block;
+pub use boolean::{Boolean, ToBoolean};
+pub use integer::{Integer, IntegerError, ToInteger};
+pub use list::List;
+pub use null::Null;
 use std::fmt::{self, Debug, Formatter};
+// pub use string::{KnValueString, ToKnValueString};
 
 /// A trait indicating a type has a name.
 pub trait NamedType {
@@ -20,14 +25,14 @@ pub trait NamedType {
 /*
 Representation:
 
-0000 ... 0000 0000 -- False
-0000 ... 0000 0010 -- Null
-0000 ... 0000 0110 -- True
-XXXX ... XXXX XXX1 -- Integer
-XXXX ... XXXX 0100 -- String
-XXXX ... XXXX 1000 -- List
-XXXX ... XXXX 1110 -- Block
-###XXXX ... XXXX 1000 -- Custom user type (??)
+0000 ... 0000 000 -- Null
+0000 ... 0001 000 -- False
+0000 ... 0010 000 -- True
+XXXX ... XXXX 001 -- Integer
+XXXX ... XXXX 010 -- String
+XXXX ... XXXX 100 -- List
+XXXX ... XXXX 110 -- Block
+XXXX ... XXXX 111 -- Custom
 */
 #[repr(transparent)]
 pub struct Value(ValueRepr);
@@ -36,29 +41,20 @@ pub struct Value(ValueRepr);
 pub const VALUE_ALLOC_ALIGN: usize = 16;
 type ValueRepr = u64;
 
-const INT_SHIFT: ValueRepr = 1;
-const INT_TAG: ValueRepr = 0b1;
-const INT_MASK: ValueRepr = 0b1;
-const VALUE_SHIFT: ValueRepr = 4;
-const VALUE_MASK: ValueRepr = 0b1111;
+const TAG_SHIFT: ValueRepr = 4;
+const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u64)]
+#[rustfmt::skip]
 enum Tag {
-	String = 0b0100,
-	List = 0b1000,
-	Block = 0b1100,
-}
-
-impl Value {
-	pub const FALSE: Self = unsafe { Self::from_bytes(0b0000_0000) };
-	pub const NULL: Self = unsafe { Self::from_bytes(0b0000_0010) };
-	pub const TRUE: Self = unsafe { Self::from_bytes(0b0001_0000) };
-
-	// SAFETY: bytes is a valid representation
-	#[inline]
-	pub const unsafe fn from_bytes(bytes: ValueRepr) -> Self {
-		Self(bytes)
-	}
+	Const   = 0b000,
+	Integer = 0b001,
+	String  = 0b010,
+	List    = 0b011,
+	Block   = 0b100,
+	#[cfg(feature = "custom-types")]
+	Custom  = 0b101,
 }
 
 // /// Returned when a `TryFrom` for a value was called when the type didnt match.
@@ -68,9 +64,7 @@ impl Value {
 impl From<Integer> for Value {
 	#[inline]
 	fn from(int: Integer) -> Self {
-		debug_assert_eq!(int.inner(), (int.inner() << INT_SHIFT) >> INT_SHIFT);
-
-		unsafe { Self::from_bytes((int.inner() << INT_SHIFT) as ValueRepr | INT_TAG) }
+		unsafe { Self::from_repr(int.inner() as ValueRepr, Tag::Integer) }
 	}
 }
 
@@ -88,39 +82,67 @@ impl From<Boolean> for Value {
 impl From<Block> for Value {
 	#[inline]
 	fn from(block: Block) -> Self {
-		debug_assert_eq!(block.inner().0, (block.inner().0 << VALUE_SHIFT) >> VALUE_SHIFT);
-
-		unsafe {
-			Self::from_bytes((block.inner().0 << VALUE_SHIFT) as ValueRepr | Tag::Block as ValueRepr)
-		}
+		unsafe { Self::from_repr(block.inner().0 as ValueRepr, Tag::Block) }
 	}
 }
 
 impl From<List> for Value {
 	#[inline]
 	fn from(list: List) -> Self {
-		let inner = list.inner();
+		// let inner = list.inner();
+		todo!()
 	}
 }
-0000 ... 0000 0000 -- False
-0000 ... 0000 0010 -- Null
-0000 ... 0000 0110 -- True
-XXXX ... XXXX XXX1 -- Integer
-XXXX ... XXXX 0100 -- String
-XXXX ... XXXX 1000 -- List
-XXXX ... XXXX 1110 -- Block
+
 impl Value {
+	pub const FALSE: Self = unsafe { Self::from_repr(0, Tag::Const) };
+	pub const NULL: Self = unsafe { Self::from_repr(1, Tag::Const) };
+	pub const TRUE: Self = unsafe { Self::from_repr(2, Tag::Const) };
+
+	// SAFETY: bytes is a valid representation
+	#[inline]
+	const unsafe fn from_repr(bytes: ValueRepr, tag: Tag) -> Self {
+		debug_assert!((bytes << TAG_SHIFT) >> TAG_SHIFT == bytes, "bad bytes");
+		Self(bytes << TAG_SHIFT | tag as ValueRepr)
+	}
+
+	const fn tag(&self) -> Tag {
+		let mask = self.0 & TAG_MASK;
+		debug_assert!(
+			mask == Tag::Const as _
+				|| mask == Tag::Integer as _
+				|| mask == Tag::String as _
+				|| mask == Tag::List as _
+				|| mask == Tag::Block as _
+				|| {
+					#[cfg(feature = "custom-types")]
+					{
+						mask == Tag::Custom as _
+					}
+					#[cfg(not(feature = "custom-types"))]
+					false
+				}
+		);
+		unsafe { std::mem::transmute::<ValueRepr, Tag>(mask) }
+	}
+
+	const fn parts(&self) -> (ValueRepr, Tag) {
+		(self.0 >> TAG_SHIFT, self.tag())
+	}
+
 	pub const fn is_null(self) -> bool {
 		self.0 == Self::NULL.0
 	}
 
 	pub const fn as_integer(self) -> Option<Integer> {
-		if self.0 & INT_MASK != INT_TAG {
+		// Can't use `==` b/c the PartialEq impl isn't `const`.
+		if !matches!(self.tag(), Tag::Integer) {
 			return None;
 		}
 
+		// Can't use `parts()` because it doesnt do sign-extending.
 		Some(Integer::new_unvalidated_unchecked(
-			(self.0 as crate::value::integer::IntegerInner) >> INT_SHIFT,
+			(self.0 as crate::value::integer::IntegerInner) >> TAG_SHIFT,
 		))
 	}
 
@@ -135,11 +157,9 @@ impl Value {
 	}
 
 	pub fn as_block(self) -> Option<Block> {
-		if self.0 & VALUE_MASK != Tag::Block as ValueRepr {
-			return None;
-		}
+		let (repr, tag) = self.parts();
 
-		Some(Block::new(JumpIndex((self.0 >> VALUE_SHIFT) as _)))
+		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
 	}
 }
 
