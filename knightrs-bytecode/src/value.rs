@@ -23,7 +23,19 @@ pub trait NamedType {
 	fn type_name(&self) -> &'static str;
 }
 
-// Todo: more
+/*
+Representation:
+
+0000 ... 0000 0000 -- False
+0000 ... 0000 0001 -- 0
+0000 ... 0000 0010 -- Null
+0000 ... 0001 0000 -- True
+XXXX ... XXXX XXX1 -- Integer
+XXXX ... XXXX X010 -- String
+XXXX ... XXXX X000 -- List, nonzero `x`
+XXXX ... XXXX X100 -- Block
+XXXX ... XXXX 1000 -- Custom user type (??)
+*/
 #[derive(Default, Clone, PartialEq)]
 pub struct Value(ValueEnum);
 
