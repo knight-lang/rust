@@ -29,7 +29,7 @@ pub struct Value(ValueEnum);
 
 #[derive(Default, Clone, PartialEq)]
 #[non_exhaustive]
-pub enum ValueEnum {
+enum ValueEnum {
 	#[default]
 	Null,
 	Boolean(Boolean),
@@ -41,7 +41,7 @@ pub enum ValueEnum {
 
 impl Debug for Value {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Debug::fmt(&Null, f),
 			ValueEnum::Boolean(boolean) => Debug::fmt(&boolean, f),
 			ValueEnum::Integer(integer) => Debug::fmt(&integer, f),
@@ -90,7 +90,7 @@ impl From<Block> for Value {
 
 impl ToBoolean for Value {
 	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Null.to_boolean(env),
 			ValueEnum::Boolean(boolean) => boolean.to_boolean(env),
 			ValueEnum::Integer(integer) => integer.to_boolean(env),
@@ -106,7 +106,7 @@ impl ToBoolean for Value {
 
 impl ToInteger for Value {
 	fn to_integer(&self, env: &mut Environment) -> Result<Integer> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Null.to_integer(env),
 			ValueEnum::Boolean(boolean) => boolean.to_integer(env),
 			ValueEnum::Integer(integer) => integer.to_integer(env),
@@ -122,7 +122,7 @@ impl ToInteger for Value {
 
 impl ToKnValueString for Value {
 	fn to_kstring(&self, env: &mut Environment) -> Result<KnValueString> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Null.to_kstring(env),
 			ValueEnum::Boolean(boolean) => boolean.to_kstring(env),
 			ValueEnum::Integer(integer) => integer.to_kstring(env),
@@ -138,7 +138,7 @@ impl ToKnValueString for Value {
 
 impl ToList for Value {
 	fn to_list(&self, env: &mut Environment) -> Result<List> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Null.to_list(env),
 			ValueEnum::Boolean(boolean) => boolean.to_list(env),
 			ValueEnum::Integer(integer) => integer.to_list(env),
@@ -156,7 +156,7 @@ impl NamedType for Value {
 	/// Fetch the type's name.
 	#[must_use = "getting the type name by itself does nothing."]
 	fn type_name(&self) -> &'static str {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => Null.type_name(),
 			ValueEnum::Boolean(boolean) => boolean.type_name(),
 			ValueEnum::Integer(integer) => integer.type_name(),
@@ -197,19 +197,22 @@ impl Value {
 	pub const TRUE: Self = Self(ValueEnum::Boolean(true));
 	pub const FALSE: Self = Self(ValueEnum::Boolean(false));
 
-	pub fn inner(self) -> ValueEnum {
-		self.0
+	fn inner(&self) -> &ValueEnum {
+		&self.0
 	}
 
-	pub fn __inner_ref(&self) -> &ValueEnum {
-		&self.0
+	pub fn __as_block(&self) -> Option<Block> {
+		match self.inner() {
+			ValueEnum::Block(block) => Some(*block),
+			_ => None,
+		}
 	}
 
 	pub fn kn_dump(&self, env: &mut Environment) -> Result<()> {
 		use std::io::Write;
 
 		// TODO: move this into each type, so they can control it
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Null => {
 				write!(env.output(), "null").map_err(|err| Error::IoError { func: "OUTPUT", err })
 			}
@@ -250,7 +253,7 @@ impl Value {
 		fn_name: &'static str,
 		env: &mut Environment,
 	) -> Result<Ordering> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(lhs) => Ok(lhs.cmp(&rhs.to_integer(env)?)),
 			ValueEnum::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_boolean(env)?)),
 			ValueEnum::String(lhs) => Ok(lhs.cmp(&rhs.to_kstring(env)?)),
@@ -300,7 +303,7 @@ impl Value {
 	}
 
 	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Block(block) => vm.run(*block),
 			_ => Err(Error::TypeError { type_name: self.type_name(), function: "CALL" }),
 		}
@@ -317,7 +320,7 @@ impl Value {
 			}
 		};
 
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::String(string) => {
 				// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
 				// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
@@ -370,7 +373,7 @@ impl Value {
 	}
 
 	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),
 			ValueEnum::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
 			ValueEnum::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
@@ -387,7 +390,7 @@ impl Value {
 	}
 
 	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into())
 			}
@@ -410,7 +413,7 @@ impl Value {
 	}
 
 	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.multiply(rhs.to_integer(env)?, env.opts())?.into())
 			}
@@ -456,7 +459,7 @@ impl Value {
 	}
 
 	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into())
 			}
@@ -479,7 +482,7 @@ impl Value {
 	}
 
 	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.remainder(rhs.to_integer(env)?, env.opts())?.into())
 			}
@@ -536,7 +539,7 @@ impl Value {
 	}
 
 	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => Ok(integer.power(rhs.to_integer(env)?, env.opts())?.into()),
 			ValueEnum::List(list) => list.join(&rhs.to_kstring(env)?, env).map(Self::from),
 
@@ -558,7 +561,7 @@ impl Value {
 	/// returned. If `self`
 	pub fn kn_head(&self, env: &mut Environment) -> Result<Self> {
 		let _ = env;
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
 			ValueEnum::String(string) => string
 				.head()
@@ -576,7 +579,7 @@ impl Value {
 
 	pub fn kn_tail(&self, env: &mut Environment) -> Result<Self> {
 		let _ = env;
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::List(list) => {
 				list.tail().ok_or(Error::DomainError("empty list ]")).map(Self::from)
 			}
@@ -596,7 +599,7 @@ impl Value {
 	}
 
 	pub fn kn_ascii(&self, env: &mut Environment) -> Result<Self> {
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				let chr = integer.chr(env.opts())?;
 				Ok(KnValueString::new_unvalidated(chr.to_string()).into())
@@ -620,7 +623,7 @@ impl Value {
 		let len = usize::try_from(len.to_integer(env)?.inner())
 			.or(Err(Error::DomainError("negative length")))?;
 
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::List(list) => list.try_get(start..start + len).map(Self::from),
 
 			ValueEnum::String(text) => text
@@ -649,7 +652,7 @@ impl Value {
 		let len = usize::try_from(len.to_integer(env)?.inner())
 			.or(Err(Error::DomainError("negative length")))?;
 
-		match self.__inner_ref() {
+		match self.inner() {
 			ValueEnum::List(list) => {
 				let replacement = replacement.to_list(env)?;
 				let mut ret = Vec::new();
