@@ -1,6 +1,8 @@
 use super::{validate, Chars, NewTextError, Text};
-use crate::env::{Environment, Flags};
-use crate::value::{Integer, List, ToList, Value};
+use crate::env::Flags;
+use crate::value::Integer;
+#[cfg(feature = "extensions")]
+use crate::value::{List, ToList, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -107,7 +109,7 @@ impl TextSlice {
 
 	#[cfg(feature = "extensions")]
 	#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-	pub fn split(&self, sep: &Self, env: &mut Environment) -> List {
+	pub fn split(&self, sep: &Self, env: &mut crate::env::Environment) -> List {
 		if sep.is_empty() {
 			// TODO: optimize me
 			return Value::from(self.to_owned()).to_list(env).unwrap();

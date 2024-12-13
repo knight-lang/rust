@@ -80,9 +80,10 @@ impl std::fmt::Display for NewTextError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let _ = f;
 
-		#[cfg(feature = "compliance")]
 		match *self {
+			#[cfg(feature = "compliance")]
 			Self::LengthTooLong(len) => write!(f, "length {len} longer than max {MAX_LEN}"),
+			#[cfg(feature = "compliance")]
 			Self::IllegalChar { chr, idx } => write!(f, "illegal char {chr:?} found at index {idx}"),
 		}
 	}

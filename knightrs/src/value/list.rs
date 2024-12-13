@@ -5,12 +5,10 @@ use crate::value::{
 	Boolean, Integer, NamedType, Text, TextSlice, ToBoolean, ToInteger, ToText, Value,
 };
 use crate::Result;
+use crate::{value::Runnable, Error};
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::{Range, RangeFrom};
-
-#[cfg(feature = "extensions")]
-use crate::{value::Runnable, Error};
 
 /// The list type within Knight.
 ///

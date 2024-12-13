@@ -93,7 +93,7 @@ impl<'e> Environment<'e> {
 
 	/// A shorthand function for creating [`Builder`]s.
 	#[inline]
-	pub fn builder(flags: &'e Flags) -> Builder {
+	pub fn builder(flags: &'e Flags) -> Builder<'e> {
 		Builder::new(flags)
 	}
 

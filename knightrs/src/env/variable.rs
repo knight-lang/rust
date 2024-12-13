@@ -100,11 +100,14 @@ impl std::error::Error for IllegalVariableName {}
 
 impl Display for IllegalVariableName {
 	fn fmt(&self, #[allow(unused)] f: &mut Formatter) -> fmt::Result {
-		#[cfg(feature = "compliance")]
 		match *self {
+			#[cfg(feature = "compliance")]
 			Self::Empty => write!(f, "empty variable name supplied"),
+			#[cfg(feature = "compliance")]
 			Self::TooLong(count) => write!(f, "variable name was too long ({count} > {MAX_NAME_LEN})"),
+			#[cfg(feature = "compliance")]
 			Self::IllegalStartingChar(chr) => write!(f, "variable names cannot start with {chr:?}"),
+			#[cfg(feature = "compliance")]
 			Self::IllegalBodyChar(chr) => write!(f, "variable names cannot include with {chr:?}"),
 		}
 	}
@@ -200,7 +203,8 @@ impl Parsable for Variable {
 			return Ok(None);
 		}
 
-		let Some(ident) = parser.take_while(|c| c.is_lowercase() || c == '_' || c.is_numeric()) else {
+		let Some(ident) = parser.take_while(|c| c.is_lowercase() || c == '_' || c.is_numeric())
+		else {
 			return Ok(None);
 		};
 
