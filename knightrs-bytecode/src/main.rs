@@ -25,6 +25,11 @@ fn run(
 }
 
 fn main() {
+	use knightrs_bytecode::value2 as v2;
+	dbg!(v2::Value::from(v2::KnString::new(KnStr::new_unvalidated("hello world"))));
+}
+
+fn main2() {
 	let mut env = Environment::new({
 		let mut opts = Options::default();
 		#[cfg(feature = "extensions")]

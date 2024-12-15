@@ -55,6 +55,8 @@ pub enum StringError {
 }
 
 impl KnStr {
+	pub const EMPTY: &Self = unsafe { std::mem::transmute::<&str, &Self>("") };
+
 	/// The maximum length a string can be when compliance checking is enabled.
 	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
 

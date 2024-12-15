@@ -14,6 +14,7 @@ static_assertions = "1.1"
 indexmap = "2.7"
 rand = "0.8"
 likely_stable = "0.1.2"
+crossbeam-epoch = "0.9"
 
 [features]
 multithreaded = []
@@ -23,6 +24,7 @@ custom-types = ["extensions"]
 stacktrace = [] # TODO: remove knight-debugging
 qol = ["stacktrace"] # Enables debugging information fro knight
 embedded = []
+floats = []
 
 # If enabled, support knight-2.0.1 features
 knight_2_0_1 = []
