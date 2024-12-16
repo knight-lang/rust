@@ -51,7 +51,6 @@ struct Alloc {
 	len: usize,
 }
 
-// const x: [u8; ALLOC_VALUE_SIZE_IN_BYTES] = [0; ]
 sa::const_assert_eq!(size_of::<Inner>(), ALLOC_VALUE_SIZE_IN_BYTES);
 sa::assert_eq_size!(KnString, super::Value);
 
@@ -64,11 +63,11 @@ impl Default for KnString {
 
 impl KnString {
 	pub fn into_raw(self) -> ValueRepr {
-		unsafe { transmute(self) }
+		unsafe { transmute::<Self, *const Inner>(self) as ValueRepr }
 	}
 
 	pub unsafe fn from_raw(raw: ValueRepr) -> Self {
-		unsafe { transmute(raw) }
+		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
 	pub fn new(source: &KnStr) -> Self {
@@ -95,11 +94,6 @@ impl KnString {
 
 			Self(Some(inner))
 		}
-	}
-
-	#[deprecated] // doesnt work with alloc, as _bytes is unwritten-to- and thus not allocated
-	fn inner(&self) -> Option<&Inner> {
-		self.0.map(|inner| unsafe { inner.as_ref() })
 	}
 
 	fn flags_and_inner(&self) -> Option<(u8, *mut Inner)> {

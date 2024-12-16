@@ -150,7 +150,6 @@ impl From<KnString> for Value {
 	fn from(string: KnString) -> Self {
 		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
 		let raw = string.into_raw();
-
 		unsafe { Self::from_raw(raw, Tag::String) }
 	}
 }
