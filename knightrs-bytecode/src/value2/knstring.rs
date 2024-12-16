@@ -1,27 +1,39 @@
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
-use std::ptr::NonNull;
+use std::sync::atomic::AtomicU8;
 
 use super::{ValueAlign, ValueRepr, ALLOC_VALUE_SIZE_IN_BYTES};
-use crate::container::RefCount;
 use crate::strings::KnStr;
 
 #[repr(transparent)]
-pub struct KnString(Option<NonNull<Inner>>);
+pub struct KnString(*const Inner);
+
+static EMPTY_INNER: Inner = Inner {
+	_alignment: ValueAlign,
+	flags: AtomicU8::new(Flags::Static as u8),
+	kind: Kind { embedded: [0; MAX_EMBEDDED_LENGTH] },
+};
 
 #[repr(C)]
 struct Inner {
 	_alignment: ValueAlign,
-	flags: u8,
+	flags: AtomicU8,
 	kind: Kind,
 }
+
+// SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Send for Inner {}
+
+// SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Sync for Inner {}
 
 #[repr(u8, align(1))]
 enum Flags {
 	// If unset, it's embedded
 	Allocated = 0b0000_0001,
 	GcMarked = 0b0000_0010,
+	Static = 0b0000_0100,
 	SizeMask = 0b1111_1000,
 }
 
@@ -31,7 +43,7 @@ sa::const_assert!((Flags::SizeMask as usize) >> FLAG_SIZE_SHIFT <= MAX_EMBEDDED_
 
 #[repr(C)]
 union Kind {
-	embeded: [u8; MAX_EMBEDDED_LENGTH],
+	embedded: [u8; MAX_EMBEDDED_LENGTH],
 	alloc: Alloc,
 }
 
@@ -47,7 +59,7 @@ const ALLOC_PADDING_ALIGN: usize =
 #[derive(Clone, Copy)]
 struct Alloc {
 	_padding: [u8; ALLOC_PADDING_ALIGN],
-	ptr: NonNull<u8>,
+	ptr: *const u8,
 	len: usize,
 }
 
@@ -57,7 +69,7 @@ sa::assert_eq_size!(KnString, super::Value);
 impl Default for KnString {
 	#[inline]
 	fn default() -> Self {
-		Self(None)
+		Self(unsafe { &EMPTY_INNER as _ })
 	}
 }
 
@@ -72,18 +84,19 @@ impl KnString {
 
 	pub fn new(source: &KnStr) -> Self {
 		match source.len() {
-			0 => Self(None),
-			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
+			0..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
 			_ => Self::new_alloc(source),
 		}
 	}
 
-	fn allocate(flags: u8) -> NonNull<Inner> {
+	fn allocate(flags: u8) -> *mut Inner {
 		unsafe {
-			let inner = NonNull::new(std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>())
-				.expect("alloc failed");
+			let inner = std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>();
+			if inner.is_null() {
+				panic!("alloc failed");
+			}
 
-			(&raw mut (*inner.as_ptr()).flags).write(flags);
+			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
 
 			inner
 		}
@@ -94,12 +107,12 @@ impl KnString {
 		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
 
 		unsafe {
-			(&raw mut (*inner.as_ptr()).kind.embeded)
+			(&raw mut (*inner).kind.embedded)
 				.cast::<u8>()
 				.copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
 		}
 
-		Self(Some(inner))
+		Self(inner)
 	}
 
 	fn new_alloc(source: &KnStr) -> Self {
@@ -108,27 +121,26 @@ impl KnString {
 		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
 
 		unsafe {
-			(&raw mut (*inner.as_ptr()).kind.alloc.len).write(source.len());
+			(&raw mut (*inner).kind.alloc.len).write(source.len());
 
-			let ptr = std::ptr::NonNull::new(std::alloc::alloc(Layout::from_size_align_unchecked(
-				source.len(),
-				align_of::<u8>(),
-			)))
-			.expect("alloc failed");
+			let ptr =
+				std::alloc::alloc(Layout::from_size_align_unchecked(source.len(), align_of::<u8>()));
+			if ptr.is_null() {
+				panic!("alloc failed");
+			}
 
-			ptr.as_ptr().copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
-			(&raw mut (*inner.as_ptr()).kind.alloc.ptr).write(ptr);
+			ptr.copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
+			(&raw mut (*inner).kind.alloc.ptr).write(ptr);
 		}
 
-		Self(Some(inner))
+		Self(inner)
 	}
 
-	fn flags_and_inner(&self) -> Option<(u8, *mut Inner)> {
-		self.0.map(|inner| unsafe {
-			let inner = inner.as_ptr();
-
-			(*&raw const (*inner).flags, inner)
-		})
+	fn flags_and_inner(&self) -> (u8, *mut Inner) {
+		unsafe {
+			// TODO: orderings
+			((*&raw const (*self.0).flags).load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
+		}
 	}
 
 	pub fn as_knstr(&self) -> &KnStr {
@@ -136,9 +148,7 @@ impl KnString {
 	}
 
 	pub fn len(&self) -> usize {
-		let Some((flags, inner)) = self.flags_and_inner() else {
-			return 0;
-		};
+		let (flags, inner) = self.flags_and_inner();
 
 		if flags & Flags::Allocated as u8 == 1 {
 			unsafe { (&raw const (*inner).kind.alloc.len).read() }
@@ -152,15 +162,13 @@ impl std::ops::Deref for KnString {
 	type Target = KnStr;
 
 	fn deref(&self) -> &Self::Target {
-		let Some((flags, inner)) = self.flags_and_inner() else {
-			return KnStr::EMPTY;
-		};
+		let (flags, inner) = self.flags_and_inner();
 
 		unsafe {
 			let slice_ptr = if flags & Flags::Allocated as u8 == 1 {
-				(&raw const (*inner).kind.alloc.ptr).read().as_ptr()
+				(&raw const (*inner).kind.alloc.ptr).read()
 			} else {
-				(*inner).kind.embeded.as_ptr()
+				(*inner).kind.embedded.as_ptr()
 			};
 
 			let slice = std::slice::from_raw_parts(slice_ptr, self.len());
