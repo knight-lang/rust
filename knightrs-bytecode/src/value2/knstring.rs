@@ -25,9 +25,9 @@ enum Flags {
 	SizeMask = 0b1111_1000,
 }
 
+const MAX_EMBEDDED_LENGTH: usize = ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>();
 const FLAG_SIZE_SHIFT: usize = 3;
 sa::const_assert!((Flags::SizeMask as usize) >> FLAG_SIZE_SHIFT <= MAX_EMBEDDED_LENGTH);
-const MAX_EMBEDDED_LENGTH: usize = ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>();
 
 #[repr(C)]
 union Kind {
@@ -78,22 +78,49 @@ impl KnString {
 		}
 	}
 
+	fn allocate(flags: u8) -> NonNull<Inner> {
+		unsafe {
+			let inner = NonNull::new(std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>())
+				.expect("alloc failed");
+
+			(&raw mut (*inner.as_ptr()).flags).write(flags);
+
+			inner
+		}
+	}
+
 	fn new_embedded(source: &KnStr) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
+		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
 
 		unsafe {
-			// TODO: use custom heap allocator
-			let inner =
-				std::ptr::NonNull::new(std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>())
-					.expect("todo: alloc failed");
-
-			(&raw mut (*inner.as_ptr()).flags).write((source.len() as u8) << FLAG_SIZE_SHIFT);
 			(&raw mut (*inner.as_ptr()).kind.embeded)
 				.cast::<u8>()
 				.copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
-
-			Self(Some(inner))
 		}
+
+		Self(Some(inner))
+	}
+
+	fn new_alloc(source: &KnStr) -> Self {
+		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
+
+		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
+
+		unsafe {
+			(&raw mut (*inner.as_ptr()).kind.alloc.len).write(source.len());
+
+			let ptr = std::ptr::NonNull::new(std::alloc::alloc(Layout::from_size_align_unchecked(
+				source.len(),
+				align_of::<u8>(),
+			)))
+			.expect("alloc failed");
+
+			ptr.as_ptr().copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
+			(&raw mut (*inner.as_ptr()).kind.alloc.ptr).write(ptr);
+		}
+
+		Self(Some(inner))
 	}
 
 	fn flags_and_inner(&self) -> Option<(u8, *mut Inner)> {
@@ -102,28 +129,6 @@ impl KnString {
 
 			(*&raw const (*inner).flags, inner)
 		})
-	}
-
-	fn new_alloc(source: &KnStr) -> Self {
-		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
-		unsafe {
-			let layout = Layout::from_size_align_unchecked(source.len(), align_of::<u8>());
-			// TODO: use custom heap allocator
-			let inner =
-				std::ptr::NonNull::new(std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>())
-					.expect("alloc failed");
-
-			(&raw mut (*inner.as_ptr()).flags).write(Flags::Allocated as u8);
-			(&raw mut (*inner.as_ptr()).kind.alloc.len).write(source.len());
-
-			let ptr =
-				std::ptr::NonNull::new(std::alloc::alloc(layout).cast::<u8>()).expect("alloc failed");
-			ptr.as_ptr().copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
-			(&raw mut (*inner.as_ptr()).kind.alloc.ptr).write(ptr);
-
-			dbg!(inner);
-			Self(Some(inner))
-		}
 	}
 
 	pub fn as_knstr(&self) -> &KnStr {

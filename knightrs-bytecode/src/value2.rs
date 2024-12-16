@@ -253,17 +253,6 @@ impl Value {
 		matches!(tag, Tag::List).then(|| unsafe { List::from_raw_and_incr(repr) })
 	}
 
-	pub fn into_list(self) -> Option<List> {
-		let (repr, tag) = self.parts();
-
-		if !matches!(tag, Tag::List) {
-			return None;
-		}
-
-		std::mem::forget(self);
-		Some(unsafe { List::from_raw_and_incr(repr) })
-	}
-
 	pub fn as_knstring(&self) -> Option<KnString> {
 		let (repr, tag) = self.parts();
 		println!("{:0b}", repr);
