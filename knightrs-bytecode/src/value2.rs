@@ -39,8 +39,9 @@ XXXX ... XXXX 111 -- Custom
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 pub struct Value(ValueRepr);
 
-// required alignemnt for strings & lists
-pub const VALUE_ALLOC_ALIGN: usize = 16;
+#[repr(align(16))]
+struct ValueAlign;
+sa::assert_eq_size!(ValueAlign, ());
 
 // The amount of bytes expected in an allocated value
 pub const ALLOC_VALUE_SIZE_IN_BYTES: usize = 32;
@@ -148,7 +149,9 @@ impl From<KnString> for Value {
 	#[inline]
 	fn from(string: KnString) -> Self {
 		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
-		unsafe { Self::from_raw(string.into_raw() as ValueRepr, Tag::String) }
+		let raw = string.into_raw();
+
+		unsafe { Self::from_raw(raw, Tag::String) }
 	}
 }
 

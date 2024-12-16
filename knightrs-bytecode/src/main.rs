@@ -26,7 +26,9 @@ fn run(
 
 fn main() {
 	use knightrs_bytecode::value2 as v2;
-	dbg!(v2::Value::from(v2::KnString::new(KnStr::new_unvalidated("hello world"))));
+	dbg!(v2::Value::from(v2::KnString::new(KnStr::new_unvalidated(
+		"hello worldhello worldhello worldhello worldhello worldhello world"
+	))));
 }
 
 fn main2() {
