@@ -32,10 +32,9 @@ Representation:
 0000 ... 0001 000 -- False
 0000 ... 0010 000 -- True
 XXXX ... XXXX 001 -- Integer
-XXXX ... XXXX 010 -- String
-XXXX ... XXXX 100 -- List
-XXXX ... XXXX 110 -- Block
-XXXX ... XXXX 111 -- Custom
+XXXX ... XXXX 010 -- Block
+XXXX ... XXXX 100 -- Float32
+XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 #[derive(Clone, Copy)]
@@ -57,21 +56,12 @@ const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
 #[rustfmt::skip]
 enum Tag {
 	// TOPMOST BIT IS Whether it's allocated
-	Const   = 0b000,
-	Integer = 0b001,
-	Block   = 0b010,
+	Alloc          = 0b000,
+	Integer        = 0b001,
+	Block          = 0b010,
+	Const          = 0b110,
 	#[cfg(feature = "floats")]
-	Float   = 0b011,
-	String  = 0b100,
-	List    = 0b101,
-	#[cfg(feature = "custom-types")]
-	Custom  = 0b110,
-}
-
-impl Tag {
-	fn is_alloc(self) -> bool {
-		(self as u8) & 0b100 != 0
-	}
+	Float          = 0b100,
 }
 
 impl Debug for Value {
@@ -86,9 +76,16 @@ impl Debug for Value {
 					unreachable!()
 				}
 			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					Debug::fmt(&list, f)
+				} else if let Some(string) = self.as_knstring() {
+					Debug::fmt(&string, f)
+				} else {
+					unreachable!()
+				}
+			}
 			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
-			Tag::String => Debug::fmt(&self.as_knstring().unwrap(), f),
-			Tag::List => Debug::fmt(&self.as_list().unwrap(), f),
 			_ => todo!(),
 		}
 	}
@@ -143,7 +140,7 @@ impl From<Block> for Value {
 impl From<List> for Value {
 	#[inline]
 	fn from(list: List) -> Self {
-		unsafe { Self::from_raw(list.into_raw(), Tag::List) }
+		unsafe { Self::from_raw(list.into_raw(), Tag::Alloc) }
 	}
 }
 
@@ -152,7 +149,7 @@ impl From<KnString> for Value {
 	fn from(string: KnString) -> Self {
 		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
 		let raw = string.into_raw();
-		unsafe { Self::from_raw(raw, Tag::String) }
+		unsafe { Self::from_raw(raw, Tag::Alloc) }
 	}
 }
 
@@ -178,26 +175,10 @@ impl Value {
 	const fn tag(self) -> Tag {
 		let mask = (self.0 & TAG_MASK) as u8;
 		debug_assert!(
-			mask == Tag::Const as _
+			mask == Tag::Alloc as _
 				|| mask == Tag::Integer as _
-				|| mask == Tag::String as _
-				|| mask == Tag::List as _
 				|| mask == Tag::Block as _
-				|| {
-					#[cfg(feature = "floats")]
-					{
-						mask == Tag::Float as _
-					}
-					#[cfg(not(feature = "custom-types"))]
-					false
-				} || {
-				#[cfg(feature = "custom-types")]
-				{
-					mask == Tag::Custom as _
-				}
-				#[cfg(not(feature = "custom-types"))]
-				false
-			}
+				|| mask == Tag::Const as _
 		);
 		unsafe { std::mem::transmute::<u8, Tag>(mask) }
 	}
@@ -245,55 +226,48 @@ impl Value {
 	pub fn as_list(self) -> Option<List> {
 		let (repr, tag) = self.parts();
 
-		matches!(tag, Tag::List).then(|| unsafe { List::from_raw(repr as _) })
+		if tag == Tag::Alloc {
+			unsafe { crate::gc::ValueInner::as_list(repr as *const _) }
+		} else {
+			None
+		}
 	}
 
 	pub fn as_knstring(self) -> Option<KnString> {
 		let (repr, tag) = self.parts();
 
-		matches!(tag, Tag::String).then(|| unsafe { KnString::from_raw(repr as _) })
+		if tag == Tag::Alloc {
+			unsafe { crate::gc::ValueInner::as_knstring(repr as *const _) }
+		} else {
+			None
+		}
 	}
 }
 
 unsafe impl Mark for Value {
 	unsafe fn mark(&mut self) {
-		match self.tag() {
-			Tag::Const | Tag::Integer | Tag::Block => {}
-			#[cfg(feature = "floats")]
-			Tag::Float => {}
+		let (repr, tag) = self.parts();
 
-			Tag::String => unsafe { self.as_knstring().unwrap().mark() },
-			Tag::List => unsafe { self.as_list().unwrap().mark() },
-			#[cfg(feature = "custom-types")]
-			Tag::Custom => unsafe { self.as_custom().unwrap().mark() },
+		if tag == Tag::Alloc {
+			unsafe { crate::gc::ValueInner::mark(repr as *const _) }
 		}
 	}
 }
 
 unsafe impl Sweep for Value {
 	unsafe fn sweep(self, gc: &mut Gc) {
-		match self.tag() {
-			Tag::Const | Tag::Integer | Tag::Block => {}
-			#[cfg(feature = "floats")]
-			Tag::Float => {}
+		let (repr, tag) = self.parts();
 
-			Tag::String => unsafe { self.as_knstring().unwrap().sweep(gc) },
-			Tag::List => unsafe { self.as_list().unwrap().sweep(gc) },
-			#[cfg(feature = "custom-types")]
-			Tag::Custom => unsafe { self.as_custom().unwrap().sweep(gc) },
+		if tag == Tag::Alloc {
+			unsafe { crate::gc::ValueInner::sweep(repr as *const _, gc) }
 		}
 	}
 
 	unsafe fn deallocate(self, gc: &mut Gc) {
-		match self.tag() {
-			Tag::Const | Tag::Integer | Tag::Block => {}
-			#[cfg(feature = "floats")]
-			Tag::Float => {}
+		let (repr, tag) = self.parts();
 
-			Tag::String => unsafe { self.as_knstring().unwrap().deallocate(gc) },
-			Tag::List => unsafe { self.as_list().unwrap().deallocate(gc) },
-			#[cfg(feature = "custom-types")]
-			Tag::Custom => unsafe { self.as_custom().unwrap().deallocate(gc) },
+		if tag == Tag::Alloc {
+			unsafe { crate::gc::ValueInner::deallocate(repr as *const _, gc) }
 		}
 	}
 }

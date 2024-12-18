@@ -79,6 +79,10 @@ impl List {
 		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
+	pub unsafe fn from_value_inner(raw: *const crate::gc::ValueInner) -> Self {
+		Self(raw.cast::<Inner>())
+	}
+
 	pub fn boxed(value: Value, gc: &mut Gc) -> Self {
 		Self::new(&[value], gc)
 	}

@@ -14,6 +14,7 @@ pub const ALLOC_VALUE_SIZE: usize = 32;
 pub struct ValueInner {
 	_align: ValueAlign,
 	pub flags: AtomicU8,
+	// TODO: make this data maybeuninit
 	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 }
 
@@ -112,6 +113,42 @@ pub unsafe trait Sweep {
 }
 
 // impl ValueInner {
+impl ValueInner {
+	fn flags(this: *const Self) -> *const AtomicU8 {
+		unsafe { &raw const (*this).flags }
+	}
+
+	pub unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
+		if unsafe { Self::flags(this).read().load(Ordering::SeqCst) } & Flags::IsString as u8 != 0 {
+			Some(unsafe { crate::value2::KnString::from_value_inner(this) })
+		} else {
+			None
+		}
+	}
+
+	pub unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
+		if unsafe { Self::flags(this).read().load(Ordering::SeqCst) }
+			& (Flags::IsString as u8 | Flags::IsList as u8)
+			== Flags::IsList as u8
+		{
+			Some(unsafe { crate::value2::List::from_value_inner(this) })
+		} else {
+			None
+		}
+	}
+
+	pub unsafe fn mark(this: *const Self) {
+		// todo
+	}
+
+	pub unsafe fn sweep(this: *const Self, gc: &mut Gc) {
+		// todo
+	}
+
+	pub unsafe fn deallocate(this: *const Self, gc: &mut Gc) {
+		// todo
+	}
+}
 // 	unsafe fn mark(&mut self) {
 // 		let was_marked = self.flags.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
 // 		if was_marked & Flags::GcMarked as u8 == 0 {

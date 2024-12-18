@@ -81,6 +81,10 @@ impl KnString {
 		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
+	pub unsafe fn from_value_inner(raw: *const crate::gc::ValueInner) -> Self {
+		Self(raw.cast::<Inner>())
+	}
+
 	pub fn new(source: &KnStr, gc: &mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
