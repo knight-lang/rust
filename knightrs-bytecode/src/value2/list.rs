@@ -185,3 +185,19 @@ impl Debug for List {
 		Debug::fmt(self.as_slice(), f)
 	}
 }
+
+unsafe impl crate::gc::Mark for List {
+	fn mark(&mut self) {
+		// self.
+		// flags_ref
+		todo!();
+	}
+}
+
+unsafe impl crate::gc::Sweep for List {
+	fn sweep(self) {
+		// self.
+		// flags_ref
+		todo!();
+	}
+}

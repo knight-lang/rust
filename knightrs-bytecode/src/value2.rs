@@ -253,3 +253,33 @@ impl Value {
 		matches!(tag, Tag::String).then(|| unsafe { KnString::from_raw(repr as _) })
 	}
 }
+
+unsafe impl crate::gc::Mark for Value {
+	fn mark(&mut self) {
+		match self.tag() {
+			Tag::Const | Tag::Integer | Tag::Block => {}
+			#[cfg(feature = "floats")]
+			Tag::Float => {}
+
+			Tag::String => self.as_knstring().unwrap().mark(),
+			Tag::List => self.as_list().unwrap().mark(),
+			#[cfg(feature = "custom-types")]
+			Tag::Custom => self.as_custom().unwrap().mark(),
+		}
+	}
+}
+
+unsafe impl crate::gc::Sweep for Value {
+	fn sweep(self) {
+		match self.tag() {
+			Tag::Const | Tag::Integer | Tag::Block => {}
+			#[cfg(feature = "floats")]
+			Tag::Float => {}
+
+			Tag::String => self.as_knstring().unwrap().sweep(),
+			Tag::List => self.as_list().unwrap().sweep(),
+			#[cfg(feature = "custom-types")]
+			Tag::Custom => self.as_custom().unwrap().sweep(),
+		}
+	}
+}

@@ -141,6 +141,10 @@ impl KnString {
 		Self(inner)
 	}
 
+	fn flags_ref(&self) -> &AtomicU8 {
+		unsafe { &*&raw const (*self.0).flags }
+	}
+
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
 		unsafe {
 			// TODO: orderings
@@ -152,13 +156,28 @@ impl KnString {
 		&self
 	}
 
-	pub fn len(&self) -> usize {
+	pub fn len(self) -> usize {
 		let (flags, inner) = self.flags_and_inner();
 
 		if flags & Flags::Allocated as u8 == 1 {
 			unsafe { (&raw const (*inner).kind.alloc.len).read() }
 		} else {
 			(flags as usize) >> FLAG_SIZE_SHIFT
+		}
+	}
+
+	fn deallocate(self) {
+		let (flags, inner) = self.flags_and_inner();
+
+		if flags & Flags::Allocated as u8 == 1 {
+			unsafe {
+				let layout = Layout::from_size_align_unchecked(
+					(&raw const (*inner).kind.alloc.len).read(),
+					align_of::<u8>(),
+				);
+
+				std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+			}
 		}
 	}
 }
@@ -191,5 +210,21 @@ impl Debug for KnString {
 impl Display for KnString {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.as_knstr(), f)
+	}
+}
+
+unsafe impl crate::gc::Mark for KnString {
+	fn mark(&mut self) {
+		// self.
+		// flags_ref
+		todo!();
+	}
+}
+
+unsafe impl crate::gc::Sweep for KnString {
+	fn sweep(self) {
+		// self.
+		// flags_ref
+		todo!();
 	}
 }
