@@ -113,22 +113,13 @@ impl Gc {
 			}
 		}
 
+		let inner = self.next_open_inner();
+
 		unsafe {
-			// TODO: use arena allocation
-			let inner = Box::into_raw(Box::new(ValueInner {
-				_align: ValueAlign,
-				flags: AtomicU8::default(),
-				data: [0; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
-			}));
-
-			if inner.is_null() {
-				panic!("alloc failed");
-			}
-
 			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
-			self.value_inners.push(inner);
-			inner
 		}
+
+		inner
 	}
 
 	/// Indicates that `root` is a "root node," to look through when sweeping.
@@ -136,7 +127,8 @@ impl Gc {
 		self.roots.push(root);
 	}
 
-	fn mark_and_sweep(&mut self) {
+	// temporarily public, just for testing
+	pub fn mark_and_sweep(&mut self) {
 		// Mark all elements accessible from the root
 		for root in &mut self.roots {
 			unsafe {
@@ -144,16 +136,17 @@ impl Gc {
 			}
 		}
 
+		// Sweep everything that's not needed
 		for &inner in &self.value_inners {
 			let old =
 				unsafe { &*ValueInner::flags(inner) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
 
-			debug_assert_ne!(old & FLAG_GC_STATIC, 0, "attempted to sweep a static flag?");
+			debug_assert_eq!(old & FLAG_GC_STATIC, 0, "attempted to sweep a static flag?");
 
 			// If it wasn't previously marked, then free it.
 			if old & FLAG_GC_MARKED == 0 {
 				unsafe {
-					ValueInner::deallocate(inner);
+					ValueInner::deallocate(inner, false);
 				}
 			}
 		}
@@ -162,7 +155,7 @@ impl Gc {
 	pub unsafe fn shutdown(mut self) {
 		for inner in self.value_inners {
 			unsafe {
-				ValueInner::deallocate_check(inner, false);
+				ValueInner::deallocate(inner, false);
 				drop(Box::from_raw(inner));
 			}
 		}
@@ -199,23 +192,6 @@ pub unsafe trait GarbageCollected {
 	unsafe fn deallocate(self);
 
 	// unsafe fn sweep(&self, dealloc: bool)
-}
-
-// safety: has to make sure there's no cycle. shouldn't be for any builtin types.
-/// Mark is a trait to represent
-pub unsafe trait Mark {
-	// safety: should not be called by anyone other than `gc`
-	unsafe fn mark(&self);
-}
-
-pub trait Allocated {
-	// safety: caller ensures `this` is the only reference
-	unsafe fn deallocate(self);
-}
-
-pub unsafe trait Sweep {
-	// safety: should not be called by anyone other than `gc`
-	unsafe fn sweep(self, gc: &mut Gc);
 }
 
 // impl ValueInner {
@@ -279,18 +255,12 @@ impl ValueInner {
 		// If it's not marked, ie `mark` didn't mark it, then deallocate it.
 		if old & FLAG_GC_MARKED == 0 {
 			unsafe {
-				Self::deallocate(this);
+				Self::deallocate(this, true);
 			}
 		}
 	}
 
-	pub unsafe fn deallocate(this: *const Self) {
-		unsafe {
-			Self::deallocate_check(this, true);
-		}
-	}
-
-	unsafe fn deallocate_check(this: *const Self, check: bool) {
+	pub unsafe fn deallocate(this: *const Self, check: bool) {
 		debug_assert_eq!(unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_GC_STATIC, 0);
 
 		if let Some(string) = unsafe { Self::as_knstring(this) } {

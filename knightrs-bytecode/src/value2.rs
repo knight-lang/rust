@@ -258,7 +258,7 @@ unsafe impl GarbageCollected for Value {
 
 	unsafe fn deallocate(self) {
 		if self.is_alloc() {
-			unsafe { ValueInner::deallocate(self.0.ptr) }
+			unsafe { ValueInner::deallocate(self.0.ptr, true) }
 		}
 	}
 }
