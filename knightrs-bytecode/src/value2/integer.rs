@@ -1,7 +1,7 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::{Character, Encoding};
-use crate::value::{Boolean, KnValueString, List, NamedType, ToBoolean, ToKnValueString, ToList};
+use crate::value2::{Boolean, KnString, List, NamedType, ToBoolean, ToKnString, ToList};
 use crate::{Environment, Error, Options};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -436,6 +436,7 @@ unsafe impl<'path> Compilable<'_, 'path> for Integer {
 		Ok(())
 	}
 }
+*/
 
 impl ToInteger for Integer {
 	/// Simply returns `self`.
@@ -453,14 +454,14 @@ impl ToBoolean for Integer {
 	}
 }
 
-impl ToKnValueString for Integer {
+/*impl ToKnString for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
+	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString> {
 		// COMPLIANCE: `Integer#to_string` yields just an optional leading `-` followed by digits,
 		// which is valid in all encodings. Additionally, it's nowhere near the maximum length for a
 		// string.
-		Ok(KnValueString::new_unvalidated(self.to_string()))
+		Ok(KnString::new_unvalidated(self.to_string()))
 	}
 }
 
