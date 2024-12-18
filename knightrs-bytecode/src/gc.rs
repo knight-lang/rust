@@ -138,10 +138,29 @@ impl ValueInner {
 	}
 
 	pub unsafe fn mark(this: *const Self) {
-		// todo
+		let flags = unsafe { &*Self::flags(this) }.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
+
+		if flags
+			& (Flags::GcMarked as u8
+				| Flags::GcStatic as u8
+				| Flags::IsList as u8
+				| Flags::IsString as u8)
+			== (Flags::GcMarked as u8 | Flags::IsList as u8)
+		{
+			unsafe {
+				Self::as_knstring(this).unwrap_unchecked().mark();
+			}
+		}
 	}
 
 	pub unsafe fn sweep(this: *const Self, gc: &mut Gc) {
+		// let old = self.flags_ref().fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
+
+		// if old & Flags::GcMarked as u8 == 0 {
+		// 	unsafe {
+		// 		self.deallocate(gc);
+		// 	}
+		// }
 		// todo
 	}
 
