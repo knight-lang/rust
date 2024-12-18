@@ -7,6 +7,9 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use super::{ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 use crate::strings::KnStr;
 
+/// A KnString represents an allocated string within Knight, and is garbage collected.
+///
+/// (It's `Kn` because `String` is already a type in Rust, and I didn't want confusion.)
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct KnString(*const Inner);
@@ -41,12 +44,6 @@ pub(crate) mod consts {
 	pub const TRUE: KnString = static_str!("true");
 	pub const FALSE: KnString = static_str!("false");
 }
-
-static EMPTY_INNER: Inner = Inner {
-	_alignment: ValueAlign,
-	flags: AtomicU8::new(gc::FLAG_IS_STRING | gc::FLAG_GC_STATIC),
-	kind: Kind { embedded: [0; MAX_EMBEDDED_LENGTH] },
-};
 
 #[repr(C)]
 struct Inner {
@@ -97,73 +94,106 @@ sa::assert_eq_size!(KnString, super::Value);
 impl Default for KnString {
 	#[inline]
 	fn default() -> Self {
-		Self::EMPTY
+		static EMPTY_INNER: Inner = Inner {
+			_alignment: ValueAlign,
+			flags: AtomicU8::new(gc::FLAG_IS_STRING | gc::FLAG_GC_STATIC),
+			kind: Kind { embedded: [0; MAX_EMBEDDED_LENGTH] },
+		};
+
+		Self(&EMPTY_INNER)
 	}
 }
 
 impl KnString {
-	pub const EMPTY: Self = Self(&EMPTY_INNER);
-
-	pub fn into_raw(self) -> *const ValueInner {
-		self.0.cast()
-	}
-
-	pub unsafe fn from_raw(raw: *const ValueInner) -> Self {
-		Self(raw.cast())
-	}
-
-	pub unsafe fn from_value_inner(raw: *const crate::gc::ValueInner) -> Self {
-		Self(raw.cast::<Inner>())
-	}
-
+	/// Creates a new [`KnString`] from the given `source`.
 	pub fn new(source: &KnStr, gc: &mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
-			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
-			_ => Self::new_alloc(source, gc),
+
+			// SAFETY: we know it's within the bounds because we checked in the `match`
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source.as_str(), gc) },
+
+			_ => unsafe { Self::new_alloc(source.as_str(), gc) },
 		}
 	}
 
+	pub(super) fn into_raw(self) -> *const ValueInner {
+		self.0.cast()
+	}
+
+	pub(crate) unsafe fn from_raw(raw: *const ValueInner) -> Self {
+		Self(raw.cast())
+	}
+
+	// Allocate the underlying `ValueInner`.
 	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
 		unsafe { gc.alloc_value_inner(gc::FLAG_IS_STRING as u8 | flags).cast::<Inner>() }
 	}
 
-	fn new_embedded(source: &KnStr, gc: &mut Gc) -> Self {
-		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
-		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
+	// SAFETY: `source.len()` needs to be `<= MAX_EMBEDDED_LENGTH`, otherwise we copy off the end.
+	unsafe fn new_embedded(source: &str, gc: &mut Gc) -> Self {
+		let len = source.len();
+		debug_assert!(len <= MAX_EMBEDDED_LENGTH);
 
+		// Allocate the `Inner`.
+		let inner = Self::allocate((len as u8) << SIZE_MASK_SHIFT, gc);
+
+		// SAFETY:
+		// - `Self::allocate` guarantees `(*inner).kind.embedded` is non-null and properly aligned
+		let embedded_ptr = unsafe { (&raw mut (*inner).kind.embedded) }.cast::<u8>();
+
+		// SAFETY
+		// - caller guarantees that `source` has at least `len` bytes, so the `embedded_ptr` and
+		//   `source.as_ptr()` are exactly `len` bytes.
+		// - both are aligned for bytes.
+		// - they don't overlap, as we just allocated the embedded pointer.
 		unsafe {
-			(&raw mut (*inner).kind.embedded)
-				.cast::<u8>()
-				.copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
+			embedded_ptr.copy_from_nonoverlapping(source.as_ptr(), len);
 		}
 
 		Self(inner)
 	}
 
-	fn new_alloc(source: &KnStr, gc: &mut Gc) -> Self {
-		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
+	// SAFETY: source.len() cannot be zero
+	unsafe fn new_alloc(source: &str, gc: &mut Gc) -> Self {
+		let len = source.len();
+		debug_assert!(len > MAX_EMBEDDED_LENGTH, "too many bytes given; use new_embedded?");
 
+		// Allocate the `Inner`.
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
 
+		// SAFETY: `Self::allocate` guarantees it'll be aligned and non-null
 		unsafe {
-			(&raw mut (*inner).kind.alloc.len).write(source.len());
+			(&raw mut (*inner).kind.alloc.len).write(len);
+		}
 
-			let ptr =
-				std::alloc::alloc(Layout::from_size_align_unchecked(source.len(), align_of::<u8>()));
-			if ptr.is_null() {
-				panic!("alloc failed");
-			}
+		// SAFETY:
+		// - align `align_of::<u8>()` is nonzero and a power of two, as it's from `align_of::<u8>()`.
+		// - size `len` came from a `&str`, we know it is `<= isize::MAX`
+		let layout = unsafe { Layout::from_size_align_unchecked(len, align_of::<u8>()) };
 
-			ptr.copy_from_nonoverlapping(source.as_str().as_ptr(), source.len());
-			(&raw mut (*inner).kind.alloc.ptr).write(ptr);
+		// SAFETY:
+		// - `layout` is non-zero size, as caller guarantees it
+		let alloc_ptr = unsafe { std::alloc::alloc(layout) };
+		if alloc_ptr.is_null() {
+			std::alloc::handle_alloc_error(layout);
+		}
+
+		// SAFETY:
+		// - `alloc_ptr` was allocated specifically for `len`
+		// - `source.as_ptr()` has exactly `len` bytes
+		// - both are aligned for `u8`
+		// - they don't overlap, as we just allocated `alloc_ptr`.
+		unsafe {
+			alloc_ptr.copy_from_nonoverlapping(source.as_ptr(), len);
+		}
+
+		// SAFETY: `Self::allocate` guarantees it'll be aligned and non-null
+		unsafe {
+			(&raw mut (*inner).kind.alloc.ptr).write(alloc_ptr);
 		}
 
 		Self(inner)
-	}
-
-	fn flags_ref(&self) -> &AtomicU8 {
-		unsafe { &*&raw const (*self.0).flags }
 	}
 
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
@@ -173,8 +203,20 @@ impl KnString {
 		}
 	}
 
+	/// Returns the underlying [`KnStr`].
 	pub fn as_knstr(&self) -> &KnStr {
-		&self
+		let (flags, inner) = self.flags_and_inner();
+
+		unsafe {
+			let slice_ptr = if flags & ALLOCATED_FLAG != 0 {
+				(&raw const (*inner).kind.alloc.ptr).read()
+			} else {
+				(*inner).kind.embedded.as_ptr()
+			};
+
+			let slice = std::slice::from_raw_parts(slice_ptr, self.len());
+			KnStr::new_unvalidated(std::str::from_utf8_unchecked(slice))
+		}
 	}
 
 	pub fn len(self) -> usize {
@@ -192,18 +234,7 @@ impl std::ops::Deref for KnString {
 	type Target = KnStr;
 
 	fn deref(&self) -> &Self::Target {
-		let (flags, inner) = self.flags_and_inner();
-
-		unsafe {
-			let slice_ptr = if flags & ALLOCATED_FLAG != 0 {
-				(&raw const (*inner).kind.alloc.ptr).read()
-			} else {
-				(*inner).kind.embedded.as_ptr()
-			};
-
-			let slice = std::slice::from_raw_parts(slice_ptr, self.len());
-			KnStr::new_unvalidated(std::str::from_utf8_unchecked(slice))
-		}
+		self.as_knstr()
 	}
 }
 

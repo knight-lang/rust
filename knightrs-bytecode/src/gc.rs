@@ -254,7 +254,7 @@ impl ValueInner {
 
 	pub(crate) unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_STRING != 0 {
-			Some(unsafe { crate::value2::KnString::from_value_inner(this) })
+			Some(unsafe { crate::value2::KnString::from_raw(this) })
 		} else {
 			None
 		}
@@ -262,7 +262,7 @@ impl ValueInner {
 
 	pub(crate) unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_LIST != 0 {
-			Some(unsafe { crate::value2::List::from_value_inner(this) })
+			Some(unsafe { crate::value2::List::from_raw(this) })
 		} else {
 			None
 		}
