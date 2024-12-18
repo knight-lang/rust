@@ -128,6 +128,29 @@ impl Gc {
 		self.next_open_inner_().expect("we just extended")
 	}
 
+	// pub unsafe fn alloc_value_inner3(&mut self, flags: u8) -> *mut ValueInner2<[u8; 10000]> {
+	// 	unsafe { self.alloc_value_inner2::<[u8; 10000]>(flags) }
+	// }
+
+	// pub unsafe fn alloc_value_inner2<T>(&mut self, flags: u8) -> *mut ValueInner2<T> {
+	// 	const {
+	// 		let size = std::mem::size_of::<ValueInner2<T>>();
+	// 		assert!(size <= ALLOC_VALUE_SIZE);
+	// 		assert!(size <= ALLOC_VALUE_SIZE);
+	// 	}
+	// 	// };
+
+	// 	// fn size<const N: usize>(_: [(); N]) {}
+	// 	// size([(); std::mem::size_of::<ValueInner2<T>>()]);
+	// 	// // const SIZE: usize = {
+	// 	// // 	let size = ;
+	// 	// // 	assert!(size <= ALLOC_VALUE_SIZE);
+	// 	// // };
+
+	// 	std::ptr::null_mut()
+	// 	// debug_assert_eq!(flags & FLAG_GC_MARKED, 0, "cannot already be marked");
+	// }
+
 	/// Allocate another [`ValueInner`], possibly triggering a GC cycle if needed.
 	///
 	/// `flags` should contain the flags for the [`ValueInner`], and must:
