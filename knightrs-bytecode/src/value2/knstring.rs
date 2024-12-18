@@ -1,4 +1,4 @@
-use crate::gc::{self, Allocated, Gc};
+use crate::gc::{self, GarbageCollected, Gc};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -188,14 +188,22 @@ impl Display for KnString {
 	}
 }
 
-impl Allocated for KnString {
+unsafe impl GarbageCollected for KnString {
+	unsafe fn mark(&self) {
+		// Do nothing, `self` doesn't reference other `GarbageCollected `types.
+		// TODO: If we add in "cons" variants and whatnot, then this should be modified
+	}
+
 	unsafe fn deallocate(self) {
 		let (flags, inner) = self.flags_and_inner();
+		debug_assert_eq!(flags & gc::FLAG_GC_STATIC, 0, "<called deallocate on a static?>");
 
+		// If the string isn't allocated, then just return early.
 		if flags & ALLOCATED_FLAG == 0 {
 			return;
 		}
 
+		// Free the memory associated with the allocated pointer.
 		unsafe {
 			let layout = Layout::from_size_align_unchecked(
 				(&raw const (*inner).kind.alloc.len).read(),

@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::gc::{Allocated, Gc, Mark, Sweep};
+use crate::gc::{GarbageCollected, Gc};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
 mod block;
@@ -244,27 +244,15 @@ impl Value {
 	}
 }
 
-unsafe impl Mark for Value {
-	unsafe fn mark(&mut self) {
+unsafe impl GarbageCollected for Value {
+	unsafe fn mark(&self) {
 		let (repr, tag) = self.parts();
 
 		if tag == Tag::Alloc {
 			unsafe { crate::gc::ValueInner::mark(repr as *const _) }
 		}
 	}
-}
 
-unsafe impl Sweep for Value {
-	unsafe fn sweep(self, gc: &mut Gc) {
-		let (repr, tag) = self.parts();
-
-		if tag == Tag::Alloc {
-			unsafe { crate::gc::ValueInner::sweep(repr as *const _) }
-		}
-	}
-}
-
-impl Allocated for Value {
 	unsafe fn deallocate(self) {
 		let (repr, tag) = self.parts();
 

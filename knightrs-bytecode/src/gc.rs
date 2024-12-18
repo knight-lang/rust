@@ -102,11 +102,15 @@ impl Gc {
 		debug_assert_eq!(flags & FLAG_GC_MARKED, 0, "cannot already be marked");
 
 		#[cfg(debug_assertions)]
-		match flags & (FLAG_IS_STRING | FLAG_IS_LIST | FLAG_IS_CUSTOM) {
-			FLAG_IS_STRING | (FLAG_IS_STRING | FLAG_IS_CUSTOM) => {}
-			FLAG_IS_LIST | (FLAG_IS_LIST | FLAG_IS_CUSTOM) => {}
-			FLAG_IS_CUSTOM => {}
-			_ => unreachable!("type passed in wasn't correct: {flags:?}"),
+		{
+			let ty = flags & (FLAG_IS_STRING | FLAG_IS_LIST | FLAG_IS_CUSTOM);
+			// If we have all of them set, or
+			if ty == FLAG_IS_STRING || ty == (FLAG_IS_STRING | FLAG_IS_CUSTOM) {
+			} else if ty == FLAG_IS_LIST || ty == (FLAG_IS_LIST | FLAG_IS_CUSTOM) {
+			} else if ty == FLAG_IS_CUSTOM {
+			} else {
+				unreachable!("type passed in wasn't correct: {flags:08b}");
+			}
 		}
 
 		unsafe {
@@ -155,19 +159,53 @@ impl Gc {
 		}
 	}
 
-	pub unsafe fn shutdown(&mut self) {
-		for root in std::mem::take(&mut self.roots) {
+	pub unsafe fn shutdown(mut self) {
+		for inner in self.value_inners {
 			unsafe {
-				root.deallocate();
+				ValueInner::deallocate_check(inner, false);
+				drop(Box::from_raw(inner));
 			}
 		}
 	}
 }
 
+/// A Trait implemented by types that are able to be garbage collected.
+///
+/// # Safety
+/// Implementors must ensure that all of the methods are implemented correctly. More specifically,
+/// they must ensure that:
+///
+/// - `mark`: _all_ [`GarbageCollected`] types reachable from `self` must be `mark`ed themselves.
+//            If this is violated, then they might be freed before `self` is done with them.
+pub unsafe trait GarbageCollected {
+	/// Marks all the values reachable from `self` as "active."
+	///
+	/// Note that this is called after `self` has been marked itself, so only children reachable from
+	/// `self` need to be marked.
+	///
+	/// # Safety
+	/// This must only be called within a [`GarbageCollected::mark`] implementation. Calling it
+	/// randomly will cause random things to be marked, which possibily will leak memory. (Which
+	/// technically isn't undefined behaviour, but i've still marked it unsafe.)
+	unsafe fn mark(&self);
+
+	/// Frees all the memory related to `self`, **but not** memory related to [`GarbageCollected`]
+	/// types `self` can access. (This is because they'll eventually have _thier_ `deallocate` called
+	/// themselves.)
+	///
+	/// # Safety
+	/// This shouldn't be called by anyone other than `GC.mark_and_sweep`, as there's no other way
+	/// to ensure that nothing's used.
+	unsafe fn deallocate(self);
+
+	// unsafe fn sweep(&self, dealloc: bool)
+}
+
 // safety: has to make sure there's no cycle. shouldn't be for any builtin types.
+/// Mark is a trait to represent
 pub unsafe trait Mark {
 	// safety: should not be called by anyone other than `gc`
-	unsafe fn mark(&mut self);
+	unsafe fn mark(&self);
 }
 
 pub trait Allocated {
@@ -247,6 +285,12 @@ impl ValueInner {
 	}
 
 	pub unsafe fn deallocate(this: *const Self) {
+		unsafe {
+			Self::deallocate_check(this, true);
+		}
+	}
+
+	unsafe fn deallocate_check(this: *const Self, check: bool) {
 		debug_assert_eq!(unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_GC_STATIC, 0);
 
 		if let Some(string) = unsafe { Self::as_knstring(this) } {
@@ -257,7 +301,7 @@ impl ValueInner {
 			unsafe {
 				list.deallocate();
 			}
-		} else {
+		} else if check {
 			unreachable!("non-list non-string encountered?");
 		}
 

@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::gc::{self, Allocated, Gc, Mark, Sweep};
+use crate::gc::{self, GarbageCollected, Gc};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -183,21 +183,32 @@ impl Debug for List {
 // impl Allocated for KnString {
 // }
 
-unsafe impl Mark for List {
-	unsafe fn mark(&mut self) {
-		// self.flags_ref().fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
-		todo!();
+unsafe impl GarbageCollected for List {
+	unsafe fn mark(&self) {
+		for value in self.as_slice() {
+			unsafe {
+				value.mark();
+			}
+		}
 	}
-}
 
-unsafe impl Sweep for List {
-	unsafe fn sweep(self, gc: &mut Gc) {
-		todo!();
-	}
-}
-
-impl Allocated for List {
 	unsafe fn deallocate(self) {
-		todo!()
+		let (flags, inner) = self.flags_and_inner();
+		debug_assert_eq!(flags & gc::FLAG_GC_STATIC, 0, "<called deallocate on a static?>");
+
+		// If the string isn't allocated, then just return early.
+		if flags & ALLOCATED_FLAG == 0 {
+			return;
+		}
+
+		// Free the memory associated with the allocated pointer.
+		unsafe {
+			let layout = Layout::from_size_align_unchecked(
+				(&raw const (*inner).kind.alloc.len).read(),
+				align_of::<Value>(),
+			);
+
+			std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+		}
 	}
 }

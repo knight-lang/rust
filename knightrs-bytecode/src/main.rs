@@ -27,7 +27,7 @@ fn run(
 fn main() {
 	use knightrs_bytecode::gc::*;
 	use knightrs_bytecode::value2 as v2;
-	let mut gc = Gc::default();
+	let mut gc = Gc::new();
 
 	let mut greeting = v2::Value::from(v2::KnString::new(
 		KnStr::new_unvalidated("hello worldhello worldhello worldhello worldhello worldhello world"),
@@ -37,7 +37,6 @@ fn main() {
 	dbg!(v2::Value::from(v2::List::boxed(greeting, &mut gc)));
 
 	gc.add_root(greeting);
-	gc.mark_and_sweep();
 
 	unsafe {
 		gc.shutdown();
