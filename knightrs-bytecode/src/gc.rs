@@ -13,25 +13,24 @@ pub const ALLOC_VALUE_SIZE: usize = 32;
 #[repr(C)]
 pub struct ValueInner {
 	_align: ValueAlign,
+	// Note if `flags` is zero that means the field is unused. This won't happen when it's used
+	// because the `IS_XXX` bits will be set, at a minimum.
 	pub flags: AtomicU8,
 	// TODO: make this data maybeuninit
 	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 }
 
-#[repr(C, align(1))]
-#[rustfmt::skip]
-pub enum Flags { // TODO: Don't make this an enum, make it a struct or somethin
-	GcIsUsed   = 0b00000_001,
-	GcMarked   = 0b00000_010,
-	GcStatic   = 0b00000_100,
+pub const FLAG_GC_MARKED: u8 = 1 << 0;
+pub const FLAG_GC_STATIC: u8 = 1 << 1;
+pub const FLAG_IS_STRING: u8 = 1 << 2;
+pub const FLAG_IS_LIST: u8 = 1 << 3;
+#[cfg(feature = "custom-types")]
+pub const FLAG_IS_CUSTOM: u8 = 1 << 4; // must check if `FLAG_IS_STRING` isn't set,as it uses FLAG_CUSTOM_0_DONTUSE
+pub const FLAG_CUSTOM_0_DONTUSE: u8 = 1 << 4;
 
-	IsString   = 0b00001_000,
-	IsList     = 0b00010_000,
-	#[cfg(feature = "custom-types")]
-	IsCustom   = 0b00100_000,
-	Custom1    = 0b01000_000,
-	Custom2    = 0b10000_000,
-}
+pub const FLAG_CUSTOM1: u8 = 1 << 5;
+pub const FLAG_CUSTOM2: u8 = 1 << 6;
+pub const FLAG_CUSTOM3: u8 = 1 << 7;
 
 impl Gc {
 	pub fn add_root(&mut self, root: Value) {
@@ -41,12 +40,12 @@ impl Gc {
 	pub unsafe fn alloc_value_inner(&mut self, flags: u8) -> *mut ValueInner {
 		use std::alloc::{alloc, Layout};
 
-		debug_assert_eq!(flags & Flags::GcMarked as u8, 0);
+		debug_assert_eq!(flags & FLAG_GC_MARKED, 0, "cannot already be marked");
 		debug_assert_ne!(
 			flags
-				& (Flags::IsString as u8
-					| Flags::IsList as u8
-					| cfg_expr!(feature = "custom-types", Flags::IsCustom as u8, 0)),
+				& (FLAG_IS_STRING
+					| FLAG_IS_LIST
+					| cfg_expr!(feature = "custom-types", FLAG_IS_CUSTOM, 0)),
 			0,
 			"need a type passed in"
 		);
@@ -61,14 +60,6 @@ impl Gc {
 
 			self.value_inners.push(inner);
 			inner
-		}
-	}
-
-	pub fn free_value_inner(&mut self, ptr: *mut ValueInner) {
-		use std::alloc::{dealloc, Layout};
-		unsafe {
-			let layout = Layout::new::<ValueInner>();
-			dealloc(ptr.cast::<u8>(), layout);
 		}
 	}
 
@@ -106,6 +97,11 @@ pub unsafe trait Mark {
 	unsafe fn mark(&mut self);
 }
 
+pub trait Allocated {
+	// safety: caller ensures `this` is the only reference
+	unsafe fn deallocate(self, gc: &mut Gc);
+}
+
 pub unsafe trait Sweep {
 	// safety: should not be called by anyone other than `gc`
 	unsafe fn sweep(self, gc: &mut Gc);
@@ -114,12 +110,19 @@ pub unsafe trait Sweep {
 
 // impl ValueInner {
 impl ValueInner {
+	// pub unsafe fn free(ptr: *mut Self) {
+	// 	use std::alloc::{dealloc, Layout};
+	// 	unsafe {
+	// 		dealloc(ptr.cast::<u8>(), Layout::new::<Self>());
+	// 	}
+	// }
+
 	fn flags(this: *const Self) -> *const AtomicU8 {
 		unsafe { &raw const (*this).flags }
 	}
 
 	pub unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
-		if unsafe { Self::flags(this).read().load(Ordering::SeqCst) } & Flags::IsString as u8 != 0 {
+		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_STRING != 0 {
 			Some(unsafe { crate::value2::KnString::from_value_inner(this) })
 		} else {
 			None
@@ -127,10 +130,7 @@ impl ValueInner {
 	}
 
 	pub unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
-		if unsafe { Self::flags(this).read().load(Ordering::SeqCst) }
-			& (Flags::IsString as u8 | Flags::IsList as u8)
-			== Flags::IsList as u8
-		{
+		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_LIST != 0 {
 			Some(unsafe { crate::value2::List::from_value_inner(this) })
 		} else {
 			None
@@ -138,30 +138,36 @@ impl ValueInner {
 	}
 
 	pub unsafe fn mark(this: *const Self) {
-		let flags = unsafe { &*Self::flags(this) }.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
+		let flags = unsafe { &*Self::flags(this) }.fetch_or(FLAG_GC_MARKED, Ordering::SeqCst);
 
-		if flags & Flags::GcStatic as u8 != 0 {
+		// Don't mark static things
+		if flags & FLAG_GC_STATIC != 0 {
 			return;
 		}
 
-		if flags & (Flags::GcMarked as u8 | Flags::IsList as u8 | Flags::IsString as u8)
-			== (Flags::GcMarked as u8 | Flags::IsList as u8)
-		{
+		// If it was already marked, it's a loop, don't go again
+		if flags & FLAG_GC_MARKED != 0 {
+			dbg!("can we even loop?");
+			return;
+		}
+
+		if let Some(mut list) = unsafe { Self::as_list(this) } {
 			unsafe {
-				Self::as_knstring(this).unwrap_unchecked().mark();
+				list.mark();
 			}
 		}
 	}
 
 	pub unsafe fn sweep(this: *const Self, gc: &mut Gc) {
-		let old =
-			unsafe { &*Self::flags(this) }.fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
+		let old = unsafe { &*Self::flags(this) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
 
-		if old & Flags::GcStatic as u8 != 0 {
+		// If it's static then just return
+		if old & FLAG_GC_STATIC != 0 {
 			return;
 		}
 
-		if old & (Flags::GcMarked as u8) == 0 {
+		// If it's not marked, ie `mark` didn't mark it, then deallocate it.
+		if old & FLAG_GC_MARKED == 0 {
 			unsafe {
 				Self::deallocate(this, gc);
 			}
@@ -169,31 +175,21 @@ impl ValueInner {
 	}
 
 	pub unsafe fn deallocate(this: *const Self, gc: &mut Gc) {
-		debug_assert_eq!(
-			unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & Flags::GcStatic as u8,
-			0
-		);
+		debug_assert_eq!(unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_GC_STATIC, 0);
 
-		if let Some(list) = unsafe { Self::as_list(this) } {
+		if let Some(string) = unsafe { Self::as_knstring(this) } {
+			unsafe {
+				string.deallocate(gc);
+			}
+		} else if let Some(list) = unsafe { Self::as_list(this) } {
 			unsafe {
 				list.deallocate(gc);
 			}
+		} else {
+			unreachable!("non-list non-string encountered?");
 		}
 
-		// TODO: deallocate `*const Self`
+		// Mark it as `0` to indicate it's unused.
+		unsafe { &*Self::flags(this) }.store(0, Ordering::SeqCst);
 	}
 }
-// 	unsafe fn mark(&mut self) {
-// 		let was_marked = self.flags.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
-// 		if was_marked & Flags::GcMarked as u8 == 0 {
-// 			self as *
-// 			// TODO: mark lists
-// 		}
-// 	}
-// }
-// #[repr(C)]
-// pub struct ValueInner {
-// 	_align: ValueAlign,
-// 	pub flags: AtomicU8,
-// 	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
-// }

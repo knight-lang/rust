@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::gc::{Flags, Gc, Mark, Sweep};
+use crate::gc::{self, Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -13,7 +13,7 @@ pub struct List(*const Inner);
 
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
-	flags: AtomicU8::new(Flags::GcStatic as u8 | Flags::IsList as u8),
+	flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
 	kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
 };
 
@@ -33,8 +33,8 @@ unsafe impl Send for Inner {}
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Sync for Inner {}
 
-const ALLOCATED_FLAG: u8 = Flags::Custom1 as u8;
-const SIZE_MASK_FLAG: u8 = (Flags::Custom2 as u8) | (Flags::Custom3 as u8);
+const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM1;
+const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM2 | gc::FLAG_CUSTOM3;
 const SIZE_MASK_SHIFT: u8 = 6;
 const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 
@@ -96,7 +96,7 @@ impl List {
 	}
 
 	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
-		unsafe { gc.alloc_value_inner(flags | Flags::IsList as u8) }.cast::<Inner>()
+		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
 	}
 
 	fn new_embedded(source: &[Value], gc: &mut Gc) -> Self {
@@ -179,6 +179,9 @@ impl Debug for List {
 		Debug::fmt(self.as_slice(), f)
 	}
 }
+
+// impl Allocated for KnString {
+// }
 
 unsafe impl Mark for List {
 	unsafe fn mark(&mut self) {

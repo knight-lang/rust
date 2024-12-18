@@ -1,4 +1,4 @@
-use crate::gc::{Flags, Gc, Mark, Sweep};
+use crate::gc::{self, Allocated, Gc};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -13,7 +13,7 @@ pub struct KnString(*const Inner);
 
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
-	flags: AtomicU8::new(Flags::IsString as u8 | Flags::GcStatic as u8),
+	flags: AtomicU8::new(gc::FLAG_IS_STRING | gc::FLAG_GC_STATIC),
 	kind: Kind { embedded: [0; MAX_EMBEDDED_LENGTH] },
 };
 
@@ -33,8 +33,8 @@ unsafe impl Send for Inner {}
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Sync for Inner {}
 
-const ALLOCATED_FLAG: u8 = Flags::IsList as u8; // since we only ever check for islist once
-const SIZE_MASK_FLAG: u8 = (Flags::Custom1 as u8) | (Flags::Custom1 as u8) | (Flags::Custom3 as u8);
+const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0_DONTUSE;
+const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM1 | gc::FLAG_CUSTOM2 | gc::FLAG_CUSTOM3;
 const SIZE_MASK_SHIFT: u8 = 5;
 const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 
@@ -94,7 +94,7 @@ impl KnString {
 	}
 
 	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
-		unsafe { gc.alloc_value_inner(Flags::IsString as u8 | flags).cast::<Inner>() }
+		unsafe { gc.alloc_value_inner(gc::FLAG_IS_STRING as u8 | flags).cast::<Inner>() }
 	}
 
 	fn new_embedded(source: &KnStr, gc: &mut Gc) -> Self {
@@ -188,36 +188,21 @@ impl Display for KnString {
 	}
 }
 
-unsafe impl Mark for KnString {
-	unsafe fn mark(&mut self) {
-		self.flags_ref().fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
-	}
-}
-
-unsafe impl Sweep for KnString {
-	unsafe fn sweep(self, gc: &mut Gc) {
-		let old = self.flags_ref().fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
-
-		if old & Flags::GcMarked as u8 == 0 {
-			unsafe {
-				self.deallocate(gc);
-			}
-		}
-	}
-
+impl Allocated for KnString {
 	unsafe fn deallocate(self, gc: &mut Gc) {
 		let (flags, inner) = self.flags_and_inner();
-		if flags & ALLOCATED_FLAG != 0 {
-			unsafe {
-				let layout = Layout::from_size_align_unchecked(
-					(&raw const (*inner).kind.alloc.len).read(),
-					align_of::<u8>(),
-				);
 
-				std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
-			}
+		if flags & ALLOCATED_FLAG == 0 {
+			return;
 		}
 
-		gc.free_value_inner((self.0 as *mut Inner).cast());
+		unsafe {
+			let layout = Layout::from_size_align_unchecked(
+				(&raw const (*inner).kind.alloc.len).read(),
+				align_of::<u8>(),
+			);
+
+			std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+		}
 	}
 }
