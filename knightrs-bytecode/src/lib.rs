@@ -11,6 +11,19 @@ extern crate thiserror;
 #[macro_use]
 extern crate static_assertions as sa;
 
+macro_rules! cfg_expr {
+	(feature = $feature:literal, $ift:expr, $iff:expr) => {{
+		#[cfg(feature = $feature)]
+		{
+			$ift
+		}
+		#[cfg(not(feature = $feature))]
+		{
+			$iff
+		}
+	}};
+}
+
 mod container;
 pub mod env;
 pub mod error;

@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::gc::{Gc, Mark, Sweep};
+use crate::gc::{Flags, Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -13,7 +13,7 @@ pub struct List(*const Inner);
 
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
-	flags: AtomicU8::new(Flags::Static as u8),
+	flags: AtomicU8::new(Flags::GcStatic as u8),
 	kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
 };
 
@@ -33,19 +33,15 @@ unsafe impl Send for Inner {}
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Sync for Inner {}
 
-#[repr(u8, align(1))]
-#[rustfmt::skip]
-enum Flags {
-	Allocated = 0b0000_0001, // If unset, it's embedded
-	GcMarked  = 0b0000_0010,
-	Static    = 0b0000_0100,
-	SizeMask  = 0b1100_0000,
-}
+const ALLOCATED_FLAG: u8 = Flags::Custom1 as u8;
+const SIZE_MASK_FLAG: u8 = (Flags::Custom2 as u8) | (Flags::Custom3 as u8);
+const SIZE_MASK_SHIFT: u8 = 6;
+const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 
-const MAX_EMBEDDED_LENGTH: usize =
-	(ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>()) / size_of::<Value>();
-const FLAG_SIZE_SHIFT: usize = 6;
-sa::const_assert!((Flags::SizeMask as usize) >> FLAG_SIZE_SHIFT <= MAX_EMBEDDED_LENGTH);
+// TODO: If this isn't true, we're wasting space!
+sa::const_assert!(
+	MAX_EMBEDDED_LENGTH == (ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>()) / size_of::<Value>()
+);
 
 #[repr(C)]
 union Kind {
@@ -96,16 +92,12 @@ impl List {
 	}
 
 	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
-		let inner = gc.alloc_value_inner().cast::<Inner>();
-		unsafe {
-			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
-		}
-		inner
+		unsafe { gc.alloc_value_inner(flags | Flags::IsList as u8) }.cast::<Inner>()
 	}
 
 	fn new_embedded(source: &[Value], gc: &mut Gc) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
-		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT, gc);
+		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.embedded)
@@ -119,8 +111,7 @@ impl List {
 	fn new_alloc(source: &[Value], gc: &mut Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
-		let inner =
-			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8, gc);
+		let inner = Self::allocate(ALLOCATED_FLAG, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
@@ -151,7 +142,7 @@ impl List {
 		let (flags, inner) = self.flags_and_inner();
 
 		unsafe {
-			let slice_ptr = if flags & Flags::Allocated as u8 == 1 {
+			let slice_ptr = if flags & ALLOCATED_FLAG != 0 {
 				(&raw const (*inner).kind.alloc.ptr).read()
 			} else {
 				(*inner).kind.embedded.as_ptr()
@@ -164,10 +155,10 @@ impl List {
 	pub fn len(&self) -> usize {
 		let (flags, inner) = self.flags_and_inner();
 
-		if flags & Flags::Allocated as u8 == 1 {
+		if flags & ALLOCATED_FLAG != 0 {
 			unsafe { (&raw const (*inner).kind.alloc.len).read() }
 		} else {
-			(flags as usize) >> FLAG_SIZE_SHIFT
+			(flags as usize) >> SIZE_MASK_SHIFT
 		}
 	}
 }
@@ -187,6 +178,7 @@ impl Debug for List {
 
 unsafe impl Mark for List {
 	unsafe fn mark(&mut self) {
+		// self.flags_ref().fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
 		todo!();
 	}
 }

@@ -1,4 +1,4 @@
-use crate::gc::{Gc, Mark, Sweep};
+use crate::gc::{Flags as GcFlags, Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -98,11 +98,11 @@ impl KnString {
 	}
 
 	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
-		let inner = gc.alloc_value_inner().cast::<Inner>();
 		unsafe {
+			let inner = gc.alloc_value_inner(GcFlags::IsString as u8 | flags).cast::<Inner>();
 			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
+			inner
 		}
-		inner
 	}
 
 	fn new_embedded(source: &KnStr, gc: &mut Gc) -> Self {
