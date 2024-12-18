@@ -37,6 +37,7 @@ XXXX ... XXXX 110 -- Block
 XXXX ... XXXX 111 -- Custom
 */
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
+#[derive(Clone, Copy)]
 pub struct Value(ValueRepr);
 
 #[repr(align(16))]
@@ -173,7 +174,7 @@ impl Value {
 		Self(repr | tag as ValueRepr)
 	}
 
-	const fn tag(&self) -> Tag {
+	const fn tag(self) -> Tag {
 		let mask = (self.0 & TAG_MASK) as u8;
 		debug_assert!(
 			mask == Tag::Const as _
@@ -200,26 +201,19 @@ impl Value {
 		unsafe { std::mem::transmute::<u8, Tag>(mask) }
 	}
 
-	/// Get the bytes of `self` _WITHOUT RUNNING THE DESTRUCTOR_.
-	const fn bytes(self) -> ValueRepr {
-		let bytes = self.0;
-		std::mem::forget(self);
-		bytes
-	}
-
-	const fn parts_shift(&self) -> (ValueRepr, Tag) {
+	const fn parts_shift(self) -> (ValueRepr, Tag) {
 		(self.0 >> TAG_SHIFT, self.tag())
 	}
 
-	const fn parts(&self) -> (ValueRepr, Tag) {
+	const fn parts(self) -> (ValueRepr, Tag) {
 		(self.0 & !TAG_MASK, self.tag())
 	}
 
-	pub const fn is_null(&self) -> bool {
-		self.0 == Self::NULL.bytes()
+	pub const fn is_null(self) -> bool {
+		self.0 == Self::NULL.0
 	}
 
-	pub const fn as_integer(&self) -> Option<Integer> {
+	pub const fn as_integer(self) -> Option<Integer> {
 		// Can't use `==` b/c the PartialEq impl isn't `const`.
 		if !matches!(self.tag(), Tag::Integer) {
 			return None;
@@ -231,31 +225,30 @@ impl Value {
 		))
 	}
 
-	pub const fn as_boolean(&self) -> Option<Boolean> {
-		if self.0 == Self::TRUE.bytes() {
+	pub const fn as_boolean(self) -> Option<Boolean> {
+		if self.0 == Self::TRUE.0 {
 			Some(true)
-		} else if self.0 == Self::FALSE.bytes() {
+		} else if self.0 == Self::FALSE.0 {
 			Some(false)
 		} else {
 			None
 		}
 	}
 
-	pub fn as_block(&self) -> Option<Block> {
+	pub fn as_block(self) -> Option<Block> {
 		let (repr, tag) = self.parts_shift();
 
 		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
 	}
 
-	pub fn as_list(&self) -> Option<List> {
+	pub fn as_list(self) -> Option<List> {
 		let (repr, tag) = self.parts_shift();
 
-		matches!(tag, Tag::List).then(|| unsafe { List::from_raw_and_incr(repr) })
+		matches!(tag, Tag::List).then(|| unsafe { List::from_raw(repr as _) })
 	}
 
-	pub fn as_knstring(&self) -> Option<KnString> {
+	pub fn as_knstring(self) -> Option<KnString> {
 		let (repr, tag) = self.parts();
-		println!("{:0b}", repr);
 
 		matches!(tag, Tag::String).then(|| unsafe { KnString::from_raw(repr as _) })
 	}

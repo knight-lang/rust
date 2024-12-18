@@ -7,6 +7,7 @@ use super::{ValueAlign, ValueRepr, ALLOC_VALUE_SIZE_IN_BYTES};
 use crate::strings::KnStr;
 
 #[repr(transparent)]
+#[derive(Clone, Copy)]
 pub struct KnString(*const Inner);
 
 static EMPTY_INNER: Inner = Inner {

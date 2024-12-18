@@ -1,0 +1,42 @@
+ub list:
+- string literals larger than max int size
+- created strings larger than max int size
+- lists larger than max int size
+≈ string->integer creates an integer that's oob (isnt pretty)
+≈ eval a variable which doesnt exist (not great)
+PROMPT: problems reading from stdin (closed, etc), reading chars which arent valid strings 
+OUTPUT: any problems when writing to stdout
+DUMP: any problems writing to stdout
+
+√ CALL: anything other than BLOCK's return value
+√ QUIT: exit status isn't wihtin 0..=127
+√ ASCII: integer's not in the encoding, empty string, other types
+√ DUMP: for blocks
+√ [: empty string/list, other types
+√ ]: empty string/list, other types
+√ +: other types
+√ -: other types
+√ *: second arg negative for strings/lists, other types
+√ /: zero for second argument, other types
+√ %: first arg negative, second arg zero or negative, other types
+√ ^: second arg negative for ints, other types
+√ <: either argument is a list and has blocks, other types
+√ >: either argument is a list and has blocks, other types
+√ ?: either argument is a list and has blocks, other types
+√ =: first argument isn't a variable
+√ tokens after the first expression in the file
+√ invalid chars in a string
+√ int literals larger than max size
+√ strings not to have a closing quote
+√ variable names longer than 127
+√ fewer expression than required for a function
+√ parens dont enclose a single expression
+√ converting blocks to any type
+√ over/underflow for any integer
+√ GET: second or third args negative, or their sum > length, other types
+√ SET: second or third args negative, or their sum > length, other types
+√ using blocks anywhere other than:
+	- sole argument to `:`, `BLOCK`, `CALL`, `,`
+	- second arg to `=`
+	- either arg of `;`
+	- second or third arg of `IF`
