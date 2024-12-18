@@ -17,6 +17,31 @@ pub trait ToKnString {
 	fn to_knstring(&self, env: &mut crate::Environment) -> crate::Result<KnString>;
 }
 
+pub(crate) mod consts {
+	use super::*;
+
+	macro_rules! static_str {
+		($id:literal) => {{
+			static __INNER: Inner = Inner {
+				_alignment: ValueAlign,
+				// TODO: make the `FLAG_CUSTOM_2` use a function.
+				flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST | ALLOCATED_FLAG),
+				kind: Kind {
+					alloc: Alloc {
+						_padding: [0; ALLOC_PADDING_ALIGN],
+						ptr: $id.as_ptr(),
+						len: $id.len(),
+					},
+				},
+			};
+			KnString(&__INNER)
+		}};
+	}
+
+	pub const TRUE: KnString = static_str!("true");
+	pub const FALSE: KnString = static_str!("false");
+}
+
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
 	flags: AtomicU8::new(gc::FLAG_IS_STRING | gc::FLAG_GC_STATIC),

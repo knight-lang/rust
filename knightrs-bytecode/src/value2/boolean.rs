@@ -12,7 +12,7 @@ pub trait ToBoolean {
 	/// Converts `self` to a [`Boolean`].
 	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean>;
 }
-/*
+
 impl NamedType for Boolean {
 	#[inline]
 	fn type_name(&self) -> &'static str {
@@ -41,11 +41,10 @@ impl ToList for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
 	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		// static TRUE_BOX: List = List::new_unvalidated(true.into());
 		if *self {
-			Ok(List::boxed((*self).into()))
+			Ok(crate::value2::list::consts::JUST_TRUE)
 		} else {
-			Ok(List::default())
+			Ok(List::EMPTY)
 		}
 	}
 }
@@ -53,20 +52,16 @@ impl ToList for Boolean {
 impl ToKnString for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnString> {
-		// VALIDATION: `true` and `false` are always valid strings.
-		static TRUE: &KnStr = KnStr::new_unvalidated("true");
-		static FALSE: &KnStr = KnStr::new_unvalidated("false");
-
-		// TODO: make sure this isn't allocating each time
+	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString> {
 		if *self {
-			Ok(TRUE.into())
+			Ok(crate::value2::knstring::consts::TRUE)
 		} else {
-			Ok(FALSE.into())
+			Ok(crate::value2::knstring::consts::FALSE)
 		}
 	}
 }
 
+/*
 impl<'path> Parseable<'_, 'path> for Boolean {
 	type Output = Self;
 

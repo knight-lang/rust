@@ -11,6 +11,20 @@ use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 #[derive(Clone, Copy)]
 pub struct List(*const Inner);
 
+pub(crate) mod consts {
+	use super::*;
+
+	pub const JUST_TRUE: List = List(&JUST_TRUE_INNER);
+	static JUST_TRUE_INNER: Inner = Inner {
+		_alignment: ValueAlign,
+		// TODO: make the `FLAG_CUSTOM_2` use a function.
+		flags: AtomicU8::new(
+			gc::FLAG_GC_STATIC | ALLOCATED_FLAG | gc::FLAG_IS_LIST | gc::FLAG_CUSTOM_2,
+		),
+		kind: Kind { embedded: [Value::TRUE; MAX_EMBEDDED_LENGTH] },
+	};
+}
+
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList {
 	/// Converts `self` to a [`List`].
