@@ -26,10 +26,12 @@ fn run(
 
 fn main() {
 	use knightrs_bytecode::value2 as v2;
+	let mut gc = knightrs_bytecode::gc::Gc::default();
 
-	let greeting = v2::Value::from(v2::KnString::new(KnStr::new_unvalidated(
-		"hello worldhello worldhello worldhello worldhello worldhello world",
-	)));
+	let greeting = v2::Value::from(v2::KnString::new(
+		KnStr::new_unvalidated("hello worldhello worldhello worldhello worldhello worldhello world"),
+		&mut gc,
+	));
 
 	dbg!(v2::Value::from(v2::List::boxed(greeting)));
 }

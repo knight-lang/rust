@@ -41,7 +41,7 @@ XXXX ... XXXX 111 -- Custom
 pub struct Value(ValueRepr);
 
 #[repr(align(16))]
-struct ValueAlign;
+pub(crate) struct ValueAlign;
 sa::assert_eq_size!(ValueAlign, ());
 
 // The amount of bytes expected in an allocated value

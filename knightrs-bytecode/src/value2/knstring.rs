@@ -1,7 +1,8 @@
+use crate::gc::Gc;
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
-use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::{ValueAlign, ValueRepr, ALLOC_VALUE_SIZE_IN_BYTES};
 use crate::strings::KnStr;
@@ -22,6 +23,9 @@ struct Inner {
 	flags: AtomicU8,
 	kind: Kind,
 }
+
+sa::assert_eq_align!(crate::gc::ValueInner, Inner);
+sa::assert_eq_size!(crate::gc::ValueInner, Inner);
 
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Send for Inner {}
@@ -85,30 +89,25 @@ impl KnString {
 		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
-	pub fn new(source: &KnStr) -> Self {
+	pub fn new(source: &KnStr, gc: &mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
-			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
-			_ => Self::new_alloc(source),
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
+			_ => Self::new_alloc(source, gc),
 		}
 	}
 
-	fn allocate(flags: u8) -> *mut Inner {
+	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
+		let inner = gc.alloc_value_inner().cast::<Inner>();
 		unsafe {
-			let inner = std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>();
-			if inner.is_null() {
-				panic!("alloc failed");
-			}
-
 			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
-
-			inner
 		}
+		inner
 	}
 
-	fn new_embedded(source: &KnStr) -> Self {
+	fn new_embedded(source: &KnStr, gc: &mut Gc) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
-		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
+		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.embedded)
@@ -119,11 +118,11 @@ impl KnString {
 		Self(inner)
 	}
 
-	fn new_alloc(source: &KnStr) -> Self {
+	fn new_alloc(source: &KnStr, gc: &mut Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner =
-			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8);
+			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
@@ -148,7 +147,7 @@ impl KnString {
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
 		unsafe {
 			// TODO: orderings
-			((*&raw const (*self.0).flags).load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
+			((*&raw const (*self.0).flags).load(Ordering::SeqCst), self.0 as _)
 		}
 	}
 
@@ -168,7 +167,6 @@ impl KnString {
 
 	fn deallocate(self) {
 		let (flags, inner) = self.flags_and_inner();
-
 		if flags & Flags::Allocated as u8 == 1 {
 			unsafe {
 				let layout = Layout::from_size_align_unchecked(
@@ -215,16 +213,13 @@ impl Display for KnString {
 
 unsafe impl crate::gc::Mark for KnString {
 	fn mark(&mut self) {
-		// self.
-		// flags_ref
-		todo!();
+		self.flags_ref().fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
 	}
 }
 
 unsafe impl crate::gc::Sweep for KnString {
 	fn sweep(self) {
-		// self.
-		// flags_ref
-		todo!();
+		self.flags_ref().fetch_nand(!(Flags::GcMarked as u8), Ordering::SeqCst);
+		dbg!(self.flags_ref().load(Ordering::SeqCst));
 	}
 }
