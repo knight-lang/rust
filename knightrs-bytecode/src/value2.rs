@@ -87,7 +87,7 @@ impl Debug for Value {
 			}
 			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
 			Tag::String => Debug::fmt(&self.as_knstring().unwrap(), f),
-			Tag::List => todo!(), //Debug::fmt(&self.as_list().unwrap(), f),
+			Tag::List => Debug::fmt(&self.as_list().unwrap(), f),
 			_ => todo!(),
 		}
 	}
@@ -242,7 +242,7 @@ impl Value {
 	}
 
 	pub fn as_list(self) -> Option<List> {
-		let (repr, tag) = self.parts_shift();
+		let (repr, tag) = self.parts();
 
 		matches!(tag, Tag::List).then(|| unsafe { List::from_raw(repr as _) })
 	}

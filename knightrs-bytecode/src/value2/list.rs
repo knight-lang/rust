@@ -69,6 +69,8 @@ sa::const_assert_eq!(size_of::<Inner>(), ALLOC_VALUE_SIZE_IN_BYTES);
 sa::assert_eq_size!(List, super::Value);
 
 impl List {
+	pub const EMPTY: Self = Self(&EMPTY_INNER);
+
 	pub fn into_raw(self) -> ValueRepr {
 		unsafe { transmute::<Self, *const Inner>(self) as ValueRepr }
 	}
@@ -77,9 +79,14 @@ impl List {
 		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
+	pub fn boxed(value: Value) -> Self {
+		Self::new(&[value])
+	}
+
 	pub fn new(source: &[Value]) -> Self {
 		match source.len() {
-			0..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
+			0 => Self::default(),
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
 			_ => Self::new_alloc(source),
 		}
 	}
@@ -113,7 +120,8 @@ impl List {
 	fn new_alloc(source: &[Value]) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
-		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
+		let inner =
+			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8);
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
@@ -139,8 +147,19 @@ impl List {
 		}
 	}
 
-	pub fn as_slice(&self) -> &[Value] {
-		&self
+	#[deprecated] // won't work with non-slice types
+	fn as_slice(&self) -> &[Value] {
+		let (flags, inner) = self.flags_and_inner();
+
+		unsafe {
+			let slice_ptr = if flags & Flags::Allocated as u8 == 1 {
+				(&raw const (*inner).kind.alloc.ptr).read()
+			} else {
+				(*inner).kind.embedded.as_ptr()
+			};
+
+			std::slice::from_raw_parts(slice_ptr, self.len())
+		}
 	}
 
 	pub fn len(&self) -> usize {
@@ -154,21 +173,10 @@ impl List {
 	}
 }
 
-impl std::ops::Deref for List {
-	type Target = [Value];
-
-	fn deref(&self) -> &Self::Target {
-		let (flags, inner) = self.flags_and_inner();
-
-		unsafe {
-			let slice_ptr = if flags & Flags::Allocated as u8 == 1 {
-				(&raw const (*inner).kind.alloc.ptr).read()
-			} else {
-				(*inner).kind.embedded.as_ptr()
-			};
-
-			std::slice::from_raw_parts(slice_ptr, self.len())
-		}
+impl Default for List {
+	#[inline]
+	fn default() -> Self {
+		Self::EMPTY
 	}
 }
 

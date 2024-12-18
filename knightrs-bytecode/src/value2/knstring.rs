@@ -70,11 +70,13 @@ sa::assert_eq_size!(KnString, super::Value);
 impl Default for KnString {
 	#[inline]
 	fn default() -> Self {
-		Self(unsafe { &EMPTY_INNER as _ })
+		Self::EMPTY
 	}
 }
 
 impl KnString {
+	pub const EMPTY: Self = Self(&EMPTY_INNER);
+
 	pub fn into_raw(self) -> ValueRepr {
 		unsafe { transmute::<Self, *const Inner>(self) as ValueRepr }
 	}
@@ -85,7 +87,8 @@ impl KnString {
 
 	pub fn new(source: &KnStr) -> Self {
 		match source.len() {
-			0..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
+			0 => Self::default(),
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
 			_ => Self::new_alloc(source),
 		}
 	}

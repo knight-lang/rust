@@ -27,9 +27,11 @@ fn run(
 fn main() {
 	use knightrs_bytecode::value2 as v2;
 
-	dbg!(v2::Value::from(v2::KnString::new(KnStr::new_unvalidated(
-		"hello worldhello worldhello worldhello worldhello worldhello world"
-	))));
+	let greeting = v2::Value::from(v2::KnString::new(KnStr::new_unvalidated(
+		"hello worldhello worldhello worldhello worldhello worldhello world",
+	)));
+
+	dbg!(v2::Value::from(v2::List::boxed(greeting)));
 }
 
 fn main2() {
