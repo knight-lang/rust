@@ -1,6 +1,7 @@
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::marker::PhantomData;
 use std::mem::{align_of, size_of, transmute, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -12,12 +13,12 @@ use crate::strings::KnStr;
 /// (It's `Kn` because `String` is already a type in Rust, and I didn't want confusion.)
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct KnString(*const Inner);
+pub struct KnString<'gc>(*const Inner, PhantomData<&'gc ()>);
 
 /// Represents the ability to be converted to a [`KnString`].
-pub trait ToKnString {
+pub trait ToKnString<'gc> {
 	/// Converts `self` to a [`KnString`].
-	fn to_knstring(&self, env: &mut crate::Environment) -> crate::Result<KnString>;
+	fn to_knstring(&self, env: &mut crate::Environment) -> crate::Result<KnString<'gc>>;
 }
 
 pub(crate) mod consts {
@@ -33,12 +34,12 @@ pub(crate) mod consts {
 					alloc: Alloc { _padding: MaybeUninit::uninit(), ptr: $id.as_ptr(), len: $id.len() },
 				},
 			};
-			KnString(&__INNER)
+			KnString(&__INNER, PhantomData)
 		}};
 	}
 
-	pub const TRUE: KnString = static_str!("true");
-	pub const FALSE: KnString = static_str!("false");
+	pub const TRUE: KnString<'_> = static_str!("true");
+	pub const FALSE: KnString<'_> = static_str!("false");
 }
 
 #[repr(C)]
@@ -85,9 +86,9 @@ struct Alloc {
 }
 
 sa::const_assert_eq!(size_of::<Inner>(), ALLOC_VALUE_SIZE_IN_BYTES);
-sa::assert_eq_size!(KnString, super::Value);
+sa::assert_eq_size!(KnString<'_>, super::Value);
 
-impl Default for KnString {
+impl Default for KnString<'_> {
 	#[inline]
 	fn default() -> Self {
 		static EMPTY_INNER: Inner = Inner {
@@ -96,13 +97,13 @@ impl Default for KnString {
 			kind: Kind { embedded: [0; MAX_EMBEDDED_LENGTH] },
 		};
 
-		Self(&EMPTY_INNER)
+		Self(&EMPTY_INNER, PhantomData)
 	}
 }
 
-impl KnString {
+impl<'gc> KnString<'gc> {
 	/// Creates a new [`KnString`] from the given `source`.
-	pub fn new(source: &KnStr, gc: &mut Gc) -> Self {
+	pub fn new(source: &KnStr, gc: &'gc mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 
@@ -118,7 +119,7 @@ impl KnString {
 	}
 
 	pub(crate) unsafe fn from_raw(raw: *const ValueInner) -> Self {
-		Self(raw.cast())
+		Self(raw.cast(), PhantomData)
 	}
 
 	// Allocate the underlying `ValueInner`.
@@ -127,7 +128,7 @@ impl KnString {
 	}
 
 	// SAFETY: `source.len()` needs to be `<= MAX_EMBEDDED_LENGTH`, otherwise we copy off the end.
-	unsafe fn new_embedded(source: &str, gc: &mut Gc) -> Self {
+	unsafe fn new_embedded(source: &str, gc: &'gc mut Gc) -> Self {
 		let len = source.len();
 		debug_assert!(len <= MAX_EMBEDDED_LENGTH);
 
@@ -147,11 +148,11 @@ impl KnString {
 			embedded_ptr.copy_from_nonoverlapping(source.as_ptr(), len);
 		}
 
-		Self(inner)
+		Self(inner, PhantomData)
 	}
 
 	// SAFETY: source.len() cannot be zero
-	unsafe fn new_alloc(source: &str, gc: &mut Gc) -> Self {
+	unsafe fn new_alloc(source: &str, gc: &'gc mut Gc) -> Self {
 		let len = source.len();
 		debug_assert!(len > MAX_EMBEDDED_LENGTH, "too many bytes given; use new_embedded?");
 
@@ -189,7 +190,7 @@ impl KnString {
 			(&raw mut (*inner).kind.alloc.ptr).write(alloc_ptr);
 		}
 
-		Self(inner)
+		Self(inner, PhantomData)
 	}
 
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
@@ -200,6 +201,7 @@ impl KnString {
 	}
 
 	/// Returns the underlying [`KnStr`].
+	// TODO: can this be `&'gc`?
 	pub fn as_knstr(&self) -> &KnStr {
 		let (flags, inner) = self.flags_and_inner();
 
@@ -226,7 +228,7 @@ impl KnString {
 	}
 }
 
-impl std::ops::Deref for KnString {
+impl std::ops::Deref for KnString<'_> {
 	type Target = KnStr;
 
 	fn deref(&self) -> &Self::Target {
@@ -234,19 +236,19 @@ impl std::ops::Deref for KnString {
 	}
 }
 
-impl Debug for KnString {
+impl Debug for KnString<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(&self.as_knstr(), f)
 	}
 }
 
-impl Display for KnString {
+impl Display for KnString<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Display::fmt(&self.as_knstr(), f)
 	}
 }
 
-unsafe impl GarbageCollected for KnString {
+unsafe impl GarbageCollected for KnString<'_> {
 	unsafe fn mark(&self) {
 		// Do nothing, `self` doesn't reference other `GarbageCollected `types.
 		// TODO: If we add in "cons" variants and whatnot, then this should be modified
