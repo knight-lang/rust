@@ -1,11 +1,11 @@
 use std::sync::atomic::AtomicU8;
 
-use crate::value2::ValueAlign;
+use crate::value2::{Value, ValueAlign};
 
 #[derive(Default)]
 pub struct Gc {
 	value_inners: Vec<*mut ValueInner>,
-	roots: Vec<*mut ValueInner>,
+	roots: Vec<Value>,
 }
 
 pub const ALLOC_VALUE_SIZE: usize = 32;
@@ -18,11 +18,15 @@ pub struct ValueInner {
 }
 
 impl Gc {
+	pub fn add_root(&mut self, root: Value) {
+		self.roots.push(root);
+	}
+
 	pub fn alloc_value_inner(&mut self) -> *mut ValueInner {
 		use std::alloc::{alloc, Layout};
 		unsafe {
 			let layout = Layout::new::<ValueInner>();
-			let inner = std::alloc::alloc(layout).cast::<ValueInner>();
+			let inner = alloc(layout).cast::<ValueInner>();
 			if inner.is_null() {
 				panic!("alloc failed");
 			}
@@ -31,22 +35,49 @@ impl Gc {
 		}
 	}
 
-	pub fn mark_and_sweep(&mut self) {
-		// for root in &mut self.roots {
-		// 	root.mark();
-		// }
+	pub fn free_value_inner(&mut self, ptr: *mut ValueInner) {
+		use std::alloc::{dealloc, Layout};
+		unsafe {
+			let layout = Layout::new::<ValueInner>();
+			dealloc(ptr.cast::<u8>(), layout);
+		}
+	}
 
-		// for root in &mut self.roots {
-		// 	root.sweep();
-		// }
+	pub fn mark_and_sweep(&mut self) {
+		assert_ne!(self.roots.len(), 0, "called mark_and_sweep during mark and sweep");
+
+		for root in &mut self.roots {
+			unsafe {
+				root.mark();
+			}
+		}
+
+		let mut roots = std::mem::take(&mut self.roots);
+		for root in &mut roots {
+			unsafe {
+				root.sweep(self);
+			}
+		}
+		self.roots = roots;
+	}
+
+	pub unsafe fn shutdown(&mut self) {
+		for root in std::mem::take(&mut self.roots) {
+			unsafe {
+				root.deallocate(self);
+			}
+		}
 	}
 }
 
 // safety: has to make sure there's no cycle. shouldn't be for any builtin types.
 pub unsafe trait Mark {
-	fn mark(&mut self);
+	// safety: should not be called by anyone other than `gc`
+	unsafe fn mark(&mut self);
 }
 
 pub unsafe trait Sweep {
-	fn sweep(self);
+	// safety: should not be called by anyone other than `gc`
+	unsafe fn sweep(self, gc: &mut Gc);
+	unsafe fn deallocate(self, gc: &mut Gc);
 }

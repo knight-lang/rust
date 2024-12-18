@@ -1,4 +1,5 @@
 use crate::container::RefCount;
+use crate::gc::{Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -186,18 +187,18 @@ impl Debug for List {
 	}
 }
 
-unsafe impl crate::gc::Mark for List {
-	fn mark(&mut self) {
-		// self.
-		// flags_ref
+unsafe impl Mark for List {
+	unsafe fn mark(&mut self) {
 		todo!();
 	}
 }
 
-unsafe impl crate::gc::Sweep for List {
-	fn sweep(self) {
-		// self.
-		// flags_ref
+unsafe impl Sweep for List {
+	unsafe fn sweep(self, gc: &mut Gc) {
+		todo!();
+	}
+
+	unsafe fn deallocate(self, gc: &mut Gc) {
 		todo!();
 	}
 }

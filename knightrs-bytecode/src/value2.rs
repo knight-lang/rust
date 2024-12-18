@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use crate::gc::{Gc, Mark, Sweep};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
 mod block;
@@ -254,32 +255,45 @@ impl Value {
 	}
 }
 
-unsafe impl crate::gc::Mark for Value {
-	fn mark(&mut self) {
+unsafe impl Mark for Value {
+	unsafe fn mark(&mut self) {
 		match self.tag() {
 			Tag::Const | Tag::Integer | Tag::Block => {}
 			#[cfg(feature = "floats")]
 			Tag::Float => {}
 
-			Tag::String => self.as_knstring().unwrap().mark(),
-			Tag::List => self.as_list().unwrap().mark(),
+			Tag::String => unsafe { self.as_knstring().unwrap().mark() },
+			Tag::List => unsafe { self.as_list().unwrap().mark() },
 			#[cfg(feature = "custom-types")]
-			Tag::Custom => self.as_custom().unwrap().mark(),
+			Tag::Custom => unsafe { self.as_custom().unwrap().mark() },
 		}
 	}
 }
 
-unsafe impl crate::gc::Sweep for Value {
-	fn sweep(self) {
+unsafe impl Sweep for Value {
+	unsafe fn sweep(self, gc: &mut Gc) {
 		match self.tag() {
 			Tag::Const | Tag::Integer | Tag::Block => {}
 			#[cfg(feature = "floats")]
 			Tag::Float => {}
 
-			Tag::String => self.as_knstring().unwrap().sweep(),
-			Tag::List => self.as_list().unwrap().sweep(),
+			Tag::String => unsafe { self.as_knstring().unwrap().sweep(gc) },
+			Tag::List => unsafe { self.as_list().unwrap().sweep(gc) },
 			#[cfg(feature = "custom-types")]
-			Tag::Custom => self.as_custom().unwrap().sweep(),
+			Tag::Custom => unsafe { self.as_custom().unwrap().sweep(gc) },
+		}
+	}
+
+	unsafe fn deallocate(self, gc: &mut Gc) {
+		match self.tag() {
+			Tag::Const | Tag::Integer | Tag::Block => {}
+			#[cfg(feature = "floats")]
+			Tag::Float => {}
+
+			Tag::String => unsafe { self.as_knstring().unwrap().deallocate(gc) },
+			Tag::List => unsafe { self.as_list().unwrap().deallocate(gc) },
+			#[cfg(feature = "custom-types")]
+			Tag::Custom => unsafe { self.as_custom().unwrap().deallocate(gc) },
 		}
 	}
 }

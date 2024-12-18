@@ -1,4 +1,4 @@
-use crate::gc::Gc;
+use crate::gc::{Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -164,20 +164,6 @@ impl KnString {
 			(flags as usize) >> FLAG_SIZE_SHIFT
 		}
 	}
-
-	fn deallocate(self) {
-		let (flags, inner) = self.flags_and_inner();
-		if flags & Flags::Allocated as u8 == 1 {
-			unsafe {
-				let layout = Layout::from_size_align_unchecked(
-					(&raw const (*inner).kind.alloc.len).read(),
-					align_of::<u8>(),
-				);
-
-				std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
-			}
-		}
-	}
 }
 
 impl std::ops::Deref for KnString {
@@ -211,15 +197,36 @@ impl Display for KnString {
 	}
 }
 
-unsafe impl crate::gc::Mark for KnString {
-	fn mark(&mut self) {
+unsafe impl Mark for KnString {
+	unsafe fn mark(&mut self) {
 		self.flags_ref().fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
 	}
 }
 
-unsafe impl crate::gc::Sweep for KnString {
-	fn sweep(self) {
-		self.flags_ref().fetch_nand(!(Flags::GcMarked as u8), Ordering::SeqCst);
-		dbg!(self.flags_ref().load(Ordering::SeqCst));
+unsafe impl Sweep for KnString {
+	unsafe fn sweep(self, gc: &mut Gc) {
+		let old = self.flags_ref().fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
+
+		if old & Flags::GcMarked as u8 == 0 {
+			unsafe {
+				self.deallocate(gc);
+			}
+		}
+	}
+
+	unsafe fn deallocate(self, gc: &mut Gc) {
+		let (flags, inner) = self.flags_and_inner();
+		if flags & Flags::Allocated as u8 == 1 {
+			unsafe {
+				let layout = Layout::from_size_align_unchecked(
+					(&raw const (*inner).kind.alloc.len).read(),
+					align_of::<u8>(),
+				);
+
+				std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+			}
+		}
+
+		gc.free_value_inner((self.0 as *mut Inner).cast());
 	}
 }
