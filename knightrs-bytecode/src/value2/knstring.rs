@@ -1,7 +1,7 @@
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::mem::{align_of, size_of, transmute};
+use std::mem::{align_of, size_of, transmute, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::{ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
@@ -30,11 +30,7 @@ pub(crate) mod consts {
 				// TODO: make the `FLAG_CUSTOM_2` use a function.
 				flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST | ALLOCATED_FLAG),
 				kind: Kind {
-					alloc: Alloc {
-						_padding: [0; ALLOC_PADDING_ALIGN],
-						ptr: $id.as_ptr(),
-						len: $id.len(),
-					},
+					alloc: Alloc { _padding: MaybeUninit::uninit(), ptr: $id.as_ptr(), len: $id.len() },
 				},
 			};
 			KnString(&__INNER)
@@ -83,7 +79,7 @@ const ALLOC_PADDING_ALIGN: usize =
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 struct Alloc {
-	_padding: [u8; ALLOC_PADDING_ALIGN],
+	_padding: MaybeUninit<[u8; ALLOC_PADDING_ALIGN]>,
 	ptr: *const u8,
 	len: usize,
 }
