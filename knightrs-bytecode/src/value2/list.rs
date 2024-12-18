@@ -24,6 +24,9 @@ struct Inner {
 	kind: Kind,
 }
 
+sa::assert_eq_align!(crate::gc::ValueInner, Inner);
+sa::assert_eq_size!(crate::gc::ValueInner, Inner);
+
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Send for Inner {}
 
@@ -80,34 +83,29 @@ impl List {
 		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
 	}
 
-	pub fn boxed(value: Value) -> Self {
-		Self::new(&[value])
+	pub fn boxed(value: Value, gc: &mut Gc) -> Self {
+		Self::new(&[value], gc)
 	}
 
-	pub fn new(source: &[Value]) -> Self {
+	pub fn new(source: &[Value], gc: &mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
-			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source) },
-			_ => Self::new_alloc(source),
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
+			_ => Self::new_alloc(source, gc),
 		}
 	}
 
-	fn allocate(flags: u8) -> *mut Inner {
+	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
+		let inner = gc.alloc_value_inner().cast::<Inner>();
 		unsafe {
-			let inner = std::alloc::alloc(Layout::new::<Inner>()).cast::<Inner>();
-			if inner.is_null() {
-				panic!("alloc failed");
-			}
-
 			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
-
-			inner
 		}
+		inner
 	}
 
-	fn new_embedded(source: &[Value]) -> Self {
+	fn new_embedded(source: &[Value], gc: &mut Gc) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
-		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
+		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.embedded)
@@ -118,11 +116,11 @@ impl List {
 		Self(inner)
 	}
 
-	fn new_alloc(source: &[Value]) -> Self {
+	fn new_alloc(source: &[Value], gc: &mut Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner =
-			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8);
+			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());

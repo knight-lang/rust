@@ -34,14 +34,14 @@ fn main() {
 		&mut gc,
 	));
 
+	dbg!(v2::Value::from(v2::List::boxed(greeting, &mut gc)));
+
 	gc.add_root(greeting);
 	gc.mark_and_sweep();
+
 	unsafe {
 		gc.shutdown();
 	}
-	return;
-
-	dbg!(v2::Value::from(v2::List::boxed(greeting)));
 }
 
 fn main2() {

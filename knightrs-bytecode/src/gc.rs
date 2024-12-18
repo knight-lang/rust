@@ -52,6 +52,7 @@ impl Gc {
 			}
 		}
 
+		// TODO: we should be sweeping not from roots but for _all_ values
 		let mut roots = std::mem::take(&mut self.roots);
 		for root in &mut roots {
 			unsafe {
