@@ -119,7 +119,8 @@ impl KnString {
 	fn new_alloc(source: &KnStr) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
-		let inner = Self::allocate((source.len() as u8) << FLAG_SIZE_SHIFT);
+		let inner =
+			Self::allocate(((source.len() as u8) << FLAG_SIZE_SHIFT) | Flags::Allocated as u8);
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
