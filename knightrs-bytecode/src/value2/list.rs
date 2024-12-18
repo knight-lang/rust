@@ -30,12 +30,12 @@ unsafe impl Send for Inner {}
 unsafe impl Sync for Inner {}
 
 #[repr(u8, align(1))]
+#[rustfmt::skip]
 enum Flags {
-	// If unset, it's embedded
-	Allocated = 0b0000_0001,
-	GcMarked = 0b0000_0010,
-	Static = 0b0000_0100,
-	SizeMask = 0b1100_0000,
+	Allocated = 0b0000_0001, // If unset, it's embedded
+	GcMarked  = 0b0000_0010,
+	Static    = 0b0000_0100,
+	SizeMask  = 0b1100_0000,
 }
 
 const MAX_EMBEDDED_LENGTH: usize =
