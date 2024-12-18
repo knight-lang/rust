@@ -27,20 +27,20 @@ fn run(
 fn main() {
 	use knightrs_bytecode::gc::*;
 	use knightrs_bytecode::value2 as v2;
-	let mut gc = Gc::new();
-
-	let mut greeting = v2::Value::from(v2::KnString::new(
-		KnStr::new_unvalidated("hello worldhello worldhello worldhello worldhello worldhello world"),
-		&mut gc,
-	));
-
-	dbg!(v2::Value::from(v2::List::boxed(greeting, &mut gc)));
-
-	gc.add_root(greeting);
-	gc.mark_and_sweep();
-
 	unsafe {
-		gc.shutdown();
+		Gc::with(|gc| {
+			let mut greeting = v2::Value::from(v2::KnString::new(
+				KnStr::new_unvalidated(
+					"hello worldhello worldhello worldhello worldhello worldhello world",
+				),
+				gc,
+			));
+
+			let mut list = v2::Value::from(v2::List::boxed(greeting, gc));
+
+			gc.add_root(list);
+			gc.mark_and_sweep();
+		})
 	}
 }
 

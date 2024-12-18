@@ -2,6 +2,9 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value2::{Value, ValueAlign};
 
+/// Gc is the garbage collector for Knight [`Value`]s. All allocated values are allocated via
+/// [`Gc::alloc_value_inner`].
+#[must_use = "dropping `Gc` will leak all its memory"]
 pub struct Gc {
 	value_inners: Vec<*mut ValueInner>,
 	idx: usize,
@@ -54,12 +57,41 @@ const EMPTY_INNER: ValueInner = ValueInner {
 	data: [0; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 };
 
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct GcOptions {
+	pub starting_cap: usize, // TODO
+}
+
+impl Default for GcOptions {
+	fn default() -> Self {
+		Self { starting_cap: 1000 }
+	}
+}
+
 impl Gc {
-	pub fn new() -> Self {
+	/// Constructs a new [`Gc`] with the given `opts`, and returns it.
+	pub fn new(opts: GcOptions) -> Self {
 		Self {
-			value_inners: (0..1000).map(|_| Box::into_raw(Box::new(EMPTY_INNER))).collect(),
+			value_inners: (0..opts.starting_cap)
+				.map(|_| Box::into_raw(Box::new(EMPTY_INNER)))
+				.collect(),
 			roots: Vec::new(),
 			idx: 0,
+		}
+	}
+
+	/// Shuts down the Gc by cleaning up all memory associated with it.
+	///
+	/// # Safety
+	/// Callers must ensure that no references to anything the [`Gc`] has created will be used after
+	/// calling this function.
+	pub unsafe fn shutdown(mut self) {
+		for inner in self.value_inners {
+			unsafe {
+				ValueInner::deallocate(inner, false);
+				drop(Box::from_raw(inner));
+			}
 		}
 	}
 
@@ -148,15 +180,6 @@ impl Gc {
 				unsafe {
 					ValueInner::deallocate(inner, false);
 				}
-			}
-		}
-	}
-
-	pub unsafe fn shutdown(mut self) {
-		for inner in self.value_inners {
-			unsafe {
-				ValueInner::deallocate(inner, false);
-				drop(Box::from_raw(inner));
 			}
 		}
 	}
