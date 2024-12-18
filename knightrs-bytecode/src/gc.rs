@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value2::{Value, ValueAlign};
 
@@ -23,7 +23,7 @@ pub enum Flags {
 	GcMarked = 0b0000_0001,
 	GcStatic = 0b0000_0010,
 	IsString = 0b0000_0100,
-	IsList   = 0b0000_1000,
+	IsList   = 0b0000_1000, // NOTE::: This should only be used if `IsString` has already been checked
 	#[cfg(feature = "custom-types")]
 	IsCustom = 0b0001_0000,
 
@@ -110,3 +110,19 @@ pub unsafe trait Sweep {
 	unsafe fn sweep(self, gc: &mut Gc);
 	unsafe fn deallocate(self, gc: &mut Gc);
 }
+
+// impl ValueInner {
+// 	unsafe fn mark(&mut self) {
+// 		let was_marked = self.flags.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
+// 		if was_marked & Flags::GcMarked as u8 == 0 {
+// 			self as *
+// 			// TODO: mark lists
+// 		}
+// 	}
+// }
+// #[repr(C)]
+// pub struct ValueInner {
+// 	_align: ValueAlign,
+// 	pub flags: AtomicU8,
+// 	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
+// }

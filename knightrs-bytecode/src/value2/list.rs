@@ -13,7 +13,7 @@ pub struct List(*const Inner);
 
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
-	flags: AtomicU8::new(Flags::GcStatic as u8),
+	flags: AtomicU8::new(Flags::GcStatic as u8 | Flags::IsList as u8),
 	kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
 };
 
