@@ -1,9 +1,14 @@
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value2::{Value, ValueAlign};
 
-/// Gc is the garbage collector for Knight [`Value`]s. All allocated values are allocated via
-/// [`Gc::alloc_value_inner`].
+/// Gc is the garbage collector for Knight [`Value`]s.
+///
+/// Layouts of allocated [`Value`]s are optimized to ensure that they all fit within
+/// [`ALLOC_VALUE_SIZE`] bytes, which means they can easily be mass-allocated.
+///
+/// All allocated values are allocated via [`Gc::alloc_value_inner`].
 #[must_use = "dropping `Gc` will leak all its memory"]
 pub struct Gc {
 	value_inners: Vec<*mut ValueInner>,
@@ -18,13 +23,13 @@ pub struct ValueInner {
 	_align: ValueAlign,
 	// Note if `flags` is zero that means the field is unused. This won't happen when it's used
 	// because the `IS_XXX` bits will be set, at a minimum.
-	pub flags: AtomicU8,
+	flags: AtomicU8,
 	// TODO: make this data maybeuninit
-	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
+	data: [MaybeUninit<u8>; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 }
 
 /// Indicates a value has been marked active during a mark-and-sweep.
-pub const FLAG_GC_MARKED: u8 = 1 << 0;
+const FLAG_GC_MARKED: u8 = 1 << 0;
 
 /// Indicates a value is static, and shouldn't be a part of the GC cycle.
 pub const FLAG_GC_STATIC: u8 = 1 << 1;
@@ -54,9 +59,10 @@ pub const FLAG_CUSTOM_3: u8 = 1 << 7;
 const EMPTY_INNER: ValueInner = ValueInner {
 	_align: ValueAlign,
 	flags: AtomicU8::new(0),
-	data: [0; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
+	data: [MaybeUninit::uninit(); ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 };
 
+/// The options to give to [`Gc::new`]. More coming!
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct GcOptions {
@@ -81,7 +87,7 @@ impl Gc {
 		}
 	}
 
-	/// Shuts down the Gc by cleaning up all memory associated with it.
+	/// Shuts down the [`Gc`] by cleaning up all memory associated with it.
 	///
 	/// # Safety
 	/// Callers must ensure that no references to anything the [`Gc`] has created will be used after
@@ -154,13 +160,15 @@ impl Gc {
 		inner
 	}
 
-	/// Indicates that `root` is a "root node," to look through when sweeping.
+	/// Indicates that `root` is a "root node."
+	///
+	/// This adds `root` to a list of nodes that'll assume to always be "live," so them and all their
+	/// children will be checked when marking-and-sweeping.
 	pub fn add_root(&mut self, root: Value) {
 		self.roots.push(root);
 	}
 
-	// temporarily public, just for testing
-	pub fn mark_and_sweep(&mut self) {
+	fn mark_and_sweep(&mut self) {
 		// Mark all elements accessible from the root
 		for root in &mut self.roots {
 			unsafe {
@@ -213,24 +221,15 @@ pub unsafe trait GarbageCollected {
 	/// This shouldn't be called by anyone other than `GC.mark_and_sweep`, as there's no other way
 	/// to ensure that nothing's used.
 	unsafe fn deallocate(self);
-
-	// unsafe fn sweep(&self, dealloc: bool)
 }
 
-// impl ValueInner {
 impl ValueInner {
-	// pub unsafe fn free(ptr: *mut Self) {
-	// 	use std::alloc::{dealloc, Layout};
-	// 	unsafe {
-	// 		dealloc(ptr.cast::<u8>(), Layout::new::<Self>());
-	// 	}
-	// }
-
+	/// Gets the flags
 	fn flags(this: *const Self) -> *const AtomicU8 {
 		unsafe { &raw const (*this).flags }
 	}
 
-	pub unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
+	pub(crate) unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_STRING != 0 {
 			Some(unsafe { crate::value2::KnString::from_value_inner(this) })
 		} else {
@@ -238,7 +237,7 @@ impl ValueInner {
 		}
 	}
 
-	pub unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
+	pub(crate) unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_LIST != 0 {
 			Some(unsafe { crate::value2::List::from_value_inner(this) })
 		} else {
@@ -246,7 +245,7 @@ impl ValueInner {
 		}
 	}
 
-	pub unsafe fn mark(this: *const Self) {
+	pub(crate) unsafe fn mark(this: *const Self) {
 		let flags = unsafe { &*Self::flags(this) }.fetch_or(FLAG_GC_MARKED, Ordering::SeqCst);
 
 		// Don't mark static things
@@ -267,23 +266,7 @@ impl ValueInner {
 		}
 	}
 
-	pub unsafe fn sweep(this: *const Self) {
-		let old = unsafe { &*Self::flags(this) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
-
-		// If it's static then just return
-		if old & FLAG_GC_STATIC != 0 {
-			return;
-		}
-
-		// If it's not marked, ie `mark` didn't mark it, then deallocate it.
-		if old & FLAG_GC_MARKED == 0 {
-			unsafe {
-				Self::deallocate(this, true);
-			}
-		}
-	}
-
-	pub unsafe fn deallocate(this: *const Self, check: bool) {
+	pub(crate) unsafe fn deallocate(this: *const Self, check: bool) {
 		debug_assert_eq!(unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_GC_STATIC, 0);
 
 		if let Some(string) = unsafe { Self::as_knstring(this) } {
