@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value2::{Value, ValueAlign};
 
-#[derive(Default)]
 pub struct Gc {
 	value_inners: Vec<*mut ValueInner>,
+	idx: usize,
 	roots: Vec<Value>,
 }
 
@@ -20,72 +20,145 @@ pub struct ValueInner {
 	pub data: [u8; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
 }
 
+/// Indicates a value has been marked active during a mark-and-sweep.
 pub const FLAG_GC_MARKED: u8 = 1 << 0;
-pub const FLAG_GC_STATIC: u8 = 1 << 1;
-pub const FLAG_IS_STRING: u8 = 1 << 2;
-pub const FLAG_IS_LIST: u8 = 1 << 3;
-#[cfg(feature = "custom-types")]
-pub const FLAG_IS_CUSTOM: u8 = 1 << 4; // must check if `FLAG_IS_STRING` isn't set,as it uses FLAG_CUSTOM_0_DONTUSE
-pub const FLAG_CUSTOM_0_DONTUSE: u8 = 1 << 4;
 
-pub const FLAG_CUSTOM1: u8 = 1 << 5;
-pub const FLAG_CUSTOM2: u8 = 1 << 6;
-pub const FLAG_CUSTOM3: u8 = 1 << 7;
+/// Indicates a value is static, and shouldn't be a part of the GC cycle.
+pub const FLAG_GC_STATIC: u8 = 1 << 1;
+
+/// Indicates the [`ValueInner`] contains a [`KnString`].
+pub const FLAG_IS_STRING: u8 = 1 << 2;
+
+/// Indicates the [`ValueInner`] contains a [`List`].
+pub const FLAG_IS_LIST: u8 = 1 << 3;
+
+/// Indicates the [`ValueInner`] contains a custom type.
+/// (Note: must check if `FLAG_IS_STRING` isn't set,as it uses FLAG_CUSTOM_0_DONTUSE)
+pub const FLAG_IS_CUSTOM: u8 = 1 << 4;
+
+/// An unused flag that types can use for their own purposes.
+pub const FLAG_CUSTOM_0: u8 = 1 << 4;
+
+/// An unused flag that types can use for their own purposes.
+pub const FLAG_CUSTOM_1: u8 = 1 << 5;
+
+/// An unused flag that types can use for their own purposes.
+pub const FLAG_CUSTOM_2: u8 = 1 << 6;
+
+/// An unused flag that types can use for their own purposes.
+pub const FLAG_CUSTOM_3: u8 = 1 << 7;
+
+const EMPTY_INNER: ValueInner = ValueInner {
+	_align: ValueAlign,
+	flags: AtomicU8::new(0),
+	data: [0; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
+};
 
 impl Gc {
-	pub fn add_root(&mut self, root: Value) {
-		self.roots.push(root);
+	pub fn new() -> Self {
+		Self {
+			value_inners: (0..1000).map(|_| Box::into_raw(Box::new(EMPTY_INNER))).collect(),
+			roots: Vec::new(),
+			idx: 0,
+		}
 	}
 
-	pub unsafe fn alloc_value_inner(&mut self, flags: u8) -> *mut ValueInner {
-		use std::alloc::{alloc, Layout};
+	fn next_open_inner_(&mut self) -> Option<*mut ValueInner> {
+		while self.idx < self.value_inners.len() {
+			let inner = self.value_inners[self.idx];
+			self.idx += 1;
+			if unsafe { &*ValueInner::flags(inner) }.load(Ordering::SeqCst) == 0 {
+				return Some(inner);
+			}
+		}
+		return None;
+	}
 
+	fn next_open_inner(&mut self) -> *mut ValueInner {
+		if let Some(inner) = self.next_open_inner_() {
+			return inner;
+		}
+
+		self.mark_and_sweep();
+		self.idx = 0;
+
+		// extend the length
+		self
+			.value_inners
+			.extend((0..self.value_inners.len() + 1).map(|_| Box::into_raw(Box::new(EMPTY_INNER))));
+
+		self.next_open_inner_().expect("we just extended")
+	}
+
+	/// Allocate another [`ValueInner`], possibly triggering a GC cycle if needed.
+	///
+	/// `flags` should contain the flags for the [`ValueInner`], and must:
+	/// - Not contain [`FLAG_GC_MARKED`]
+	/// - Contain [`FLAG_IS_CUSTOM`] or contain exactly one of [`FLAG_IS_STRING`] or [`FLAG_IS_LIST`].
+	///
+	/// # Safety
+	/// Callers must ensure the above conditions are satisfied.
+	pub unsafe fn alloc_value_inner(&mut self, flags: u8) -> *mut ValueInner {
 		debug_assert_eq!(flags & FLAG_GC_MARKED, 0, "cannot already be marked");
-		debug_assert_ne!(
-			flags
-				& (FLAG_IS_STRING
-					| FLAG_IS_LIST
-					| cfg_expr!(feature = "custom-types", FLAG_IS_CUSTOM, 0)),
-			0,
-			"need a type passed in"
-		);
+
+		#[cfg(debug_assertions)]
+		match flags & (FLAG_IS_STRING | FLAG_IS_LIST | FLAG_IS_CUSTOM) {
+			FLAG_IS_STRING | (FLAG_IS_STRING | FLAG_IS_CUSTOM) => {}
+			FLAG_IS_LIST | (FLAG_IS_LIST | FLAG_IS_CUSTOM) => {}
+			FLAG_IS_CUSTOM => {}
+			_ => unreachable!("type passed in wasn't correct: {flags:?}"),
+		}
 
 		unsafe {
-			let inner = alloc(Layout::new::<ValueInner>()).cast::<ValueInner>();
+			// TODO: use arena allocation
+			let inner = Box::into_raw(Box::new(ValueInner {
+				_align: ValueAlign,
+				flags: AtomicU8::default(),
+				data: [0; ALLOC_VALUE_SIZE - std::mem::size_of::<AtomicU8>()],
+			}));
+
 			if inner.is_null() {
 				panic!("alloc failed");
 			}
 
 			(&raw mut (*inner).flags).write(AtomicU8::new(flags));
-
 			self.value_inners.push(inner);
 			inner
 		}
 	}
 
-	pub fn mark_and_sweep(&mut self) {
-		assert_ne!(self.roots.len(), 0, "called mark_and_sweep during mark and sweep");
+	/// Indicates that `root` is a "root node," to look through when sweeping.
+	pub fn add_root(&mut self, root: Value) {
+		self.roots.push(root);
+	}
 
+	fn mark_and_sweep(&mut self) {
+		// Mark all elements accessible from the root
 		for root in &mut self.roots {
 			unsafe {
 				root.mark();
 			}
 		}
 
-		// TODO: we should be sweeping not from roots but for _all_ values
-		let mut roots = std::mem::take(&mut self.roots);
-		for root in &mut roots {
-			unsafe {
-				root.sweep(self);
+		for &inner in &self.value_inners {
+			let old =
+				unsafe { &*ValueInner::flags(inner) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
+
+			debug_assert_ne!(old & FLAG_GC_STATIC, 0, "attempted to sweep a static flag?");
+
+			// If it wasn't previously marked, then free it.
+			if old & FLAG_GC_MARKED == 0 {
+				unsafe {
+					ValueInner::deallocate(inner);
+				}
 			}
 		}
-		self.roots = roots;
 	}
 
 	pub unsafe fn shutdown(&mut self) {
 		for root in std::mem::take(&mut self.roots) {
 			unsafe {
-				root.deallocate(self);
+				root.deallocate();
 			}
 		}
 	}
@@ -99,13 +172,12 @@ pub unsafe trait Mark {
 
 pub trait Allocated {
 	// safety: caller ensures `this` is the only reference
-	unsafe fn deallocate(self, gc: &mut Gc);
+	unsafe fn deallocate(self);
 }
 
 pub unsafe trait Sweep {
 	// safety: should not be called by anyone other than `gc`
 	unsafe fn sweep(self, gc: &mut Gc);
-	unsafe fn deallocate(self, gc: &mut Gc);
 }
 
 // impl ValueInner {
@@ -158,7 +230,7 @@ impl ValueInner {
 		}
 	}
 
-	pub unsafe fn sweep(this: *const Self, gc: &mut Gc) {
+	pub unsafe fn sweep(this: *const Self) {
 		let old = unsafe { &*Self::flags(this) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
 
 		// If it's static then just return
@@ -169,21 +241,21 @@ impl ValueInner {
 		// If it's not marked, ie `mark` didn't mark it, then deallocate it.
 		if old & FLAG_GC_MARKED == 0 {
 			unsafe {
-				Self::deallocate(this, gc);
+				Self::deallocate(this);
 			}
 		}
 	}
 
-	pub unsafe fn deallocate(this: *const Self, gc: &mut Gc) {
+	pub unsafe fn deallocate(this: *const Self) {
 		debug_assert_eq!(unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_GC_STATIC, 0);
 
 		if let Some(string) = unsafe { Self::as_knstring(this) } {
 			unsafe {
-				string.deallocate(gc);
+				string.deallocate();
 			}
 		} else if let Some(list) = unsafe { Self::as_list(this) } {
 			unsafe {
-				list.deallocate(gc);
+				list.deallocate();
 			}
 		} else {
 			unreachable!("non-list non-string encountered?");

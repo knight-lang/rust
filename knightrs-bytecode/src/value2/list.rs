@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::gc::{self, Gc, Mark, Sweep};
+use crate::gc::{self, Allocated, Gc, Mark, Sweep};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
@@ -33,8 +33,8 @@ unsafe impl Send for Inner {}
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Sync for Inner {}
 
-const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM1;
-const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM2 | gc::FLAG_CUSTOM3;
+const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;
+const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM_2 | gc::FLAG_CUSTOM_3;
 const SIZE_MASK_SHIFT: u8 = 6;
 const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 
@@ -194,8 +194,10 @@ unsafe impl Sweep for List {
 	unsafe fn sweep(self, gc: &mut Gc) {
 		todo!();
 	}
+}
 
-	unsafe fn deallocate(self, gc: &mut Gc) {
-		todo!();
+impl Allocated for List {
+	unsafe fn deallocate(self) {
+		todo!()
 	}
 }

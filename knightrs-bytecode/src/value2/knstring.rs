@@ -33,8 +33,8 @@ unsafe impl Send for Inner {}
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
 unsafe impl Sync for Inner {}
 
-const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0_DONTUSE;
-const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM1 | gc::FLAG_CUSTOM2 | gc::FLAG_CUSTOM3;
+const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;
+const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM_1 | gc::FLAG_CUSTOM_2 | gc::FLAG_CUSTOM_3;
 const SIZE_MASK_SHIFT: u8 = 5;
 const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 
@@ -189,7 +189,7 @@ impl Display for KnString {
 }
 
 impl Allocated for KnString {
-	unsafe fn deallocate(self, gc: &mut Gc) {
+	unsafe fn deallocate(self) {
 		let (flags, inner) = self.flags_and_inner();
 
 		if flags & ALLOCATED_FLAG == 0 {
