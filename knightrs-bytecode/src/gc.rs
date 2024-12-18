@@ -20,17 +20,17 @@ pub struct ValueInner {
 
 #[repr(C, align(1))]
 #[rustfmt::skip]
-pub enum Flags {
-	GcMarked = 0b0000_0001,
-	GcStatic = 0b0000_0010,
-	IsString = 0b0000_0100,
-	IsList   = 0b0000_1000, // NOTE::: This should only be used if `IsString` has already been checked
-	#[cfg(feature = "custom-types")]
-	IsCustom = 0b0001_0000,
+pub enum Flags { // TODO: Don't make this an enum, make it a struct or somethin
+	GcIsUsed   = 0b00000_001,
+	GcMarked   = 0b00000_010,
+	GcStatic   = 0b00000_100,
 
-	Custom1  = 0b0010_0000,
-	Custom2  = 0b0100_0000,
-	Custom3  = 0b1000_0000,
+	IsString   = 0b00001_000,
+	IsList     = 0b00010_000,
+	#[cfg(feature = "custom-types")]
+	IsCustom   = 0b00100_000,
+	Custom1    = 0b01000_000,
+	Custom2    = 0b10000_000,
 }
 
 impl Gc {
@@ -140,11 +140,11 @@ impl ValueInner {
 	pub unsafe fn mark(this: *const Self) {
 		let flags = unsafe { &*Self::flags(this) }.fetch_or(Flags::GcMarked as u8, Ordering::SeqCst);
 
-		if flags
-			& (Flags::GcMarked as u8
-				| Flags::GcStatic as u8
-				| Flags::IsList as u8
-				| Flags::IsString as u8)
+		if flags & Flags::GcStatic as u8 != 0 {
+			return;
+		}
+
+		if flags & (Flags::GcMarked as u8 | Flags::IsList as u8 | Flags::IsString as u8)
 			== (Flags::GcMarked as u8 | Flags::IsList as u8)
 		{
 			unsafe {
@@ -154,18 +154,33 @@ impl ValueInner {
 	}
 
 	pub unsafe fn sweep(this: *const Self, gc: &mut Gc) {
-		// let old = self.flags_ref().fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
+		let old =
+			unsafe { &*Self::flags(this) }.fetch_and(!(Flags::GcMarked as u8), Ordering::SeqCst);
 
-		// if old & Flags::GcMarked as u8 == 0 {
-		// 	unsafe {
-		// 		self.deallocate(gc);
-		// 	}
-		// }
-		// todo
+		if old & Flags::GcStatic as u8 != 0 {
+			return;
+		}
+
+		if old & (Flags::GcMarked as u8) == 0 {
+			unsafe {
+				Self::deallocate(this, gc);
+			}
+		}
 	}
 
 	pub unsafe fn deallocate(this: *const Self, gc: &mut Gc) {
-		// todo
+		debug_assert_eq!(
+			unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & Flags::GcStatic as u8,
+			0
+		);
+
+		if let Some(list) = unsafe { Self::as_list(this) } {
+			unsafe {
+				list.deallocate(gc);
+			}
+		}
+
+		// TODO: deallocate `*const Self`
 	}
 }
 // 	unsafe fn mark(&mut self) {
