@@ -11,6 +11,12 @@ use crate::strings::KnStr;
 #[derive(Clone, Copy)]
 pub struct KnString(*const Inner);
 
+/// Represents the ability to be converted to a [`KnString`].
+pub trait ToKnString {
+	/// Converts `self` to a [`KnString`].
+	fn to_knstring(&self, env: &mut crate::Environment) -> crate::Result<KnString>;
+}
+
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
 	flags: AtomicU8::new(gc::FLAG_IS_STRING | gc::FLAG_GC_STATIC),

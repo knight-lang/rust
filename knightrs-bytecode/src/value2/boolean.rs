@@ -1,7 +1,7 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
-use crate::value::{Integer, KnValueString, List, NamedType, ToInteger, ToKnValueString, ToList};
+use crate::value2::{Integer, KnString, List, NamedType, ToInteger, ToKnString, ToList};
 use crate::{Environment, Options};
 
 /// The boolean type within Knight.
@@ -50,10 +50,10 @@ impl ToList for Boolean {
 	}
 }
 
-impl ToKnValueString for Boolean {
+impl ToKnString for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
+	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnString> {
 		// VALIDATION: `true` and `false` are always valid strings.
 		static TRUE: &KnStr = KnStr::new_unvalidated("true");
 		static FALSE: &KnStr = KnStr::new_unvalidated("false");

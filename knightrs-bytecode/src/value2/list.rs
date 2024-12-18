@@ -11,6 +11,12 @@ use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 #[derive(Clone, Copy)]
 pub struct List(*const Inner);
 
+/// Represents the ability to be converted to a [`List`].
+pub trait ToList {
+	/// Converts `self` to a [`List`].
+	fn to_list(&self, env: &mut crate::Environment) -> crate::Result<List>;
+}
+
 static EMPTY_INNER: Inner = Inner {
 	_alignment: ValueAlign,
 	flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
