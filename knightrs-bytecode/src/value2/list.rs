@@ -1,11 +1,11 @@
 use crate::container::RefCount;
-use crate::gc::{self, GarbageCollected, Gc};
+use crate::gc::{self, GarbageCollected, Gc, ValueInner};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{align_of, size_of, transmute};
 use std::sync::atomic::AtomicU8;
 
-use super::{Value, ValueAlign, ValueRepr, ALLOC_VALUE_SIZE_IN_BYTES};
+use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
@@ -71,12 +71,12 @@ sa::assert_eq_size!(List, super::Value);
 impl List {
 	pub const EMPTY: Self = Self(&EMPTY_INNER);
 
-	pub fn into_raw(self) -> ValueRepr {
-		unsafe { transmute::<Self, *const Inner>(self) as ValueRepr }
+	pub fn into_raw(self) -> *const ValueInner {
+		self.0.cast()
 	}
 
-	pub unsafe fn from_raw(raw: ValueRepr) -> Self {
-		unsafe { transmute::<*const Inner, Self>(raw as *const Inner) }
+	pub unsafe fn from_raw(ptr: *const ValueInner) -> Self {
+		Self(ptr.cast())
 	}
 
 	pub unsafe fn from_value_inner(raw: *const crate::gc::ValueInner) -> Self {

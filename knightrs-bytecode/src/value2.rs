@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::gc::{GarbageCollected, Gc};
+use crate::gc::{GarbageCollected, Gc, ValueInner};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
 mod block;
@@ -38,7 +38,14 @@ XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 #[derive(Clone, Copy)]
-pub struct Value(ValueRepr);
+pub struct Value(Inner);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+union Inner {
+	ptr: *const ValueInner,
+	val: u64,
+}
 
 #[repr(align(16))]
 pub(crate) struct ValueAlign;
@@ -100,7 +107,7 @@ impl Debug for Value {
 
 // 		match tag {
 // 			Tag::String => todo!(),
-// 			Tag::List => todo!(), //drop(unsafe { List::from_raw(repr) }),
+// 			Tag::List => todo!(), //drop(unsafe { List::from_alloc(repr) }),
 // 			#[cfg(feature = "custom-types")]
 // 			Tag::Custom => todo!(),
 // 			_ => unreachable!(),
@@ -140,7 +147,7 @@ impl From<Block> for Value {
 impl From<List> for Value {
 	#[inline]
 	fn from(list: List) -> Self {
-		unsafe { Self::from_raw(list.into_raw(), Tag::Alloc) }
+		unsafe { Self::from_alloc(list.into_raw()) }
 	}
 }
 
@@ -149,7 +156,7 @@ impl From<KnString> for Value {
 	fn from(string: KnString) -> Self {
 		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
 		let raw = string.into_raw();
-		unsafe { Self::from_raw(raw, Tag::Alloc) }
+		unsafe { Self::from_alloc(raw) }
 	}
 }
 
@@ -162,18 +169,18 @@ impl Value {
 	#[inline]
 	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
 		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
-		unsafe { Self::from_raw(repr << TAG_SHIFT, tag) }
+		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 })
 	}
 
 	// SAFETY: bytes is a valid representation
 	#[inline]
-	const unsafe fn from_raw(repr: ValueRepr, tag: Tag) -> Self {
-		debug_assert!(repr & TAG_MASK == 0, "repr has tag bits set");
-		Self(repr | tag as ValueRepr)
+	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
+		debug_assert!((ptr as usize) & (TAG_MASK as usize) == 0, "repr has tag bits set");
+		Self(Inner { ptr })
 	}
 
 	const fn tag(self) -> Tag {
-		let mask = (self.0 & TAG_MASK) as u8;
+		let mask = unsafe { self.0.val & TAG_MASK } as u8;
 		debug_assert!(
 			mask == Tag::Alloc as _
 				|| mask == Tag::Integer as _
@@ -183,16 +190,16 @@ impl Value {
 		unsafe { std::mem::transmute::<u8, Tag>(mask) }
 	}
 
-	const fn parts_shift(self) -> (ValueRepr, Tag) {
-		(self.0 >> TAG_SHIFT, self.tag())
+	fn is_alloc(self) -> bool {
+		self.tag() == Tag::Alloc
 	}
 
-	const fn parts(self) -> (ValueRepr, Tag) {
-		(self.0 & !TAG_MASK, self.tag())
+	const fn parts_shift(self) -> (ValueRepr, Tag) {
+		(unsafe { self.0.val } >> TAG_SHIFT, self.tag())
 	}
 
 	pub const fn is_null(self) -> bool {
-		self.0 == Self::NULL.0
+		unsafe { self.0.val == Self::NULL.0.val }
 	}
 
 	pub const fn as_integer(self) -> Option<Integer> {
@@ -203,17 +210,19 @@ impl Value {
 
 		// Can't use `parts_shift()` because it doesnt do sign-extending.
 		Some(Integer::new_unvalidated_unchecked(
-			(self.0 as crate::value::integer::IntegerInner) >> TAG_SHIFT,
+			unsafe { self.0.val as crate::value::integer::IntegerInner } >> TAG_SHIFT,
 		))
 	}
 
 	pub const fn as_boolean(self) -> Option<Boolean> {
-		if self.0 == Self::TRUE.0 {
-			Some(true)
-		} else if self.0 == Self::FALSE.0 {
-			Some(false)
-		} else {
-			None
+		unsafe {
+			if self.0.val == Self::TRUE.0.val {
+				Some(true)
+			} else if self.0.val == Self::FALSE.0.val {
+				Some(false)
+			} else {
+				None
+			}
 		}
 	}
 
@@ -224,20 +233,16 @@ impl Value {
 	}
 
 	pub fn as_list(self) -> Option<List> {
-		let (repr, tag) = self.parts();
-
-		if tag == Tag::Alloc {
-			unsafe { crate::gc::ValueInner::as_list(repr as *const _) }
+		if self.is_alloc() {
+			unsafe { ValueInner::as_list(self.0.ptr) }
 		} else {
 			None
 		}
 	}
 
 	pub fn as_knstring(self) -> Option<KnString> {
-		let (repr, tag) = self.parts();
-
-		if tag == Tag::Alloc {
-			unsafe { crate::gc::ValueInner::as_knstring(repr as *const _) }
+		if self.is_alloc() {
+			unsafe { ValueInner::as_knstring(self.0.ptr) }
 		} else {
 			None
 		}
@@ -246,18 +251,14 @@ impl Value {
 
 unsafe impl GarbageCollected for Value {
 	unsafe fn mark(&self) {
-		let (repr, tag) = self.parts();
-
-		if tag == Tag::Alloc {
-			unsafe { crate::gc::ValueInner::mark(repr as *const _) }
+		if self.is_alloc() {
+			unsafe { ValueInner::mark(self.0.ptr) }
 		}
 	}
 
 	unsafe fn deallocate(self) {
-		let (repr, tag) = self.parts();
-
-		if tag == Tag::Alloc {
-			unsafe { crate::gc::ValueInner::deallocate(repr as *const _) }
+		if self.is_alloc() {
+			unsafe { ValueInner::deallocate(self.0.ptr) }
 		}
 	}
 }
