@@ -13,7 +13,7 @@ use crate::value2::{Value, ValueAlign};
 pub struct Gc {
 	value_inners: Vec<*mut ValueInner>,
 	idx: usize,
-	roots: Vec<Value>,
+	roots: Vec<*mut ValueInner>,
 }
 
 pub const ALLOC_VALUE_SIZE: usize = 32;
@@ -187,7 +187,7 @@ impl Gc {
 	///
 	/// This adds `root` to a list of nodes that'll assume to always be "live," so them and all their
 	/// children will be checked when marking-and-sweeping.
-	pub fn add_root(&mut self, root: Value) {
+	pub fn add_root(&mut self, root: *mut ValueInner) {
 		self.roots.push(root);
 	}
 
@@ -195,7 +195,7 @@ impl Gc {
 		// Mark all elements accessible from the root
 		for root in &mut self.roots {
 			unsafe {
-				root.mark();
+				ValueInner::mark(*root);
 			}
 		}
 
@@ -252,7 +252,9 @@ impl ValueInner {
 		unsafe { &raw const (*this).flags }
 	}
 
-	pub(crate) unsafe fn as_knstring(this: *const Self) -> Option<crate::value2::KnString> {
+	pub(crate) unsafe fn as_knstring<'gc>(
+		this: *const Self,
+	) -> Option<crate::value2::KnString<'gc>> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_STRING != 0 {
 			Some(unsafe { crate::value2::KnString::from_raw(this) })
 		} else {
@@ -260,7 +262,7 @@ impl ValueInner {
 		}
 	}
 
-	pub(crate) unsafe fn as_list(this: *const Self) -> Option<crate::value2::List> {
+	pub(crate) unsafe fn as_list<'gc>(this: *const Self) -> Option<crate::value2::List<'gc>> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_LIST != 0 {
 			Some(unsafe { crate::value2::List::from_raw(this) })
 		} else {

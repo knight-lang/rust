@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::marker::PhantomData;
 
 use crate::gc::{GarbageCollected, Gc, ValueInner};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
@@ -38,12 +39,12 @@ XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 #[derive(Clone, Copy)]
-pub struct Value<'gc>(Inner<'gc>);
+pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 union Inner {
-	ptr: *const ValueInner<'gc>,
+	ptr: *const ValueInner,
 	val: u64,
 }
 
@@ -154,7 +155,7 @@ impl<'gc> From<List<'gc>> for Value<'gc> {
 impl<'gc> From<KnString<'gc>> for Value<'gc> {
 	#[inline]
 	fn from(string: KnString<'gc>) -> Self {
-		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr<'gc>>());
+		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
 		let raw = string.into_raw();
 		unsafe { Self::from_alloc(raw) }
 	}
@@ -169,14 +170,14 @@ impl<'gc> Value<'gc> {
 	#[inline]
 	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
 		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
-		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 })
+		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
 	}
 
 	// SAFETY: bytes is a valid representation
 	#[inline]
 	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
 		debug_assert!((ptr as usize) & (TAG_MASK as usize) == 0, "repr has tag bits set");
-		Self(Inner { ptr })
+		Self(Inner { ptr }, PhantomData)
 	}
 
 	const fn tag(self) -> Tag {
@@ -232,7 +233,7 @@ impl<'gc> Value<'gc> {
 		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
 	}
 
-	pub fn as_list(self) -> Option<List> {
+	pub fn as_list(self) -> Option<List<'gc>> {
 		if self.is_alloc() {
 			unsafe { ValueInner::as_list(self.0.ptr) }
 		} else {
@@ -240,7 +241,7 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
-	pub fn as_knstring(self) -> Option<KnString> {
+	pub fn as_knstring(self) -> Option<KnString<'gc>> {
 		if self.is_alloc() {
 			unsafe { ValueInner::as_knstring(self.0.ptr) }
 		} else {
@@ -249,7 +250,7 @@ impl<'gc> Value<'gc> {
 	}
 }
 
-unsafe impl GarbageCollected for Value {
+unsafe impl GarbageCollected for Value<'_> {
 	unsafe fn mark(&self) {
 		if self.is_alloc() {
 			unsafe { ValueInner::mark(self.0.ptr) }

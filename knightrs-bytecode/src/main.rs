@@ -35,9 +35,9 @@ fn main() {
 		&mut gc,
 	));
 
-	let mut list = v2::Value::from(v2::List::boxed(greeting, &mut gc));
+	let mut list = v2::Value::from(v2::List::boxed(greeting, &gc));
 
-	gc.add_root(list);
+	// gc.add_root(list);
 
 	unsafe {
 		gc.shutdown();
