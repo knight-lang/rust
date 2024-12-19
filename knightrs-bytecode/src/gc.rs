@@ -78,6 +78,12 @@ impl Default for GcOptions {
 	}
 }
 
+impl Default for Gc {
+	fn default() -> Self {
+		Self::new(Default::default())
+	}
+}
+
 impl Gc {
 	/// Constructs a new [`Gc`] with the given `opts`, and returns it.
 	pub fn new(opts: GcOptions) -> Self {

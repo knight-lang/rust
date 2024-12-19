@@ -62,7 +62,9 @@ impl ToKnValueString for Null {
 impl<'path> Parseable<'_, 'path> for Null {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		if parser.advance_if('N').is_none() {
 			return Ok(None);
 		}

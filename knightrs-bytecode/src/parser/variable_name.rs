@@ -37,7 +37,7 @@ impl<'src, 'path> Parseable<'src, 'path> for VariableName<'src> {
 	type Output = (Self, SourceLocation<'path>);
 
 	fn parse(
-		parser: &mut Parser<'_, 'src, 'path>,
+		parser: &mut Parser<'_, 'src, 'path, '_>,
 	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
 			return Ok(None);

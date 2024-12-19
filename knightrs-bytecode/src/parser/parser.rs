@@ -13,8 +13,8 @@ use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 
-pub struct Parser<'env, 'src, 'path> {
-	env: &'env mut Environment,
+pub struct Parser<'env, 'src, 'path, 'gc> {
+	env: &'env mut Environment<'gc>,
 	filename: Option<&'path Path>,
 	source: &'src str, // can't use `KnStr` b/c it has a length limit.
 	compiler: Compiler<'src, 'path>,
@@ -42,9 +42,9 @@ fn validate_source<'e, 'path>(
 	Err(ParseErrorKind::InvalidCharInEncoding(opts.encoding, err.character).error(whence))
 }
 
-impl<'env, 'src, 'path> Parser<'env, 'src, 'path> {
+impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 	pub fn new(
-		env: &'env mut Environment,
+		env: &'env mut Environment<'gc>,
 		filename: Option<&'path Path>,
 		source: &'src str,
 	) -> Result<Self, ParseError<'path>> {

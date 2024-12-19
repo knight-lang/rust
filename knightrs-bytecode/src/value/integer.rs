@@ -407,7 +407,9 @@ impl Integer {
 impl<'path> Parseable<'_, 'path> for Integer {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(None);
 		};

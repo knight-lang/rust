@@ -12,6 +12,6 @@ pub trait Parseable<'src, 'path> {
 	type Output;
 
 	fn parse(
-		parser: &mut Parser<'_, 'src, 'path>,
+		parser: &mut Parser<'_, 'src, 'path, '_>,
 	) -> Result<Option<Self::Output>, ParseError<'path>>;
 }

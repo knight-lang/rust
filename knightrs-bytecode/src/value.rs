@@ -101,7 +101,7 @@ impl From<Block> for Value {
 }
 
 impl ToBoolean for Value {
-	fn to_boolean(&self, env: &mut Environment) -> Result<Boolean> {
+	fn to_boolean(&self, env: &mut Environment<'_>) -> Result<Boolean> {
 		match self.inner() {
 			ValueEnum::Null => Null.to_boolean(env),
 			ValueEnum::Boolean(boolean) => boolean.to_boolean(env),
@@ -117,7 +117,7 @@ impl ToBoolean for Value {
 }
 
 impl ToInteger for Value {
-	fn to_integer(&self, env: &mut Environment) -> Result<Integer> {
+	fn to_integer(&self, env: &mut Environment<'_>) -> Result<Integer> {
 		match self.inner() {
 			ValueEnum::Null => Null.to_integer(env),
 			ValueEnum::Boolean(boolean) => boolean.to_integer(env),
@@ -133,7 +133,7 @@ impl ToInteger for Value {
 }
 
 impl ToKnValueString for Value {
-	fn to_kstring(&self, env: &mut Environment) -> Result<KnValueString> {
+	fn to_kstring(&self, env: &mut Environment<'_>) -> Result<KnValueString> {
 		match self.inner() {
 			ValueEnum::Null => Null.to_kstring(env),
 			ValueEnum::Boolean(boolean) => boolean.to_kstring(env),
@@ -149,7 +149,7 @@ impl ToKnValueString for Value {
 }
 
 impl ToList for Value {
-	fn to_list(&self, env: &mut Environment) -> Result<List> {
+	fn to_list(&self, env: &mut Environment<'_>) -> Result<List> {
 		match self.inner() {
 			ValueEnum::Null => Null.to_list(env),
 			ValueEnum::Boolean(boolean) => boolean.to_list(env),
@@ -220,7 +220,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_dump(&self, env: &mut Environment) -> Result<()> {
+	pub fn kn_dump(&self, env: &mut Environment<'_>) -> Result<()> {
 		use std::io::Write;
 
 		// TODO: move this into each type, so they can control it
@@ -300,7 +300,7 @@ impl Value {
 	/// is a block, or a list containing a block. Without `compliance.check_equals_params`, this
 	/// never fails.
 	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment) -> Result<bool> {
+	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<bool> {
 		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
 
 		// In strict compliance mode, we can't use Blocks for `?`.
@@ -321,7 +321,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_length(&self, env: &mut Environment) -> Result<Integer> {
+	pub fn kn_length(&self, env: &mut Environment<'_>) -> Result<Integer> {
 		cfg_if! {
 			if #[cfg(feature = "knight_2_0_1")] {
 				let length_of_anything = true;
@@ -375,7 +375,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_negate(&self, env: &mut Environment) -> Result<Integer> {
+	pub fn kn_negate(&self, env: &mut Environment<'_>) -> Result<Integer> {
 		#[cfg(feature = "extensions")]
 		if env.opts().extensions.breaking.negate_reverses_collections {
 			todo!();
@@ -384,7 +384,7 @@ impl Value {
 		Ok(self.to_integer(env)?.negate(env.opts())?)
 	}
 
-	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),
 			ValueEnum::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
@@ -401,7 +401,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into())
@@ -424,7 +424,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.multiply(rhs.to_integer(env)?, env.opts())?.into())
@@ -470,7 +470,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into())
@@ -493,7 +493,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				Ok(integer.remainder(rhs.to_integer(env)?, env.opts())?.into())
@@ -550,7 +550,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => Ok(integer.power(rhs.to_integer(env)?, env.opts())?.into()),
 			ValueEnum::List(list) => list.join(&rhs.to_kstring(env)?, env).map(Self::from),
@@ -571,7 +571,7 @@ impl Value {
 	/// # Errors
 	/// If `self` is either a [`Text`] or a [`List`] and is empty, an [`Error::DomainError`] is
 	/// returned. If `self`
-	pub fn kn_head(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_head(&self, env: &mut Environment<'_>) -> Result<Self> {
 		let _ = env;
 		match self.inner() {
 			ValueEnum::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
@@ -589,7 +589,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_tail(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_tail(&self, env: &mut Environment<'_>) -> Result<Self> {
 		let _ = env;
 		match self.inner() {
 			ValueEnum::List(list) => {
@@ -610,7 +610,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_ascii(&self, env: &mut Environment) -> Result<Self> {
+	pub fn kn_ascii(&self, env: &mut Environment<'_>) -> Result<Self> {
 		match self.inner() {
 			ValueEnum::Integer(integer) => {
 				let chr = integer.chr(env.opts())?;
@@ -625,7 +625,7 @@ impl Value {
 		}
 	}
 
-	pub fn kn_get(&self, start: &Value, len: &Value, env: &mut Environment) -> Result<Self> {
+	pub fn kn_get(&self, start: &Value, len: &Value, env: &mut Environment<'_>) -> Result<Self> {
 		#[cfg(feature = "custom-types")]
 		if let ValueEnum::Custom(custom) = self {
 			return custom.get(start, len, env);

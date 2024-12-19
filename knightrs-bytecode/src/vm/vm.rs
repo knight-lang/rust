@@ -11,9 +11,9 @@ use crate::value::{
 };
 use crate::{Environment, Error};
 
-pub struct Vm<'prog, 'src, 'path, 'env> {
+pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
 	program: &'prog Program<'src, 'path>,
-	env: &'env mut Environment,
+	env: &'env mut Environment<'gc>,
 	current_index: usize,
 	stack: Vec<Value>,
 	variables: Vec<Option<Value>>, // It's a vec for extensions; without extensions this could be a box, but i see no need to
@@ -28,8 +28,8 @@ pub struct Vm<'prog, 'src, 'path, 'env> {
 	dynamic_variables: HashMap<VariableName<'static>, Value>,
 }
 
-impl<'prog, 'src, 'path, 'env> Vm<'prog, 'src, 'path, 'env> {
-	pub fn new(program: &'prog Program<'src, 'path>, env: &'env mut Environment) -> Self {
+impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
+	pub fn new(program: &'prog Program<'src, 'path>, env: &'env mut Environment<'gc>) -> Self {
 		Self {
 			program,
 			env,

@@ -183,7 +183,9 @@ impl KnValueString {
 impl<'path> Parseable<'_, 'path> for KnValueString {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
 			todo!();

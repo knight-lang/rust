@@ -1,28 +1,28 @@
 use std::io;
 
+use crate::gc::Gc;
 use crate::options::Options;
 use crate::value::{Integer, KnValueString};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
-pub struct Environment {
+pub struct Environment<'gc> {
 	opts: Options,
 	rng: StdRng,
+	gc: &'gc Gc,
 }
 
-impl Default for Environment {
-	fn default() -> Self {
-		Self::new(Options::default())
-	}
-}
-
-impl Environment {
-	pub fn new(opts: Options) -> Self {
+impl<'gc> Environment<'gc> {
+	pub fn new(opts: Options, gc: &'gc Gc) -> Self {
 		// TODO: allow `rng` to be supplied by callers
-		Self { opts, rng: StdRng::from_entropy() }
+		Self { opts, rng: StdRng::from_entropy(), gc }
 	}
 
 	pub fn opts(&self) -> &Options {
 		&self.opts
+	}
+
+	pub fn gc(&self) -> &'gc Gc {
+		&self.gc
 	}
 
 	pub fn prompt(&mut self) -> crate::Result<Option<KnValueString>> {

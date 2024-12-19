@@ -64,7 +64,9 @@ impl<'gc> ToKnString<'gc> for Boolean {
 impl<'path> Parseable<'_, 'path> for Boolean {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(None);
 		};

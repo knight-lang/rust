@@ -543,7 +543,9 @@ impl List {
 impl<'path> Parseable<'_, 'path> for List {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		#[cfg(feature = "extensions")]
 		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
 			// TODO: make sure that this doesn't actually strictly return a list, as that won't be

@@ -4,6 +4,7 @@ use std::default;
 use std::path::Path;
 
 use knightrs_bytecode::env::Environment;
+use knightrs_bytecode::gc::Gc;
 use knightrs_bytecode::parser::*;
 use knightrs_bytecode::program::*;
 use knightrs_bytecode::strings::KnStr;
@@ -47,37 +48,42 @@ fn main() {
 }
 
 fn main2() {
-	let mut env = Environment::new({
-		let mut opts = Options::default();
-		#[cfg(feature = "extensions")]
-		{
-			// opts.extensions.negative_indexing = true;
-			opts.extensions.argv = true;
-			opts.extensions.functions.eval = true;
-			opts.extensions.functions.value = true;
-			opts.extensions.builtin_fns.assign_to_strings = true;
-			opts.extensions.builtin_fns.assign_to_random = true;
-			opts.extensions.syntax.control_flow = true;
-		}
-		#[cfg(feature = "compliance")]
-		{
-			opts.compliance.check_container_length = true;
-			opts.compliance.i32_integer = true;
-			opts.compliance.check_overflow = true;
-			opts.compliance.check_integer_function_bounds = true;
-			opts.compliance.variable_name_length = true;
-			opts.compliance.variable_count = true;
-			opts.compliance.forbid_trailing_tokens = true;
-			opts.compliance.check_equals_params = true;
-			opts.compliance.limit_rand_range = true;
-			opts.compliance.cant_dump_blocks = true;
-			opts.compliance.check_quit_status_codes = true;
-			opts.compliance.disallow_negative_int_to_list = true;
-			opts.qol.check_parens = true;
-		}
+	let gc = Gc::default();
 
-		opts
-	});
+	let mut env = Environment::new(
+		{
+			let mut opts = Options::default();
+			#[cfg(feature = "extensions")]
+			{
+				// opts.extensions.negative_indexing = true;
+				opts.extensions.argv = true;
+				opts.extensions.functions.eval = true;
+				opts.extensions.functions.value = true;
+				opts.extensions.builtin_fns.assign_to_strings = true;
+				opts.extensions.builtin_fns.assign_to_random = true;
+				opts.extensions.syntax.control_flow = true;
+			}
+			#[cfg(feature = "compliance")]
+			{
+				opts.compliance.check_container_length = true;
+				opts.compliance.i32_integer = true;
+				opts.compliance.check_overflow = true;
+				opts.compliance.check_integer_function_bounds = true;
+				opts.compliance.variable_name_length = true;
+				opts.compliance.variable_count = true;
+				opts.compliance.forbid_trailing_tokens = true;
+				opts.compliance.check_equals_params = true;
+				opts.compliance.limit_rand_range = true;
+				opts.compliance.cant_dump_blocks = true;
+				opts.compliance.check_quit_status_codes = true;
+				opts.compliance.disallow_negative_int_to_list = true;
+				opts.qol.check_parens = true;
+			}
+
+			opts
+		},
+		&gc,
+	);
 
 	let mut args = std::env::args().skip(1);
 	let program = match args.next().as_deref() {

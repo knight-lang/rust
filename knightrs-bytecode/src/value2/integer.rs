@@ -407,7 +407,9 @@ impl Integer {
 impl<'path> Parseable<'_, 'path> for Integer {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(digits) = parser.take_while(|c| c.is_ascii_digit()) else {
 			return Ok(None);
 		};
@@ -454,16 +456,16 @@ impl ToBoolean for Integer {
 	}
 }
 
-impl<'gc> ToKnString<'gc> for Integer {
-	/// Returns whether `self` is nonzero.
-	#[inline]
-	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString<'gc>> {
-		// COMPLIANCE: `Integer#to_string` yields just an optional leading `-` followed by digits,
-		// which is valid in all encodings. Additionally, it's nowhere near the maximum length for a
-		// string.
-		Ok(KnString::new_unvalidated(self.to_string()))
-	}
-}
+// impl<'gc> ToKnString<'gc> for Integer {
+// 	/// Returns whether `self` is nonzero.
+// 	#[inline]
+// 	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString<'gc>> {
+// 		// COMPLIANCE: `Integer#to_string` yields just an optional leading `-` followed by digits,
+// 		// which is valid in all encodings. Additionally, it's nowhere near the maximum length for a
+// 		// string.
+// 		Ok(KnString::new_unvalidated(self.to_string()))
+// 	}
+// }
 /*
 impl ToList for Integer {
 	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {

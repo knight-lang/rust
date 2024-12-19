@@ -56,7 +56,7 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 }
 
 fn parse_argument<'path>(
-	parser: &mut Parser<'_, '_, 'path>,
+	parser: &mut Parser<'_, '_, 'path, '_>,
 	start: &SourceLocation<'path>,
 	fn_name: char,
 	arg: usize,
@@ -71,7 +71,7 @@ fn parse_argument<'path>(
 
 fn parse_assignment<'path>(
 	start: SourceLocation<'path>,
-	parser: &mut Parser<'_, '_, 'path>,
+	parser: &mut Parser<'_, '_, 'path, '_>,
 ) -> Result<(), ParseError<'path>> {
 	parser.strip_whitespace_and_comments();
 
@@ -136,7 +136,7 @@ fn parse_assignment<'path>(
 
 fn parse_block<'src, 'path>(
 	start: SourceLocation<'path>,
-	parser: &mut Parser<'_, 'src, 'path>,
+	parser: &mut Parser<'_, 'src, 'path, '_>,
 	name: Option<VariableName<'src>>,
 ) -> Result<(), ParseError<'path>> {
 	// TODO: improve blocks later on by not having to jump over their definitions always.
@@ -157,7 +157,7 @@ fn parse_block<'src, 'path>(
 }
 
 impl Function {
-	pub fn parse<'path>(parser: &mut Parser<'_, '_, 'path>) -> Result<bool, ParseError<'path>> {
+	pub fn parse<'path>(parser: &mut Parser<'_, '_, 'path, '_>) -> Result<bool, ParseError<'path>> {
 		// this should be reowrked ot allow for registering arbitrary functions, as it doesn't
 		// support `X`s
 
