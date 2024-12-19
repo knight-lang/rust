@@ -39,6 +39,8 @@ fn main() {
 
 	gc.add_root(list);
 
+	dbg!(list);
+
 	unsafe {
 		gc.shutdown();
 	}

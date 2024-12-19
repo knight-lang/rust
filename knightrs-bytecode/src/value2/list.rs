@@ -100,11 +100,11 @@ impl<'gc> List<'gc> {
 		Self(ptr.cast())
 	}
 
-	pub fn boxed(value: Value<'gc>, gc: &'gc mut Gc) -> Self {
+	pub fn boxed(value: Value<'gc>, gc: &'gc Gc) -> Self {
 		Self::new(&[value], gc)
 	}
 
-	pub fn new(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
+	pub fn new(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
@@ -112,11 +112,11 @@ impl<'gc> List<'gc> {
 		}
 	}
 
-	fn allocate(flags: u8, gc: &'gc mut Gc) -> *mut Inner<'gc> {
+	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner<'gc> {
 		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
 	}
 
-	fn new_embedded(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
+	fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
 		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
 
@@ -129,7 +129,7 @@ impl<'gc> List<'gc> {
 		Self(inner)
 	}
 
-	fn new_alloc(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
+	fn new_alloc(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);

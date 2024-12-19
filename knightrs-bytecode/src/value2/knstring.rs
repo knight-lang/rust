@@ -103,7 +103,7 @@ impl Default for KnString<'_> {
 
 impl<'gc> KnString<'gc> {
 	/// Creates a new [`KnString`] from the given `source`.
-	pub fn new(source: &KnStr, gc: &'gc mut Gc) -> Self {
+	pub fn new(source: &KnStr, gc: &'gc Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 
@@ -123,12 +123,12 @@ impl<'gc> KnString<'gc> {
 	}
 
 	// Allocate the underlying `ValueInner`.
-	fn allocate(flags: u8, gc: &'gc mut Gc) -> *mut Inner {
+	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner {
 		unsafe { gc.alloc_value_inner(gc::FLAG_IS_STRING as u8 | flags).cast::<Inner>() }
 	}
 
 	// SAFETY: `source.len()` needs to be `<= MAX_EMBEDDED_LENGTH`, otherwise we copy off the end.
-	unsafe fn new_embedded(source: &str, gc: &'gc mut Gc) -> Self {
+	unsafe fn new_embedded(source: &str, gc: &'gc Gc) -> Self {
 		let len = source.len();
 		debug_assert!(len <= MAX_EMBEDDED_LENGTH);
 
@@ -152,7 +152,7 @@ impl<'gc> KnString<'gc> {
 	}
 
 	// SAFETY: source.len() cannot be zero
-	unsafe fn new_alloc(source: &str, gc: &'gc mut Gc) -> Self {
+	unsafe fn new_alloc(source: &str, gc: &'gc Gc) -> Self {
 		let len = source.len();
 		debug_assert!(len > MAX_EMBEDDED_LENGTH, "too many bytes given; use new_embedded?");
 

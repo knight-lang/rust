@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -10,7 +11,9 @@ use crate::value2::{Value, ValueAlign};
 ///
 /// All allocated values are allocated via [`Gc::alloc_value_inner`].
 #[must_use = "dropping `Gc` will leak all its memory"]
-pub struct Gc {
+pub struct Gc(RefCell<Inner>);
+
+struct Inner {
 	value_inners: Vec<*mut ValueInner>,
 	idx: usize,
 	roots: Vec<*const ValueInner>,
@@ -78,13 +81,16 @@ impl Default for GcOptions {
 impl Gc {
 	/// Constructs a new [`Gc`] with the given `opts`, and returns it.
 	pub fn new(opts: GcOptions) -> Self {
-		Self {
-			value_inners: (0..opts.starting_cap)
-				.map(|_| Box::into_raw(Box::new(EMPTY_INNER)))
-				.collect(),
-			roots: Vec::new(),
-			idx: 0,
-		}
+		Self(
+			Inner {
+				value_inners: (0..opts.starting_cap)
+					.map(|_| Box::into_raw(Box::new(EMPTY_INNER)))
+					.collect(),
+				roots: Vec::new(),
+				idx: 0,
+			}
+			.into(),
+		)
 	}
 
 	/// Shuts down the [`Gc`] by cleaning up all memory associated with it.
@@ -93,7 +99,8 @@ impl Gc {
 	/// Callers must ensure that no references to anything the [`Gc`] has created will be used after
 	/// calling this function.
 	pub unsafe fn shutdown(mut self) {
-		for inner in self.value_inners {
+		// TODO: this borrow isnt sound
+		for &inner in &self.0.borrow().value_inners {
 			unsafe {
 				ValueInner::deallocate(inner, false);
 				drop(Box::from_raw(inner));
@@ -101,29 +108,33 @@ impl Gc {
 		}
 	}
 
-	fn next_open_inner_(&mut self) -> Option<*mut ValueInner> {
-		while self.idx < self.value_inners.len() {
-			let inner = self.value_inners[self.idx];
-			self.idx += 1;
-			if unsafe { &*ValueInner::flags(inner) }.load(Ordering::SeqCst) == 0 {
-				return Some(inner);
+	fn next_open_inner_(&self) -> Option<*mut ValueInner> {
+		let mut inner = self.0.borrow_mut();
+		while inner.idx < inner.value_inners.len() {
+			let value_inner = inner.value_inners[inner.idx];
+			inner.idx += 1;
+			if unsafe { &*ValueInner::flags(value_inner) }.load(Ordering::SeqCst) == 0 {
+				return Some(value_inner);
 			}
 		}
 		return None;
 	}
 
-	fn next_open_inner(&mut self) -> *mut ValueInner {
+	fn next_open_inner(&self) -> *mut ValueInner {
 		if let Some(inner) = self.next_open_inner_() {
 			return inner;
 		}
 
 		self.mark_and_sweep();
-		self.idx = 0;
+		self.0.borrow_mut().idx = 0;
 
 		// extend the length
+		let len = self.0.borrow().value_inners.len();
 		self
+			.0
+			.borrow_mut()
 			.value_inners
-			.extend((0..self.value_inners.len() + 1).map(|_| Box::into_raw(Box::new(EMPTY_INNER))));
+			.extend((0..=len).map(|_| Box::into_raw(Box::new(EMPTY_INNER))));
 
 		self.next_open_inner_().expect("we just extended")
 	}
@@ -159,7 +170,7 @@ impl Gc {
 	///
 	/// # Safety
 	/// Callers must ensure the above conditions are satisfied.
-	pub unsafe fn alloc_value_inner(&mut self, flags: u8) -> *mut ValueInner {
+	pub unsafe fn alloc_value_inner(&self, flags: u8) -> *mut ValueInner {
 		debug_assert_eq!(flags & FLAG_GC_MARKED, 0, "cannot already be marked");
 
 		#[cfg(debug_assertions)]
@@ -187,22 +198,22 @@ impl Gc {
 	///
 	/// This adds `root` to a list of nodes that'll assume to always be "live," so them and all their
 	/// children will be checked when marking-and-sweeping.
-	pub fn add_root(&mut self, root: Value) {
+	pub fn add_root(&self, root: Value) {
 		if root.__is_alloc() {
-			self.roots.push(unsafe { root.__as_alloc() });
+			self.0.borrow_mut().roots.push(unsafe { root.__as_alloc() });
 		}
 	}
 
-	fn mark_and_sweep(&mut self) {
+	fn mark_and_sweep(&self) {
 		// Mark all elements accessible from the root
-		for &root in &self.roots {
+		for &root in &self.0.borrow().roots {
 			unsafe {
 				ValueInner::mark(root);
 			}
 		}
 
 		// Sweep everything that's not needed
-		for &inner in &self.value_inners {
+		for &inner in &self.0.borrow().value_inners {
 			let old =
 				unsafe { &*ValueInner::flags(inner) }.fetch_and(!FLAG_GC_MARKED, Ordering::SeqCst);
 
