@@ -66,7 +66,7 @@ impl ToKnValueString for Boolean {
 		}
 	}
 }
-
+/*
 impl<'path> Parseable<'_, 'path> for Boolean {
 	type Output = Self;
 
@@ -90,3 +90,4 @@ unsafe impl<'path> Compilable<'_, 'path> for Boolean {
 		Ok(())
 	}
 }
+*/

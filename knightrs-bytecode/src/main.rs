@@ -12,7 +12,7 @@ use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
 
 fn run(
-	env: &mut Environment,
+	env: &mut Environment<'_>,
 	program: &str,
 	argv: impl Iterator<Item = String>,
 ) -> Result<(), String> {
