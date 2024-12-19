@@ -2,6 +2,7 @@ use crate::container::RefCount;
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
+use std::marker::PhantomData;
 use std::mem::{align_of, size_of, transmute};
 use std::sync::atomic::AtomicU8;
 
@@ -9,7 +10,7 @@ use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct List(*const Inner);
+pub struct List<'gc>(*const Inner<'gc>);
 
 pub(crate) mod consts {
 	use super::*;
@@ -26,32 +27,32 @@ pub(crate) mod consts {
 }
 
 /// Represents the ability to be converted to a [`List`].
-pub trait ToList {
+pub trait ToList<'gc> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut crate::Environment) -> crate::Result<List>;
+	fn to_list(&self, env: &mut crate::Environment) -> crate::Result<List<'gc>>;
 }
 
-static EMPTY_INNER: Inner = Inner {
+static EMPTY_INNER: Inner<'_> = Inner {
 	_alignment: ValueAlign,
 	flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
 	kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
 };
 
 #[repr(C)]
-struct Inner {
+struct Inner<'gc> {
 	_alignment: ValueAlign,
 	flags: AtomicU8,
-	kind: Kind,
+	kind: Kind<'gc>,
 }
 
 sa::assert_eq_align!(crate::gc::ValueInner, Inner);
 sa::assert_eq_size!(crate::gc::ValueInner, Inner);
 
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
-unsafe impl Send for Inner {}
+unsafe impl Send for Inner<'_> {}
 
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
-unsafe impl Sync for Inner {}
+unsafe impl Sync for Inner<'_> {}
 
 const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;
 const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM_2 | gc::FLAG_CUSTOM_3;
@@ -64,9 +65,9 @@ sa::const_assert!(
 );
 
 #[repr(C)]
-union Kind {
-	embedded: [Value; MAX_EMBEDDED_LENGTH],
-	alloc: Alloc,
+union Kind<'gc> {
+	embedded: [Value<'gc>; MAX_EMBEDDED_LENGTH],
+	alloc: Alloc<'gc>,
 }
 
 const ALLOC_PADDING_ALIGN: usize =
@@ -79,16 +80,16 @@ const ALLOC_PADDING_ALIGN: usize =
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
-struct Alloc {
+struct Alloc<'gc> {
 	_padding: [u8; ALLOC_PADDING_ALIGN],
-	ptr: *const Value,
+	ptr: *const Value<'gc>,
 	len: usize,
 }
 
-sa::const_assert_eq!(size_of::<Inner>(), ALLOC_VALUE_SIZE_IN_BYTES);
+sa::const_assert_eq!(size_of::<Inner<'_>>(), ALLOC_VALUE_SIZE_IN_BYTES);
 sa::assert_eq_size!(List, super::Value);
 
-impl List {
+impl<'gc> List<'gc> {
 	pub const EMPTY: Self = Self(&EMPTY_INNER);
 
 	pub fn into_raw(self) -> *const ValueInner {
@@ -99,11 +100,11 @@ impl List {
 		Self(ptr.cast())
 	}
 
-	pub fn boxed(value: Value, gc: &mut Gc) -> Self {
+	pub fn boxed(value: Value<'gc>, gc: &'gc mut Gc) -> Self {
 		Self::new(&[value], gc)
 	}
 
-	pub fn new(source: &[Value], gc: &mut Gc) -> Self {
+	pub fn new(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
@@ -111,24 +112,24 @@ impl List {
 		}
 	}
 
-	fn allocate(flags: u8, gc: &mut Gc) -> *mut Inner {
+	fn allocate(flags: u8, gc: &'gc mut Gc) -> *mut Inner<'gc> {
 		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
 	}
 
-	fn new_embedded(source: &[Value], gc: &mut Gc) -> Self {
+	fn new_embedded(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
 		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
 
 		unsafe {
 			(&raw mut (*inner).kind.embedded)
-				.cast::<Value>()
+				.cast::<Value<'gc>>()
 				.copy_from_nonoverlapping(source.as_ptr(), source.len());
 		}
 
 		Self(inner)
 	}
 
-	fn new_alloc(source: &[Value], gc: &mut Gc) -> Self {
+	fn new_alloc(source: &[Value<'gc>], gc: &'gc mut Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
@@ -136,9 +137,11 @@ impl List {
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
 
-			let ptr =
-				std::alloc::alloc(Layout::from_size_align_unchecked(source.len(), align_of::<Value>()))
-					.cast::<Value>();
+			let ptr = std::alloc::alloc(Layout::from_size_align_unchecked(
+				source.len(),
+				align_of::<Value<'_>>(),
+			))
+			.cast::<Value<'_>>();
 			if ptr.is_null() {
 				panic!("alloc failed");
 			}
@@ -183,14 +186,14 @@ impl List {
 	}
 }
 
-impl Default for List {
+impl Default for List<'_> {
 	#[inline]
 	fn default() -> Self {
 		Self::EMPTY
 	}
 }
 
-impl Debug for List {
+impl Debug for List<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(self.as_slice(), f)
 	}
@@ -199,7 +202,7 @@ impl Debug for List {
 // impl Allocated for KnString {
 // }
 
-unsafe impl GarbageCollected for List {
+unsafe impl GarbageCollected for List<'_> {
 	unsafe fn mark(&self) {
 		for value in self.as_slice() {
 			unsafe {

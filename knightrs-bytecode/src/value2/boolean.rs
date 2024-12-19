@@ -37,10 +37,10 @@ impl ToInteger for Boolean {
 	}
 }
 
-impl ToList for Boolean {
+impl<'gc> ToList<'gc> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<List<'gc>> {
 		if *self {
 			Ok(crate::value2::list::consts::JUST_TRUE)
 		} else {
@@ -49,10 +49,10 @@ impl ToList for Boolean {
 	}
 }
 
-impl ToKnString for Boolean {
+impl<'gc> ToKnString<'gc> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString> {
+	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString<'gc>> {
 		if *self {
 			Ok(crate::value2::knstring::consts::TRUE)
 		} else {

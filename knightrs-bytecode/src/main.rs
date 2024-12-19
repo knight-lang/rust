@@ -32,10 +32,10 @@ fn main() {
 
 	let mut greeting = v2::Value::from(v2::KnString::new(
 		KnStr::new_unvalidated("hello worldhello worldhello worldhello worldhello worldhello world"),
-		&mut gc,
+		&gc,
 	));
 
-	let mut list = v2::Value::from(v2::List::boxed(greeting, &mut gc));
+	let mut list = v2::Value::from(v2::List::boxed(greeting, &gc));
 
 	gc.add_root(list);
 

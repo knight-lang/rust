@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::marker::PhantomData;
 
 use crate::gc::{GarbageCollected, Gc, ValueInner};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
@@ -38,7 +39,7 @@ XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 #[derive(Clone, Copy)]
-pub struct Value(Inner);
+pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -71,7 +72,7 @@ enum Tag {
 	Float          = 0b100,
 }
 
-impl Debug for Value {
+impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self.tag() {
 			Tag::Const => {
@@ -119,14 +120,14 @@ impl Debug for Value {
 // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // pub struct WrongType;
 
-impl From<Integer> for Value {
+impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {
 		unsafe { Self::from_raw_shift(int.inner() as ValueRepr, Tag::Integer) }
 	}
 }
 
-impl From<Boolean> for Value {
+impl From<Boolean> for Value<'_> {
 	#[inline]
 	fn from(boolean: Boolean) -> Self {
 		if boolean {
@@ -137,21 +138,21 @@ impl From<Boolean> for Value {
 	}
 }
 
-impl From<Block> for Value {
+impl From<Block> for Value<'_> {
 	#[inline]
 	fn from(block: Block) -> Self {
 		unsafe { Self::from_raw_shift(block.inner().0 as ValueRepr, Tag::Block) }
 	}
 }
 
-impl From<List> for Value {
+impl<'gc> From<List<'gc>> for Value<'gc> {
 	#[inline]
 	fn from(list: List) -> Self {
 		unsafe { Self::from_alloc(list.into_raw()) }
 	}
 }
 
-impl From<KnString> for Value {
+impl<'gc> From<KnString<'gc>> for Value<'gc> {
 	#[inline]
 	fn from(string: KnString) -> Self {
 		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
@@ -160,7 +161,7 @@ impl From<KnString> for Value {
 	}
 }
 
-impl Value {
+impl<'gc> Value<'gc> {
 	pub const FALSE: Self = unsafe { Self::from_raw_shift(0, Tag::Const) };
 	pub const NULL: Self = unsafe { Self::from_raw_shift(1, Tag::Const) };
 	pub const TRUE: Self = unsafe { Self::from_raw_shift(2, Tag::Const) };
@@ -169,14 +170,20 @@ impl Value {
 	#[inline]
 	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
 		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
-		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 })
+		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
 	}
 
 	// SAFETY: bytes is a valid representation
 	#[inline]
 	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
 		debug_assert!((ptr as usize) & (TAG_MASK as usize) == 0, "repr has tag bits set");
-		Self(Inner { ptr })
+		Self(Inner { ptr }, PhantomData)
+	}
+
+	#[inline]
+	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
+		debug_assert!(self.is_alloc());
+		unsafe { self.0.ptr }
 	}
 
 	const fn tag(self) -> Tag {
@@ -191,6 +198,10 @@ impl Value {
 	}
 
 	fn is_alloc(self) -> bool {
+		self.tag() == Tag::Alloc
+	}
+
+	pub(crate) fn __is_alloc(self) -> bool {
 		self.tag() == Tag::Alloc
 	}
 
@@ -232,7 +243,7 @@ impl Value {
 		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
 	}
 
-	pub fn as_list(self) -> Option<List> {
+	pub fn as_list(self) -> Option<List<'gc>> {
 		if self.is_alloc() {
 			unsafe { ValueInner::as_list(self.0.ptr) }
 		} else {
@@ -240,7 +251,7 @@ impl Value {
 		}
 	}
 
-	pub fn as_knstring(self) -> Option<KnString> {
+	pub fn as_knstring(self) -> Option<KnString<'gc>> {
 		if self.is_alloc() {
 			unsafe { ValueInner::as_knstring(self.0.ptr) }
 		} else {
@@ -249,7 +260,7 @@ impl Value {
 	}
 }
 
-unsafe impl GarbageCollected for Value {
+unsafe impl GarbageCollected for Value<'_> {
 	unsafe fn mark(&self) {
 		if self.is_alloc() {
 			unsafe { ValueInner::mark(self.0.ptr) }
