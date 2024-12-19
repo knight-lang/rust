@@ -1,5 +1,6 @@
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
-use crate::Options;
+use crate::value2::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
+use crate::{Environment, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -219,6 +220,11 @@ impl<'gc> KnString<'gc> {
 			(flags as usize) >> SIZE_MASK_SHIFT
 		}
 	}
+
+	#[inline]
+	pub fn is_empty(&self) -> bool {
+		self.len() != 0
+	}
 }
 
 impl std::ops::Deref for KnString<'_> {
@@ -264,3 +270,51 @@ unsafe impl GarbageCollected for KnString<'_> {
 		}
 	}
 }
+
+impl NamedType for KnString<'_> {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"String"
+	}
+}
+
+impl ToBoolean for KnString<'_> {
+	/// Simply returns `self`.
+	#[inline]
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Boolean> {
+		Ok(!self.is_empty())
+	}
+}
+
+impl ToInteger for KnString<'_> {
+	/// Returns `1` for true and `0` for false.
+	#[inline]
+	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer> {
+		Integer::parse_from_str(self.as_str(), env.opts())
+	}
+}
+
+impl<'gc> ToKnString<'gc> for KnString<'gc> {
+	/// Returns `"true"` for true and `"false"` for false.
+	#[inline]
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<KnString<'gc>> {
+		todo!("somehow mark the return value as \"a root node\"")
+		// if *self {
+		// 	Ok(crate::value2::knstring::consts::TRUE)
+		// } else {
+		// 	Ok(crate::value2::knstring::consts::FALSE)
+		// }
+	}
+}
+
+// impl<'gc> ToList<'gc> for KnString {
+// 	/// Returns an empty list for `false`, and a list with just `self` if true.
+// 	#[inline]
+// 	fn to_list(&self, _: &mut Environment) -> crate::Result<List<'gc>> {
+// 		if *self {
+// 			Ok(crate::value2::list::consts::JUST_TRUE)
+// 		} else {
+// 			Ok(List::default())
+// 		}
+// 	}
+// }
