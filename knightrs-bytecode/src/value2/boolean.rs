@@ -52,7 +52,7 @@ impl<'gc> ToList<'gc> for Boolean {
 impl<'gc> ToKnString<'gc> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_knstring(&self, _: &mut Environment) -> crate::Result<KnString<'gc>> {
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<KnString<'gc>> {
 		if *self {
 			Ok(crate::value2::knstring::consts::TRUE)
 		} else {

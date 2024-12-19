@@ -18,7 +18,7 @@ pub struct KnString<'gc>(*const Inner, PhantomData<&'gc ()>);
 /// Represents the ability to be converted to a [`KnString`].
 pub trait ToKnString<'gc> {
 	/// Converts `self` to a [`KnString`].
-	fn to_knstring(&self, env: &mut crate::Environment) -> crate::Result<KnString<'gc>>;
+	fn to_knstring(&self, env: &mut crate::Environment<'gc>) -> crate::Result<KnString<'gc>>;
 }
 
 pub(crate) mod consts {
@@ -121,11 +121,11 @@ impl<'gc> KnString<'gc> {
 
 	pub fn new_unvalidated(source: String, gc: &'gc Gc) -> Self {
 		if source.is_empty() {
-			Self::default()
-		} else {
-			// We already are given an allocated pointer, might as well use `new_alloc`
-			unsafe { Self::new_alloc(source, gc) }
+			return Self::default();
 		}
+
+		// We already are given an allocated pointer, might as well use `new_alloc`
+		unsafe { Self::new_alloc(source, gc) }
 	}
 
 	pub(super) fn into_raw(self) -> *const ValueInner {

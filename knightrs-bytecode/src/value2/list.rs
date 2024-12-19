@@ -1,9 +1,10 @@
 use crate::container::RefCount;
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
+use crate::{Error, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
-use std::mem::{align_of, size_of, transmute};
+use std::mem::{align_of, size_of, transmute, ManuallyDrop};
 use std::sync::atomic::AtomicU8;
 
 use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
@@ -28,7 +29,7 @@ pub(crate) mod consts {
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList<'gc> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut crate::Environment) -> crate::Result<List<'gc>>;
+	fn to_list(&self, env: &mut crate::Environment<'gc>) -> crate::Result<List<'gc>>;
 }
 
 #[repr(C)]
@@ -94,6 +95,9 @@ impl Default for List<'_> {
 	}
 }
 impl<'gc> List<'gc> {
+	/// The maximum length a list can be when compliance checking is enabled.
+	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
+
 	pub fn into_raw(self) -> *const ValueInner {
 		self.0.cast()
 	}
@@ -103,15 +107,42 @@ impl<'gc> List<'gc> {
 	}
 
 	pub fn boxed(value: Value<'gc>, gc: &'gc Gc) -> Self {
-		Self::new(&[value], gc)
+		Self::from_slice_unvalidated(&[value], gc)
 	}
 
-	pub fn new(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
+	pub fn from_slice(source: &[Value<'gc>], opts: &Options, gc: &'gc Gc) -> crate::Result<Self> {
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
+			return Err(Error::ListIsTooLarge);
+		}
+
+		Ok(Self::from_slice_unvalidated(source, gc))
+	}
+
+	pub fn from_slice_unvalidated(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
-			_ => Self::new_alloc(source, gc),
+			_ => Self::new_alloc(source.to_vec(), gc),
 		}
+	}
+
+	pub fn new(source: Vec<Value<'gc>>, opts: &Options, gc: &'gc Gc) -> crate::Result<Self> {
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
+			return Err(Error::ListIsTooLarge);
+		}
+
+		Ok(Self::new_unvalidated(source, gc))
+	}
+
+	pub fn new_unvalidated(source: Vec<Value<'gc>>, gc: &'gc Gc) -> Self {
+		if source.is_empty() {
+			return Self::default();
+		}
+
+		// We already are given an allocated pointer, might as well use `new_alloc`
+		Self::new_alloc(source, gc)
 	}
 
 	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner<'gc> {
@@ -131,25 +162,16 @@ impl<'gc> List<'gc> {
 		Self(inner)
 	}
 
-	fn new_alloc(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
+	fn new_alloc(mut source: Vec<Value<'gc>>, gc: &'gc Gc) -> Self {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
 
+		source.shrink_to_fit();
+
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
-
-			let ptr = std::alloc::alloc(Layout::from_size_align_unchecked(
-				source.len(),
-				align_of::<Value<'_>>(),
-			))
-			.cast::<Value<'_>>();
-			if ptr.is_null() {
-				panic!("alloc failed");
-			}
-
-			ptr.copy_from_nonoverlapping(source.as_ptr(), source.len());
-			(&raw mut (*inner).kind.alloc.ptr).write(ptr);
+			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_ptr());
 		}
 
 		Self(inner)
@@ -216,13 +238,12 @@ unsafe impl GarbageCollected for List<'_> {
 		}
 
 		// Free the memory associated with the allocated pointer.
-		unsafe {
-			let layout = Layout::from_size_align_unchecked(
-				(&raw const (*inner).kind.alloc.len).read(),
-				align_of::<Value>(),
-			);
 
-			std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+		unsafe {
+			let ptr = (&raw mut (*inner).kind.alloc.ptr).read() as *mut Value<'_>;
+			let len = (&raw mut (*inner).kind.alloc.len).read();
+
+			drop(Vec::from_raw_parts(ptr, len, len));
 		}
 	}
 }
