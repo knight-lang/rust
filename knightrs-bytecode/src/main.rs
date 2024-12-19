@@ -31,8 +31,8 @@ fn main() {
 	use knightrs_bytecode::value2 as v2;
 	let mut gc = Gc::new(Default::default());
 
-	let mut greeting = v2::Value::from(v2::KnString::new(
-		KnStr::new_unvalidated("hello worldhello worldhello worldhello worldhello worldhello world"),
+	let mut greeting = v2::Value::from(v2::KnString::new_unvalidated(
+		"hello worldhello worldhello worldhello worldhello worldhello world".into(),
 		&gc,
 	));
 

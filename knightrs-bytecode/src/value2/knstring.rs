@@ -1,12 +1,13 @@
 use crate::gc::{self, GarbageCollected, Gc, ValueInner};
+use crate::Options;
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::mem::{align_of, size_of, transmute, MaybeUninit};
+use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::{ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
-use crate::strings::KnStr;
+use crate::strings::{KnStr, StringError};
 
 /// A KnString represents an allocated string within Knight, and is garbage collected.
 ///
@@ -102,14 +103,28 @@ impl Default for KnString<'_> {
 
 impl<'gc> KnString<'gc> {
 	/// Creates a new [`KnString`] from the given `source`.
-	pub fn new(source: &KnStr, gc: &'gc Gc) -> Self {
+	pub fn from_knstr(source: &KnStr, gc: &'gc Gc) -> Self {
 		match source.len() {
 			0 => Self::default(),
 
 			// SAFETY: we know it's within the bounds because we checked in the `match`
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source.as_str(), gc) },
 
-			_ => unsafe { Self::new_alloc(source.as_str(), gc) },
+			_ => unsafe { Self::new_alloc(source.to_string(), gc) },
+		}
+	}
+
+	pub fn new(source: String, opts: &Options, gc: &'gc Gc) -> Result<Self, StringError> {
+		KnStr::new(&source, opts)?;
+		Ok(Self::new_unvalidated(source, gc))
+	}
+
+	pub fn new_unvalidated(source: String, gc: &'gc Gc) -> Self {
+		if source.is_empty() {
+			Self::default()
+		} else {
+			// We already are given an allocated pointer, might as well use `new_alloc`
+			unsafe { Self::new_alloc(source, gc) }
 		}
 	}
 
@@ -151,9 +166,8 @@ impl<'gc> KnString<'gc> {
 	}
 
 	// SAFETY: source.len() cannot be zero
-	unsafe fn new_alloc(source: &str, gc: &'gc Gc) -> Self {
+	unsafe fn new_alloc(mut source: String, gc: &'gc Gc) -> Self {
 		let len = source.len();
-		debug_assert!(len > MAX_EMBEDDED_LENGTH, "too many bytes given; use new_embedded?");
 
 		// Allocate the `Inner`.
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
@@ -163,30 +177,11 @@ impl<'gc> KnString<'gc> {
 			(&raw mut (*inner).kind.alloc.len).write(len);
 		}
 
-		// SAFETY:
-		// - align `align_of::<u8>()` is nonzero and a power of two, as it's from `align_of::<u8>()`.
-		// - size `len` came from a `&str`, we know it is `<= isize::MAX`
-		let layout = unsafe { Layout::from_size_align_unchecked(len, align_of::<u8>()) };
-
-		// SAFETY:
-		// - `layout` is non-zero size, as caller guarantees it
-		let alloc_ptr = unsafe { std::alloc::alloc(layout) };
-		if alloc_ptr.is_null() {
-			std::alloc::handle_alloc_error(layout);
-		}
-
-		// SAFETY:
-		// - `alloc_ptr` was allocated specifically for `len`
-		// - `source.as_ptr()` has exactly `len` bytes
-		// - both are aligned for `u8`
-		// - they don't overlap, as we just allocated `alloc_ptr`.
-		unsafe {
-			alloc_ptr.copy_from_nonoverlapping(source.as_ptr(), len);
-		}
+		source.shrink_to_fit();
 
 		// SAFETY: `Self::allocate` guarantees it'll be aligned and non-null
 		unsafe {
-			(&raw mut (*inner).kind.alloc.ptr).write(alloc_ptr);
+			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_ptr());
 		}
 
 		Self(inner, PhantomData)
@@ -263,12 +258,9 @@ unsafe impl GarbageCollected for KnString<'_> {
 
 		// Free the memory associated with the allocated pointer.
 		unsafe {
-			let layout = Layout::from_size_align_unchecked(
-				(&raw const (*inner).kind.alloc.len).read(),
-				align_of::<u8>(),
-			);
-
-			std::alloc::dealloc((&raw mut (*inner).kind.alloc.ptr).read() as *mut u8, layout);
+			let ptr = (&raw mut (*inner).kind.alloc.ptr).read() as *mut u8;
+			let len = (&raw mut (*inner).kind.alloc.len).read();
+			drop(String::from_raw_parts(ptr, len, len));
 		}
 	}
 }
