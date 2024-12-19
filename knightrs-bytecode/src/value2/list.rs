@@ -9,7 +9,6 @@ use std::sync::atomic::AtomicU8;
 use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 
 #[repr(transparent)]
-#[derive(Clone, Copy)]
 pub struct List<'gc>(*const Inner<'gc>);
 
 pub(crate) mod consts {

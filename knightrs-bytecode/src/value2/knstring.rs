@@ -12,7 +12,6 @@ use crate::strings::KnStr;
 ///
 /// (It's `Kn` because `String` is already a type in Rust, and I didn't want confusion.)
 #[repr(transparent)]
-#[derive(Clone, Copy)]
 pub struct KnString<'gc>(*const Inner, PhantomData<&'gc ()>);
 
 /// Represents the ability to be converted to a [`KnString`].
@@ -216,7 +215,7 @@ impl<'gc> KnString<'gc> {
 		}
 	}
 
-	pub fn len(self) -> usize {
+	pub fn len(&self) -> usize {
 		let (flags, inner) = self.flags_and_inner();
 
 		if flags & ALLOCATED_FLAG as u8 != 0 {
