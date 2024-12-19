@@ -32,12 +32,6 @@ pub trait ToList<'gc> {
 	fn to_list(&self, env: &mut crate::Environment) -> crate::Result<List<'gc>>;
 }
 
-static EMPTY_INNER: Inner<'_> = Inner {
-	_alignment: ValueAlign,
-	flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
-	kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
-};
-
 #[repr(C)]
 struct Inner<'gc> {
 	_alignment: ValueAlign,
@@ -89,9 +83,18 @@ struct Alloc<'gc> {
 sa::const_assert_eq!(size_of::<Inner<'_>>(), ALLOC_VALUE_SIZE_IN_BYTES);
 sa::assert_eq_size!(List, super::Value);
 
+impl Default for List<'_> {
+	#[inline]
+	fn default() -> Self {
+		static EMPTY_INNER: Inner<'_> = Inner {
+			_alignment: ValueAlign,
+			flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
+			kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
+		};
+		Self(&EMPTY_INNER)
+	}
+}
 impl<'gc> List<'gc> {
-	pub const EMPTY: Self = Self(&EMPTY_INNER);
-
 	pub fn into_raw(self) -> *const ValueInner {
 		self.0.cast()
 	}
@@ -183,13 +186,6 @@ impl<'gc> List<'gc> {
 		} else {
 			(flags as usize) >> SIZE_MASK_SHIFT
 		}
-	}
-}
-
-impl Default for List<'_> {
-	#[inline]
-	fn default() -> Self {
-		Self::EMPTY
 	}
 }
 
