@@ -52,7 +52,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 		validate_source(source, filename, env.opts())?;
 
 		Ok(Self {
-			compiler: Compiler::new(SourceLocation::new(filename, 1)),
+			compiler: Compiler::new(SourceLocation::new(filename, 1), env.gc()),
 			env,
 			filename,
 			source,
@@ -61,7 +61,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 		})
 	}
 
-	pub fn compiler(&mut self) -> &mut Compiler<'src, 'path> {
+	pub fn compiler(&mut self) -> &mut Compiler<'src, 'path, 'gc> {
 		&mut self.compiler
 	}
 
@@ -213,7 +213,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}
-		if let Some(x) = crate::value::KnValueString::parse(self)? {
+		if let Some(x) = crate::value::KnString::parse(self)? {
 			x.compile(&mut self.compiler, &self.env.opts());
 			return Ok(());
 		}

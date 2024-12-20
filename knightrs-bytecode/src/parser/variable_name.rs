@@ -3,7 +3,7 @@ use crate::options::Options;
 use crate::parser::{ParseError, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
-use crate::value::KnValueString;
+use crate::value::KnString;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

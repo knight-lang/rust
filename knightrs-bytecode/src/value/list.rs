@@ -1,573 +1,348 @@
 use crate::container::RefCount;
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
-use crate::program::{Compilable, Compiler};
+use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::strings::KnStr;
-use crate::value::{
-	Boolean, Integer, KnValueString, NamedType, ToBoolean, ToInteger, ToKnValueString, Value,
-};
+use crate::value::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
 use crate::{Environment, Error, Options};
-use std::slice::Iter; // todo: multithreaded
+use std::alloc::Layout;
+use std::fmt::{self, Debug, Formatter};
+use std::marker::PhantomData;
+use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
+use std::sync::atomic::AtomicU8;
 
-/// A List represents a list of [`Value`]s within Knight.
-// todo: optimize me!
-#[derive(Debug, Clone)]
-pub struct List(Option<ListInner>);
+use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 
-#[derive(Debug, Clone)]
-enum ListInner {
-	Boxed(Box<Value>),
-	Slice(RefCount<[Value]>),
-	// Concat(RefCount<[Value]>, RefCount<[Value]>),
-	Sublist { start: usize, len: usize, slice: RefCount<[Value]> },
-}
+#[repr(transparent)]
+pub struct List<'gc>(*const Inner<'gc>);
 
-impl PartialEq for List {
-	fn eq(&self, rhs: &Self) -> bool {
-		self.iter().eq(rhs.iter())
-	}
+pub(crate) mod consts {
+	use super::*;
+
+	pub const JUST_TRUE: List = List(&JUST_TRUE_INNER);
+	static JUST_TRUE_INNER: Inner = Inner {
+		_alignment: ValueAlign,
+		// TODO: make the `FLAG_CUSTOM_2` use a function.
+		flags: AtomicU8::new(
+			gc::FLAG_GC_STATIC | ALLOCATED_FLAG | gc::FLAG_IS_LIST | gc::FLAG_CUSTOM_2,
+		),
+		_align: MaybeUninit::uninit(),
+		kind: Kind { embedded: [Value::TRUE; MAX_EMBEDDED_LENGTH] },
+	};
 }
 
 /// Represents the ability to be converted to a [`List`].
-pub trait ToList {
+pub trait ToList<'gc> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut Environment) -> crate::Result<List>;
+	fn to_list(&self, env: &mut crate::Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>>;
 }
 
-impl NamedType for List {
+#[repr(C)]
+struct Inner<'gc> {
+	_alignment: ValueAlign,
+	flags: AtomicU8,
+	_align: MaybeUninit<[u8; 7]>, // TODO: don't use a constant
+	kind: Kind<'gc>,
+}
+
+sa::assert_eq_align!(crate::gc::ValueInner, Inner);
+sa::assert_eq_size!(crate::gc::ValueInner, Inner);
+
+// SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Send for Inner<'_> {}
+
+// SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Sync for Inner<'_> {}
+
+const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;
+const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM_2 | gc::FLAG_CUSTOM_3;
+const SIZE_MASK_SHIFT: u8 = 6;
+const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
+
+// TODO: If this isn't true, we're wasting space!
+sa::const_assert!(
+	MAX_EMBEDDED_LENGTH == (ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>()) / size_of::<Value>()
+);
+
+#[repr(C)]
+union Kind<'gc> {
+	embedded: [Value<'gc>; MAX_EMBEDDED_LENGTH],
+	alloc: Alloc<'gc>,
+}
+
+#[repr(C, packed)]
+#[derive(Clone, Copy)]
+struct Alloc<'gc> {
+	ptr: *const Value<'gc>,
+	len: usize,
+}
+
+sa::const_assert_eq!(size_of::<Inner<'_>>(), ALLOC_VALUE_SIZE_IN_BYTES);
+sa::assert_eq_size!(List, super::Value);
+
+impl Default for List<'_> {
+	#[inline]
+	fn default() -> Self {
+		static EMPTY_INNER: Inner<'_> = Inner {
+			_alignment: ValueAlign,
+			flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
+			_align: MaybeUninit::uninit(),
+			kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
+		};
+		Self(&EMPTY_INNER)
+	}
+}
+impl<'gc> List<'gc> {
+	/// The maximum length a list can be when compliance checking is enabled.
+	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
+
+	pub fn into_raw(self) -> *const ValueInner {
+		self.0.cast()
+	}
+
+	pub unsafe fn from_raw(ptr: *const ValueInner) -> Self {
+		Self(ptr.cast())
+	}
+
+	pub fn boxed(value: Value<'gc>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
+		Self::from_slice_unvalidated(&[value], gc)
+	}
+
+	pub fn from_slice(
+		source: &[Value<'gc>],
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
+			return Err(Error::ListIsTooLarge);
+		}
+
+		Ok(Self::from_slice_unvalidated(source, gc))
+	}
+
+	pub fn from_slice_unvalidated(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
+		match source.len() {
+			0 => GcRoot::new_unchecked(Self::default()),
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
+			_ => Self::new_alloc(source.to_vec(), gc),
+		}
+	}
+
+	pub fn new(
+		source: Vec<Value<'gc>>,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
+		#[cfg(feature = "compliance")]
+		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
+			return Err(Error::ListIsTooLarge);
+		}
+
+		Ok(Self::new_unvalidated(source, gc))
+	}
+
+	pub fn new_unvalidated(source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
+		if source.is_empty() {
+			return GcRoot::new_unchecked(Self::default());
+		}
+
+		// We already are given an allocated pointer, might as well use `new_alloc`
+		Self::new_alloc(source, gc)
+	}
+
+	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner<'gc> {
+		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
+	}
+
+	fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
+		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
+		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
+
+		unsafe {
+			(&raw mut (*inner).kind.embedded)
+				.cast::<Value<'gc>>()
+				.copy_from_nonoverlapping(source.as_ptr(), source.len());
+		}
+
+		GcRoot::new(&Self(inner), gc)
+	}
+
+	fn new_alloc(mut source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
+		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
+
+		let inner = Self::allocate(ALLOCATED_FLAG, gc);
+
+		source.shrink_to_fit();
+
+		unsafe {
+			(&raw mut (*inner).kind.alloc.len).write(source.len());
+			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_mut_ptr());
+		}
+
+		GcRoot::new(&Self(inner), gc)
+	}
+
+	fn flags_and_inner(&self) -> (u8, *mut Inner<'gc>) {
+		unsafe {
+			// TODO: orderings
+			((*&raw const (*self.0).flags).load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
+		}
+	}
+
+	#[deprecated] // won't work with non-slice types
+	fn as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
+		let (flags, inner) = self.flags_and_inner();
+
+		unsafe {
+			let slice_ptr = if flags & ALLOCATED_FLAG != 0 {
+				(&raw const (*inner).kind.alloc.ptr).read()
+			} else {
+				(*inner).kind.embedded.as_ptr()
+			};
+
+			std::slice::from_raw_parts(slice_ptr, self.len())
+		}
+	}
+
+	pub fn len(&self) -> usize {
+		let (flags, inner) = self.flags_and_inner();
+
+		if flags & ALLOCATED_FLAG != 0 {
+			unsafe { (&raw const (*inner).kind.alloc.len).read() }
+		} else {
+			(flags as usize) >> SIZE_MASK_SHIFT
+		}
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.len() == 0
+	}
+
+	pub fn join(
+		&self,
+		sep: &KnStr,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		let mut s = String::new();
+		let mut first = true;
+
+		let slice = self.as_slice();
+		for element in slice {
+			if first {
+				first = false;
+			} else {
+				s.push_str(sep.as_str());
+			}
+
+			let ele_str = element.to_knstring(env)?;
+
+			unsafe {
+				ele_str.with_inner(|inner| s.push_str(inner.as_str()));
+			}
+		}
+		Ok(KnString::new(s, env.opts(), env.gc())?)
+		// // Ok(GcRoot::new_unchecked(Self(self.0, PhantomData)))
+		// env.gc().pause();
+
+		// let chars = self
+		// 	.chars()
+		// 	.map(|c| {
+		// 		let chr_string = Self::new_unvalidated(c.to_string(), env.gc());
+		// 		unsafe { chr_string.assume_used() }.into()
+		// 	})
+		// 	.collect::<Vec<_>>();
+
+		// // COMPLIANCE: If `self` is within the container bounds, so is the length of its chars.
+		// let result = List::new_unvalidated(chars, env.gc());
+		// env.gc().unpause();
+
+		// Ok(result)
+	}
+}
+
+impl Debug for List<'_> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(self.as_slice(), f)
+	}
+}
+
+// impl Allocated for KnString {
+// }
+
+unsafe impl GarbageCollected for List<'_> {
+	unsafe fn mark(&self) {
+		for value in self.as_slice() {
+			unsafe {
+				value.mark();
+			}
+		}
+	}
+
+	unsafe fn deallocate(self) {
+		let (flags, inner) = self.flags_and_inner();
+		debug_assert_eq!(flags & gc::FLAG_GC_STATIC, 0, "<called deallocate on a static?>");
+
+		// If the string isn't allocated, then just return early.
+		if flags & ALLOCATED_FLAG == 0 {
+			return;
+		}
+
+		// Free the memory associated with the allocated pointer.
+
+		unsafe {
+			let ptr = (&raw mut (*inner).kind.alloc.ptr).read() as *mut Value<'_>;
+			let len = (&raw mut (*inner).kind.alloc.len).read();
+
+			drop(Vec::from_raw_parts(ptr, len, len));
+		}
+	}
+}
+
+unsafe impl<'gc> AsValueInner for List<'gc> {
+	fn as_value_inner(&self) -> *const ValueInner {
+		self.0.cast()
+	}
+
+	unsafe fn from_value_inner(inner: *const ValueInner) -> Self {
+		unsafe { Self::from_raw(inner) }
+	}
+}
+
+impl NamedType for List<'_> {
 	#[inline]
 	fn type_name(&self) -> &'static str {
 		"List"
 	}
 }
 
-impl Default for List {
+impl ToBoolean for List<'_> {
+	/// Simply returns `self`.
 	#[inline]
-	fn default() -> Self {
-		Self(None)
-	}
-}
-
-impl ToBoolean for List {
-	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Boolean> {
 		Ok(!self.is_empty())
 	}
 }
 
-impl ToKnValueString for List {
+impl ToInteger for List<'_> {
+	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_kstring(&self, env: &mut Environment) -> crate::Result<KnValueString> {
-		// COMPLIANCE: `\n` is always a valid string character.
-		static NEWLINE: &'static KnStr = KnStr::new_unvalidated("\n");
-
-		self.join(&NEWLINE, env)
+	fn to_integer(&self, _: &mut Environment<'_>) -> crate::Result<Integer> {
+		Ok(Integer::new_unvalidated(self.len() as _))
 	}
 }
 
-impl ToInteger for List {
-	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer> {
-		// Note we never need to check for len -> i64 bounds, as we're guaranteed by Rust that our
-		// underlying `Box<[Value]>` can hold no more than `isize::MAX`, which at worst is `i64::MAX`.
-		// Thus, we can safely convert between the two without worrying about truncation.
-
-		// If `check_container_length` is enabled, then any list's length can already be represented
-		// by an `Integer`. It's only if we aren't checking list length but _are_ checking integer
-		// bounds that we need this check.
-		#[cfg(feature = "compliance")]
-		if !env.opts().compliance.check_container_length && env.opts().compliance.i32_integer {
-			return Ok(Integer::new_error(self.len() as i64, env.opts())?);
-		}
-
-		Ok(Integer::new(self.len() as i64, env.opts()).expect("(this will never fail)"))
-	}
-}
-
-impl ToList for List {
-	/// Simply returns `self`
+impl<'gc> ToKnString<'gc> for List<'gc> {
+	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		Ok(self.clone())
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		self.join(KnStr::new_unvalidated("\n"), env)
 	}
 }
 
-/// TODO: make it not a pub enum
-#[derive(Clone)]
-pub enum ListRefIter<'a> {
-	Empty,
-	Boxed(&'a Value),
-	Slice(Iter<'a, Value>),
-}
-
-impl<'a> Iterator for ListRefIter<'a> {
-	type Item = &'a Value;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		match self {
-			Self::Empty => None,
-			Self::Boxed(value) => {
-				let result = *value;
-				*self = Self::Empty;
-				Some(result)
-			}
-			Self::Slice(iter) => iter.next(),
-		}
-	}
-}
-
-impl<'a> IntoIterator for &'a List {
-	type Item = &'a Value;
-	type IntoIter = ListRefIter<'a>;
-	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
-		self.iter()
-	}
-}
-
-impl List {
-	/// The maximum length a list can be when compliance checking is enabled.
-	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;
-
-	/// Creates a new [`List`] from the given `iter`, with the given options.
-	pub fn new(iter: impl IntoIterator<Item = Value>, opts: &Options) -> crate::Result<Self> {
-		let v = iter.into_iter().collect::<Vec<_>>();
-
-		#[cfg(feature = "compliance")]
-		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < v.len() {
-			return Err(Error::ListIsTooLarge);
-		}
-
-		Ok(Self::_new(v))
-	}
-
-	/// Creates a new `list` from `slice`, without ensuring its length is correct.
-	///
-	/// # Compliance
-	/// Callers to this must ensure that `iter` will always have fewer than
-	/// [`List::COMPLIANCE_MAX_LEN`] elements.
-	pub fn new_unvalidated(iter: impl IntoIterator<Item = Value>) -> Self {
-		let v = iter.into_iter().collect::<Vec<_>>();
-
-		debug_assert!(v.len() <= Self::COMPLIANCE_MAX_LEN);
-
-		Self::_new(v)
-	}
-
-	fn _new(vec: Vec<Value>) -> Self {
-		if vec.len() == 0 {
-			Self(None)
-		} else {
-			Self(Some(ListInner::Slice(vec.into())))
-		}
-	}
-
-	/// Returns a new [`List`] with the only element being `value`.
-	pub fn boxed(value: Value) -> Self {
-		Self(Some(ListInner::Boxed(value.into())))
-	}
-
-	/// Returns whether `self` is empty.
+impl<'gc> ToList<'gc> for List<'gc> {
+	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	pub fn is_empty(&self) -> bool {
-		self.0.is_none()
-	}
-
-	/// Gets the length of `self`.
-	pub fn len(&self) -> usize {
-		match self.0 {
-			None => 0,
-			Some(ListInner::Boxed(_)) => 1,
-			Some(ListInner::Slice(ref sl)) => sl.len(),
-			Some(ListInner::Sublist { len, .. }) => len,
-		}
-	}
-
-	/// Returns the first element in `self`.
-	#[inline]
-	pub fn head(&self) -> Option<Value> {
-		self.get(0).cloned()
-	}
-
-	/// Returns everything but the first element in `self`.
-	#[inline]
-	pub fn tail(&self) -> Option<Self> {
-		// TODO: make this `self.get(1..)` when it's more optimized
-		match self.0.as_ref()? {
-			ListInner::Boxed(_) => Some(Self::default()),
-			ListInner::Slice(ref sl) if sl.is_empty() => unreachable!("todo: can this be reached?"),
-			ListInner::Slice(ref sl) => Some({
-				Self(Some(ListInner::Sublist { start: 1, len: sl.len() - 1, slice: sl.clone() }))
-			}),
-			ListInner::Sublist { start, len, ref slice } if *len == 1 || start + 1 > slice.len() => {
-				Some(Self::default())
-			}
-			ListInner::Sublist { start, len, ref slice } => Some(Self(Some(ListInner::Sublist {
-				start: start + 1,
-				len: *len - 1,
-				slice: slice.clone(),
-			}))),
-		}
-		// Self(Some(ListInner::Boxed(value.into())))
-		// self.get(1..)
-	}
-
-	/// Gets the value(s) at `index`.
-	///
-	/// This is syntactic sugar for `index.get(self)`.
-	pub fn get<'a, F: ListGet<'a>>(&'a self, index: F) -> Option<F::Output> {
-		index.get(self)
-	}
-
-	#[deprecated(note = "is this ever used?")]
-	pub fn try_get<'a, F: ListGet<'a>>(&'a self, index: F) -> crate::Result<F::Output> {
-		let last_index = index.last_index();
-		self.get(index).ok_or(Error::IndexOutOfBounds { len: self.len(), index: last_index })
-	}
-
-	/// Returns a new list with both `self` and `rhs` concatenated.
-	///
-	/// # Errors
-	/// If `container-length-limit` not enabled, this method will never fail. I fit is, and
-	/// [`List::MAX_LEN`] is smaller than `self.len() + rhs.len()`, then an [`Error::DomainError`] is
-	/// returned.
-	pub fn concat(&self, rhs: &Self, opts: &Options) -> crate::Result<Self> {
-		if self.is_empty() {
-			return Ok(rhs.clone());
-		}
-
-		if rhs.is_empty() {
-			return Ok(self.clone());
-		}
-
-		// TODO: should we do a check for length before doing this?
-
-		Self::new(self.iter().cloned().chain(rhs.into_iter().cloned()), opts)
-	}
-
-	/// Returns a new list where `self` is repeated `amount` times.
-	///
-	/// This will return `None` if `self.len() * amount` is greater than [`Integer::MAX`].
-	///
-	/// # Errors
-	/// If `container-length-limit` is not enabled, this method will never fail. If it is, and
-	/// [`List::MAX_LEN`] is smaller than `self.len() * amount`, then a [`Error::DomainError`] is
-	/// returned.
-	pub fn repeat(&self, amount: usize, opts: &Options) -> crate::Result<Self> {
-		if self.is_empty() {
-			return Ok(self.clone());
-		}
-
-		#[cfg(feature = "compliance")]
-		if opts.compliance.check_container_length
-			&& self.len().checked_mul(amount).map_or(true, |x| Self::COMPLIANCE_MAX_LEN < x)
-		{
-			return Err(Error::DomainError("length of repetition is out of bounds"));
-		}
-
-		match amount {
-			0 => Ok(Self::default()),
-			1 => Ok(self.clone()),
-			_ => Self::new(self.iter().cycle().cloned().take(self.len() * amount), opts),
-		}
-	}
-
-	/// Converts each element of `self` to a string,and inserts `sep` between them.
-	///
-	/// # Errors
-	/// Any errors that occur when converting elements to a string are returned.
-	pub fn join(&self, sep: &KnStr, env: &mut Environment) -> crate::Result<KnValueString> {
-		if self.is_empty() {
-			return Ok(KnValueString::default());
-		}
-
-		let mut joined = String::new();
-
-		let mut is_first = true;
-		for ele in self {
-			if is_first {
-				is_first = false;
-			} else {
-				joined.push_str(sep.as_str());
-			}
-			joined.push_str(&ele.to_kstring(env)?.as_str());
-		}
-
-		KnValueString::new(joined, env.opts()).map_err(From::from)
-	}
-
-	/// Returns an [`ListRefIter`] instance, which iterates over borrowed references.
-	pub fn iter(&self) -> ListRefIter<'_> {
-		match self.0 {
-			None => ListRefIter::Empty,
-			Some(ListInner::Boxed(ref b)) => ListRefIter::Boxed(b),
-			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
-			Some(ListInner::Slice(ref sl)) => ListRefIter::Slice(sl.iter()),
-			Some(ListInner::Sublist { start, len, ref slice }) => {
-				if slice.get(start..start + len).is_none() {
-					dbg!(self.len(), &self.0);
-				}
-				ListRefIter::Slice(slice[start..start + len].iter())
-			}
-		}
-	}
-}
-
-/// A helper trait for [`List::get`], indicating a type can index into a `List`.
-pub trait ListGet<'a> {
-	/// The resulting type.
-	type Output;
-
-	/// Gets an `Output` from `list`.
-	fn get(self, list: &'a List) -> Option<Self::Output>;
-
-	fn last_index(&self) -> usize;
-}
-
-impl<'a> ListGet<'a> for usize {
-	type Output = &'a Value;
-
-	fn get(self, list: &'a List) -> Option<Self::Output> {
-		// if list.is_empty() {
-		// 	return None;
-		// }
-
-		// list.iter().nth(self)
-
-		match list.0.as_ref()? {
-			ListInner::Boxed(ele) => (self == 0).then_some(ele),
-			ListInner::Slice(sl) => sl.get(self),
-			ListInner::Sublist { start, len, slice } => slice.get(self + start),
-		}
-
-		// match list.inner()? {
-		// 	Inner::Boxed(ele) => (self == 0).then_some(ele),
-		// 	Inner::Slice(slice) => slice.get(self),
-		// 	Inner::Cons(lhs, _) if self < lhs.len() => lhs.get(self),
-		// 	Inner::Cons(lhs, rhs) => rhs.get(self - lhs.len()),
-		// 	Inner::Repeat(list, amount) if list.len() * amount < self => None,
-		// 	Inner::Repeat(list, amount) => list.get(self % amount),
-		// }
-	}
-
-	fn last_index(&self) -> usize {
-		*self
-	}
-}
-
-impl ListGet<'_> for std::ops::Range<usize> {
-	type Output = List;
-
-	fn get(self, list: &List) -> Option<Self::Output> {
-		if list.len() < self.end || self.end < self.start {
-			return None;
-		}
-
-		/*
-		match list.0.as_ref()? {
-			ListInner::Slice(sl) => Some(List(Some(ListInner::Sublist {
-				start: self.start,
-				len: self.end - self.start,
-				slice: sl.clone(),
-			}))),
-			ListInner::Sublist { start, len, slice } => Some(List(Some(ListInner::Sublist {
-				start: self.start + start,
-				len: self.end - self.start,
-				slice: slice.clone(),
-			}))),
-			_ => {
-				// TODO
-				// FIXME: use optimizations, including maybe a "sublist" variant?
-				let sublist = list
-					.iter()
-					.skip(self.start)
-					.take(self.end - self.start)
-					.cloned()
-					.collect::<Vec<_>>();
-
-				// it's a sublist, so no need to check for length
-				Some(List::new_unvalidated(sublist))
-			}
-		}
-		*/
-		// FIXME: use optimizations, including maybe a "sublist" variant?
-		let sublist =
-			list.iter().skip(self.start).take(self.end - self.start).cloned().collect::<Vec<_>>();
-
-		// it's a sublist, so no need to check for length
-		Some(List::new_unvalidated(sublist))
-	}
-
-	fn last_index(&self) -> usize {
-		self.end
-	}
-}
-
-impl ListGet<'_> for std::ops::RangeFrom<usize> {
-	type Output = List;
-
-	fn get(self, list: &List) -> Option<Self::Output> {
-		if list.len() < self.start {
-			return None;
-		}
-
-		// FIXME: use optimizations
-		let sublist = list.iter().skip(self.start).cloned().collect::<Vec<_>>();
-
-		// SAFETY: it's a sublist, so no need to check for length
-		Some(List::new_unvalidated(sublist))
-	}
-
-	fn last_index(&self) -> usize {
-		self.start
-	}
-}
-
-#[cfg(feature = "extensions")]
-#[cfg_attr(docsrs, doc(cfg(feature = "extensions")))]
-impl List {
-	/// Returns true if `self` contains `value`.
-	pub fn contains(&self, value: &Value) -> bool {
-		todo!()
-
-		// match self.inner() {
-		// 	None => false,
-		// 	Some(Inner::Boxed(val)) => val == value,
-		// 	Some(Inner::Slice(slice)) => slice.contains(value),
-		// 	Some(Inner::Cons(lhs, rhs)) => lhs.contains(value) || rhs.contains(value),
-		// 	Some(Inner::Repeat(list, _)) => list.contains(value),
-		// }
-	}
-
-	/// Returns a new [`List`], deduping `self` and removing elements that exist in `rhs` as well.
-	pub fn difference(&self, rhs: &Self) -> crate::Result<Self> {
-		todo!()
-
-		// let mut list = Vec::with_capacity(self.len() - rhs.len()); // arbitrary capacity.
-
-		// for ele in self {
-		// 	if !rhs.contains(ele) && !list.contains(ele) {
-		// 		list.push(ele.clone());
-		// 	}
-		// }
-
-		// Ok(unsafe { Self::new_unchecked(list) })
-	}
-
-	/// Returns a new list with element mapped to the return value of `block`.
-	///
-	/// More specifically, the variable `_` is assigned to each element, and then `block` is called.
-	///
-	/// # Errors
-	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn map(&self, block: &Value, env: &mut Environment) -> crate::Result<Self> {
-		todo!()
-
-		// let underscore = unsafe { TextSlice::new_unchecked("_") };
-
-		// let arg = env.lookup(underscore).unwrap();
-		// let mut list = Vec::with_capacity(self.len());
-
-		// for ele in self {
-		// 	arg.assign(ele.clone());
-		// 	list.push(block.run(env)?);
-		// }
-
-		// Ok(unsafe { Self::new_unchecked(list) })
-	}
-
-	/// Returns a new list where only elements for which `block` returns true are kept.
-	///
-	/// More specifically, the variable `_` is assigned to each element, `block` is called, and then
-	/// its return value is used to check to see if the element should be kept.
-	///
-	/// # Errors
-	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn filter(&self, block: &Value, env: &mut Environment) -> crate::Result<Self> {
-		todo!()
-
-		// let underscore = unsafe { TextSlice::new_unchecked("_") };
-
-		// let arg = env.lookup(underscore).unwrap();
-		// let mut list = Vec::with_capacity(self.len() / 2); // an arbitrary capacity constant.
-
-		// for ele in self {
-		// 	arg.assign(ele.clone());
-
-		// 	if block.run(env)?.to_boolean(env)? {
-		// 		list.push(ele.clone());
-		// 	}
-		// }
-
-		// Ok(unsafe { Self::new_unchecked(list) })
-	}
-
-	/// Returns a reduction of `self` to a single element, or [`Value::Null`] if `self` is empty.
-	///
-	/// More specifically, the variable `a` is assigned to the first element. Then, for each other
-	/// element, it is assigned to the variable `_`, and `block` is called. The return value is then
-	/// assigned to `a`. After exhausting `self`, `a`'s value is returned.
-	///
-	/// # Errors
-	/// Returns any errors that [`block.run`](Value::run) returns.
-	pub fn reduce(&self, block: &Value, env: &mut Environment) -> crate::Result<Option<Value>> {
-		todo!()
-
-		// let underscore = unsafe { TextSlice::new_unchecked("_") };
-		// let accumulate = unsafe { TextSlice::new_unchecked("a") };
-
-		// let mut iter = self.iter();
-		// let acc = env.lookup(accumulate).unwrap();
-
-		// if let Some(init) = iter.next() {
-		// 	acc.assign(init.clone());
-		// } else {
-		// 	return Ok(None);
-		// }
-
-		// let arg = env.lookup(underscore).unwrap();
-		// for ele in iter {
-		// 	arg.assign(ele.clone());
-		// 	acc.assign(block.run(env)?);
-		// }
-
-		// Ok(Some(acc.fetch().unwrap()))
-	}
-
-	pub fn reverse(&self) -> Self {
-		todo!()
-		// let mut new = self.into_iter().cloned().collect::<Vec<_>>();
-		// new.reverse();
-
-		// unsafe { Self::new_unchecked(new) }
-	}
-}
-
-impl<'path> Parseable<'_, 'path> for List {
-	type Output = Self;
-
-	fn parse(
-		parser: &mut Parser<'_, '_, 'path, '_>,
-	) -> Result<Option<Self::Output>, ParseError<'path>> {
-		#[cfg(feature = "extensions")]
-		if parser.opts().extensions.syntax.list_literals && parser.advance_if('{').is_some() {
-			// TODO: make sure that this doesn't actually strictly return a list, as that won't be
-			// compilable all the time (eg when `{DUMP 3}`)
-			todo!("list literals")
-		}
-
-		if parser.advance_if('@').is_none() {
-			return Ok(None);
-		}
-
-		Ok(Some(Self::default()))
-	}
-}
-
-unsafe impl<'path> Compilable<'_, 'path> for List {
-	fn compile(
-		self,
-		compiler: &mut Compiler<'_, 'path>,
-		_: &Options,
-	) -> Result<(), ParseError<'path>> {
-		compiler.push_constant(self.into());
-		Ok(())
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		// Since `self` is already a part of the gc, then cloning it does nothing.
+		Ok(GcRoot::new_unchecked(Self(self.0)))
 	}
 }

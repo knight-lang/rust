@@ -1,7 +1,8 @@
+use crate::gc::GcRoot;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::{Character, Encoding};
-use crate::value::{Boolean, KnValueString, List, NamedType, ToBoolean, ToKnValueString, ToList};
+use crate::value::{Boolean, KnString, List, NamedType, ToBoolean, ToKnString, ToList};
 use crate::{Environment, Error, Options};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -392,7 +393,7 @@ impl Integer {
 		}
 
 		match <IntegerInner as std::str::FromStr>::from_str(start) {
-			Ok(value) => Ok(Self::new_error(value, opts)?),
+			Ok(value) => Ok(Self::new_error(value, opts).expect("TODO: this fail case")),
 			Err(err) => match err.kind() {
 				std::num::IntErrorKind::Empty | std::num::IntErrorKind::InvalidDigit => Ok(Self::ZERO),
 				std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow => {
@@ -428,10 +429,10 @@ impl<'path> Parseable<'_, 'path> for Integer {
 	}
 }
 
-unsafe impl<'path> Compilable<'_, 'path> for Integer {
+unsafe impl<'path> Compilable<'_, 'path, '_> for Integer {
 	fn compile(
 		self,
-		compiler: &mut Compiler<'_, 'path>,
+		compiler: &mut Compiler<'_, 'path, '_>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
@@ -455,26 +456,26 @@ impl ToBoolean for Integer {
 	}
 }
 
-impl ToKnValueString for Integer {
+impl<'gc> ToKnString<'gc> for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
 		// COMPLIANCE: `Integer#to_string` yields just an optional leading `-` followed by digits,
 		// which is valid in all encodings. Additionally, it's nowhere near the maximum length for a
 		// string.
-		Ok(KnValueString::new_unvalidated(self.to_string()))
+		Ok(KnString::new_unvalidated(self.to_string(), env.gc()))
 	}
 }
 
-impl ToList for Integer {
-	fn to_list(&self, env: &mut Environment) -> crate::Result<List> {
+impl<'gc> ToList<'gc> for Integer {
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		#[cfg(all(feature = "compliance", not(feature = "knight_2_0_1")))]
 		if env.opts().compliance.disallow_negative_int_to_list && *self < 0 {
 			return Err(Error::DomainError("negative integer for to list encountered"));
 		}
 
 		if *self == 0 {
-			return Ok(List::boxed((*self).into()));
+			return Ok(List::boxed((*self).into(), env.gc()));
 		}
 
 		let mut integer = self.0;
@@ -487,6 +488,6 @@ impl ToList for Integer {
 
 		// COMPLIANCE: The maximum amount of digits in an integer is vastly smaller than the maximum
 		// size of `i32::MAX`.
-		Ok(List::new_unvalidated(digits))
+		Ok(List::new_unvalidated(digits, env.gc()))
 	}
 }

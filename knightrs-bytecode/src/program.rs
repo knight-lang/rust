@@ -2,7 +2,7 @@ mod compiler;
 
 use crate::parser::{ParseErrorKind, SourceLocation, VariableName};
 use crate::strings::KnStr;
-use crate::value::{KnValueString, Value};
+use crate::value::{KnString, Value};
 use crate::vm::{Callsite, Opcode};
 use crate::Options;
 pub use compiler::{Compilable, Compiler};

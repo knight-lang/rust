@@ -1,21 +1,24 @@
 use std::cmp::Ordering;
+use std::marker::PhantomData;
 
-use crate::{program::JumpIndex, vm::Vm, Environment, Error, Result};
+use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
+use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
-pub mod block;
-pub mod boolean;
+mod block;
+mod boolean;
 pub mod integer;
-pub mod list;
-pub mod null;
-pub mod string;
+mod knstring;
+mod list;
+mod null;
+
 pub use block::Block;
 pub use boolean::{Boolean, ToBoolean};
-use integer::IntegerError;
-pub use integer::{Integer, ToInteger};
+pub use integer::{Integer, IntegerError, ToInteger};
+pub use knstring::{KnString, ToKnString};
 pub use list::{List, ToList};
 pub use null::Null;
 use std::fmt::{self, Debug, Formatter};
-pub use string::{KnValueString, ToKnValueString};
+// pub use string::{KnString, ToKnString};
 
 /// A trait indicating a type has a name.
 pub trait NamedType {
@@ -26,692 +29,276 @@ pub trait NamedType {
 /*
 Representation:
 
-0000 ... 0000 0000 -- False
-0000 ... 0000 0001 -- 0
-0000 ... 0000 0010 -- Null
-0000 ... 0001 0000 -- True
-XXXX ... XXXX XXX1 -- Integer
-XXXX ... XXXX X010 -- String
-XXXX ... XXXX X000 -- List, nonzero `x`
-XXXX ... XXXX X100 -- Block
-XXXX ... XXXX 1000 -- Custom user type (??)
+0000 ... 0000 000 -- Null
+0000 ... 0001 000 -- False
+0000 ... 0010 000 -- True
+XXXX ... XXXX 001 -- Integer
+XXXX ... XXXX 010 -- Block
+XXXX ... XXXX 100 -- Float32
+XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
-#[derive(Default, Clone, PartialEq)]
-pub struct Value(ValueEnum);
+#[repr(transparent)] // DON'T DERIVE CLONE/COPY
+#[derive(Clone, Copy)]
+pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 
-#[derive(Default, Clone, PartialEq)]
-#[non_exhaustive]
-enum ValueEnum {
-	#[default]
-	Null,
-	Boolean(Boolean),
-	Integer(Integer),
-	String(KnValueString),
-	List(List),
-	Block(Block),
+#[repr(C)]
+#[derive(Clone, Copy)]
+union Inner {
+	ptr: *const ValueInner,
+	val: u64,
 }
 
-impl Debug for Value {
+#[repr(align(16))]
+pub(crate) struct ValueAlign;
+sa::assert_eq_size!(ValueAlign, ());
+
+// The amount of bytes expected in an allocated value
+pub const ALLOC_VALUE_SIZE_IN_BYTES: usize = 32;
+type ValueRepr = u64;
+
+const TAG_SHIFT: ValueRepr = 4;
+const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+#[rustfmt::skip]
+enum Tag {
+	// TOPMOST BIT IS Whether it's allocated
+	Alloc          = 0b000,
+	Integer        = 0b001,
+	Block          = 0b010,
+	Const          = 0b110,
+	#[cfg(feature = "floats")]
+	Float          = 0b100,
+}
+
+impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		match self.inner() {
-			ValueEnum::Null => Debug::fmt(&Null, f),
-			ValueEnum::Boolean(boolean) => Debug::fmt(&boolean, f),
-			ValueEnum::Integer(integer) => Debug::fmt(&integer, f),
-			ValueEnum::String(string) => Debug::fmt(&string, f),
-			ValueEnum::List(list) => Debug::fmt(&list, f),
-			ValueEnum::Block(block) => Debug::fmt(&block, f),
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Debug::fmt(&Null, f)
+				} else if let Some(boolean) = self.as_boolean() {
+					Debug::fmt(&boolean, f)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					Debug::fmt(&list, f)
+				} else if let Some(string) = self.as_knstring() {
+					Debug::fmt(&string, f)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
+			_ => todo!(),
 		}
 	}
 }
 
-impl From<Boolean> for Value {
-	fn from(b: Boolean) -> Self {
-		ValueEnum::Boolean(b).into()
+// impl Drop for Value {
+// 	fn drop(&mut self) {
+// 		let (repr, tag) = self.parts_shift();
+// 		if !tag.is_alloc() {
+// 			return;
+// 		}
+
+// 		match tag {
+// 			Tag::String => todo!(),
+// 			Tag::List => todo!(), //drop(unsafe { List::from_alloc(repr) }),
+// 			#[cfg(feature = "custom-types")]
+// 			Tag::Custom => todo!(),
+// 			_ => unreachable!(),
+// 		}
+// 	}
+// }
+
+// /// Returned when a `TryFrom` for a value was called when the type didnt match.
+// #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// pub struct WrongType;
+
+impl From<Integer> for Value<'_> {
+	#[inline]
+	fn from(int: Integer) -> Self {
+		unsafe { Self::from_raw_shift(int.inner() as ValueRepr, Tag::Integer) }
 	}
 }
 
-impl From<Null> for Value {
-	fn from(_: Null) -> Self {
-		ValueEnum::Null.into()
+impl From<Boolean> for Value<'_> {
+	#[inline]
+	fn from(boolean: Boolean) -> Self {
+		if boolean {
+			Self::TRUE
+		} else {
+			Self::FALSE
+		}
 	}
 }
 
-impl From<Integer> for Value {
-	fn from(integer: Integer) -> Self {
-		ValueEnum::Integer(integer).into()
-	}
-}
-
-impl From<KnValueString> for Value {
-	fn from(string: KnValueString) -> Self {
-		ValueEnum::String(string).into()
-	}
-}
-
-impl From<List> for Value {
-	fn from(list: List) -> Self {
-		ValueEnum::List(list).into()
-	}
-}
-
-impl From<Block> for Value {
+impl From<Block> for Value<'_> {
+	#[inline]
 	fn from(block: Block) -> Self {
-		ValueEnum::Block(block).into()
+		unsafe { Self::from_raw_shift(block.inner().0 as ValueRepr, Tag::Block) }
 	}
 }
 
-impl ToBoolean for Value {
-	fn to_boolean(&self, env: &mut Environment<'_>) -> Result<Boolean> {
-		match self.inner() {
-			ValueEnum::Null => Null.to_boolean(env),
-			ValueEnum::Boolean(boolean) => boolean.to_boolean(env),
-			ValueEnum::Integer(integer) => integer.to_boolean(env),
-			ValueEnum::String(string) => string.to_boolean(env),
-			ValueEnum::List(list) => list.to_boolean(env),
-			_ => Err(Error::ConversionNotDefined {
-				to: Boolean::default().type_name(),
-				from: self.type_name(),
-			}),
-		}
+impl<'gc> From<List<'gc>> for Value<'gc> {
+	#[inline]
+	fn from(list: List) -> Self {
+		unsafe { Self::from_alloc(list.into_raw()) }
 	}
 }
 
-impl ToInteger for Value {
-	fn to_integer(&self, env: &mut Environment<'_>) -> Result<Integer> {
-		match self.inner() {
-			ValueEnum::Null => Null.to_integer(env),
-			ValueEnum::Boolean(boolean) => boolean.to_integer(env),
-			ValueEnum::Integer(integer) => integer.to_integer(env),
-			ValueEnum::String(string) => string.to_integer(env),
-			ValueEnum::List(list) => list.to_integer(env),
-			_ => Err(Error::ConversionNotDefined {
-				to: Integer::default().type_name(),
-				from: self.type_name(),
-			}),
-		}
+impl<'gc> From<KnString<'gc>> for Value<'gc> {
+	#[inline]
+	fn from(string: KnString) -> Self {
+		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
+		let raw = string.into_raw();
+		unsafe { Self::from_alloc(raw) }
 	}
 }
 
-impl ToKnValueString for Value {
-	fn to_kstring(&self, env: &mut Environment<'_>) -> Result<KnValueString> {
-		match self.inner() {
-			ValueEnum::Null => Null.to_kstring(env),
-			ValueEnum::Boolean(boolean) => boolean.to_kstring(env),
-			ValueEnum::Integer(integer) => integer.to_kstring(env),
-			ValueEnum::String(string) => string.to_kstring(env),
-			ValueEnum::List(list) => list.to_kstring(env),
-			_ => Err(Error::ConversionNotDefined {
-				to: KnValueString::default().type_name(),
-				from: self.type_name(),
-			}),
-		}
-	}
-}
+impl<'gc> Value<'gc> {
+	pub const FALSE: Self = unsafe { Self::from_raw_shift(0, Tag::Const) };
+	pub const NULL: Self = unsafe { Self::from_raw_shift(1, Tag::Const) };
+	pub const TRUE: Self = unsafe { Self::from_raw_shift(2, Tag::Const) };
 
-impl ToList for Value {
-	fn to_list(&self, env: &mut Environment<'_>) -> Result<List> {
-		match self.inner() {
-			ValueEnum::Null => Null.to_list(env),
-			ValueEnum::Boolean(boolean) => boolean.to_list(env),
-			ValueEnum::Integer(integer) => integer.to_list(env),
-			ValueEnum::String(string) => string.to_list(env),
-			ValueEnum::List(list) => list.to_list(env),
-			_ => Err(Error::ConversionNotDefined {
-				to: List::default().type_name(),
-				from: self.type_name(),
-			}),
-		}
-	}
-}
-
-impl NamedType for Value {
-	/// Fetch the type's name.
-	#[must_use = "getting the type name by itself does nothing."]
-	fn type_name(&self) -> &'static str {
-		match self.inner() {
-			ValueEnum::Null => Null.type_name(),
-			ValueEnum::Boolean(boolean) => boolean.type_name(),
-			ValueEnum::Integer(integer) => integer.type_name(),
-			ValueEnum::String(string) => string.type_name(),
-			ValueEnum::List(list) => list.type_name(),
-			ValueEnum::Block(list) => "Block",
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.type_name(),
-		}
-	}
-}
-
-#[cfg(feature = "compliance")]
-fn forbid_block_arguments(value: &Value, function: &'static str) -> Result<()> {
-	match &value.0 {
-		ValueEnum::List(list) => {
-			for ele in list {
-				forbid_block_arguments(ele, function)?;
-			}
-			Ok(())
-		}
-		ValueEnum::Block(_) => {
-			// todo: better error message? like "cant have nested types"
-			Err(Error::TypeError { type_name: value.type_name(), function })
-		}
-		_ => Ok(()),
-	}
-}
-
-impl From<ValueEnum> for Value {
-	fn from(inner: ValueEnum) -> Self {
-		Self(inner)
-	}
-}
-
-impl Value {
-	pub const NULL: Self = Self(ValueEnum::Null);
-	pub const TRUE: Self = Self(ValueEnum::Boolean(true));
-	pub const FALSE: Self = Self(ValueEnum::Boolean(false));
-
-	fn inner(&self) -> &ValueEnum {
-		&self.0
+	// SAFETY: bytes is a valid representation
+	#[inline]
+	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
+		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
+		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
 	}
 
-	pub fn __as_block(&self) -> Option<Block> {
-		match self.inner() {
-			ValueEnum::Block(block) => Some(*block),
-			_ => None,
-		}
+	// SAFETY: bytes is a valid representation
+	#[inline]
+	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
+		debug_assert!((ptr as usize) & (TAG_MASK as usize) == 0, "repr has tag bits set");
+		Self(Inner { ptr }, PhantomData)
 	}
 
-	pub fn kn_dump(&self, env: &mut Environment<'_>) -> Result<()> {
-		use std::io::Write;
-
-		// TODO: move this into each type, so they can control it
-		match self.inner() {
-			ValueEnum::Null => {
-				write!(env.output(), "null").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
-			ValueEnum::Boolean(b) => {
-				write!(env.output(), "{b}").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
-			ValueEnum::Integer(i) => {
-				write!(env.output(), "{i}").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
-			ValueEnum::String(s) => write!(env.output(), "{:?}", s.as_str())
-				.map_err(|err| Error::IoError { func: "OUTPUT", err }),
-			ValueEnum::List(l) => {
-				write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-				for (idx, arg) in l.iter().enumerate() {
-					if idx != 0 {
-						write!(env.output(), ", ")
-							.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-					}
-					arg.kn_dump(env)?;
-				}
-				write!(env.output(), "]").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
-			#[cfg(feature = "compliance")]
-			ValueEnum::Block(b) if env.opts().compliance.cant_dump_blocks => {
-				Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" })
-			}
-
-			ValueEnum::Block(b) => {
-				write!(env.output(), "{b:?}").map_err(|err| Error::IoError { func: "OUTPUT", err })
-			}
-		}
+	#[inline]
+	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
+		debug_assert!(self.is_alloc());
+		unsafe { self.0.ptr }
 	}
 
-	/// Compares to arguments, knight-style. Coerces them too.
-	pub fn kn_compare(
-		&self,
-		rhs: &Self,
-		fn_name: &'static str,
-		env: &mut Environment,
-	) -> Result<Ordering> {
-		match self.inner() {
-			ValueEnum::Integer(lhs) => Ok(lhs.cmp(&rhs.to_integer(env)?)),
-			ValueEnum::Boolean(lhs) => Ok(lhs.cmp(&rhs.to_boolean(env)?)),
-			ValueEnum::String(lhs) => Ok(lhs.cmp(&rhs.to_kstring(env)?)),
-			ValueEnum::List(lhs) => {
-				let rhs = rhs.to_list(env)?;
-
-				#[cfg(feature = "compliance")]
-				if env.opts().compliance.check_equals_params {
-					forbid_block_arguments(self, fn_name)?;
-					forbid_block_arguments(&rhs.clone().into(), fn_name)?;
-				}
-
-				// check each operand before comparing, otherwise it might mask potential errors
-
-				for (left, right) in lhs.iter().zip(&rhs) {
-					match left.kn_compare(right, fn_name, env)? {
-						Ordering::Equal => continue,
-						other => return Ok(other),
-					}
-				}
-
-				Ok(lhs.len().cmp(&rhs.len()))
-			}
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: fn_name }),
-		}
+	const fn tag(self) -> Tag {
+		let mask = unsafe { self.0.val & TAG_MASK } as u8;
+		debug_assert!(
+			mask == Tag::Alloc as _
+				|| mask == Tag::Integer as _
+				|| mask == Tag::Block as _
+				|| mask == Tag::Const as _
+		);
+		unsafe { std::mem::transmute::<u8, Tag>(mask) }
 	}
 
-	/// Checks to see if two arguments are equal.
-	///
-	/// When `compliance.check_equals_params` is enabled, this can return an error if either argument
-	/// is a block, or a list containing a block. Without `compliance.check_equals_params`, this
-	/// never fails.
-	#[cfg_attr(not(feature = "compliance"), inline)]
-	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<bool> {
-		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
+	fn is_alloc(self) -> bool {
+		self.tag() == Tag::Alloc
+	}
 
-		// In strict compliance mode, we can't use Blocks for `?`.
-		#[cfg(feature = "compliance")]
-		if env.opts().compliance.check_equals_params {
-			forbid_block_arguments(self, "?")?;
-			forbid_block_arguments(rhs, "?")?;
+	pub(crate) fn __is_alloc(self) -> bool {
+		self.tag() == Tag::Alloc
+	}
+
+	const fn parts_shift(self) -> (ValueRepr, Tag) {
+		(unsafe { self.0.val } >> TAG_SHIFT, self.tag())
+	}
+
+	pub const fn is_null(self) -> bool {
+		unsafe { self.0.val == Self::NULL.0.val }
+	}
+
+	pub const fn as_integer(self) -> Option<Integer> {
+		// Can't use `==` b/c the PartialEq impl isn't `const`.
+		if !matches!(self.tag(), Tag::Integer) {
+			return None;
 		}
 
-		let _ = env;
-		Ok(self == rhs)
+		// Can't use `parts_shift()` because it doesnt do sign-extending.
+		Some(Integer::new_unvalidated_unchecked(
+			unsafe { self.0.val as crate::value::integer::IntegerInner } >> TAG_SHIFT,
+		))
 	}
 
-	pub fn kn_call(&self, vm: &mut Vm) -> Result<Value> {
-		match self.inner() {
-			ValueEnum::Block(block) => vm.run(*block),
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "CALL" }),
-		}
-	}
-
-	pub fn kn_length(&self, env: &mut Environment<'_>) -> Result<Integer> {
-		cfg_if! {
-			if #[cfg(feature = "knight_2_0_1")] {
-				let length_of_anything = true;
-			} else if #[cfg(feature = "extensions")] {
-				let length_of_anything = env.opts().extensions.builtin_fns.length_of_anything;
+	pub const fn as_boolean(self) -> Option<Boolean> {
+		unsafe {
+			if self.0.val == Self::TRUE.0.val {
+				Some(true)
+			} else if self.0.val == Self::FALSE.0.val {
+				Some(false)
 			} else {
-				let length_of_anything = false;
+				None
 			}
-		};
-
-		match self.inner() {
-			ValueEnum::String(string) => {
-				// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
-				// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
-				// the `i64` without failure.
-				//
-				// With compliance enabled, it's possible that we are only checking for compliance on
-				// integer bounds, and not on string lengths, so we do have to check in compliance mode.
-				#[cfg(feature = "compliance")]
-				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-					return Ok(Integer::new_error(string.len() as i64, env.opts())?);
-				}
-
-				Ok(Integer::new_unvalidated(string.len() as i64))
-			}
-
-			ValueEnum::List(list) => {
-				// (same guarantees as `ValueEnum::String`)
-				#[cfg(feature = "compliance")]
-				if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-					return Ok(Integer::new_error(list.len() as i64, env.opts())?);
-				}
-
-				Ok(Integer::new_unvalidated(list.len() as i64))
-			}
-
-			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-			ValueEnum::Integer(int) if length_of_anything => {
-				Ok(Integer::new_unvalidated(int.number_of_digits() as _))
-			}
-
-			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-			ValueEnum::Boolean(true) if length_of_anything => Ok(Integer::new_unvalidated(1)),
-
-			#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-			ValueEnum::Boolean(false) | ValueEnum::Null if length_of_anything => {
-				Ok(Integer::new_unvalidated(0))
-			}
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "LENGTH" }),
 		}
 	}
 
-	pub fn kn_negate(&self, env: &mut Environment<'_>) -> Result<Integer> {
-		#[cfg(feature = "extensions")]
-		if env.opts().extensions.breaking.negate_reverses_collections {
-			todo!();
-		}
+	pub fn as_block(self) -> Option<Block> {
+		let (repr, tag) = self.parts_shift();
 
-		Ok(self.to_integer(env)?.negate(env.opts())?)
+		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
 	}
 
-	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => Ok(integer.add(rhs.to_integer(env)?, env.opts())?.into()),
-			ValueEnum::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
-			ValueEnum::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
-			#[cfg(feature = "extensions")]
-			ValueEnum::Boolean(lhs) if env.opts().extensions.builtin_fns.boolean => {
-				Ok((lhs | rhs.to_boolean(env)?).into())
-			}
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.add(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "+" }),
+	pub fn as_list(self) -> Option<List<'gc>> {
+		if self.is_alloc() {
+			unsafe { ValueInner::as_list(self.0.ptr) }
+		} else {
+			None
 		}
 	}
 
-	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => {
-				Ok(integer.subtract(rhs.to_integer(env)?, env.opts())?.into())
-			}
-
-			#[cfg(feature = "extensions")]
-			ValueEnum::String(string) if env.opts().extensions.builtin_fns.string => {
-				Ok(string.remove_substr(&rhs.to_kstring(env)?).into())
-			}
-
-			#[cfg(feature = "extensions")]
-			ValueEnum::List(list) if env.opts().extensions.builtin_fns.list => {
-				list.difference(&rhs.to_list(env)?).map(Self::from)
-			}
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.subtract(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "-" }),
-		}
-	}
-
-	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => {
-				Ok(integer.multiply(rhs.to_integer(env)?, env.opts())?.into())
-			}
-
-			ValueEnum::String(lstr) => {
-				let amount = usize::try_from(rhs.to_integer(env)?.inner())
-					.or(Err(IntegerError::DomainError("repetition count is negative")))?;
-
-				if amount.checked_mul(lstr.len()).map_or(true, |c| isize::MAX as usize <= c) {
-					return Err(IntegerError::DomainError("repetition is too large").into());
-				}
-
-				Ok(lstr.repeat(amount, env.opts())?.into())
-			}
-
-			ValueEnum::List(list) => {
-				let rhs = rhs;
-
-				// Multiplying by a block is invalid, so we can do this as an extension.
-				#[cfg(any())]
-				#[cfg(feature = "extensions")]
-				if env.opts().extensions.builtin_fns.list && matches!(rhs, ValueEnum::Ast(_)) {
-					return list.map(rhs, env).map(Self::from);
-				}
-
-				let amount = usize::try_from(rhs.to_integer(env)?.inner())
-					.or(Err(IntegerError::DomainError("repetition count is negative")))?;
-
-				// No need to check for repetition length because `list.repeat` does it itself.
-				list.repeat(amount, env.opts()).map(Self::from)
-			}
-
-			#[cfg(feature = "extensions")]
-			ValueEnum::Boolean(lhs) if env.opts().extensions.builtin_fns.boolean => {
-				Ok((lhs & rhs.to_boolean(env)?).into())
-			}
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.multiply(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "*" }),
-		}
-	}
-
-	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => {
-				Ok(integer.divide(rhs.to_integer(env)?, env.opts())?.into())
-			}
-
-			#[cfg(feature = "extensions")]
-			ValueEnum::String(string) if env.opts().extensions.builtin_fns.string => {
-				Ok(string.split(&rhs.to_kstring(env)?, env).into())
-			}
-
-			#[cfg(feature = "extensions")]
-			ValueEnum::List(list) if env.opts().extensions.builtin_fns.list => {
-				Ok(list.reduce(rhs, env)?.unwrap_or_default())
-			}
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.divide(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "/" }),
-		}
-	}
-
-	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => {
-				Ok(integer.remainder(rhs.to_integer(env)?, env.opts())?.into())
-			}
-
-			// #[cfg(feature = "string-extensions")]
-			// ValueEnum::String(lstr) => {
-			// 	let values = rhs.to_list(env)?;
-			// 	let mut values_index = 0;
-
-			// 	let mut formatted = String::new();
-			// 	let mut chars = lstr.chars();
-
-			// 	while let Some(chr) = chars.next() {
-			// 		match chr {
-			// 			'\\' => {
-			// 				formatted.push(match chars.next().expect("<todo error for nothing next>") {
-			// 					'n' => '\n',
-			// 					'r' => '\r',
-			// 					't' => '\t',
-			// 					'{' => '{',
-			// 					'}' => '}',
-			// 					_ => panic!("todo: error for unknown escape code"),
-			// 				});
-			// 			}
-			// 			'{' => {
-			// 				if chars.next() != Some('}') {
-			// 					panic!("todo, missing closing `}}`");
-			// 				}
-			// 				formatted.push_str(
-			// 					&values
-			// 						.as_slice()
-			// 						.get(values_index)
-			// 						.expect("no values left to format")
-			// 						.to_kstring(env)?,
-			// 				);
-			// 				values_index += 1;
-			// 			}
-			// 			_ => formatted.push(chr),
-			// 		}
-			// 	}
-
-			// 	Text::new(formatted).unwrap().into()
-			// }
-			#[cfg(feature = "extensions")]
-			ValueEnum::List(list) if env.opts().extensions.builtin_fns.list => {
-				list.filter(rhs, env).map(Self::from)
-			}
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.remainder(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "%" }),
-		}
-	}
-
-	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => Ok(integer.power(rhs.to_integer(env)?, env.opts())?.into()),
-			ValueEnum::List(list) => list.join(&rhs.to_kstring(env)?, env).map(Self::from),
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.power(rhs, env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "^" }),
-		}
-	}
-
-	/// Gets the first element of `self`.
-	///
-	/// # Extensions
-	/// If [integer extensions](crate::env::flags::Types::integer) are enabled, and `self` is an
-	/// integer, the most significant digit is returned
-	///
-	/// # Errors
-	/// If `self` is either a [`Text`] or a [`List`] and is empty, an [`Error::DomainError`] is
-	/// returned. If `self`
-	pub fn kn_head(&self, env: &mut Environment<'_>) -> Result<Self> {
-		let _ = env;
-		match self.inner() {
-			ValueEnum::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
-			ValueEnum::String(string) => string
-				.head()
-				.ok_or(Error::DomainError("empty string"))
-				.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
-
-			// #[cfg(feature = "extensions")]
-			// ValueEnum::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.head().into()),
-
-			// #[cfg(feature = "custom-types")]
-			// ValueEnum::Custom(custom) => custom.head(env),
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "[" }),
-		}
-	}
-
-	pub fn kn_tail(&self, env: &mut Environment<'_>) -> Result<Self> {
-		let _ = env;
-		match self.inner() {
-			ValueEnum::List(list) => {
-				list.tail().ok_or(Error::DomainError("empty list ]")).map(Self::from)
-			}
-
-			ValueEnum::String(string) => string
-				.tail()
-				.ok_or(Error::DomainError("empty string"))
-				.map(|x| KnValueString::from(x).into()),
-
-			// #[cfg(feature = "extensions")]
-			// ValueEnum::Integer(integer) if env.flags().extensions.types.integer => Ok(integer.tail().into()),
-
-			// #[cfg(feature = "custom-types")]
-			// ValueEnum::Custom(custom) => custom.tail(env),
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "]" }),
-		}
-	}
-
-	pub fn kn_ascii(&self, env: &mut Environment<'_>) -> Result<Self> {
-		match self.inner() {
-			ValueEnum::Integer(integer) => {
-				let chr = integer.chr(env.opts())?;
-				Ok(KnValueString::new_unvalidated(chr.to_string()).into())
-			}
-			ValueEnum::String(string) => Ok(string.ord(env.opts())?.into()),
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.ascii(env),
-
-			_ => Err(Error::TypeError { type_name: self.type_name(), function: "ASCII" }),
-		}
-	}
-
-	pub fn kn_get(&self, start: &Value, len: &Value, env: &mut Environment<'_>) -> Result<Self> {
-		#[cfg(feature = "custom-types")]
-		if let ValueEnum::Custom(custom) = self {
-			return custom.get(start, len, env);
-		}
-
-		let start = fix_len(self, start.to_integer(env)?, "GET", env)?;
-		let len = usize::try_from(len.to_integer(env)?.inner())
-			.or(Err(Error::DomainError("negative length")))?;
-
-		match self.inner() {
-			ValueEnum::List(list) => list.try_get(start..start + len).map(Self::from),
-
-			ValueEnum::String(text) => text
-				.get(start..start + len)
-				.ok_or(Error::IndexOutOfBounds { len: text.len(), index: start + len })
-				.map(ToOwned::to_owned)
-				.map(Self::from),
-
-			_ => return Err(Error::TypeError { type_name: self.type_name(), function: "GET" }),
-		}
-	}
-
-	pub fn kn_set(
-		&self,
-		start: &Value,
-		len: &Value,
-		replacement: &Value,
-		env: &mut Environment,
-	) -> Result<Self> {
-		#[cfg(feature = "custom-types")]
-		if let ValueEnum::Custom(custom) = self {
-			return custom.set(start, len, replacement, env);
-		}
-
-		let start = fix_len(self, start.to_integer(env)?, "SET", env)?;
-		let len = usize::try_from(len.to_integer(env)?.inner())
-			.or(Err(Error::DomainError("negative length")))?;
-
-		match self.inner() {
-			ValueEnum::List(list) => {
-				let replacement = replacement.to_list(env)?;
-				let mut ret = Vec::new();
-
-				ret.extend(list.iter().take(start).cloned());
-				ret.extend(replacement.iter().cloned());
-				ret.extend(list.iter().skip((start) + len).cloned());
-
-				List::new(ret, env.opts()).map(Self::from)
-			}
-			ValueEnum::String(string) => {
-				let replacement = replacement.to_kstring(env)?;
-
-				// lol, todo, optimize me
-				let mut builder = String::new();
-				builder.push_str(string.get(..start).unwrap().as_str());
-				builder.push_str(&replacement.as_str());
-				builder.push_str(string.get(start + len..).unwrap().as_str());
-				Ok(KnValueString::new(builder, env.opts())?.into())
-			}
-
-			_ => return Err(Error::TypeError { type_name: self.type_name(), function: "SET" }),
+	pub fn as_knstring(self) -> Option<KnString<'gc>> {
+		if self.is_alloc() {
+			unsafe { ValueInner::as_knstring(self.0.ptr) }
+		} else {
+			None
 		}
 	}
 }
 
-fn fix_len(
-	container: &Value,
-	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer,
-	function: &'static str,
-	env: &mut Environment,
-) -> Result<usize> {
-	#[cfg(feature = "extensions")]
-	if env.opts().extensions.negative_indexing && start < Integer::ZERO {
-		let len = match &container.0 {
-			ValueEnum::String(string) => string.len(),
-			ValueEnum::List(list) => list.len(),
-
-			#[cfg(feature = "custom-types")]
-			ValueEnum::Custom(custom) => custom.length(env)?,
-
-			other => return Err(Error::TypeError { type_name: container.type_name(), function }),
-		};
-
-		start = start.add(Integer::new_error(len as _, env.opts())?, env.opts())?;
+unsafe impl GarbageCollected for Value<'_> {
+	unsafe fn mark(&self) {
+		if self.is_alloc() {
+			unsafe { ValueInner::mark(self.0.ptr) }
+		}
 	}
 
-	let _ = (container, env);
-	usize::try_from(start.inner()).or(Err(Error::DomainError("negative start position")))
+	unsafe fn deallocate(self) {
+		if self.is_alloc() {
+			unsafe { ValueInner::deallocate(self.0.ptr, true) }
+		}
+	}
+}
+
+impl<'gc> ToKnString<'gc> for Value<'gc> {
+	/// Returns `"true"` for true and `"false"` for false.
+	#[inline]
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Null.to_knstring(env)
+				} else if let Some(boolean) = self.as_boolean() {
+					boolean.to_knstring(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					list.to_knstring(env)
+				} else if let Some(string) = self.as_knstring() {
+					string.to_knstring(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => self.as_integer().unwrap().to_knstring(env),
+			_ => todo!(),
+		}
+	}
 }

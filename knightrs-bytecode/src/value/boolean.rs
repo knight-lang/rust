@@ -1,7 +1,8 @@
+use crate::gc::GcRoot;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
-use crate::value::{Integer, KnValueString, List, NamedType, ToInteger, ToKnValueString, ToList};
+use crate::value::{Integer, KnString, List, NamedType, ToInteger, ToKnString, ToList};
 use crate::{Environment, Options};
 
 /// The boolean type within Knight.
@@ -37,40 +38,36 @@ impl ToInteger for Boolean {
 	}
 }
 
-impl ToList for Boolean {
+impl<'gc> ToList<'gc> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		// static TRUE_BOX: List = List::new_unvalidated(true.into());
+	fn to_list(&self, _: &mut Environment) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		if *self {
-			Ok(List::boxed((*self).into()))
+			Ok(GcRoot::new_unchecked(crate::value::list::consts::JUST_TRUE))
 		} else {
-			Ok(List::default())
+			Ok(GcRoot::new_unchecked(List::default()))
 		}
 	}
 }
 
-impl ToKnValueString for Boolean {
+impl<'gc> ToKnString<'gc> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
-		// VALIDATION: `true` and `false` are always valid strings.
-		static TRUE: &KnStr = KnStr::new_unvalidated("true");
-		static FALSE: &KnStr = KnStr::new_unvalidated("false");
-
-		// TODO: make sure this isn't allocating each time
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
 		if *self {
-			Ok(TRUE.into())
+			Ok(GcRoot::new_unchecked(crate::value::knstring::consts::TRUE))
 		} else {
-			Ok(FALSE.into())
+			Ok(GcRoot::new_unchecked(crate::value::knstring::consts::FALSE))
 		}
 	}
 }
-/*
+
 impl<'path> Parseable<'_, 'path> for Boolean {
 	type Output = Self;
 
-	fn parse(parser: &mut Parser<'_, '_, 'path, '_>) -> Result<Option<Self::Output>, ParseError<'path>> {
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
 			return Ok(None);
 		};
@@ -90,4 +87,3 @@ unsafe impl<'path> Compilable<'_, 'path> for Boolean {
 		Ok(())
 	}
 }
-*/

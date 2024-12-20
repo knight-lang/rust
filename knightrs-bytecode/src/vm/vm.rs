@@ -6,9 +6,7 @@ use super::{Opcode, RuntimeError};
 use crate::parser::{SourceLocation, VariableName};
 use crate::program::{JumpIndex, Program};
 use crate::strings::KnStr;
-use crate::value::{
-	Block, Integer, KnValueString, List, ToBoolean, ToInteger, ToKnValueString, Value,
-};
+use crate::value::{Block, Integer, KnString, List, ToBoolean, ToInteger, ToKnString, Value};
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
@@ -65,7 +63,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						false
 					}
 				})
-				.map(|str| KnValueString::new(str, self.env.opts()).map(Value::from))
+				.map(|str| KnString::new(str, self.env.opts()).map(Value::from))
 				.collect::<Result<Vec<_>, _>>()?;
 
 			let argv = List::new(argv, self.env.opts())?.into();

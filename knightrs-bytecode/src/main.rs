@@ -9,7 +9,7 @@ use knightrs_bytecode::parser::*;
 use knightrs_bytecode::program::*;
 use knightrs_bytecode::strings::KnStr;
 use knightrs_bytecode::value::*;
-use knightrs_bytecode::value2::{ToKnString, ToList};
+use knightrs_bytecode::value::{ToKnString, ToList};
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
 
@@ -29,7 +29,7 @@ fn run(
 
 fn main() {
 	use knightrs_bytecode::gc::*;
-	use knightrs_bytecode::value2 as v2;
+	use knightrs_bytecode::value as v2;
 	let gc = Gc::new(Default::default());
 	unsafe {
 		gc.run(|gc| {

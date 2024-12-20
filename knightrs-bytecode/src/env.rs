@@ -1,8 +1,9 @@
+use crate::gc::GcRoot;
 use std::io;
 
 use crate::gc::Gc;
 use crate::options::Options;
-use crate::value::{Integer, KnValueString};
+use crate::value::{Integer, KnString};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 pub struct Environment<'gc> {
@@ -25,7 +26,7 @@ impl<'gc> Environment<'gc> {
 		&self.gc
 	}
 
-	pub fn prompt(&mut self) -> crate::Result<Option<KnValueString>> {
+	pub fn prompt(&mut self) -> crate::Result<Option<GcRoot<'gc, KnString<'gc>>>> {
 		let mut line = String::new();
 		let amnt = std::io::stdin()
 			.read_line(&mut line)
@@ -49,7 +50,7 @@ impl<'gc> Environment<'gc> {
 			}
 		}
 
-		Ok(Some(KnValueString::new(line, &self.opts)?))
+		Ok(Some(KnString::new(line, self.opts(), self.gc())?))
 	}
 
 	pub fn output(&mut self) -> impl io::Write {

@@ -4,29 +4,33 @@ use crate::vm::Opcode;
 use crate::Options;
 use crate::Value;
 
-pub struct Ast<'s, 'p> {
-	inner: AstInner<'s, 'p>,
+pub struct Ast<'s, 'p, 'gc> {
+	inner: AstInner<'s, 'p, 'gc>,
 	location: SourceLocation<'p>,
 }
 
-pub enum AstInner<'s, 'p> {
-	Literal(Value),
+pub enum AstInner<'s, 'p, 'gc> {
+	Literal(Value<'gc>),
 	Variable(VariableName<'s>),
-	Then(Vec<Ast<'s, 'p>>),
-	Block(Box<Ast<'s, 'p>>),
+	Then(Vec<Ast<'s, 'p, 'gc>>),
+	Block(Box<Ast<'s, 'p, 'gc>>),
 
-	SimpleAssign(VariableName<'s>, Box<Ast<'s, 'p>>),
-	And(Box<Ast<'s, 'p>>, Box<Ast<'s, 'p>>),
-	Or(Box<Ast<'s, 'p>>, Box<Ast<'s, 'p>>),
-	If(Box<Ast<'s, 'p>>, Box<Ast<'s, 'p>>, Box<Ast<'s, 'p>>),
-	While(Box<Ast<'s, 'p>>, Box<Ast<'s, 'p>>),
+	SimpleAssign(VariableName<'s>, Box<Ast<'s, 'p, 'gc>>),
+	And(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
+	Or(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
+	If(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
+	While(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
 
-	SimpleOpcode(Opcode, Vec<Box<Ast<'s, 'p>>>),
-	Custom(Box<dyn Compilable<'s, 'p>>),
+	SimpleOpcode(Opcode, Vec<Box<Ast<'s, 'p, 'gc>>>),
+	Custom(Box<dyn Compilable<'s, 'p, 'gc>>),
 }
 
-unsafe impl<'s, 'p> Compilable<'s, 'p> for Ast<'s, 'p> {
-	fn compile(self, compiler: &mut Compiler<'s, 'p>, opts: &Options) -> Result<(), ParseError<'p>> {
+unsafe impl<'s, 'p, 'gc> Compilable<'s, 'p, 'gc> for Ast<'s, 'p, 'gc> {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'s, 'p, 'gc>,
+		opts: &Options,
+	) -> Result<(), ParseError<'p>> {
 		match self.inner {
 			AstInner::Literal(value) => {
 				compiler.push_constant(value);

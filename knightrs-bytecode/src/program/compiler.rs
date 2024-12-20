@@ -1,31 +1,34 @@
 use super::{DeferredJump, InstructionAndOffset, JumpIndex, JumpWhen, Program};
+use crate::gc::Gc;
 use crate::options::Options;
 use crate::parser::{ParseError, ParseErrorKind, SourceLocation, VariableName};
 use crate::strings::KnStr;
-use crate::value::{KnValueString, Value};
+use crate::value::{KnString, Value};
 use crate::vm::Opcode;
 
 use indexmap::IndexSet;
 use std::collections::HashMap;
 
 // safety: cannot do invalid things with the builder.
-pub unsafe trait Compilable<'src, 'path> {
+pub unsafe trait Compilable<'src, 'path, 'gc> {
 	// no errors returned because compiling should never fail, that's parsing
 	fn compile(
 		self,
-		compiler: &mut Compiler<'src, 'path>,
+		compiler: &mut Compiler<'src, 'path, 'gc>,
 		opts: &Options,
 	) -> Result<(), ParseError<'path>>;
 }
 
 /// A Compiler is used to construct [`Program`]s, which are then run via the [`Vm`](crate::Vm).
-pub struct Compiler<'src, 'path> {
+pub struct Compiler<'src, 'path, 'gc> {
 	// The current code so far; The bottom-most byte is the opcode, and when that's shifted away, the
 	// remainder is the offset.
 	code: Vec<InstructionAndOffset>,
 
+	gc: &'gc Gc,
+
 	// All the constants that've been declared so far. Used with [`Opcode::PushConstant`].
-	constants: Vec<Value>,
+	constants: Vec<Value<'gc>>,
 
 	// The list of all variables encountered so far. (They're stored in an ordered set, as their
 	// index is the "offset" that all `Opcodes` that interact with variables (eg [`Opcode::GetVar`])
@@ -56,14 +59,15 @@ fn code_from_opcode_and_offset(opcode: Opcode, offset: usize) -> InstructionAndO
 }
 
 // TODO: Make a "build-a-block" function
-impl<'src, 'path> Compiler<'src, 'path> {
+impl<'src, 'path, 'gc> Compiler<'src, 'path, 'gc> {
 	#[cfg(feature = "extensions")]
 	pub const ARGV_VARIABLE_INDEX: usize = 0;
 
-	pub fn new(start: SourceLocation<'path>) -> Self {
+	pub fn new(start: SourceLocation<'path>, gc: &'gc Gc) -> Self {
 		Self {
 			code: vec![],
 			constants: vec![],
+			gc,
 			variables: {
 				let mut variables = IndexSet::new();
 
@@ -276,14 +280,14 @@ impl DeferredJump {
 	///
 	/// # Safety
 	/// Same as [`DeferredJump::jump_to`].
-	pub unsafe fn jump_to_current(self, compiler: &mut Compiler<'_, '_>) {
+	pub unsafe fn jump_to_current(self, compiler: &mut Compiler<'_, '_, '_>) {
 		// SAFETY: TODO
 		unsafe { self.jump_to(compiler, compiler.jump_index()) }
 	}
 
 	/// Reify `self` by jumping to the position `index` in `compiler`.
 
-	pub unsafe fn jump_to(self, compiler: &mut Compiler<'_, '_>, index: JumpIndex) {
+	pub unsafe fn jump_to(self, compiler: &mut Compiler<'_, '_, '_>, index: JumpIndex) {
 		assert_eq!(0, compiler.code[self.0]);
 
 		let opcode = match self.1 {

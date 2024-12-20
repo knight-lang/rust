@@ -1,5 +1,5 @@
 use crate::options::Options;
-use crate::value::{Integer, KnValueString, List, ToList};
+use crate::value::{Integer, KnString, List, ToList};
 use crate::{Environment, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -138,9 +138,9 @@ impl KnStr {
 }
 
 impl ToOwned for KnStr {
-	type Owned = crate::value::KnValueString;
+	type Owned = crate::value::KnString;
 
-	fn to_owned(&self) -> crate::value::KnValueString {
-		crate::value::KnValueString::from_slice(self)
+	fn to_owned(&self) -> crate::value::KnString {
+		crate::value::KnString::from_slice(self)
 	}
 }

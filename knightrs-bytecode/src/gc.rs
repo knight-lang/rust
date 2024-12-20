@@ -5,7 +5,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use crate::value2::{Value, ValueAlign};
+use crate::value::{Value, ValueAlign};
 
 /// Gc is the garbage collector for Knight [`Value`]s.
 ///
@@ -302,19 +302,17 @@ impl ValueInner {
 		unsafe { &raw const (*this).flags }
 	}
 
-	pub(crate) unsafe fn as_knstring<'gc>(
-		this: *const Self,
-	) -> Option<crate::value2::KnString<'gc>> {
+	pub(crate) unsafe fn as_knstring<'gc>(this: *const Self) -> Option<crate::value::KnString<'gc>> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_STRING != 0 {
-			Some(unsafe { crate::value2::KnString::from_raw(this) })
+			Some(unsafe { crate::value::KnString::from_raw(this) })
 		} else {
 			None
 		}
 	}
 
-	pub(crate) unsafe fn as_list<'gc>(this: *const Self) -> Option<crate::value2::List<'gc>> {
+	pub(crate) unsafe fn as_list<'gc>(this: *const Self) -> Option<crate::value::List<'gc>> {
 		if unsafe { &*Self::flags(this) }.load(Ordering::SeqCst) & FLAG_IS_LIST != 0 {
-			Some(unsafe { crate::value2::List::from_raw(this) })
+			Some(unsafe { crate::value::List::from_raw(this) })
 		} else {
 			None
 		}
