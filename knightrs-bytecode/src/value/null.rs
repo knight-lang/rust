@@ -60,7 +60,7 @@ impl<'gc> ToKnString<'gc> for Null {
 	}
 }
 
-impl<'path> Parseable<'_, 'path> for Null {
+impl<'path> Parseable<'_, 'path, '_> for Null {
 	type Output = Self;
 
 	fn parse(
@@ -75,14 +75,13 @@ impl<'path> Parseable<'_, 'path> for Null {
 	}
 }
 
-unsafe impl<'path> Compilable<'_, 'path, ,'_> for Null {
+unsafe impl<'path> Compilable<'_, 'path, '_> for Null {
 	fn compile(
 		self,
-		compiler: &mut Compiler<'_, 'path, ,'_>,
+		compiler: &mut Compiler<'_, 'path, '_>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}
 }
-

@@ -22,7 +22,7 @@ impl<'src> VariableName<'src> {
 	pub fn new(name: &'src KnStr, opts: &Options) -> Result<Self, ParseErrorKind> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.variable_name_length && Self::MAX_NAME_LEN < name.len() {
-			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned()));
+			return Err(ParseErrorKind::VariableNameTooLong(name.to_owned().to_string()));
 		}
 
 		Ok(Self(name.into()))

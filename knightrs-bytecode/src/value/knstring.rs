@@ -388,13 +388,16 @@ impl<'path, 'gc> Parseable<'_, 'path, 'gc> for KnString<'gc> {
 	}
 }
 
-unsafe impl<'path, 'gc> Compilable<'_, 'path, 'gc> for KnString<'gc> {
+unsafe impl<'path, 'gc> Compilable<'_, 'path, 'gc> for GcRoot<'gc, KnString<'gc>> {
 	fn compile(
 		self,
 		compiler: &mut Compiler<'_, 'path, 'gc>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
-		compiler.push_constant(self.into());
+		// TODO: SAFETY CHECK: compielr must have a reference to `self`
+		unsafe {
+			self.with_inner(|inner| compiler.push_constant(inner.into()));
+		}
 		Ok(())
 	}
 }

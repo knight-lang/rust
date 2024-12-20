@@ -120,6 +120,13 @@ impl Debug for Value<'_> {
 // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // pub struct WrongType;
 
+impl From<Null> for Value<'_> {
+	#[inline]
+	fn from(_: Null) -> Self {
+		Self::NULL
+	}
+}
+
 impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {

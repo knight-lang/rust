@@ -377,13 +377,16 @@ impl<'gc, 'path> Parseable<'_, 'path, 'gc> for List<'gc> {
 	}
 }
 
-unsafe impl<'gc, 'path> Compilable<'_, 'path, 'gc> for List<'gc> {
+unsafe impl<'gc, 'path> Compilable<'_, 'path, 'gc> for GcRoot<'gc, List<'gc>> {
 	fn compile(
 		self,
 		compiler: &mut Compiler<'_, 'path, 'gc>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
-		compiler.push_constant(self.into());
+		// TODO: SAFETY CHECK: compielr must have a reference to `self`
+		unsafe {
+			self.with_inner(|inner| compiler.push_constant(inner.into()));
+		}
 		Ok(())
 	}
 }
