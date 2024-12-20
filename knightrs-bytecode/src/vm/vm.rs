@@ -49,7 +49,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	pub fn run_entire_program(
 		&mut self,
 		argv: impl IntoIterator<Item = String>,
-	) -> crate::Result<Value> {
+	) -> crate::Result<Value<'gc>> {
 		#[cfg(feature = "extensions")]
 		if self.env.opts().extensions.argv {
 			let mut first = true;
@@ -80,11 +80,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		self.run_entire_program_without_argv()
 	}
 
-	pub fn run_entire_program_without_argv(&mut self) -> crate::Result<Value> {
+	pub fn run_entire_program_without_argv(&mut self) -> crate::Result<Value<'gc>> {
 		self.run(Block::new(JumpIndex(0)))
 	}
 
-	pub fn run(&mut self, block: Block) -> crate::Result<Value> {
+	pub fn run(&mut self, block: Block) -> crate::Result<Value<'gc>> {
 		// Save previous index
 		let index = self.current_index;
 
@@ -153,10 +153,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		None
 	}
 
-	fn run_inner(&mut self) -> crate::Result<Value> {
+	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
 		use std::mem::MaybeUninit;
 
-		const NULL: MaybeUninit<Value> = MaybeUninit::uninit();
+		const NULL: MaybeUninit<Value<'_>> = MaybeUninit::uninit();
 
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
@@ -405,7 +405,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	}
 
 	// SAFETY: the `offset` must be a valid variable offset
-	unsafe fn get_variable(&mut self, offset: usize) -> crate::Result<Value> {
+	unsafe fn get_variable(&mut self, offset: usize) -> crate::Result<Value<'gc>> {
 		debug_assert!(offset <= self.variables.len());
 
 		unsafe { self.variables.get_unchecked(offset) }.clone().ok_or_else(|| {
@@ -414,7 +414,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	}
 
 	// SAFETY: the `offset` must be a valid variable offset
-	unsafe fn set_variable(&mut self, offset: usize, value: Value) {
+	unsafe fn set_variable(&mut self, offset: usize, value: Value<'gc>) {
 		debug_assert!(offset <= self.variables.len());
 
 		// TODO: rework how stacktraces work

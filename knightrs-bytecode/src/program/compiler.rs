@@ -191,7 +191,7 @@ impl<'src, 'path, 'gc> Compiler<'src, 'path, 'gc> {
 		self.code.push(code_from_opcode_and_offset(opcode, 0)) // any offset'll do, it's ignored
 	}
 
-	pub fn push_constant(&mut self, value: Value) {
+	pub fn push_constant(&mut self, value: Value<'gc>) {
 		let index = match self.constants.iter().enumerate().find(|(_, v)| value == **v) {
 			Some((index, _)) => index,
 			None => {
