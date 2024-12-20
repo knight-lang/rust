@@ -96,13 +96,13 @@ impl Default for List<'_> {
 impl Eq for List<'_> {}
 impl PartialEq for List<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
-		self.as_slice() == rhs.as_slice()
+		self.__as_slice() == rhs.__as_slice()
 	}
 }
 
 impl PartialEq<[Value<'_>]> for List<'_> {
 	fn eq(&self, rhs: &[Value<'_>]) -> bool {
-		self.as_slice() == rhs
+		self.__as_slice() == rhs
 	}
 }
 
@@ -205,7 +205,7 @@ impl<'gc> List<'gc> {
 	}
 
 	#[deprecated] // won't work with non-slice types
-	fn as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
+	pub fn __as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
 		let (flags, inner) = self.flags_and_inner();
 
 		unsafe {
@@ -241,7 +241,7 @@ impl<'gc> List<'gc> {
 		let mut s = String::new();
 		let mut first = true;
 
-		let slice = self.as_slice();
+		let slice = self.__as_slice();
 		for element in slice {
 			if first {
 				first = false;
@@ -277,7 +277,7 @@ impl<'gc> List<'gc> {
 
 impl Debug for List<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(self.as_slice(), f)
+		Debug::fmt(self.__as_slice(), f)
 	}
 }
 
@@ -286,7 +286,7 @@ impl Debug for List<'_> {
 
 unsafe impl GarbageCollected for List<'_> {
 	unsafe fn mark(&self) {
-		for value in self.as_slice() {
+		for value in self.__as_slice() {
 			unsafe {
 				value.mark();
 			}

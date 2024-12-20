@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::io::Write;
 use std::marker::PhantomData;
 
 use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
@@ -283,7 +284,33 @@ unsafe impl GarbageCollected for Value<'_> {
 
 impl<'gc> Value<'gc> {
 	pub fn kn_dump(&self, env: &mut Environment<'gc>) -> crate::Result<()> {
-		todo!();
+		if self.is_null() {
+			write!(env.output(), "null")
+		} else if let Some(b) = self.as_boolean() {
+			write!(env.output(), "{b}")
+		} else if let Some(i) = self.as_integer() {
+			write!(env.output(), "{i}")
+		} else if let Some(s) = self.as_knstring() {
+			write!(env.output(), "{:?}", s.as_str())
+		} else if let Some(l) = self.as_list() {
+			write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+			for (idx, arg) in l.__as_slice().iter().enumerate() {
+				if idx != 0 {
+					write!(env.output(), ", ").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
+				}
+				arg.kn_dump(env)?;
+			}
+			write!(env.output(), "]")
+		} else {
+			#[cfg(feature = "compliance")]
+			if env.opts().compliance.cant_dump_blocks && self.as_block().is_some() {
+				return write!(env.output(), "{:?}", self.as_block().unwrap())
+					.map_err(|err| Error::IoError { func: "OUTPUT", err });
+			}
+
+			return Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" });
+		}
+		.map_err(|err| Error::IoError { func: "OUTPUT", err })
 	}
 
 	pub fn kn_compare(
