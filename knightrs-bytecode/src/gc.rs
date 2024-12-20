@@ -1,6 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::fmt::{self, Debug, Formatter};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -19,6 +20,7 @@ struct Inner {
 	value_inners: Vec<*mut ValueInner>,
 	idx: usize,
 	roots: HashSet<*const ValueInner>,
+	paused: bool,
 }
 
 pub const ALLOC_VALUE_SIZE: usize = 32;
@@ -96,6 +98,7 @@ impl Gc {
 					.collect(),
 				roots: HashSet::new(),
 				idx: 0,
+				paused: false,
 			}
 			.into(),
 		)
@@ -142,10 +145,12 @@ impl Gc {
 			return inner;
 		}
 
-		unsafe {
-			self.mark_and_sweep();
+		if !self.0.borrow().paused {
+			unsafe {
+				self.mark_and_sweep();
+			}
+			self.0.borrow_mut().idx = 0;
 		}
-		self.0.borrow_mut().idx = 0;
 
 		// extend the length
 		let len = self.0.borrow().value_inners.len();
@@ -156,6 +161,18 @@ impl Gc {
 			.extend((0..=len).map(|_| Box::into_raw(Box::new(EMPTY_INNER))));
 
 		self.next_open_inner_().expect("we just extended")
+	}
+
+	pub fn pause(&self) {
+		let mut inner = self.0.borrow_mut();
+		assert!(!inner.paused);
+		inner.paused = true;
+	}
+
+	pub fn unpause(&self) {
+		let mut inner = self.0.borrow_mut();
+		assert!(inner.paused);
+		inner.paused = false;
 	}
 
 	// pub unsafe fn alloc_value_inner3(&mut self, flags: u8) -> *mut ValueInner2<[u8; 10000]> {
@@ -351,6 +368,12 @@ pub unsafe trait AsValueInner {
 
 pub struct GcRoot<'gc, T: AsValueInner>(T, Option<&'gc Gc>);
 
+impl<T: AsValueInner + Debug> Debug for GcRoot<'_, T> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		Debug::fmt(&self.0, f)
+	}
+}
+
 impl<'gc, T: AsValueInner> GcRoot<'gc, T> {
 	// safety: that from_value_inner seems like it could be unsafe potentially lol
 	pub fn new(t: &T, gc: &'gc Gc) -> Self {
@@ -365,7 +388,8 @@ impl<'gc, T: AsValueInner> GcRoot<'gc, T> {
 		Self(t, None)
 	}
 
-	pub fn inner(&self) -> T {
+	// SAFETY: caller must ensure that it wno't be GC'd until it's a part of the root node list
+	pub unsafe fn assume_used(&self) -> T {
 		unsafe { T::from_value_inner(self.0.as_value_inner()) }
 	}
 

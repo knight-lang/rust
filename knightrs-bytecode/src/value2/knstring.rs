@@ -314,19 +314,30 @@ impl ToInteger for KnString<'_> {
 impl<'gc> ToKnString<'gc> for KnString<'gc> {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
-		Ok(GcRoot::new(self, env.gc()))
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		// Since `self` is already a part of the gc, then cloning it does nothing.
+		Ok(GcRoot::new_unchecked(Self(self.0, PhantomData)))
 	}
 }
 
-// impl<'gc> ToList<'gc> for KnString {
-// 	/// Returns an empty list for `false`, and a list with just `self` if true.
-// 	#[inline]
-// 	fn to_list(&self, _: &mut Environment) -> crate::Result<List<'gc>> {
-// 		if *self {
-// 			Ok(crate::value2::list::consts::JUST_TRUE)
-// 		} else {
-// 			Ok(List::default())
-// 		}
-// 	}
-// }
+impl<'gc> ToList<'gc> for KnString<'gc> {
+	/// Returns an empty list for `false`, and a list with just `self` if true.
+	#[inline]
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		env.gc().pause();
+
+		let chars = self
+			.chars()
+			.map(|c| {
+				let chr_string = Self::new_unvalidated(c.to_string(), env.gc());
+				unsafe { chr_string.assume_used() }.into()
+			})
+			.collect::<Vec<_>>();
+
+		// COMPLIANCE: If `self` is within the container bounds, so is the length of its chars.
+		let result = List::new_unvalidated(chars, env.gc());
+		env.gc().unpause();
+
+		Ok(result)
+	}
+}

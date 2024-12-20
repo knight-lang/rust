@@ -9,7 +9,7 @@ use knightrs_bytecode::parser::*;
 use knightrs_bytecode::program::*;
 use knightrs_bytecode::strings::KnStr;
 use knightrs_bytecode::value::*;
-use knightrs_bytecode::value2::ToKnString;
+use knightrs_bytecode::value2::{ToKnString, ToList};
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
 
@@ -40,12 +40,17 @@ fn main() {
 				&gc,
 			);
 
+			dbg!(greeting.to_list(&mut env));
+
 			let mut list = unsafe {
 				greeting.with_inner(|greeting| {
 					let list = v2::List::boxed(greeting.into(), &gc);
-					v2::Value::from(list.make_permanent())
+					list
+					// v2::Value::from(list.make_permanent())
 				})
 			};
+
+			// dbg!(list.make_permanent().to_knstring(env));
 
 			dbg!(list);
 		})

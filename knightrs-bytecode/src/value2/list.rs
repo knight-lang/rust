@@ -4,7 +4,7 @@ use crate::{Error, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
-use std::mem::{align_of, size_of, transmute, ManuallyDrop};
+use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
 use std::sync::atomic::AtomicU8;
 
 use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
@@ -22,6 +22,7 @@ pub(crate) mod consts {
 		flags: AtomicU8::new(
 			gc::FLAG_GC_STATIC | ALLOCATED_FLAG | gc::FLAG_IS_LIST | gc::FLAG_CUSTOM_2,
 		),
+		_align: MaybeUninit::uninit(),
 		kind: Kind { embedded: [Value::TRUE; MAX_EMBEDDED_LENGTH] },
 	};
 }
@@ -36,6 +37,7 @@ pub trait ToList<'gc> {
 struct Inner<'gc> {
 	_alignment: ValueAlign,
 	flags: AtomicU8,
+	_align: MaybeUninit<[u8; 7]>, // TODO: don't use a constant
 	kind: Kind<'gc>,
 }
 
@@ -64,18 +66,9 @@ union Kind<'gc> {
 	alloc: Alloc<'gc>,
 }
 
-const ALLOC_PADDING_ALIGN: usize =
-	(if align_of::<*const u8>() >= align_of::<usize>() {
-		align_of::<*const u8>()
-	} else {
-		align_of::<usize>()
-	}) - align_of::<u8>() // minus align of flags
-;
-
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 struct Alloc<'gc> {
-	_padding: [u8; ALLOC_PADDING_ALIGN],
 	ptr: *const Value<'gc>,
 	len: usize,
 }
@@ -89,6 +82,7 @@ impl Default for List<'_> {
 		static EMPTY_INNER: Inner<'_> = Inner {
 			_alignment: ValueAlign,
 			flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST),
+			_align: MaybeUninit::uninit(),
 			kind: Kind { embedded: [Value::NULL; MAX_EMBEDDED_LENGTH] },
 		};
 		Self(&EMPTY_INNER)
