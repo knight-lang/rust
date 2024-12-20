@@ -405,7 +405,7 @@ impl Integer {
 	}
 }
 
-impl<'path> Parseable<'_, 'path> for Integer {
+impl<'path> Parseable<'_, 'path, '_> for Integer {
 	type Output = Self;
 
 	fn parse(

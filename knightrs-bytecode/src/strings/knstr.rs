@@ -137,10 +137,10 @@ impl KnStr {
 	}
 }
 
-impl ToOwned for KnStr {
-	type Owned = crate::value::KnString;
+// impl ToOwned for KnStr {
+// 	type Owned = crate::value::KnString;
 
-	fn to_owned(&self) -> crate::value::KnString {
-		crate::value::KnString::from_slice(self)
-	}
-}
+// 	fn to_owned(&self) -> crate::value::KnString {
+// 		crate::value::KnString::from_slice(self)
+// 	}
+// }

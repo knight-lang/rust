@@ -9,6 +9,7 @@ use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
 use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
 use crate::strings::{KnStr, StringError};
+use crate::Gc;
 use crate::{Environment, Options, Value};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -17,7 +18,7 @@ pub struct Parser<'env, 'src, 'path, 'gc> {
 	env: &'env mut Environment<'gc>,
 	filename: Option<&'path Path>,
 	source: &'src str, // can't use `KnStr` b/c it has a length limit.
-	compiler: Compiler<'src, 'path>,
+	compiler: Compiler<'src, 'path, 'gc>,
 	lineno: usize,
 
 	// Start is loop begin, vec is those to jump to loop end
@@ -67,6 +68,10 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 
 	pub fn opts(&self) -> &Options {
 		self.env.opts()
+	}
+
+	pub fn gc(&self) -> &'gc Gc {
+		self.env.gc()
 	}
 
 	pub fn peek(&self) -> Option<char> {

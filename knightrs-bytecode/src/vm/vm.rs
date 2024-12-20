@@ -63,7 +63,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						false
 					}
 				})
-				.map(|str| KnString::new(str, self.env.opts()).map(Value::from))
+				.map(|str| KnString::new(str, self.env.opts(), self.env.gc()).map(Value::from))
 				.collect::<Result<Vec<_>, _>>()?;
 
 			let argv = List::new(argv, self.env.opts())?.into();
@@ -327,7 +327,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
 				Opcode::Negate => unsafe { arg![0] }.kn_negate(self.env)?.into(),
 				Opcode::Ascii => unsafe { arg![0] }.kn_ascii(self.env)?,
-				Opcode::Box => List::boxed(unsafe { arg![0] }.clone()).into(),
+				Opcode::Box => List::boxed(unsafe { arg![0] }.clone(), self.env.gc()).into(),
 				Opcode::Head => unsafe { arg![0] }.kn_head(self.env)?,
 				Opcode::Tail => unsafe { arg![0] }.kn_tail(self.env)?,
 				Opcode::Pop => continue, /* do nothing, the arity already popped */

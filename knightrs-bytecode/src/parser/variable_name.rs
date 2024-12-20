@@ -33,7 +33,7 @@ impl<'src> VariableName<'src> {
 	}
 }
 
-impl<'src, 'path> Parseable<'src, 'path> for VariableName<'src> {
+impl<'src, 'path> Parseable<'src, 'path, '_> for VariableName<'src> {
 	type Output = (Self, SourceLocation<'path>);
 
 	fn parse(
@@ -56,10 +56,12 @@ impl<'src, 'path> Parseable<'src, 'path> for VariableName<'src> {
 	}
 }
 
-unsafe impl<'src, 'path> Compilable<'src, 'path> for (VariableName<'src>, SourceLocation<'path>) {
+unsafe impl<'src, 'path> Compilable<'src, 'path, '_>
+	for (VariableName<'src>, SourceLocation<'path>)
+{
 	fn compile(
 		self,
-		compiler: &mut Compiler<'src, '_>,
+		compiler: &mut Compiler<'src, '_, '_>,
 		opts: &Options,
 	) -> Result<(), crate::parser::ParseError<'path>> {
 		compiler.get_variable(self.0, opts).map_err(|err| self.1.error(err))

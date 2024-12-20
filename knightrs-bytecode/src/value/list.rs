@@ -1,8 +1,7 @@
 use crate::container::RefCount;
 use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
-use crate::parser::ParseError;
-use crate::program::Compilable;
-use crate::program::Compiler;
+use crate::parser::{ParseError, Parseable, Parser};
+use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
 use crate::value::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
 use crate::{Environment, Error, Options};
@@ -350,18 +349,19 @@ impl<'gc> ToList<'gc> for List<'gc> {
 	}
 }
 
-// impl<'path> Parseable<'_, 'path> for Boolean {
-// 	type Output = Self;
+impl<'gc, 'path> Parseable<'_, 'path, 'gc> for List<'gc> {
+	type Output = GcRoot<'gc, Self>;
 
-// 	fn parse(parser: &mut Parser<'_, '_, 'path, '_>) -> Result<Option<Self::Output>, ParseError<'path>> {
-// 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
-// 			return Ok(None);
-// 		};
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, '_>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
+		if parser.advance_if('@').is_none() {
+			return Ok(None);
+		}
 
-// 		parser.strip_keyword_function();
-// 		Ok(Some(chr == 'T'))
-// 	}
-// }
+		Ok(Some(GcRoot::new_unchecked(Self::default())))
+	}
+}
 
 unsafe impl<'gc, 'path> Compilable<'_, 'path, 'gc> for List<'gc> {
 	fn compile(

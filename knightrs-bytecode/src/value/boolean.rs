@@ -62,7 +62,7 @@ impl<'gc> ToKnString<'gc> for Boolean {
 	}
 }
 
-impl<'path> Parseable<'_, 'path> for Boolean {
+impl<'path> Parseable<'_, 'path, '_> for Boolean {
 	type Output = Self;
 
 	fn parse(

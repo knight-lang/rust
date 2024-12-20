@@ -1,4 +1,7 @@
 use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
+use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::program::Compilable;
+use crate::program::Compiler;
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
 use std::alloc::Layout;
@@ -339,5 +342,46 @@ impl<'gc> ToList<'gc> for KnString<'gc> {
 		env.gc().unpause();
 
 		Ok(result)
+	}
+}
+
+impl<'path, 'gc> Parseable<'_, 'path, 'gc> for KnString<'gc> {
+	type Output = GcRoot<'gc, Self>;
+
+	fn parse(
+		parser: &mut Parser<'_, '_, 'path, 'gc>,
+	) -> Result<Option<Self::Output>, ParseError<'path>> {
+		#[cfg(feature = "extensions")]
+		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
+			todo!();
+		}
+
+		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
+			return Ok(None);
+		};
+
+		let start = parser.location();
+
+		// empty stings are allowed to exist
+		let contents = parser.take_while(|c| c != quote).unwrap_or_default();
+
+		if parser.advance_if(quote).is_none() {
+			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
+		}
+
+		let string = KnString::new(contents.to_string(), parser.opts(), parser.gc())
+			.map_err(|err| start.error(err.into()))?;
+		Ok(Some(string))
+	}
+}
+
+unsafe impl<'path, 'gc> Compilable<'_, 'path, 'gc> for KnString<'gc> {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path, 'gc>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
+		compiler.push_constant(self.into());
+		Ok(())
 	}
 }
