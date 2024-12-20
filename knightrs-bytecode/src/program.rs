@@ -16,13 +16,13 @@ type InstructionAndOffset = i64;
 ///
 /// After being parsed, Knight programs become [`Program`]s, which can then be run by
 /// [`Vm`](crate::VM)s later on.
-pub struct Program<'src, 'path> {
+pub struct Program<'src, 'path, 'gc> {
 	// The code for the program. The bottom-most byte is the opcode, and when that's shifted away,
 	// the remainder is the offset.
 	code: Box<[InstructionAndOffset]>,
 
 	// All the constants that've been seen in the program. Used by [`Opcode::PushConstant`].
-	constants: Box<[Value]>,
+	constants: Box<[Value<'gc>]>,
 
 	// The list of variable names.
 	variables: IndexSet<VariableName<'src>>,
@@ -69,7 +69,7 @@ pub enum JumpWhen {
 	Always,
 }
 
-impl Debug for Program<'_, '_> {
+impl Debug for Program<'_, '_, '_> {
 	/// Write the debug output for `Program`.
 	///
 	/// This also decodes the bytecode contained within the [`Program`], to make it easy understand
@@ -105,7 +105,7 @@ impl Debug for Program<'_, '_> {
 	}
 }
 
-impl<'src, 'path> Program<'src, 'path> {
+impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 	/// Gets the opcode, and its offset, at `offset`.
 	///
 	/// # Safety
@@ -129,7 +129,7 @@ impl<'src, 'path> Program<'src, 'path> {
 	///
 	/// # Safety
 	/// `offset` must be a valid offset into the list of constants.
-	pub unsafe fn constant_at(&self, offset: usize) -> &Value {
+	pub unsafe fn constant_at(&self, offset: usize) -> &Value<'gc> {
 		debug_assert!(offset < self.constants.len());
 		unsafe { self.constants.get_unchecked(offset) }
 	}

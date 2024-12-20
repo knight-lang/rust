@@ -183,7 +183,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 	///
 	/// This will return an [`ErrorKind::TrailingTokens`] if [`forbid_trailing_tokens`](
 	/// crate::env::flags::Compliance::forbid_trailing_tokens) is set.
-	pub fn parse_program(mut self) -> Result<Program<'src, 'path>, ParseError<'path>> {
+	pub fn parse_program(mut self) -> Result<Program<'src, 'path, 'gc>, ParseError<'path>> {
 		self.parse_expression()?;
 
 		// If we forbid any trailing tokens, then see if we could have parsed anything else.

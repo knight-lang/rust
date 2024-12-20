@@ -103,7 +103,7 @@ impl<'src, 'path, 'gc> Compiler<'src, 'path, 'gc> {
 	/// value on top of its stack whenever it returns, which is the return value of the program.
 	///
 	/// Additionally, the caller must enure that all deferred jumps have been `jump_to`'d
-	pub unsafe fn build(mut self) -> Program<'src, 'path> {
+	pub unsafe fn build(mut self) -> Program<'src, 'path, 'gc> {
 		// SAFETY: The caller guarantees that we'll always have exactly one opcode on the top when
 		// the program is finished executing, so we know
 		unsafe {

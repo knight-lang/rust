@@ -10,11 +10,11 @@ use crate::value::{Block, Integer, KnString, List, ToBoolean, ToInteger, ToKnStr
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
-	program: &'prog Program<'src, 'path>,
+	program: &'prog Program<'src, 'path, 'gc>,
 	env: &'env mut Environment<'gc>,
 	current_index: usize,
-	stack: Vec<Value>,
-	variables: Vec<Option<Value>>, // It's a vec for extensions; without extensions this could be a box, but i see no need to
+	stack: Vec<Value<'gc>>,
+	variables: Vec<Option<Value<'gc>>>, // It's a vec for extensions; without extensions this could be a box, but i see no need to
 
 	#[cfg(feature = "stacktrace")]
 	callstack: Vec<usize>,
@@ -23,11 +23,11 @@ pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
 	known_blocks: HashMap<usize, VariableName<'src>>,
 
 	#[cfg(feature = "extensions")]
-	dynamic_variables: HashMap<VariableName<'static>, Value>,
+	dynamic_variables: HashMap<VariableName<'static>, Value<'gc>>,
 }
 
 impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
-	pub fn new(program: &'prog Program<'src, 'path>, env: &'env mut Environment<'gc>) -> Self {
+	pub fn new(program: &'prog Program<'src, 'path, 'gc>, env: &'env mut Environment<'gc>) -> Self {
 		Self {
 			program,
 			env,
