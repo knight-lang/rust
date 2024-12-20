@@ -1,3 +1,4 @@
+use crate::gc::GcRoot;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::{Character, Encoding};
@@ -459,7 +460,7 @@ impl ToBoolean for Integer {
 impl<'gc> ToKnString<'gc> for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<KnString<'gc>> {
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
 		// COMPLIANCE: `Integer#to_string` yields just an optional leading `-` followed by digits,
 		// which is valid in all encodings. Additionally, it's nowhere near the maximum length for a
 		// string.

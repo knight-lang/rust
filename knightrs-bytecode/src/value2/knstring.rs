@@ -1,4 +1,4 @@
-use crate::gc::{self, GarbageCollected, Gc, ValueInner};
+use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::value2::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
 use std::alloc::Layout;
@@ -19,7 +19,10 @@ pub struct KnString<'gc>(*const Inner, PhantomData<&'gc ()>);
 /// Represents the ability to be converted to a [`KnString`].
 pub trait ToKnString<'gc> {
 	/// Converts `self` to a [`KnString`].
-	fn to_knstring(&self, env: &mut crate::Environment<'gc>) -> crate::Result<KnString<'gc>>;
+	fn to_knstring(
+		&self,
+		env: &mut crate::Environment<'gc>,
+	) -> crate::Result<GcRoot<'gc, KnString<'gc>>>;
 }
 
 pub(crate) mod consts {
@@ -104,9 +107,9 @@ impl Default for KnString<'_> {
 
 impl<'gc> KnString<'gc> {
 	/// Creates a new [`KnString`] from the given `source`.
-	pub fn from_knstr(source: &KnStr, gc: &'gc Gc) -> Self {
+	pub fn from_knstr(source: &KnStr, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		match source.len() {
-			0 => Self::default(),
+			0 => GcRoot::new_unchecked(Self::default()),
 
 			// SAFETY: we know it's within the bounds because we checked in the `match`
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source.as_str(), gc) },
@@ -115,14 +118,18 @@ impl<'gc> KnString<'gc> {
 		}
 	}
 
-	pub fn new(source: String, opts: &Options, gc: &'gc Gc) -> Result<Self, StringError> {
+	pub fn new(
+		source: String,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> Result<GcRoot<'gc, Self>, StringError> {
 		KnStr::new(&source, opts)?;
 		Ok(Self::new_unvalidated(source, gc))
 	}
 
-	pub fn new_unvalidated(source: String, gc: &'gc Gc) -> Self {
+	pub fn new_unvalidated(source: String, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		if source.is_empty() {
-			return Self::default();
+			return GcRoot::new_unchecked(Self::default());
 		}
 
 		// We already are given an allocated pointer, might as well use `new_alloc`
@@ -143,7 +150,7 @@ impl<'gc> KnString<'gc> {
 	}
 
 	// SAFETY: `source.len()` needs to be `<= MAX_EMBEDDED_LENGTH`, otherwise we copy off the end.
-	unsafe fn new_embedded(source: &str, gc: &'gc Gc) -> Self {
+	unsafe fn new_embedded(source: &str, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		let len = source.len();
 		debug_assert!(len <= MAX_EMBEDDED_LENGTH);
 
@@ -163,11 +170,11 @@ impl<'gc> KnString<'gc> {
 			embedded_ptr.copy_from_nonoverlapping(source.as_ptr(), len);
 		}
 
-		Self(inner, PhantomData)
+		GcRoot::new(&Self(inner, PhantomData), gc)
 	}
 
 	// SAFETY: source.len() cannot be zero
-	unsafe fn new_alloc(mut source: String, gc: &'gc Gc) -> Self {
+	unsafe fn new_alloc(mut source: String, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		let len = source.len();
 
 		// Allocate the `Inner`.
@@ -182,10 +189,10 @@ impl<'gc> KnString<'gc> {
 
 		// SAFETY: `Self::allocate` guarantees it'll be aligned and non-null
 		unsafe {
-			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_ptr());
+			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_mut_ptr());
 		}
 
-		Self(inner, PhantomData)
+		GcRoot::new(&Self(inner, PhantomData), gc)
 	}
 
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
@@ -271,6 +278,16 @@ unsafe impl GarbageCollected for KnString<'_> {
 	}
 }
 
+unsafe impl<'gc> AsValueInner for KnString<'gc> {
+	fn as_value_inner(&self) -> *const ValueInner {
+		self.0.cast()
+	}
+
+	unsafe fn from_value_inner(inner: *const ValueInner) -> Self {
+		unsafe { Self::from_raw(inner) }
+	}
+}
+
 impl NamedType for KnString<'_> {
 	#[inline]
 	fn type_name(&self) -> &'static str {
@@ -297,13 +314,8 @@ impl ToInteger for KnString<'_> {
 impl<'gc> ToKnString<'gc> for KnString<'gc> {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<KnString<'gc>> {
-		todo!("somehow mark the return value as \"a root node\"")
-		// if *self {
-		// 	Ok(crate::value2::knstring::consts::TRUE)
-		// } else {
-		// 	Ok(crate::value2::knstring::consts::FALSE)
-		// }
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		Ok(GcRoot::new(self, env.gc()))
 	}
 }
 

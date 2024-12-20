@@ -9,6 +9,7 @@ use knightrs_bytecode::parser::*;
 use knightrs_bytecode::program::*;
 use knightrs_bytecode::strings::KnStr;
 use knightrs_bytecode::value::*;
+use knightrs_bytecode::value2::ToKnString;
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
 
@@ -29,22 +30,35 @@ fn run(
 fn main() {
 	use knightrs_bytecode::gc::*;
 	use knightrs_bytecode::value2 as v2;
-	let mut gc = Gc::new(Default::default());
-
-	let mut greeting = v2::Value::from(v2::KnString::new_unvalidated(
-		"hello worldhello worldhello worldhello worldhello worldhello world".into(),
-		&gc,
-	));
-
-	let mut list = v2::Value::from(v2::List::boxed(greeting, &gc));
-
-	gc.add_root(list);
-
-	dbg!(list);
-
+	let gc = Gc::new(Default::default());
 	unsafe {
-		gc.shutdown();
+		gc.run(|gc| {
+			let mut env = Environment::new(Default::default(), &gc);
+
+			let greeting = v2::KnString::new_unvalidated(
+				"hello worldhello worldhello worldhello worldhello worldhello world".into(),
+				&gc,
+			);
+
+			let mut list = unsafe {
+				greeting.with_inner(|greeting| {
+					let list = v2::List::boxed(greeting.into(), &gc);
+					v2::Value::from(list)
+				})
+			};
+
+			dbg!(list);
+		})
 	}
+
+	// 	let int = v2::Integer::new_unvalidated(1234);
+	// 	let int_str = int.to_knstring(&mut env).unwrap();
+
+	// 	unsafe {
+	// 		gc.mark_and_sweep();
+	// 	}
+
+	// 	dbg!(*int_str);
 }
 
 fn main2() {

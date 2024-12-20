@@ -1,5 +1,7 @@
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::mem::MaybeUninit;
+use std::collections::HashSet;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value2::{Value, ValueAlign};
@@ -16,7 +18,7 @@ pub struct Gc(RefCell<Inner>);
 struct Inner {
 	value_inners: Vec<*mut ValueInner>,
 	idx: usize,
-	roots: Vec<*const ValueInner>,
+	roots: HashSet<*const ValueInner>,
 }
 
 pub const ALLOC_VALUE_SIZE: usize = 32;
@@ -92,11 +94,20 @@ impl Gc {
 				value_inners: (0..opts.starting_cap)
 					.map(|_| Box::into_raw(Box::new(EMPTY_INNER)))
 					.collect(),
-				roots: Vec::new(),
+				roots: HashSet::new(),
 				idx: 0,
 			}
 			.into(),
 		)
+	}
+
+	// SAFETY: caller has to ensure that nothing allocated by `gc` escapes.
+	pub unsafe fn run<T>(self, func: impl FnOnce(&Self) -> T) -> T {
+		let result = func(&self);
+		unsafe {
+			self.shutdown();
+		}
+		result
 	}
 
 	/// Shuts down the [`Gc`] by cleaning up all memory associated with it.
@@ -104,7 +115,7 @@ impl Gc {
 	/// # Safety
 	/// Callers must ensure that no references to anything the [`Gc`] has created will be used after
 	/// calling this function.
-	pub unsafe fn shutdown(mut self) {
+	unsafe fn shutdown(mut self) {
 		// TODO: this borrow isnt sound
 		for &inner in &self.0.borrow().value_inners {
 			unsafe {
@@ -131,7 +142,9 @@ impl Gc {
 			return inner;
 		}
 
-		self.mark_and_sweep();
+		unsafe {
+			self.mark_and_sweep();
+		}
 		self.0.borrow_mut().idx = 0;
 
 		// extend the length
@@ -206,11 +219,12 @@ impl Gc {
 	/// children will be checked when marking-and-sweeping.
 	pub fn add_root(&self, root: Value) {
 		if root.__is_alloc() {
-			self.0.borrow_mut().roots.push(unsafe { root.__as_alloc() });
+			self.0.borrow_mut().roots.insert(unsafe { root.__as_alloc() });
 		}
 	}
 
-	fn mark_and_sweep(&self) {
+	// pub only for testing
+	pub unsafe fn mark_and_sweep(&self) {
 		// Mark all elements accessible from the root
 		for &root in &self.0.borrow().roots {
 			unsafe {
@@ -327,5 +341,74 @@ impl ValueInner {
 
 		// Mark it as `0` to indicate it's unused.
 		unsafe { &*Self::flags(this) }.store(0, Ordering::SeqCst);
+	}
+}
+
+pub unsafe trait AsValueInner {
+	fn as_value_inner(&self) -> *const ValueInner;
+	unsafe fn from_value_inner(inner: *const ValueInner) -> Self;
+}
+
+pub struct GcRoot<'gc, T: AsValueInner>(T, Option<&'gc Gc>);
+
+impl<'gc, T: AsValueInner> GcRoot<'gc, T> {
+	// safety: that from_value_inner seems like it could be unsafe potentially lol
+	pub fn new(t: &T, gc: &'gc Gc) -> Self {
+		let inner = t.as_value_inner();
+		gc.0.borrow_mut().roots.insert(inner);
+
+		Self(unsafe { T::from_value_inner(inner) }, Some(gc))
+	}
+
+	// safetY: that from_value_inner seems like it could be unsafe potentially lol
+	pub fn new_unchecked(t: T) -> Self {
+		Self(t, None)
+	}
+
+	pub fn inner(&self) -> T {
+		unsafe { T::from_value_inner(self.0.as_value_inner()) }
+	}
+
+	// SAFETY: The return value needs to now reference `self`
+	pub unsafe fn with_inner<R>(self, func: impl FnOnce(T) -> R) -> R {
+		let inner = unsafe { std::ptr::read(&self.0) };
+		std::mem::forget(self);
+		func(inner)
+	}
+
+	fn unroot_inner(&mut self) {
+		if let Some(gc) = self.1 {
+			let mut gc_inner = gc.0.borrow_mut();
+			let inner = self.0.as_value_inner();
+
+			if !gc_inner.roots.remove(&inner) {
+				unreachable!("unroot of a non-rooted inner? inner={inner:?}, gc={:?}", &gc_inner.roots);
+			}
+		}
+	}
+
+	// pub unsafe fn unroot(mut self) {
+	// 	unsafe {
+	// 		self.unroot_inner();
+	// 	}
+	// 	let x = unsafe { std::ptr::read(&self.0) };
+	// 	std::mem::forget(self);
+	// 	x
+	// }
+}
+
+impl<T: AsValueInner> Drop for GcRoot<'_, T> {
+	fn drop(&mut self) {
+		unsafe {
+			self.unroot_inner();
+		}
+	}
+}
+
+impl<T: AsValueInner> std::ops::Deref for GcRoot<'_, T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
 }

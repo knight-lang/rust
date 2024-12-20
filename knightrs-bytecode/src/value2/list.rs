@@ -171,7 +171,7 @@ impl<'gc> List<'gc> {
 
 		unsafe {
 			(&raw mut (*inner).kind.alloc.len).write(source.len());
-			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_ptr());
+			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_mut_ptr());
 		}
 
 		Self(inner)

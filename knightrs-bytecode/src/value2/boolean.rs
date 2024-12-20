@@ -1,3 +1,4 @@
+use crate::gc::GcRoot;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
@@ -52,11 +53,11 @@ impl<'gc> ToList<'gc> for Boolean {
 impl<'gc> ToKnString<'gc> for Boolean {
 	/// Returns `"true"` for true and `"false"` for false.
 	#[inline]
-	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<KnString<'gc>> {
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
 		if *self {
-			Ok(crate::value2::knstring::consts::TRUE)
+			Ok(GcRoot::new_unchecked(crate::value2::knstring::consts::TRUE))
 		} else {
-			Ok(crate::value2::knstring::consts::FALSE)
+			Ok(GcRoot::new_unchecked(crate::value2::knstring::consts::FALSE))
 		}
 	}
 }
