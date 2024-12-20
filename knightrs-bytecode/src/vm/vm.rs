@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::mem::MaybeUninit;
 
 use super::{Opcode, RuntimeError};
+use crate::gc::{AsValueInner, GcRoot};
 use crate::parser::{SourceLocation, VariableName};
 use crate::program::{JumpIndex, Program};
 use crate::strings::KnStr;
@@ -53,6 +54,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		#[cfg(feature = "extensions")]
 		if self.env.opts().extensions.argv {
 			let mut first = true;
+			self.env.gc().pause();
 			let argv = argv
 				.into_iter()
 				.skip_while(|ele| {
@@ -63,10 +65,14 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						false
 					}
 				})
-				.map(|str| KnString::new(str, self.env.opts(), self.env.gc()).map(Value::from))
+				.map(|str| {
+					KnString::new(str, self.env.opts(), self.env.gc())
+						.map(|string| unsafe { string.assume_used() }.into())
+				})
 				.collect::<Result<Vec<_>, _>>()?;
 
-			let argv = List::new(argv, self.env.opts())?.into();
+			let argv = List::new(argv, self.env.opts(), self.env.gc())
+				.map(|l| unsafe { l.assume_used() }.into())?;
 
 			// SAFETY: if extensions are enabled, argv is always added, regardless of whether or not it
 			// was specified, so this is valid. Also, TODO: make sure `VALUE`, when implemented, fails
@@ -75,6 +81,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			unsafe {
 				self.set_variable(crate::program::Compiler::ARGV_VARIABLE_INDEX, argv);
 			}
+			self.env.gc().unpause();
 		}
 
 		self.run_entire_program_without_argv()
@@ -151,6 +158,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		}
 
 		None
+	}
+
+	fn push_gcroot<T: AsValueInner + Into<Value<'gc>>>(&mut self, root: GcRoot<'gc, T>) {
+		unsafe { root.with_inner(|inner| self.stack.push(inner.into())) }
 	}
 
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
@@ -238,7 +249,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				#[cfg(feature = "extensions")]
 				Opcode::SetDynamicVar => {
 					let value = unsafe { arg![1] }; // read in case `.to_kstring` in the next line modifies args
-					let name = unsafe { arg![0] }.to_kstring(self.env)?;
+					let name = unsafe { arg![0] }.to_knstring(self.env)?;
 					let varname = VariableName::new(&name, self.env.opts())
 						.map_err(|err| crate::Error::Todo(err.to_string()))?;
 
@@ -258,7 +269,14 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::SetVarPop => todo!(), //self.variables[offset] = unsafe{arg![0]}.clone(),
 
 				// Arity 0
-				Opcode::Prompt => self.env.prompt()?.map(Value::from).unwrap_or_default(),
+				Opcode::Prompt => {
+					if let Some(prompted) = self.env.prompt()? {
+						self.push_gcroot(prompted);
+						continue;
+					}
+
+					Value::NULL
+				}
 				Opcode::Random => self.env.random()?.into(),
 				Opcode::Dup => unsafe { last!() }.clone(),
 				Opcode::Dump => {
@@ -308,7 +326,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				}
 				Opcode::Output => {
 					use std::io::Write;
-					let kstring = unsafe { arg![0] }.to_kstring(self.env)?;
+					let kstring = unsafe { arg![0] }.to_knstring(self.env)?;
 					let strref = kstring.as_str();
 
 					let mut output = self.env.output();
@@ -327,7 +345,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Not => (!unsafe { arg![0] }.to_boolean(self.env)?).into(),
 				Opcode::Negate => unsafe { arg![0] }.kn_negate(self.env)?.into(),
 				Opcode::Ascii => unsafe { arg![0] }.kn_ascii(self.env)?,
-				Opcode::Box => List::boxed(unsafe { arg![0] }.clone(), self.env.gc()).into(),
+				Opcode::Box => {
+					let boxed = List::boxed(unsafe { arg![0] }.clone(), self.env.gc());
+					self.push_gcroot(boxed);
+					continue;
+				}
 				Opcode::Head => unsafe { arg![0] }.kn_head(self.env)?,
 				Opcode::Tail => unsafe { arg![0] }.kn_tail(self.env)?,
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
@@ -370,7 +392,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				// TODO: the `vm` evals in its entirely own vm, which isnt what we wnat
 				#[cfg(feature = "extensions")]
 				Opcode::Eval => {
-					let program = unsafe { arg![0] }.to_kstring(self.env)?;
+					let program = unsafe { arg![0] }.to_knstring(self.env)?;
 					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
 					let program = parser.parse_program()?;
 					Vm::new(&program, self.env).run_entire_program_without_argv()?
@@ -378,7 +400,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 				#[cfg(feature = "extensions")]
 				Opcode::Value => {
-					let variable_name = unsafe { arg![0] }.to_kstring(self.env)?;
+					let variable_name = unsafe { arg![0] }.to_knstring(self.env)?;
 
 					let varname = VariableName::new(&variable_name, self.env.opts())
 						.map_err(|err| crate::Error::Todo(err.to_string()))?;
@@ -419,7 +441,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 		// TODO: rework how stacktraces work
 		#[cfg(feature = "stacktrace")]
-		if let Some(ref block) = value.__as_block() {
+		if let Some(ref block) = value.as_block() {
 			let varname = self.program.variable_name(offset);
 			self.known_blocks.insert(block.inner().0, varname.clone());
 		}
