@@ -169,6 +169,28 @@ impl<'gc> From<KnString<'gc>> for Value<'gc> {
 	}
 }
 
+impl NamedType for Value<'_> {
+	/// Fetch the type's name.
+	#[must_use = "getting the type name by itself does nothing."]
+	fn type_name(&self) -> &'static str {
+		if self.is_null() {
+			Null.type_name()
+		} else if let Some(x) = self.as_boolean() {
+			x.type_name()
+		} else if let Some(x) = self.as_integer() {
+			x.type_name()
+		} else if let Some(x) = self.as_knstring() {
+			x.type_name()
+		} else if let Some(x) = self.as_list() {
+			x.type_name()
+		} else if let Some(x) = self.as_block() {
+			x.type_name()
+		} else {
+			todo!("other types")
+		}
+	}
+}
+
 impl<'gc> Value<'gc> {
 	pub const FALSE: Self = unsafe { Self::from_raw_shift(0, Tag::Const) };
 	pub const NULL: Self = unsafe { Self::from_raw_shift(1, Tag::Const) };
