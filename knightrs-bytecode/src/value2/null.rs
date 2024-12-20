@@ -1,7 +1,8 @@
+use crate::gc::GcRoot;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
-use crate::value::{
-	Boolean, Integer, KnValueString, List, NamedType, ToBoolean, ToInteger, ToKnValueString, ToList,
+use crate::value2::{
+	Boolean, Integer, KnString, List, NamedType, ToBoolean, ToInteger, ToKnString, ToList,
 };
 use crate::{Environment, Options};
 use std::fmt::{self, Debug, Formatter};
@@ -43,19 +44,19 @@ impl ToInteger for Null {
 	}
 }
 
-impl ToList for Null {
+impl<'gc> ToList<'gc> for Null {
 	/// Simply returns an empty [`List`].
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List> {
-		Ok(List::default())
+	fn to_list(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		Ok(GcRoot::new_unchecked(List::default()))
 	}
 }
 
-impl ToKnValueString for Null {
+impl<'gc> ToKnString<'gc> for Null {
 	/// Simply returns an empty [`KnValueString`].
 	#[inline]
-	fn to_kstring(&self, _: &mut Environment) -> crate::Result<KnValueString> {
-		Ok(KnValueString::default())
+	fn to_knstring(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		Ok(GcRoot::new_unchecked(KnString::default()))
 	}
 }
 

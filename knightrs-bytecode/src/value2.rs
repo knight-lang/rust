@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 
-use crate::gc::{GarbageCollected, Gc, ValueInner};
+use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
 mod block;
@@ -270,6 +270,35 @@ unsafe impl GarbageCollected for Value<'_> {
 	unsafe fn deallocate(self) {
 		if self.is_alloc() {
 			unsafe { ValueInner::deallocate(self.0.ptr, true) }
+		}
+	}
+}
+
+impl<'gc> ToKnString<'gc> for Value<'gc> {
+	/// Returns `"true"` for true and `"false"` for false.
+	#[inline]
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Null.to_knstring(env)
+				} else if let Some(boolean) = self.as_boolean() {
+					boolean.to_knstring(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					list.to_knstring(env)
+				} else if let Some(string) = self.as_knstring() {
+					string.to_knstring(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => self.as_integer().unwrap().to_knstring(env),
+			_ => todo!(),
 		}
 	}
 }

@@ -1,6 +1,8 @@
 use crate::container::RefCount;
 use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
-use crate::{Error, Options};
+use crate::strings::KnStr;
+use crate::value2::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
+use crate::{Environment, Error, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
@@ -179,7 +181,7 @@ impl<'gc> List<'gc> {
 		GcRoot::new(&Self(inner), gc)
 	}
 
-	fn flags_and_inner(&self) -> (u8, *mut Inner) {
+	fn flags_and_inner(&self) -> (u8, *mut Inner<'gc>) {
 		unsafe {
 			// TODO: orderings
 			((*&raw const (*self.0).flags).load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
@@ -187,7 +189,7 @@ impl<'gc> List<'gc> {
 	}
 
 	#[deprecated] // won't work with non-slice types
-	fn as_slice(&self) -> &[Value] {
+	fn as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
 		let (flags, inner) = self.flags_and_inner();
 
 		unsafe {
@@ -209,6 +211,51 @@ impl<'gc> List<'gc> {
 		} else {
 			(flags as usize) >> SIZE_MASK_SHIFT
 		}
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.len() == 0
+	}
+
+	pub fn join(
+		&self,
+		sep: &KnStr,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		let mut s = String::new();
+		let mut first = true;
+
+		let slice = self.as_slice();
+		for element in slice {
+			if first {
+				first = false;
+			} else {
+				s.push_str(sep.as_str());
+			}
+
+			let ele_str = element.to_knstring(env)?;
+
+			unsafe {
+				ele_str.with_inner(|inner| s.push_str(inner.as_str()));
+			}
+		}
+		Ok(KnString::new(s, env.opts(), env.gc())?)
+		// // Ok(GcRoot::new_unchecked(Self(self.0, PhantomData)))
+		// env.gc().pause();
+
+		// let chars = self
+		// 	.chars()
+		// 	.map(|c| {
+		// 		let chr_string = Self::new_unvalidated(c.to_string(), env.gc());
+		// 		unsafe { chr_string.assume_used() }.into()
+		// 	})
+		// 	.collect::<Vec<_>>();
+
+		// // COMPLIANCE: If `self` is within the container bounds, so is the length of its chars.
+		// let result = List::new_unvalidated(chars, env.gc());
+		// env.gc().unpause();
+
+		// Ok(result)
 	}
 }
 
@@ -257,5 +304,45 @@ unsafe impl<'gc> AsValueInner for List<'gc> {
 
 	unsafe fn from_value_inner(inner: *const ValueInner) -> Self {
 		unsafe { Self::from_raw(inner) }
+	}
+}
+
+impl NamedType for List<'_> {
+	#[inline]
+	fn type_name(&self) -> &'static str {
+		"List"
+	}
+}
+
+impl ToBoolean for List<'_> {
+	/// Simply returns `self`.
+	#[inline]
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Boolean> {
+		Ok(!self.is_empty())
+	}
+}
+
+impl ToInteger for List<'_> {
+	/// Returns `1` for true and `0` for false.
+	#[inline]
+	fn to_integer(&self, _: &mut Environment<'_>) -> crate::Result<Integer> {
+		Ok(Integer::new_unvalidated(self.len() as _))
+	}
+}
+
+impl<'gc> ToKnString<'gc> for List<'gc> {
+	/// Returns `"true"` for true and `"false"` for false.
+	#[inline]
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		self.join(KnStr::new_unvalidated("\n"), env)
+	}
+}
+
+impl<'gc> ToList<'gc> for List<'gc> {
+	/// Returns an empty list for `false`, and a list with just `self` if true.
+	#[inline]
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		// Since `self` is already a part of the gc, then cloning it does nothing.
+		Ok(GcRoot::new_unchecked(Self(self.0)))
 	}
 }
