@@ -370,10 +370,20 @@ impl<'gc, T: AsValueInner> GcRoot<'gc, T> {
 	}
 
 	// SAFETY: The return value needs to now reference `self`
-	pub unsafe fn with_inner<R>(self, func: impl FnOnce(T) -> R) -> R {
+	pub unsafe fn with_inner<R>(mut self, func: impl FnOnce(T) -> R) -> R {
+		let inner = unsafe { std::ptr::read(&self.0) };
+		let result = func(inner);
+
+		self.unroot_inner();
+		std::mem::forget(self);
+		result
+	}
+
+	// Marks the value as a permanent gc root, and returns it.
+	pub fn make_permanent(self) -> T {
 		let inner = unsafe { std::ptr::read(&self.0) };
 		std::mem::forget(self);
-		func(inner)
+		inner
 	}
 
 	fn unroot_inner(&mut self) {

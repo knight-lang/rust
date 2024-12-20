@@ -43,7 +43,7 @@ fn main() {
 			let mut list = unsafe {
 				greeting.with_inner(|greeting| {
 					let list = v2::List::boxed(greeting.into(), &gc);
-					v2::Value::from(list)
+					v2::Value::from(list.make_permanent())
 				})
 			};
 

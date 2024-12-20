@@ -469,7 +469,7 @@ impl<'gc> ToKnString<'gc> for Integer {
 }
 
 impl<'gc> ToList<'gc> for Integer {
-	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<List<'gc>> {
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		#[cfg(all(feature = "compliance", not(feature = "knight_2_0_1")))]
 		if env.opts().compliance.disallow_negative_int_to_list && *self < 0 {
 			return Err(Error::DomainError("negative integer for to list encountered"));

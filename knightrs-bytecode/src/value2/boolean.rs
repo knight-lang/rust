@@ -41,11 +41,11 @@ impl ToInteger for Boolean {
 impl<'gc> ToList<'gc> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<List<'gc>> {
+	fn to_list(&self, _: &mut Environment) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		if *self {
-			Ok(crate::value2::list::consts::JUST_TRUE)
+			Ok(GcRoot::new_unchecked(crate::value2::list::consts::JUST_TRUE))
 		} else {
-			Ok(List::default())
+			Ok(GcRoot::new_unchecked(List::default()))
 		}
 	}
 }

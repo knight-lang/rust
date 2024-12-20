@@ -1,5 +1,5 @@
 use crate::container::RefCount;
-use crate::gc::{self, GarbageCollected, Gc, ValueInner};
+use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::{Error, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
@@ -29,7 +29,7 @@ pub(crate) mod consts {
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList<'gc> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut crate::Environment<'gc>) -> crate::Result<List<'gc>>;
+	fn to_list(&self, env: &mut crate::Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>>;
 }
 
 #[repr(C)]
@@ -106,11 +106,15 @@ impl<'gc> List<'gc> {
 		Self(ptr.cast())
 	}
 
-	pub fn boxed(value: Value<'gc>, gc: &'gc Gc) -> Self {
+	pub fn boxed(value: Value<'gc>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		Self::from_slice_unvalidated(&[value], gc)
 	}
 
-	pub fn from_slice(source: &[Value<'gc>], opts: &Options, gc: &'gc Gc) -> crate::Result<Self> {
+	pub fn from_slice(
+		source: &[Value<'gc>],
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
 			return Err(Error::ListIsTooLarge);
@@ -119,15 +123,19 @@ impl<'gc> List<'gc> {
 		Ok(Self::from_slice_unvalidated(source, gc))
 	}
 
-	pub fn from_slice_unvalidated(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
+	pub fn from_slice_unvalidated(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		match source.len() {
-			0 => Self::default(),
+			0 => GcRoot::new_unchecked(Self::default()),
 			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
 			_ => Self::new_alloc(source.to_vec(), gc),
 		}
 	}
 
-	pub fn new(source: Vec<Value<'gc>>, opts: &Options, gc: &'gc Gc) -> crate::Result<Self> {
+	pub fn new(
+		source: Vec<Value<'gc>>,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
 		#[cfg(feature = "compliance")]
 		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
 			return Err(Error::ListIsTooLarge);
@@ -136,9 +144,9 @@ impl<'gc> List<'gc> {
 		Ok(Self::new_unvalidated(source, gc))
 	}
 
-	pub fn new_unvalidated(source: Vec<Value<'gc>>, gc: &'gc Gc) -> Self {
+	pub fn new_unvalidated(source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		if source.is_empty() {
-			return Self::default();
+			return GcRoot::new_unchecked(Self::default());
 		}
 
 		// We already are given an allocated pointer, might as well use `new_alloc`
@@ -149,7 +157,7 @@ impl<'gc> List<'gc> {
 		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
 	}
 
-	fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> Self {
+	fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
 		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
 
@@ -159,10 +167,10 @@ impl<'gc> List<'gc> {
 				.copy_from_nonoverlapping(source.as_ptr(), source.len());
 		}
 
-		Self(inner)
+		GcRoot::new(&Self(inner), gc)
 	}
 
-	fn new_alloc(mut source: Vec<Value<'gc>>, gc: &'gc Gc) -> Self {
+	fn new_alloc(mut source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
 
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
@@ -174,7 +182,7 @@ impl<'gc> List<'gc> {
 			(&raw mut (*inner).kind.alloc.ptr).write(ManuallyDrop::new(source).as_mut_ptr());
 		}
 
-		Self(inner)
+		GcRoot::new(&Self(inner), gc)
 	}
 
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
@@ -245,5 +253,15 @@ unsafe impl GarbageCollected for List<'_> {
 
 			drop(Vec::from_raw_parts(ptr, len, len));
 		}
+	}
+}
+
+unsafe impl<'gc> AsValueInner for List<'gc> {
+	fn as_value_inner(&self) -> *const ValueInner {
+		self.0.cast()
+	}
+
+	unsafe fn from_value_inner(inner: *const ValueInner) -> Self {
+		unsafe { Self::from_raw(inner) }
 	}
 }
