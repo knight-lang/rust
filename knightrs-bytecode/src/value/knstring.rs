@@ -108,6 +108,19 @@ impl Default for KnString<'_> {
 	}
 }
 
+impl Eq for KnString<'_> {}
+impl PartialEq for KnString<'_> {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.as_str() == rhs.as_str()
+	}
+}
+
+impl PartialEq<KnStr> for KnString<'_> {
+	fn eq(&self, rhs: &KnStr) -> bool {
+		self.as_str() == rhs.as_str()
+	}
+}
+
 impl<'gc> KnString<'gc> {
 	/// Creates a new [`KnString`] from the given `source`.
 	pub fn from_knstr(source: &KnStr, gc: &'gc Gc) -> GcRoot<'gc, Self> {

@@ -92,6 +92,20 @@ impl Default for List<'_> {
 		Self(&EMPTY_INNER)
 	}
 }
+
+impl Eq for List<'_> {}
+impl PartialEq for List<'_> {
+	fn eq(&self, rhs: &Self) -> bool {
+		self.as_slice() == rhs.as_slice()
+	}
+}
+
+impl PartialEq<[Value<'_>]> for List<'_> {
+	fn eq(&self, rhs: &[Value<'_>]) -> bool {
+		self.as_slice() == rhs
+	}
+}
+
 impl<'gc> List<'gc> {
 	/// The maximum length a list can be when compliance checking is enabled.
 	pub const COMPLIANCE_MAX_LEN: usize = i32::MAX as usize;

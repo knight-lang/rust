@@ -274,9 +274,146 @@ unsafe impl GarbageCollected for Value<'_> {
 	}
 }
 
+impl<'gc> Value<'gc> {
+	pub fn kn_dump(&self, env: &mut Environment<'gc>) -> crate::Result<()> {
+		todo!();
+	}
+
+	pub fn kn_compare(
+		&self,
+		rhs: &Self,
+		op: &str,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<Ordering> {
+		todo!()
+	}
+
+	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {
+		todo!();
+	}
+
+	pub fn kn_call(&self, vm: &mut Vm) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
+		todo!();
+	}
+
+	pub fn kn_negate(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
+		todo!();
+	}
+
+	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_head(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_tail(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_ascii(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_get(
+		&self,
+		start: &Self,
+		len: &Self,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<Self> {
+		todo!();
+	}
+
+	pub fn kn_set(
+		&self,
+		start: &Self,
+		len: &Self,
+		repl: &Self,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<Self> {
+		todo!();
+	}
+}
+impl ToInteger for Value<'_> {
+	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer> {
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Null.to_integer(env)
+				} else if let Some(boolean) = self.as_boolean() {
+					boolean.to_integer(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					list.to_integer(env)
+				} else if let Some(string) = self.as_knstring() {
+					string.to_integer(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => self.as_integer().unwrap().to_integer(env),
+			_ => todo!(),
+		}
+	}
+}
+
+impl ToBoolean for Value<'_> {
+	fn to_boolean(&self, env: &mut Environment<'_>) -> crate::Result<Boolean> {
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Null.to_boolean(env)
+				} else if let Some(boolean) = self.as_boolean() {
+					boolean.to_boolean(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					list.to_boolean(env)
+				} else if let Some(string) = self.as_knstring() {
+					string.to_boolean(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => self.as_integer().unwrap().to_boolean(env),
+			_ => todo!(),
+		}
+	}
+}
+
 impl<'gc> ToKnString<'gc> for Value<'gc> {
-	/// Returns `"true"` for true and `"false"` for false.
-	#[inline]
 	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
 		match self.tag() {
 			Tag::Const => {
@@ -299,6 +436,53 @@ impl<'gc> ToKnString<'gc> for Value<'gc> {
 			}
 			Tag::Integer => self.as_integer().unwrap().to_knstring(env),
 			_ => todo!(),
+		}
+	}
+}
+
+impl<'gc> ToList<'gc> for Value<'gc> {
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		match self.tag() {
+			Tag::Const => {
+				if self.is_null() {
+					Null.to_list(env)
+				} else if let Some(boolean) = self.as_boolean() {
+					boolean.to_list(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Alloc => {
+				if let Some(list) = self.as_list() {
+					list.to_list(env)
+				} else if let Some(string) = self.as_knstring() {
+					string.to_list(env)
+				} else {
+					unreachable!()
+				}
+			}
+			Tag::Integer => self.as_integer().unwrap().to_list(env),
+			_ => todo!(),
+		}
+	}
+}
+
+impl PartialEq for Value<'_> {
+	fn eq(&self, rhs: &Self) -> bool {
+		if unsafe { self.0.val == rhs.0.val } {
+			return true;
+		}
+
+		if !self.is_alloc() || !rhs.is_alloc() {
+			return false;
+		}
+
+		if let Some(knstr) = self.as_knstring() {
+			rhs.as_knstring().map_or(false, |r| knstr == r)
+		} else if let Some(list) = self.as_list() {
+			rhs.as_list().map_or(false, |r| list == r)
+		} else {
+			unreachable!()
 		}
 	}
 }
