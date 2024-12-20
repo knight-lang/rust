@@ -77,10 +77,10 @@ impl<'path> Parseable<'_, 'path> for Boolean {
 	}
 }
 
-unsafe impl<'path> Compilable<'_, 'path> for Boolean {
+unsafe impl<'path> Compilable<'_, 'path, '_> for Boolean {
 	fn compile(
 		self,
-		compiler: &mut Compiler<'_, 'path>,
+		compiler: &mut Compiler<'_, 'path, '_>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());

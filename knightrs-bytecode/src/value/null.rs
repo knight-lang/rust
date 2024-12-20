@@ -74,15 +74,15 @@ impl<'path> Parseable<'_, 'path> for Null {
 		Ok(Some(Self))
 	}
 }
-/*
-unsafe impl<'path> Compilable<'_, 'path> for Null {
+
+unsafe impl<'path> Compilable<'_, 'path, ,'_> for Null {
 	fn compile(
 		self,
-		compiler: &mut Compiler<'_, 'path>,
+		compiler: &mut Compiler<'_, 'path, ,'_>,
 		_: &Options,
 	) -> Result<(), ParseError<'path>> {
 		compiler.push_constant(self.into());
 		Ok(())
 	}
 }
-*/
+

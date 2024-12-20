@@ -1,5 +1,8 @@
 use crate::container::RefCount;
 use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
+use crate::parser::ParseError;
+use crate::program::Compilable;
+use crate::program::Compiler;
 use crate::strings::KnStr;
 use crate::value::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
 use crate::{Environment, Error, Options};
@@ -344,5 +347,29 @@ impl<'gc> ToList<'gc> for List<'gc> {
 	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		// Since `self` is already a part of the gc, then cloning it does nothing.
 		Ok(GcRoot::new_unchecked(Self(self.0)))
+	}
+}
+
+// impl<'path> Parseable<'_, 'path> for Boolean {
+// 	type Output = Self;
+
+// 	fn parse(parser: &mut Parser<'_, '_, 'path, '_>) -> Result<Option<Self::Output>, ParseError<'path>> {
+// 		let Some(chr) = parser.advance_if(|c| c == 'T' || c == 'F') else {
+// 			return Ok(None);
+// 		};
+
+// 		parser.strip_keyword_function();
+// 		Ok(Some(chr == 'T'))
+// 	}
+// }
+
+unsafe impl<'gc, 'path> Compilable<'_, 'path, 'gc> for List<'gc> {
+	fn compile(
+		self,
+		compiler: &mut Compiler<'_, 'path, 'gc>,
+		_: &Options,
+	) -> Result<(), ParseError<'path>> {
+		compiler.push_constant(self.into());
+		Ok(())
 	}
 }
