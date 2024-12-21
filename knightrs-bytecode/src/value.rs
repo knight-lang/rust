@@ -498,7 +498,35 @@ impl<'gc> Value<'gc> {
 			return Ok(lhs.multiply(rhs.to_integer(env)?, env.opts())?.into());
 		}
 
-		todo!();
+		if let Some(lhs) = self.as_knstring() {
+			let amount = usize::try_from(rhs.to_integer(env)?.inner())
+				.or(Err(IntegerError::DomainError("repetition count is negative")))?;
+
+			if amount.checked_mul(lhs.len()).map_or(true, |c| isize::MAX as usize <= c) {
+				return Err(IntegerError::DomainError("repetition is too large").into());
+			}
+
+			todo!()
+			// return Ok(lhs.repeat(amount, env.opts())?.into());
+		}
+
+		if let Some(lhs) = self.as_list() {
+			// Multiplying by a block is invalid, so we can do this as an extension.
+			#[cfg(feature = "extensions")]
+			if env.opts().extensions.builtin_fns.list && rhs.as_block().is_some() {
+				// return lhs.map(rhs, env).map(Self::from);
+				todo!()
+			}
+
+			let amount = usize::try_from(rhs.to_integer(env)?.inner())
+				.or(Err(IntegerError::DomainError("repetition count is negative")))?;
+
+			// No need to check for repetition length because `lhs.repeat` does it itself.
+			// lhs.repeat(amount, env.opts()).map(Self::from)
+			todo!()
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "*" })
 	}
 
 	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
@@ -506,7 +534,24 @@ impl<'gc> Value<'gc> {
 			return Ok(lhs.divide(rhs.to_integer(env)?, env.opts())?.into());
 		}
 
-		todo!();
+		#[cfg(feature = "extensions")]
+		{
+			if env.opts().extensions.builtin_fns.string {
+				if let Some(string) = self.as_knstring() {
+					// Ok(string.split(&rhs.to_kstring(env)?, env).into())
+					todo!()
+				}
+			}
+
+			if env.opts().extensions.builtin_fns.list {
+				if let Some(list) = self.as_list() {
+					// Ok(list.reduce(rhs, env)?.unwrap_or_default())
+					todo!()
+				}
+			}
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "/" })
 	}
 
 	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
@@ -514,7 +559,19 @@ impl<'gc> Value<'gc> {
 			return Ok(lhs.remainder(rhs.to_integer(env)?, env.opts())?.into());
 		}
 
-		todo!();
+		#[cfg(feature = "extensions")]
+		{
+			// TODO: `printf`-style formatting
+
+			if env.opts().extensions.builtin_fns.list {
+				if let Some(list) = self.as_list() {
+					// list.filter(rhs, env).map(Self::from)
+					todo!()
+				}
+			}
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "%" })
 	}
 
 	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
@@ -522,19 +579,81 @@ impl<'gc> Value<'gc> {
 			return Ok(lhs.power(rhs.to_integer(env)?, env.opts())?.into());
 		}
 
-		todo!();
+		if let Some(list) = self.as_list() {
+			// list.join(&rhs.to_kstring(env)?, env).map(Self::from),
+			todo!();
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "^" })
 	}
 
 	pub fn kn_head(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
-		todo!();
+		if let Some(lhs) = self.as_knstring() {
+			// ValueEnum::String(string) => string
+			// 	.head()
+			// 	.ok_or(Error::DomainError("empty string ["))
+			// 	.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
+			todo!()
+		}
+
+		if let Some(lhs) = self.as_list() {
+			// ValueEnum::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
+			todo!()
+		}
+
+		#[cfg(feature = "extensions")]
+		{
+			if env.opts().extensions.builtin_fns.integer {
+				if let Some(integer) = self.as_integer() {
+					// Ok(integer.head().into()),
+					todo!()
+				}
+			}
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "[" })
 	}
 
 	pub fn kn_tail(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
-		todo!();
+		if let Some(lhs) = self.as_knstring() {
+			// ValueEnum::String(string) => string
+			// 	.tail()
+			// 	.ok_or(Error::DomainError("empty string ]"))
+			// 	.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
+			todo!()
+		}
+
+		if let Some(lhs) = self.as_list() {
+			// ValueEnum::List(list) => list.tail().ok_or(Error::DomainError("empty list ]")),
+			todo!()
+		}
+
+		#[cfg(feature = "extensions")]
+		{
+			if env.opts().extensions.builtin_fns.integer {
+				if let Some(integer) = self.as_integer() {
+					// Ok(integer.tail().into()),
+					todo!()
+				}
+			}
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "]" })
 	}
 
 	pub fn kn_ascii(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
-		todo!();
+		if let Some(lhs) = self.as_integer() {
+			let chr = lhs.chr(env.opts())?;
+			todo!()
+			// return Ok(KnString::new_unvalidated(chr.to_string(), env.gc()).into());
+		}
+
+		if let Some(lhs) = self.as_knstring() {
+			// Ok(string.ord(env.opts())?.into()),
+			todo!()
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "ASCII" })
 	}
 
 	pub fn kn_get(
@@ -543,7 +662,24 @@ impl<'gc> Value<'gc> {
 		len: &Self,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Self> {
-		todo!();
+		let start = fix_len(self, start.to_integer(env)?, "GET", env)?;
+		let len = usize::try_from(len.to_integer(env)?.inner())
+			.or(Err(Error::DomainError("negative length")))?;
+
+		if let Some(list) = self.as_list() {
+			todo!()
+			// return list.try_get(start..start + len).map(Self::from);
+		}
+		if let Some(string) = self.as_knstring() {
+			// ValueEnum::String(text) => text
+			// 	.get(start..start + len)
+			// 	.ok_or(Error::IndexOutOfBounds { len: text.len(), index: start + len })
+			// 	.map(ToOwned::to_owned)
+			// 	.map(Self::from),
+			todo!()
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "GET" })
 	}
 
 	pub fn kn_set(
@@ -553,9 +689,68 @@ impl<'gc> Value<'gc> {
 		repl: &Self,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Self> {
-		todo!();
+		todo!()
+		/*
+				#[cfg(feature = "custom-types")]
+		if let ValueEnum::Custom(custom) = self {
+			return custom.set(start, len, replacement, env);
+		}
+
+		let start = fix_len(self, start.to_integer(env)?, "SET", env)?;
+		let len = usize::try_from(len.to_integer(env)?.inner())
+			.or(Err(Error::DomainError("negative length")))?;
+
+		match self.inner() {
+			ValueEnum::List(list) => {
+				let replacement = replacement.to_list(env)?;
+				let mut ret = Vec::new();
+
+				ret.extend(list.iter().take(start).cloned());
+				ret.extend(replacement.iter().cloned());
+				ret.extend(list.iter().skip((start) + len).cloned());
+
+				List::new(ret, env.opts()).map(Self::from)
+			}
+			ValueEnum::String(string) => {
+				let replacement = replacement.to_kstring(env)?;
+
+				// lol, todo, optimize me
+				let mut builder = String::new();
+				builder.push_str(string.get(..start).unwrap().as_str());
+				builder.push_str(&replacement.as_str());
+				builder.push_str(string.get(start + len..).unwrap().as_str());
+				Ok(KnValueString::new(builder, env.opts())?.into())
+			}
+
+			_ => return Err(Error::TypeError { type_name: self.type_name(), function: "SET" }),
+		}
+		*/
 	}
 }
+
+fn fix_len(
+	container: &Value<'_>,
+	#[cfg_attr(not(feature = "extensions"), allow(unused_mut))] mut start: Integer,
+	function: &'static str,
+	env: &mut Environment<'_>,
+) -> crate::Result<usize> {
+	#[cfg(feature = "extensions")]
+	if env.opts().extensions.negative_indexing && start < Integer::ZERO {
+		let len = if let Some(string) = container.as_knstring() {
+			string.len()
+		} else if let Some(list) = container.as_list() {
+			list.len()
+		} else {
+			return Err(Error::TypeError { type_name: container.type_name(), function });
+		};
+
+		start = start.add(Integer::new_error(len as _, env.opts())?, env.opts())?;
+	}
+
+	let _ = (container, env);
+	usize::try_from(start.inner()).or(Err(Error::DomainError("negative start position")))
+}
+
 impl ToInteger for Value<'_> {
 	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer> {
 		match self.tag() {
