@@ -204,8 +204,12 @@ impl<'gc> List<'gc> {
 		}
 	}
 
+	pub fn iter(&self) -> impl Iterator<Item = &Value<'gc>> {
+		self.__as_slice().iter()
+	}
+
 	#[deprecated] // won't work with non-slice types
-	pub fn __as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
+	fn __as_slice<'e>(&'e self) -> &'e [Value<'gc>] {
 		let (flags, inner) = self.flags_and_inner();
 
 		unsafe {

@@ -304,6 +304,21 @@ unsafe impl GarbageCollected for Value<'_> {
 	}
 }
 
+#[cfg(feature = "compliance")]
+fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Result<()> {
+	if value.as_block().is_some() {
+		return Err(Error::TypeError { type_name: value.type_name(), function });
+	}
+
+	if let Some(list) = value.as_list() {
+		for ele in list.iter() {
+			forbid_block_arguments(ele, function)?;
+		}
+	}
+
+	Ok(())
+}
+
 impl<'gc> Value<'gc> {
 	pub fn kn_dump(&self, env: &mut Environment<'gc>) -> crate::Result<()> {
 		if self.is_null() {
@@ -316,7 +331,7 @@ impl<'gc> Value<'gc> {
 			write!(env.output(), "{:?}", s.as_str())
 		} else if let Some(l) = self.as_list() {
 			write!(env.output(), "[").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
-			for (idx, arg) in l.__as_slice().iter().enumerate() {
+			for (idx, arg) in l.iter().enumerate() {
 				if idx != 0 {
 					write!(env.output(), ", ").map_err(|err| Error::IoError { func: "OUTPUT", err })?;
 				}
@@ -345,19 +360,88 @@ impl<'gc> Value<'gc> {
 	}
 
 	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {
-		todo!();
+		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
+
+		// In strict compliance mode, we can't use Blocks for `?`.
+		#[cfg(feature = "compliance")]
+		if env.opts().compliance.check_equals_params {
+			forbid_block_arguments(self, "?")?;
+			forbid_block_arguments(rhs, "?")?;
+		}
+
+		let _ = env;
+		Ok(self == rhs)
 	}
 
-	pub fn kn_call(&self, vm: &mut Vm) -> crate::Result<Self> {
-		todo!();
+	pub fn kn_call(&self, vm: &mut Vm<'_, '_, '_, '_, 'gc>) -> crate::Result<Self> {
+		if let Some(block) = self.as_block() {
+			vm.run(block)
+		} else {
+			Err(Error::TypeError { type_name: self.type_name(), function: "CALL" })
+		}
 	}
 
 	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
-		todo!();
+		if let Some(string) = self.as_knstring() {
+			// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
+			// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
+			// the `i64` without failure.
+			//
+			// With compliance enabled, it's possible that we are only checking for compliance on
+			// integer bounds, and not on string lengths, so we do have to check in compliance mode.
+			#[cfg(feature = "compliance")]
+			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
+				return Ok(Integer::new_error(string.len() as i64, env.opts())?);
+			}
+
+			return Ok(Integer::new_unvalidated(string.len() as i64));
+		}
+
+		if let Some(list) = self.as_list() {
+			// (same guarantees as `ValueEnum::String`)
+			#[cfg(feature = "compliance")]
+			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
+				return Ok(Integer::new_error(list.len() as i64, env.opts())?);
+			}
+
+			return Ok(Integer::new_unvalidated(list.len() as i64));
+		}
+
+		// cfg_if! {
+		// 	if #[cfg(feature = "knight_2_0_1")] {
+		// 		let length_of_anything = true;
+		// 	} else if #[cfg(feature = "extensions")] {
+		// 		let length_of_anything = env.opts().extensions.builtin_fns.length_of_anything;
+		// 	} else {
+		// 		let length_of_anything = false;
+		// 	}
+		// };
+
+		todo!()
+
+		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+		// 	ValueEnum::Integer(int) if length_of_anything => {
+		// 		Ok(Integer::new_unvalidated(int.number_of_digits() as _))
+		// 	}
+
+		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+		// 	ValueEnum::Boolean(true) if length_of_anything => Ok(Integer::new_unvalidated(1)),
+
+		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
+		// 	ValueEnum::Boolean(false) | ValueEnum::Null if length_of_anything => {
+		// 		Ok(Integer::new_unvalidated(0))
+		// 	}
+
+		// 	_ => Err(Error::TypeError { type_name: self.type_name(), function: "LENGTH" }),
 	}
 
 	pub fn kn_negate(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
-		todo!();
+		#[cfg(feature = "extensions")]
+		if env.opts().extensions.breaking.negate_reverses_collections {
+			todo!();
+		}
+
+		Ok(self.to_integer(env)?.negate(env.opts())?)
 	}
 
 	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
