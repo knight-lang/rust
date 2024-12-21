@@ -445,26 +445,83 @@ impl<'gc> Value<'gc> {
 	}
 
 	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
-		todo!();
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.add(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
+		if let Some(lhs) = self.as_knstring() {
+			// ValueEnum::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
+			todo!();
+		}
+
+		if let Some(lhs) = self.as_list() {
+			// ValueEnum::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
+			todo!();
+		}
+
+		#[cfg(feature = "extensions")]
+		if env.opts().extensions.builtin_fns.boolean {
+			if let Some(b) = self.as_boolean() {
+				return Ok((b | rhs.to_boolean(env)?).into());
+			}
+		}
+
+		// 	#[cfg(feature = "custom-types")]
+		// 	ValueEnum::Custom(custom) => custom.add(rhs, env),
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "+" })
 	}
 
 	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
-		todo!();
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.subtract(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
+		#[cfg(feature = "extensions")]
+		{
+			if env.opts().extensions.builtin_fns.string {
+				// return Ok(string.remove_substr(&rhs.to_kstring(env)?).into());
+				todo!()
+			}
+
+			if env.opts().extensions.builtin_fns.list {
+				// return list.difference(&rhs.to_list(env)?).map(Self::from);
+				todo!()
+			}
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "-" })
 	}
 
 	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.multiply(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
 		todo!();
 	}
 
 	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.divide(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
 		todo!();
 	}
 
 	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.remainder(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
 		todo!();
 	}
 
 	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+		if let Some(lhs) = self.as_integer() {
+			return Ok(lhs.power(rhs.to_integer(env)?, env.opts())?.into());
+		}
+
 		todo!();
 	}
 
