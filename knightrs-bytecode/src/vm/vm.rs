@@ -213,6 +213,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				}};
 			}
 
+			macro_rules! end {
+				() => {
+					args.get_unchecked_mut(0)
+				};
+			}
+
 			// NOTE: ALL OPCODES MUST ALWAYS EXTRACT THEIR ARGUMENTS EXACTLY ONCE FROM `args`,
 			// else memory issues will crop up (such as memory leaks or double reads).
 			let value = match opcode {
@@ -356,7 +362,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 				Opcode::Add => unsafe {
 					let value = arg![0]; // copy before it's overwritten
-					value.kn_plus(&arg![1], self.env, args.get_unchecked_mut(0))?;
+					value.kn_plus(&arg![1], self.env, end!())?;
 					self.stack.set_len(self.stack.len() + 1);
 					continue;
 				},
