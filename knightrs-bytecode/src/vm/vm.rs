@@ -354,13 +354,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Tail => unsafe { arg![0] }.kn_tail(self.env)?,
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
-				Opcode::Add => {
-					let mut foo = MaybeUninit::uninit();
-					unsafe {
-						arg![0].kn_plus(&arg![1], self.env, &mut foo)?;
-					}
-					unsafe { foo.assume_init() }
-				}
+				Opcode::Add => unsafe {
+					let value = arg![0]; // copy before it's overwritten
+					value.kn_plus(&arg![1], self.env, args.get_unchecked_mut(0))?;
+					self.stack.set_len(self.stack.len() + 1);
+					continue;
+				},
 				Opcode::Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
 				Opcode::Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
 				Opcode::Div => unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?,
