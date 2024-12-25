@@ -354,7 +354,13 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Tail => unsafe { arg![0] }.kn_tail(self.env)?,
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
-				Opcode::Add => unsafe { arg![0] }.kn_plus(&unsafe { arg![1] }, self.env)?,
+				Opcode::Add => {
+					let mut foo = MaybeUninit::uninit();
+					unsafe {
+						arg![0].kn_plus(&arg![1], self.env, &mut foo)?;
+					}
+					unsafe { foo.assume_init() }
+				}
 				Opcode::Sub => unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?,
 				Opcode::Mul => unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?,
 				Opcode::Div => unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?,

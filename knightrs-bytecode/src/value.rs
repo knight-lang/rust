@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::io::Write;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 
 use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
@@ -444,14 +445,24 @@ impl<'gc> Value<'gc> {
 		Ok(self.to_integer(env)?.negate(env.opts())?)
 	}
 
-	pub fn kn_plus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	// SAFETY: the target needs to be a gc-rooted place
+	pub unsafe fn kn_plus(
+		&self,
+		rhs: &Self,
+		env: &mut Environment<'gc>,
+		target: &mut MaybeUninit<Value<'gc>>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.add(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.add(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		if let Some(lhs) = self.as_knstring() {
-			// ValueEnum::String(string) => Ok(string.concat(&rhs.to_kstring(env)?, env.opts())?.into()),
-			todo!();
+			let foo = lhs.concat(&rhs.to_knstring(env)?, env.opts(), env.gc())?;
+			unsafe {
+				foo.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		if let Some(lhs) = self.as_list() {
@@ -462,7 +473,8 @@ impl<'gc> Value<'gc> {
 		#[cfg(feature = "extensions")]
 		if env.opts().extensions.builtin_fns.boolean {
 			if let Some(b) = self.as_boolean() {
-				return Ok((b | rhs.to_boolean(env)?).into());
+				todo!()
+				// return Ok((b | rhs.to_boolean(env)?).into());
 			}
 		}
 

@@ -248,6 +248,12 @@ impl<'gc> KnString<'gc> {
 	pub fn is_empty(&self) -> bool {
 		self.len() != 0
 	}
+
+	pub fn concat(&self, other: &KnStr, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+		let mut me = self.as_str().to_owned();
+		me += other.as_str();
+		Ok(Self::new(me, opts, gc)?)
+	}
 }
 
 impl std::ops::Deref for KnString<'_> {
