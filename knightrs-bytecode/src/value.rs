@@ -466,8 +466,11 @@ impl<'gc> Value<'gc> {
 		}
 
 		if let Some(lhs) = self.as_list() {
-			// ValueEnum::List(list) => list.concat(&rhs.to_list(env)?, env.opts()).map(Self::from),
-			todo!();
+			let foo = lhs.concat(&*rhs.to_list(env)?, env.opts(), env.gc())?;
+			unsafe {
+				foo.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]

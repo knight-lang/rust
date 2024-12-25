@@ -183,7 +183,7 @@ impl<'gc> List<'gc> {
 	}
 
 	fn new_alloc(mut source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
-		debug_assert!(source.len() > MAX_EMBEDDED_LENGTH);
+		// debug_assert!(source.len() > MAX_EMBEDDED_LENGTH); TODO: remove me when `add` is updated to use an alloc variant
 
 		let inner = Self::allocate(ALLOCATED_FLAG, gc);
 
@@ -276,6 +276,15 @@ impl<'gc> List<'gc> {
 		// env.gc().unpause();
 
 		// Ok(result)
+	}
+
+	pub fn concat(&self, other: &Self, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+		// todo: use a "concat" variant
+		Self::new(
+			self.__as_slice().into_iter().chain(other.__as_slice()).cloned().collect(),
+			opts,
+			gc,
+		)
 	}
 }
 
