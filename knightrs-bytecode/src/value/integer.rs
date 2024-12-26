@@ -19,7 +19,7 @@ pub type IntegerInner = i64;
 /// Represents the ability to be converted to an [`Integer`].
 pub trait ToInteger {
 	/// Converts `self` to an [`Integer`].
-	fn to_integer(&self, env: &mut Environment) -> crate::Result<Integer>;
+	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer>;
 }
 
 impl NamedType for Integer {
@@ -443,7 +443,7 @@ unsafe impl<'path> Compilable<'_, 'path, '_> for Integer {
 impl ToInteger for Integer {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> crate::Result<Self> {
+	fn to_integer(&self, _: &mut Environment<'_>) -> crate::Result<Self> {
 		Ok(*self)
 	}
 }
@@ -451,7 +451,7 @@ impl ToInteger for Integer {
 impl ToBoolean for Integer {
 	/// Returns whether `self` is nonzero.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Boolean> {
 		Ok(*self != 0)
 	}
 }

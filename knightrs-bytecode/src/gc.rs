@@ -159,7 +159,8 @@ impl Gc {
 			return inner;
 		}
 
-		if !self.0.borrow().paused {
+		// TODO
+		if !self.0.borrow().paused && false {
 			unsafe {
 				self.mark_and_sweep();
 			}
@@ -236,7 +237,7 @@ impl Gc {
 		}
 
 		#[cfg(debug_assertions)] // always sweep after every allocation when testing
-		if !self.0.borrow().paused {
+		if !self.0.borrow().paused && false {
 			unsafe {
 				self.mark_and_sweep();
 			}

@@ -11,7 +11,7 @@ pub type Boolean = bool;
 /// Represents the ability to be converted to a [`Boolean`].
 pub trait ToBoolean {
 	/// Converts `self` to a [`Boolean`].
-	fn to_boolean(&self, env: &mut Environment) -> crate::Result<Boolean>;
+	fn to_boolean(&self, env: &mut Environment<'_>) -> crate::Result<Boolean>;
 }
 
 impl NamedType for Boolean {
@@ -24,7 +24,7 @@ impl NamedType for Boolean {
 impl ToBoolean for Boolean {
 	/// Simply returns `self`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Self> {
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Self> {
 		Ok(*self)
 	}
 }
@@ -32,7 +32,7 @@ impl ToBoolean for Boolean {
 impl ToInteger for Boolean {
 	/// Returns `1` for true and `0` for false.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'_>) -> crate::Result<Integer> {
 		// COMPLIANCE: Both `0` and `1` are always valid integers.
 		Ok(Integer::new_unvalidated(*self as i64))
 	}
@@ -41,9 +41,10 @@ impl ToInteger for Boolean {
 impl<'gc> ToList<'gc> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, _: &mut Environment) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		if *self {
-			Ok(GcRoot::new_unchecked(crate::value::list::consts::JUST_TRUE))
+			Ok(List::from_slice_unvalidated(&[(*self).into()], env.gc()))
+			// Ok(GcRoot::new_unchecked(crate::value::list::consts::JUST_TRUE))
 		} else {
 			Ok(GcRoot::new_unchecked(List::default()))
 		}

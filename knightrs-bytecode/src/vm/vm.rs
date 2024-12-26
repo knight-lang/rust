@@ -82,7 +82,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		#[cfg(feature = "extensions")]
 		if self.env.opts().extensions.argv {
 			let mut first = true;
-			// self.env.gc().pause();
+			self.env.gc().pause();
 			let argv = argv
 				.into_iter()
 				.skip_while(|ele| {
@@ -109,7 +109,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			unsafe {
 				self.set_variable(crate::program::Compiler::ARGV_VARIABLE_INDEX, argv);
 			}
-			// self.env.gc().unpause();
+			self.env.gc().unpause();
 		}
 
 		self.run_entire_program_without_argv()

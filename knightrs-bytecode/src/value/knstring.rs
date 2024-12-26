@@ -6,8 +6,10 @@ use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToLi
 use crate::{Environment, Options};
 use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::isize;
 use std::marker::PhantomData;
 use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
+use std::slice::SliceIndex;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::{ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
@@ -246,13 +248,83 @@ impl<'gc> KnString<'gc> {
 
 	#[inline]
 	pub fn is_empty(&self) -> bool {
-		self.len() != 0
+		self.len() == 0
 	}
 
-	pub fn concat(&self, other: &KnStr, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+	pub fn concat(
+		&self,
+		other: &KnStr,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
 		let mut me = self.as_str().to_owned();
 		me += other.as_str();
 		Ok(Self::new(me, opts, gc)?)
+	}
+
+	pub fn repeat(
+		&self,
+		amount: usize,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
+		if self.len().checked_mul(amount).map_or(true, |f| f > isize::MAX as usize) {
+			return Err(crate::Error::Todo("bounds too large!".to_string()));
+		}
+
+		if amount == 0 || self.is_empty() {
+			return Ok(GcRoot::new_unchecked(Self::default()));
+		}
+
+		// todo: optimized variant?
+		Ok(Self::new(self.as_str().repeat(amount), opts, gc)?)
+	}
+
+	#[cfg(feature = "extensions")]
+	pub fn split(&self, by: &str, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		// let list =
+		// Ok(List::new_unvalidated(self.as_str().split(by).map(|substr|collect(), gc))
+		todo!()
+	}
+
+	pub fn head(&self, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>> {
+		let mut buf = [0; 4];
+		let head_string = self
+			.as_str()
+			.chars()
+			.next()
+			.ok_or(crate::Error::DomainError("empty string for head"))?
+			.encode_utf8(&mut buf);
+
+		Ok(Self::from_knstr(KnStr::new_unvalidated(head_string), gc))
+	}
+
+	pub fn tail(&self, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>> {
+		let mut chars = self.as_str().chars();
+		if chars.next().is_none() {
+			return Err(crate::Error::DomainError("empty string for tail"));
+		}
+
+		Ok(Self::from_knstr(KnStr::new_unvalidated(chars.as_str()), gc))
+	}
+
+	pub fn ord(&self) -> crate::Result<Integer> {
+		let first =
+			self.as_str().chars().next().ok_or(crate::Error::DomainError("empty string for head"))?;
+
+		Ok(Integer::new_unvalidated(first as _))
+	}
+
+	pub fn try_get<I>(&self, index: I, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>>
+	where
+		I: SliceIndex<str, Output = str>,
+	{
+		let rest = self
+			.as_str()
+			.get(index)
+			.ok_or(crate::Error::DomainError("invalid args for get for str"))?;
+
+		Ok(Self::from_knstr(KnStr::new_unvalidated(rest), gc))
 	}
 }
 

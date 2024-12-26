@@ -28,7 +28,7 @@ fn run(
 
 	let mut vm = Vm::new(&program, env);
 	// gc.add_mark_fn(|| vm.mark());
-	// gc.unpause();
+	gc.unpause();
 
 	vm.run_entire_program(argv).map_err(|e| e.to_string()).and(Ok(()))
 }

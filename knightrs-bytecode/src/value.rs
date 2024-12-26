@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
+use crate::strings::KnStr;
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 
 mod block;
@@ -132,7 +133,7 @@ impl From<Null> for Value<'_> {
 impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {
-		unsafe { Self::from_raw_shift(int.inner() as ValueRepr, Tag::Integer) }
+		unsafe { Self::from_raw_shift_no_debug(int.inner() as ValueRepr, Tag::Integer) }
 	}
 }
 
@@ -201,6 +202,12 @@ impl<'gc> Value<'gc> {
 	#[inline]
 	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
 		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
+		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
+	}
+
+	// SAFETY: bytes is a valid representation
+	#[inline]
+	const unsafe fn from_raw_shift_no_debug(repr: ValueRepr, tag: Tag) -> Self {
 		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
 	}
 
@@ -410,32 +417,8 @@ impl<'gc> Value<'gc> {
 			return Ok(Integer::new_unvalidated(list.len() as i64).into());
 		}
 
-		// cfg_if! {
-		// 	if #[cfg(feature = "knight_2_0_1")] {
-		// 		let length_of_anything = true;
-		// 	} else if #[cfg(feature = "extensions")] {
-		// 		let length_of_anything = env.opts().extensions.builtin_fns.length_of_anything;
-		// 	} else {
-		// 		let length_of_anything = false;
-		// 	}
-		// };
-
-		todo!()
-
-		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-		// 	ValueEnum::Integer(int) if length_of_anything => {
-		// 		Ok(Integer::new_unvalidated(int.number_of_digits() as _))
-		// 	}
-
-		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-		// 	ValueEnum::Boolean(true) if length_of_anything => Ok(Integer::new_unvalidated(1)),
-
-		// 	#[cfg(any(feature = "knight_2_0_1", feature = "extensions"))]
-		// 	ValueEnum::Boolean(false) | ValueEnum::Null if length_of_anything => {
-		// 		Ok(Integer::new_unvalidated(0))
-		// 	}
-
-		// 	_ => Err(Error::TypeError { type_name: self.type_name(), function: "LENGTH" }),
+		// TODO: optimizations of other things
+		Ok(Integer::new_error(self.to_list(env)?.len() as i64, env.opts())?)
 	}
 
 	pub unsafe fn kn_not(
@@ -468,21 +451,21 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.add(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.add(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_knstring() {
-			let foo = lhs.concat(&rhs.to_knstring(env)?, env.opts(), env.gc())?;
+		if let Some(string) = self.as_knstring() {
+			let foo = string.concat(&rhs.to_knstring(env)?, env.opts(), env.gc())?;
 			unsafe {
 				foo.with_inner(|inner| target.write(inner.into()));
 			}
 			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_list() {
-			let foo = lhs.concat(&*rhs.to_list(env)?, env.opts(), env.gc())?;
+		if let Some(list) = self.as_list() {
+			let foo = list.concat(&*rhs.to_list(env)?, env.opts(), env.gc())?;
 			unsafe {
 				foo.with_inner(|inner| target.write(inner.into()));
 			}
@@ -492,8 +475,8 @@ impl<'gc> Value<'gc> {
 		#[cfg(feature = "extensions")]
 		if env.opts().extensions.builtin_fns.boolean {
 			if let Some(b) = self.as_boolean() {
-				todo!()
-				// return Ok((b | rhs.to_boolean(env)?).into());
+				target.write((b | rhs.to_boolean(env)?).into());
+				return Ok(());
 			}
 		}
 
@@ -509,8 +492,8 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.subtract(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.subtract(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
@@ -536,37 +519,42 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Value<'gc>>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.multiply(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.multiply(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_knstring() {
+		if let Some(string) = self.as_knstring() {
 			let amount = usize::try_from(rhs.to_integer(env)?.inner())
 				.or(Err(IntegerError::DomainError("repetition count is negative")))?;
 
-			if amount.checked_mul(lhs.len()).map_or(true, |c| isize::MAX as usize <= c) {
+			if amount.checked_mul(string.len()).map_or(true, |c| isize::MAX as usize <= c) {
 				return Err(IntegerError::DomainError("repetition is too large").into());
 			}
 
-			todo!()
-			// return Ok(lhs.repeat(amount, env.opts())?.into());
+			let repeated = string.repeat(amount, env.opts(), env.gc())?;
+			unsafe {
+				repeated.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_list() {
+		if let Some(list) = self.as_list() {
 			// Multiplying by a block is invalid, so we can do this as an extension.
 			#[cfg(feature = "extensions")]
 			if env.opts().extensions.builtin_fns.list && rhs.as_block().is_some() {
-				// return lhs.map(rhs, env).map(Self::from);
+				// return list.map(rhs, env).map(Self::from);
 				todo!()
 			}
 
 			let amount = usize::try_from(rhs.to_integer(env)?.inner())
 				.or(Err(IntegerError::DomainError("repetition count is negative")))?;
 
-			// No need to check for repetition length because `lhs.repeat` does it itself.
-			// lhs.repeat(amount, env.opts()).map(Self::from)
-			todo!()
+			let repeated = list.repeat(amount, env.opts(), env.gc())?;
+			unsafe {
+				repeated.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		Err(Error::TypeError { type_name: self.type_name(), function: "*" })
@@ -578,8 +566,8 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Value<'gc>>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.divide(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.divide(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
@@ -609,8 +597,8 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Value<'gc>>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.remainder(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.remainder(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
@@ -635,14 +623,17 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Value<'gc>>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			target.write(lhs.power(rhs.to_integer(env)?, env.opts())?.into());
+		if let Some(integer) = self.as_integer() {
+			target.write(integer.power(rhs.to_integer(env)?, env.opts())?.into());
 			return Ok(());
 		}
 
 		if let Some(list) = self.as_list() {
-			// list.join(&rhs.to_kstring(env)?, env).map(Self::from),
-			todo!();
+			let joined = list.join(&rhs.to_knstring(env)?, env)?;
+			unsafe {
+				joined.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		Err(Error::TypeError { type_name: self.type_name(), function: "^" })
@@ -653,17 +644,17 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_knstring() {
-			// ValueEnum::String(string) => string
-			// 	.head()
-			// 	.ok_or(Error::DomainError("empty string ["))
-			// 	.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
-			todo!()
+		if let Some(string) = self.as_knstring() {
+			let head = string.head(env.gc())?;
+			unsafe {
+				head.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_list() {
-			// ValueEnum::List(list) => list.head().ok_or(Error::DomainError("empty list [")),
-			todo!()
+		if let Some(list) = self.as_list() {
+			target.write(list.head(env.gc())?);
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]
@@ -684,17 +675,20 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_knstring() {
-			// ValueEnum::String(string) => string
-			// 	.tail()
-			// 	.ok_or(Error::DomainError("empty string ]"))
-			// 	.map(|chr| KnValueString::new_unvalidated(chr.to_string()).into()),
-			todo!()
+		if let Some(string) = self.as_knstring() {
+			let head = string.tail(env.gc())?;
+			unsafe {
+				head.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_list() {
-			// ValueEnum::List(list) => list.tail().ok_or(Error::DomainError("empty list ]")),
-			todo!()
+		if let Some(list) = self.as_list() {
+			let head = list.tail(env.gc())?;
+			unsafe {
+				head.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]
@@ -715,18 +709,23 @@ impl<'gc> Value<'gc> {
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
-		if let Some(lhs) = self.as_integer() {
-			let chr = lhs.chr(env.opts())?;
-			let gcstring = KnString::new_unvalidated(chr.to_string(), &env.gc());
+		if let Some(integer) = self.as_integer() {
+			let chr = integer.chr(env.opts())?;
+			let mut buf = [0; 4];
+			let gcstring = KnString::from_knstr(
+				KnStr::new(chr.inner().encode_utf8(&mut buf), env.opts())?,
+				&env.gc(),
+			);
+
 			unsafe {
 				gcstring.with_inner(|inner| target.write(inner.into()));
 			}
 			return Ok(());
 		}
 
-		if let Some(lhs) = self.as_knstring() {
-			// Ok(string.ord(env.opts())?.into()),
-			todo!()
+		if let Some(string) = self.as_knstring() {
+			target.write(string.ord()?.into());
+			return Ok(());
 		}
 
 		Err(Error::TypeError { type_name: self.type_name(), function: "ASCII" })
@@ -738,22 +737,24 @@ impl<'gc> Value<'gc> {
 		len: &Self,
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
-	) -> crate::Result<Self> {
+	) -> crate::Result<()> {
 		let start = fix_len(self, start.to_integer(env)?, "GET", env)?;
 		let len = usize::try_from(len.to_integer(env)?.inner())
 			.or(Err(Error::DomainError("negative length")))?;
 
 		if let Some(list) = self.as_list() {
-			todo!()
-			// return list.try_get(start..start + len).map(Self::from);
+			let sublist = list.try_get(start..start + len, env.gc())?;
+			unsafe {
+				sublist.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 		if let Some(string) = self.as_knstring() {
-			// ValueEnum::String(text) => text
-			// 	.get(start..start + len)
-			// 	.ok_or(Error::IndexOutOfBounds { len: text.len(), index: start + len })
-			// 	.map(ToOwned::to_owned)
-			// 	.map(Self::from),
-			todo!()
+			let substring = string.try_get(start..start + len, env.gc())?;
+			unsafe {
+				substring.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		Err(Error::TypeError { type_name: self.type_name(), function: "GET" })

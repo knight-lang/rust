@@ -9,6 +9,7 @@ use std::alloc::Layout;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
+use std::slice::SliceIndex;
 use std::sync::atomic::AtomicU8;
 
 use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
@@ -286,6 +287,44 @@ impl<'gc> List<'gc> {
 			gc,
 		)
 	}
+
+	pub fn repeat(&self, amount: usize, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+		if self.len().checked_mul(amount).map_or(true, |f| f > isize::MAX as usize) {
+			return Err(crate::Error::Todo("bounds too large!".to_string()));
+		}
+
+		if amount == 0 || self.is_empty() {
+			return Ok(GcRoot::new_unchecked(Self::default()));
+		}
+
+		if amount == 1 {
+			return Ok(GcRoot::new_unchecked(Self(self.0)));
+		}
+
+		// todo: optimized variant?
+		Ok(Self::new(self.__as_slice().repeat(amount), opts, gc)?)
+	}
+
+	pub fn head(&self, gc: &'gc Gc) -> crate::Result<Value<'gc>> {
+		self.__as_slice().get(0).copied().ok_or(crate::Error::DomainError("empty string for head"))
+	}
+
+	pub fn tail(&self, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>> {
+		let rest =
+			self.__as_slice().get(1..).ok_or(crate::Error::DomainError("empty string for head"))?;
+		Ok(Self::from_slice_unvalidated(rest, gc))
+	}
+
+	pub fn try_get<I>(&self, index: I, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>>
+	where
+		I: SliceIndex<[Value<'gc>], Output = [Value<'gc>]>,
+	{
+		let rest = self
+			.__as_slice()
+			.get(index)
+			.ok_or(crate::Error::DomainError("invalid args for get for list"))?;
+		Ok(Self::from_slice_unvalidated(rest, gc))
+	}
 }
 
 impl Debug for List<'_> {
@@ -293,9 +332,6 @@ impl Debug for List<'_> {
 		Debug::fmt(self.__as_slice(), f)
 	}
 }
-
-// impl Allocated for KnString {
-// }
 
 unsafe impl GarbageCollected for List<'_> {
 	unsafe fn mark(&self) {

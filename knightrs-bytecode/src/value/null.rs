@@ -31,7 +31,7 @@ impl NamedType for Null {
 impl ToBoolean for Null {
 	/// Simply returns `false`.
 	#[inline]
-	fn to_boolean(&self, _: &mut Environment) -> crate::Result<Boolean> {
+	fn to_boolean(&self, _: &mut Environment<'_>) -> crate::Result<Boolean> {
 		Ok(Boolean::default())
 	}
 }
@@ -39,7 +39,7 @@ impl ToBoolean for Null {
 impl ToInteger for Null {
 	/// Simply returns zero.
 	#[inline]
-	fn to_integer(&self, _: &mut Environment) -> crate::Result<Integer> {
+	fn to_integer(&self, _: &mut Environment<'_>) -> crate::Result<Integer> {
 		Ok(Integer::default())
 	}
 }
