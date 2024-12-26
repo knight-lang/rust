@@ -224,13 +224,14 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			match opcode {
 				// Builtins
 				Opcode::PushConstant => {
+					// No need for a "target", as `self.program` is always GC'd.
 					self.stack.push(unsafe { self.program.constant_at(offset) }.clone())
 				}
 				// SAFETY: program is well-defined, so jumps are always correct
 				Opcode::Jump => unsafe { self.jump_to(offset) },
 				Opcode::JumpIfTrue => {
-					// SAFETY: program is well-defined, so jumps are always correct
 					if unsafe { arg![0] }.to_boolean(self.env)? {
+						// SAFETY: program is well-defined, so jumps are always correct
 						unsafe { self.jump_to(offset) };
 					}
 				}
