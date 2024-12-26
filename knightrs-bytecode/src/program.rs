@@ -127,7 +127,9 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 	}
 
 	pub unsafe fn mark(&self) {
-		for constant in self.constants.iteR() {
+		use crate::gc::GarbageCollected;
+
+		for constant in self.constants.iter() {
 			unsafe {
 				constant.mark();
 			}

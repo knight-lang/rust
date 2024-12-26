@@ -82,7 +82,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		#[cfg(feature = "extensions")]
 		if self.env.opts().extensions.argv {
 			let mut first = true;
-			self.env.gc().pause();
+			// self.env.gc().pause();
 			let argv = argv
 				.into_iter()
 				.skip_while(|ele| {
@@ -109,7 +109,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			unsafe {
 				self.set_variable(crate::program::Compiler::ARGV_VARIABLE_INDEX, argv);
 			}
-			self.env.gc().unpause();
+			// self.env.gc().unpause();
 		}
 
 		self.run_entire_program_without_argv()
@@ -204,8 +204,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
 			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
 			self.current_index += 1;
-			println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
-			// println!("{opcode:?}");
+			// println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
 
 			// Read arguments in
 			unsafe {
@@ -436,23 +435,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
 				Opcode::Add => unsafe {
-					let mut target = MaybeUninit::uninit();
-					dbg!(&args.iter().map(|x| x.assume_init_ref()).collect::<Vec<_>>());
-					dbg!(arg![1]);
-					dbg!(arg![0]);
-					std::process::exit(0);
-					arg![0].kn_plus(&arg![1], &mut target, self.env)?;
-					self.stack.push(target.assume_init());
-					// let (start, rest) = args.split_at_mut_unchecked(1);
-					// dbg!(start.len());
-					// dbg!(rest.len());
-					// let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
-					// let rhs = rest.get_unchecked(0).assume_init_read();
-					// let mut target = MaybeUninit::uninit();
-					// value.kn_plus(&rhs, &mut target, self.env)?;
-					// start.get_unchecked_mut(0).write(target.assume_init());
-					// self.stack.set_len(self.stack.len() + 1);
-					// dbg!(self.stack.len());
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_plus(&rhs, &mut start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
 				},
 				Opcode::Sub => unsafe {
 					let (start, rest) = args.split_at_mut_unchecked(1);

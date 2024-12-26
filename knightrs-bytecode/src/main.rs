@@ -18,16 +18,17 @@ fn run(
 	program: &str,
 	argv: impl Iterator<Item = String>,
 ) -> Result<(), String> {
+	let gc = env.gc();
 	let mut parser = Parser::new(env, Some(Path::new("-e")), &program).map_err(|s| s.to_string())?;
 
-	env.gc().pause();
+	gc.pause();
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
 
 	// dbg!(&program);
 
-	let vm = Vm::new(&program, env);
-	env.gc().add_mark_fn(|| vm.mark());
-	env.gc().unpause();
+	let mut vm = Vm::new(&program, env);
+	// gc.add_mark_fn(|| vm.mark());
+	// gc.unpause();
 
 	vm.run_entire_program(argv).map_err(|e| e.to_string()).and(Ok(()))
 }
