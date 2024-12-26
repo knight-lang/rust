@@ -221,42 +221,34 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 			// NOTE: ALL OPCODES MUST ALWAYS EXTRACT THEIR ARGUMENTS EXACTLY ONCE FROM `args`,
 			// else memory issues will crop up (such as memory leaks or double reads).
-			let value = match opcode {
+			match opcode {
 				// Builtins
 				Opcode::PushConstant => {
-					self.stack.push(unsafe { self.program.constant_at(offset) }.clone());
-					continue;
+					self.stack.push(unsafe { self.program.constant_at(offset) }.clone())
 				}
-				Opcode::Jump => {
-					// SAFETY: program is well-defined, so jumps are always correct
-					unsafe { self.jump_to(offset) };
-					continue;
-				}
+				// SAFETY: program is well-defined, so jumps are always correct
+				Opcode::Jump => unsafe { self.jump_to(offset) },
 				Opcode::JumpIfTrue => {
+					// SAFETY: program is well-defined, so jumps are always correct
 					if unsafe { arg![0] }.to_boolean(self.env)? {
-						// SAFETY: program is well-defined, so jumps are always correct
 						unsafe { self.jump_to(offset) };
 					}
-					continue;
 				}
 				Opcode::JumpIfFalse => {
 					if !unsafe { arg![0] }.to_boolean(self.env)? {
 						// SAFETY: program is well-defined, so jumps are always correct
 						unsafe { self.jump_to(offset) }
 					}
-					continue;
 				}
 
 				Opcode::GetVar => {
 					let value = unsafe { self.get_variable(offset) }?;
 					self.stack.push(value);
-					continue;
 				}
 
 				Opcode::SetVar => {
 					let value = unsafe { last!() }.clone();
 					unsafe { self.set_variable(offset, value) };
-					continue;
 				}
 
 				#[cfg(feature = "extensions")]
@@ -276,7 +268,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					}
 
 					self.stack.push(value);
-					continue;
 				}
 
 				Opcode::SetVarPop => todo!(), //self.variables[offset] = unsafe{arg![0]}.clone(),
@@ -288,22 +279,13 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					} else {
 						self.stack.push(Value::NULL);
 					}
-					continue;
 				}
-				Opcode::Random => {
-					self.stack.push(self.env.random()?.into());
-					continue;
-				}
-				Opcode::Dup => {
-					self.stack.push(unsafe { last!() }.clone());
-					continue;
-				}
-				Opcode::Dump => {
-					// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
-					// its arity is 0
-					unsafe { last!() }.kn_dump(self.env)?;
-					continue;
-				}
+				Opcode::Random => self.stack.push(self.env.random()?.into()),
+				Opcode::Dup => self.stack.push(unsafe { last!() }.clone()),
+
+				// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
+				// its arity is 0
+				Opcode::Dump => unsafe { last!() }.kn_dump(self.env)?,
 
 				// Arity 1
 				#[cfg(feature = "stacktrace")]
@@ -315,37 +297,33 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					if let Some(ip) = jumpstack.pop() {
 						likely_stable::likely(true);
 						unsafe { self.jump_to(ip) };
-						continue;
+					} else {
+						// There's nowhere to jump to, return the block of code.
+						return Ok(self.stack.pop().unwrap_or_else(|| {
+							#[cfg(debug_assertions)]
+							unreachable!("<bug: pop when nothing left>");
+							unsafe { std::hint::unreachable_unchecked() }
+						}));
 					}
-
-					// There's nowhere to jump to, return the block of code.
-					return Ok(self.stack.pop().unwrap_or_else(|| {
-						#[cfg(debug_assertions)]
-						unreachable!("<bug: pop when nothing left>");
-						unsafe { std::hint::unreachable_unchecked() }
-					}));
 				}
 
-				Opcode::Call => {
-					let value = match unsafe { arg![0] } {
-						#[cfg(not(feature = "stacktrace"))]
-						Value::Block(block) => {
-							likely_stable::likely(true);
-							jumpstack.push(self.current_index);
-							unsafe { self.jump_to(block.inner().0) };
-							continue;
-						}
-						other => other.kn_call(self)?,
-					};
-					self.stack.push(value);
-					continue;
-				}
+				Opcode::Call => match unsafe { arg![0] } {
+					#[cfg(not(feature = "stacktrace"))]
+					Value::Block(block) => {
+						likely_stable::likely(true);
+						jumpstack.push(self.current_index);
+						unsafe { self.jump_to(block.inner().0) };
+					}
+					other => {
+						let value = other.kn_call(self)?;
+						self.stack.push(value);
+					}
+				},
 
 				Opcode::Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;
 					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
 					self.env.quit(status)?;
-					unreachable!()
 				}
 				Opcode::Output => {
 					use std::io::Write;
@@ -363,42 +341,34 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					let _ = output.flush(); // explicitly ignore errors with flushing
 
 					self.stack.push(Value::NULL);
-					continue;
 				}
 				Opcode::Length => {
 					let value = unsafe { arg![0] }.kn_length(self.env)?.into();
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Not => {
 					let value = (!unsafe { arg![0] }.to_boolean(self.env)?).into();
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Negate => {
 					let value = unsafe { arg![0] }.kn_negate(self.env)?.into();
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Ascii => {
 					let value = unsafe { arg![0] }.kn_ascii(self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Box => {
 					let boxed = List::boxed(unsafe { arg![0] }.clone(), self.env.gc());
 					self.push_gcroot(boxed);
-					continue;
 				}
 				Opcode::Head => {
 					let value = unsafe { arg![0] }.kn_head(self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Tail => {
 					let value = unsafe { arg![0] }.kn_tail(self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
@@ -406,59 +376,49 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					let value = arg![0]; // copy before it's overwritten
 					value.kn_plus(&arg![1], self.env, end!())?;
 					self.stack.set_len(self.stack.len() + 1);
-					continue;
 				},
 				Opcode::Sub => {
 					let value = unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Mul => {
 					let value = unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Div => {
 					let value = unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Mod => {
 					let value = unsafe { arg![0] }.kn_percent(&unsafe { arg![1] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Pow => {
 					let value = unsafe { arg![0] }.kn_caret(&unsafe { arg![1] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Lth => {
 					let value = (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, "<", self.env)?
 						== Ordering::Less)
 						.into();
 					self.stack.push(value);
-					continue;
 				}
 				Opcode::Gth => {
 					let value = (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, ">", self.env)?
 						== Ordering::Greater)
 						.into();
 					self.stack.push(value);
-					continue;
 				}
 
 				Opcode::Eql => {
 					let value = (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into();
 					self.stack.push(value);
-					continue;
 				}
 
 				Opcode::Get => {
 					let value =
 						unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?;
 					self.stack.push(value);
-					continue;
 				}
 
 				Opcode::Set => {
@@ -469,7 +429,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						self.env,
 					)?;
 					self.stack.push(value);
-					continue;
 				}
 				// EXTENSIONS
 				#[cfg(feature = "extensions")]
@@ -477,7 +436,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					_ if offset == super::opcode::DynamicAssignment::Random as _ => {
 						let seed = unsafe { last!() }.to_integer(self.env)?;
 						self.env.seed_random(seed);
-						continue;
 					}
 					_ => todo!("{:?}", offset),
 				},
@@ -490,7 +448,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					let program = parser.parse_program()?;
 					let value = Vm::new(&program, self.env).run_entire_program_without_argv()?;
 					self.stack.push(value);
-					continue;
 				}
 
 				#[cfg(feature = "extensions")]
@@ -513,10 +470,8 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 							.clone()
 					};
 					self.stack.push(value);
-					continue;
 				}
-			};
-			self.stack.push(value);
+			}
 		}
 	}
 
