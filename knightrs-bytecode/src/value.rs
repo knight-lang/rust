@@ -92,7 +92,7 @@ impl Debug for Value<'_> {
 				} else if let Some(string) = self.as_knstring() {
 					Debug::fmt(&string, f)
 				} else {
-					unreachable!()
+					unreachable!("unknown alloc: {:?}", unsafe { self.0.ptr })
 				}
 			}
 			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
