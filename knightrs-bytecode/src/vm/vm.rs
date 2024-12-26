@@ -202,6 +202,16 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 			// Gets an argument from the argument stack
 			macro_rules! arg {
+				(&$idx:expr) => {{
+					let idx = $idx;
+
+					debug_assert!(idx < opcode.arity());
+					// realistically shouldnt ever happen as args is also the values past the end too
+					debug_assert!(idx <= args.len());
+
+					args.get_unchecked(idx).assume_init_ref()
+				}};
+
 				($idx:expr) => {{
 					let idx = $idx;
 
@@ -366,9 +376,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				}
 				Opcode::Length => {
 					let value = unsafe { arg![0] }.kn_length(self.env)?.into();
-					self.stack.push(value);
+					unsafe {
+						push_no_resize!(value);
+					}
 				}
 				Opcode::Not => unsafe {
+					// TODO: should `kn_not` even exist?
 					arg![0].kn_not(end!(), self.env)?;
 					self.stack.set_len(self.stack.len() + 1);
 				},
@@ -395,63 +408,90 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
 				Opcode::Add => unsafe {
-					let value = arg![0]; // copy before it's overwritten
-					value.kn_plus(&arg![1], self.env, end!())?;
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_plus(&rhs, start.get_unchecked_mut(0), self.env)?;
 					self.stack.set_len(self.stack.len() + 1);
 				},
-				Opcode::Sub => {
-					let value = unsafe { arg![0] }.kn_minus(&unsafe { arg![1] }, self.env)?;
-					self.stack.push(value);
-				}
-				Opcode::Mul => {
-					let value = unsafe { arg![0] }.kn_asterisk(&unsafe { arg![1] }, self.env)?;
-					self.stack.push(value);
-				}
-				Opcode::Div => {
-					let value = unsafe { arg![0] }.kn_slash(&unsafe { arg![1] }, self.env)?;
-					self.stack.push(value);
-				}
-				Opcode::Mod => {
-					let value = unsafe { arg![0] }.kn_percent(&unsafe { arg![1] }, self.env)?;
-					self.stack.push(value);
-				}
-				Opcode::Pow => {
-					let value = unsafe { arg![0] }.kn_caret(&unsafe { arg![1] }, self.env)?;
-					self.stack.push(value);
-				}
+				Opcode::Sub => unsafe {
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_minus(&rhs, start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Mul => unsafe {
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_asterisk(&rhs, start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Div => unsafe {
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_slash(&rhs, start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Mod => unsafe {
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_percent(&rhs, start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Pow => unsafe {
+					let (start, rest) = args.split_at_mut_unchecked(1);
+					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let rhs = rest.get_unchecked(0).assume_init_read();
+					value.kn_caret(&rhs, start.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
 				Opcode::Lth => {
 					let value = (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, "<", self.env)?
 						== Ordering::Less)
 						.into();
-					self.stack.push(value);
+					unsafe {
+						push_no_resize!(value);
+					}
 				}
 				Opcode::Gth => {
 					let value = (unsafe { arg![0] }.kn_compare(&unsafe { arg![1] }, ">", self.env)?
 						== Ordering::Greater)
 						.into();
-					self.stack.push(value);
+					unsafe {
+						push_no_resize!(value);
+					}
 				}
 
 				Opcode::Eql => {
 					let value = (unsafe { arg![0] }.kn_equals(&unsafe { arg![1] }, self.env)?).into();
-					self.stack.push(value);
+					unsafe {
+						push_no_resize!(value);
+					}
 				}
 
-				Opcode::Get => {
-					let value =
-						unsafe { arg![0] }.kn_get(&unsafe { arg![1] }, &unsafe { arg![2] }, self.env)?;
-					self.stack.push(value);
-				}
+				Opcode::Get => unsafe {
+					let (first, rest) = args.split_at_mut_unchecked(1);
+					let value = first.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let start = rest.get_unchecked(0).assume_init_read();
+					let length = rest.get_unchecked(1).assume_init_read();
+					value.kn_get(&start, &length, first.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
 
-				Opcode::Set => {
-					let value = unsafe { arg![0] }.kn_set(
-						&unsafe { arg![1] },
-						&unsafe { arg![2] },
-						&unsafe { arg![3] },
-						self.env,
-					)?;
-					self.stack.push(value);
-				}
+				Opcode::Set => unsafe {
+					let (first, rest) = args.split_at_mut_unchecked(1);
+					let value = first.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
+					let start = rest.get_unchecked(0).assume_init_read();
+					let length = rest.get_unchecked(1).assume_init_read();
+					let repl = rest.get_unchecked(2).assume_init_read();
+					value.kn_set(&start, &length, &repl, first.get_unchecked_mut(0), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+
 				// EXTENSIONS
 				#[cfg(feature = "extensions")]
 				Opcode::AssignDynamic => match offset {

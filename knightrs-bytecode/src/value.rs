@@ -465,8 +465,8 @@ impl<'gc> Value<'gc> {
 	pub unsafe fn kn_plus(
 		&self,
 		rhs: &Self,
+		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
-		target: &mut MaybeUninit<Value<'gc>>,
 	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
 			target.write(lhs.add(rhs.to_integer(env)?, env.opts())?.into());
@@ -503,9 +503,15 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "+" })
 	}
 
-	pub fn kn_minus(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_minus(
+		&self,
+		rhs: &Self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.subtract(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.subtract(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]
@@ -524,9 +530,15 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "-" })
 	}
 
-	pub fn kn_asterisk(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_asterisk(
+		&self,
+		rhs: &Self,
+		target: &mut MaybeUninit<Value<'gc>>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.multiply(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.multiply(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		if let Some(lhs) = self.as_knstring() {
@@ -560,9 +572,15 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "*" })
 	}
 
-	pub fn kn_slash(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_slash(
+		&self,
+		rhs: &Self,
+		target: &mut MaybeUninit<Value<'gc>>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.divide(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.divide(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]
@@ -585,9 +603,15 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "/" })
 	}
 
-	pub fn kn_percent(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_percent(
+		&self,
+		rhs: &Self,
+		target: &mut MaybeUninit<Value<'gc>>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.remainder(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.remainder(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		#[cfg(feature = "extensions")]
@@ -605,9 +629,15 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "%" })
 	}
 
-	pub fn kn_caret(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_caret(
+		&self,
+		rhs: &Self,
+		target: &mut MaybeUninit<Value<'gc>>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
-			return Ok(lhs.power(rhs.to_integer(env)?, env.opts())?.into());
+			target.write(lhs.power(rhs.to_integer(env)?, env.opts())?.into());
+			return Ok(());
 		}
 
 		if let Some(list) = self.as_list() {
@@ -682,7 +712,7 @@ impl<'gc> Value<'gc> {
 
 	pub unsafe fn kn_ascii(
 		&self,
-		target: &mut MaybeUninit<Value<'gc>>,
+		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
@@ -702,10 +732,11 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "ASCII" })
 	}
 
-	pub fn kn_get(
+	pub unsafe fn kn_get(
 		&self,
 		start: &Self,
 		len: &Self,
+		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Self> {
 		let start = fix_len(self, start.to_integer(env)?, "GET", env)?;
@@ -728,11 +759,12 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "GET" })
 	}
 
-	pub fn kn_set(
+	pub unsafe fn kn_set(
 		&self,
 		start: &Self,
 		len: &Self,
 		repl: &Self,
+		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Self> {
 		todo!()
