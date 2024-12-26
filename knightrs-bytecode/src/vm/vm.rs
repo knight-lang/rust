@@ -1,3 +1,4 @@
+use crate::gc::GarbageCollected;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::MaybeUninit;
@@ -44,6 +45,33 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 			#[cfg(feature = "extensions")]
 			dynamic_variables: HashMap::default(),
+		}
+	}
+
+	pub unsafe fn mark(&self) {
+		unsafe {
+			self.program.mark();
+		}
+
+		for value in self.stack.iter() {
+			unsafe {
+				value.mark();
+			}
+		}
+
+		for var in self.variables.iter() {
+			if let Some(value) = var {
+				unsafe {
+					value.mark();
+				}
+			}
+		}
+
+		#[cfg(feature = "extensions")]
+		for value in self.dynamic_variables.values() {
+			unsafe {
+				value.mark();
+			}
 		}
 	}
 

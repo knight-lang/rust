@@ -20,11 +20,16 @@ fn run(
 ) -> Result<(), String> {
 	let mut parser = Parser::new(env, Some(Path::new("-e")), &program).map_err(|s| s.to_string())?;
 
+	env.gc().pause();
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
 
 	// dbg!(&program);
 
-	Vm::new(&program, env).run_entire_program(argv).map_err(|e| e.to_string()).and(Ok(()))
+	let vm = Vm::new(&program, env);
+	env.gc().add_mark_fn(|| vm.mark());
+	env.gc().unpause();
+
+	vm.run_entire_program(argv).map_err(|e| e.to_string()).and(Ok(()))
 }
 
 fn main1() {

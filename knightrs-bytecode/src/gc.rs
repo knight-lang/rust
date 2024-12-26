@@ -1,5 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::mem::{ManuallyDrop, MaybeUninit};
@@ -21,6 +22,7 @@ struct Inner {
 	idx: usize,
 	roots: HashSet<*const ValueInner>,
 	paused: bool,
+	mark_fns: HashMap<usize, Box<dyn Fn()>>,
 }
 
 pub const ALLOC_VALUE_SIZE: usize = 32;
@@ -99,6 +101,7 @@ impl Gc {
 				roots: HashSet::new(),
 				idx: 0,
 				paused: false,
+				mark_fns: HashMap::new(),
 			}
 			.into(),
 		)
@@ -111,6 +114,17 @@ impl Gc {
 			self.shutdown();
 		}
 		result
+	}
+
+	pub fn del_mark_fn(&self, index: usize) {
+		self.0.borrow_mut().mark_fns.remove(&index).expect("mark fn already removed");
+	}
+
+	pub fn add_mark_fn(&self, func: impl Fn() + 'static) -> usize {
+		let mut inner = self.0.borrow_mut();
+		let len = inner.mark_fns.len();
+		inner.mark_fns.insert(len, Box::new(func));
+		len
 	}
 
 	/// Shuts down the [`Gc`] by cleaning up all memory associated with it.
@@ -249,6 +263,10 @@ impl Gc {
 
 	// pub only for testing
 	pub unsafe fn mark_and_sweep(&self) {
+		for mark_fn in self.0.borrow().mark_fns.values() {
+			mark_fn()
+		}
+
 		// Mark all elements accessible from the root
 		for &root in &self.0.borrow().roots {
 			unsafe {

@@ -126,6 +126,14 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 		(opcode, location)
 	}
 
+	pub unsafe fn mark(&self) {
+		for constant in self.constants.iteR() {
+			unsafe {
+				constant.mark();
+			}
+		}
+	}
+
 	/// Gets constant constant at `offset`.
 	///
 	/// # Safety
