@@ -219,6 +219,13 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				};
 			}
 
+			macro_rules! push_no_resize {
+				($value:expr) => {
+					args.get_unchecked_mut(0).write($value);
+					self.stack.set_len(self.stack.len() + 1);
+				};
+			}
+
 			// NOTE: ALL OPCODES MUST ALWAYS EXTRACT THEIR ARGUMENTS EXACTLY ONCE FROM `args`,
 			// else memory issues will crop up (such as memory leaks or double reads).
 			match opcode {
@@ -244,11 +251,17 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 				Opcode::GetVar => {
 					let value = unsafe { self.get_variable(offset) }?;
+					// gotta push, in case the stack isn't large enough
 					self.stack.push(value);
 				}
 
 				Opcode::SetVar => {
+					// SAFETY: construction of `Program`s guarantee that `SetVar` always has at least one
+					// value on the stack (the value to assign)
 					let value = unsafe { last!() }.clone();
+
+					// SAFETY: construction of `Program`s guarantees that `SetVar` will have an offset,
+					// and that it's a a valid variable index.
 					unsafe { self.set_variable(offset, value) };
 				}
 
@@ -268,6 +281,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						self.dynamic_variables.insert(varname.become_owned(), value.clone());
 					}
 
+					// TODO: Can this be replaced with an `&mut MaybeUninit`?
 					self.stack.push(value);
 				}
 
@@ -275,13 +289,16 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 				// Arity 0
 				Opcode::Prompt => {
+					// Can't use `MaybeUninit` in case we're at the end of the stack.
 					if let Some(prompted) = self.env.prompt()? {
 						self.push_gcroot(prompted);
 					} else {
 						self.stack.push(Value::NULL);
 					}
 				}
+				// Can't use `MaybeUninit` in case we're at the end of the stack.
 				Opcode::Random => self.stack.push(self.env.random()?.into()),
+
 				Opcode::Dup => self.stack.push(unsafe { last!() }.clone()),
 
 				// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
@@ -341,36 +358,40 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					.map_err(|err| Error::IoError { func: "OUTPUT", err })?;
 					let _ = output.flush(); // explicitly ignore errors with flushing
 
-					self.stack.push(Value::NULL);
+					// SAFETY: `Output` is guaranteed to be given an argument. We've also already
+					// read from it.z
+					unsafe {
+						push_no_resize!(Value::NULL);
+					}
 				}
-				Opcode::Length => {
-					let value = unsafe { arg![0] }.kn_length(self.env)?.into();
-					self.stack.push(value);
-				}
-				Opcode::Not => {
-					let value = (!unsafe { arg![0] }.to_boolean(self.env)?).into();
-					self.stack.push(value);
-				}
-				Opcode::Negate => {
-					let value = unsafe { arg![0] }.kn_negate(self.env)?.into();
-					self.stack.push(value);
-				}
-				Opcode::Ascii => {
-					let value = unsafe { arg![0] }.kn_ascii(self.env)?;
-					self.stack.push(value);
-				}
+				Opcode::Length => unsafe {
+					arg![0].kn_length(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Not => unsafe {
+					arg![0].kn_not(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Negate => unsafe {
+					arg![0].kn_negate(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Ascii => unsafe {
+					arg![0].kn_ascii(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
 				Opcode::Box => {
 					let boxed = List::boxed(unsafe { arg![0] }.clone(), self.env.gc());
 					self.push_gcroot(boxed);
 				}
-				Opcode::Head => {
-					let value = unsafe { arg![0] }.kn_head(self.env)?;
-					self.stack.push(value);
-				}
-				Opcode::Tail => {
-					let value = unsafe { arg![0] }.kn_tail(self.env)?;
-					self.stack.push(value);
-				}
+				Opcode::Head => unsafe {
+					arg![0].kn_head(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
+				Opcode::Tail => unsafe {
+					arg![0].kn_tail(end!(), self.env)?;
+					self.stack.set_len(self.stack.len() + 1);
+				},
 				Opcode::Pop => continue, /* do nothing, the arity already popped */
 
 				Opcode::Add => unsafe {

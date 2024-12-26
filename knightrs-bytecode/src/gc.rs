@@ -221,6 +221,13 @@ impl Gc {
 			}
 		}
 
+		#[cfg(debug_assertions)] // always sweep after every allocation when testing
+		if !self.0.borrow().paused {
+			unsafe {
+				self.mark_and_sweep();
+			}
+		}
+
 		let inner = self.next_open_inner();
 
 		unsafe {

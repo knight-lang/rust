@@ -382,7 +382,13 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
-	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
+	// SAFETY: `target` has to be something which is garbage collected
+	// (Note: current impl doesn't _actually_ require this, but this is future-compatibility)
+	pub unsafe fn kn_length(
+		&self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(string) = self.as_knstring() {
 			// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
 			// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
@@ -392,20 +398,24 @@ impl<'gc> Value<'gc> {
 			// integer bounds, and not on string lengths, so we do have to check in compliance mode.
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				return Ok(Integer::new_error(string.len() as i64, env.opts())?);
+				target.write(Integer::new_error(string.len() as i64, env.opts())?.into());
+				return Ok(());
 			}
 
-			return Ok(Integer::new_unvalidated(string.len() as i64));
+			target.write(Integer::new_unvalidated(string.len() as i64).into());
+			return Ok(());
 		}
 
 		if let Some(list) = self.as_list() {
 			// (same guarantees as `ValueEnum::String`)
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				return Ok(Integer::new_error(list.len() as i64, env.opts())?);
+				target.write(Integer::new_error(list.len() as i64, env.opts())?.into());
+				return Ok(());
 			}
 
-			return Ok(Integer::new_unvalidated(list.len() as i64));
+			target.write(Integer::new_unvalidated(list.len() as i64).into());
+			return Ok(());
 		}
 
 		// cfg_if! {
@@ -436,13 +446,27 @@ impl<'gc> Value<'gc> {
 		// 	_ => Err(Error::TypeError { type_name: self.type_name(), function: "LENGTH" }),
 	}
 
-	pub fn kn_negate(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
+	pub unsafe fn kn_not(
+		&self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
+		target.write((!self.to_boolean(env)?).into());
+		Ok(())
+	}
+
+	pub unsafe fn kn_negate(
+		&self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		#[cfg(feature = "extensions")]
 		if env.opts().extensions.breaking.negate_reverses_collections {
 			todo!();
 		}
 
-		Ok(self.to_integer(env)?.negate(env.opts())?)
+		target.write(self.to_integer(env)?.negate(env.opts())?.into());
+		Ok(())
 	}
 
 	// SAFETY: the target needs to be a gc-rooted place
@@ -602,7 +626,11 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "^" })
 	}
 
-	pub fn kn_head(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_head(
+		&self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_knstring() {
 			// ValueEnum::String(string) => string
 			// 	.head()
@@ -629,7 +657,11 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "[" })
 	}
 
-	pub fn kn_tail(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_tail(
+		&self,
+		target: &mut MaybeUninit<Self>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_knstring() {
 			// ValueEnum::String(string) => string
 			// 	.tail()
@@ -656,11 +688,18 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "]" })
 	}
 
-	pub fn kn_ascii(&self, env: &mut Environment<'gc>) -> crate::Result<Self> {
+	pub unsafe fn kn_ascii(
+		&self,
+		target: &mut MaybeUninit<Value<'gc>>,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<()> {
 		if let Some(lhs) = self.as_integer() {
 			let chr = lhs.chr(env.opts())?;
-			todo!()
-			// return Ok(KnString::new_unvalidated(chr.to_string(), env.gc()).into());
+			let gcstring = KnString::new_unvalidated(chr.to_string(), &env.gc());
+			unsafe {
+				gcstring.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
 		}
 
 		if let Some(lhs) = self.as_knstring() {
