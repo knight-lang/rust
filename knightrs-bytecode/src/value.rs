@@ -384,11 +384,7 @@ impl<'gc> Value<'gc> {
 
 	// SAFETY: `target` has to be something which is garbage collected
 	// (Note: current impl doesn't _actually_ require this, but this is future-compatibility)
-	pub unsafe fn kn_length(
-		&self,
-		target: &mut MaybeUninit<Self>,
-		env: &mut Environment<'gc>,
-	) -> crate::Result<()> {
+	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
 		if let Some(string) = self.as_knstring() {
 			// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
 			// using `i64`, if `usize == u32` or `usize == u64`, we can always cast the `isize` to
@@ -398,24 +394,20 @@ impl<'gc> Value<'gc> {
 			// integer bounds, and not on string lengths, so we do have to check in compliance mode.
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				target.write(Integer::new_error(string.len() as i64, env.opts())?.into());
-				return Ok(());
+				return Ok(Integer::new_error(string.len() as i64, env.opts())?.into());
 			}
 
-			target.write(Integer::new_unvalidated(string.len() as i64).into());
-			return Ok(());
+			return Ok(Integer::new_unvalidated(string.len() as i64).into());
 		}
 
 		if let Some(list) = self.as_list() {
 			// (same guarantees as `ValueEnum::String`)
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				target.write(Integer::new_error(list.len() as i64, env.opts())?.into());
-				return Ok(());
+				return Ok(Integer::new_error(list.len() as i64, env.opts())?.into());
 			}
 
-			target.write(Integer::new_unvalidated(list.len() as i64).into());
-			return Ok(());
+			return Ok(Integer::new_unvalidated(list.len() as i64).into());
 		}
 
 		// cfg_if! {

@@ -364,10 +364,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						push_no_resize!(Value::NULL);
 					}
 				}
-				Opcode::Length => unsafe {
-					arg![0].kn_length(end!(), self.env)?;
-					self.stack.set_len(self.stack.len() + 1);
-				},
+				Opcode::Length => {
+					let value = unsafe { arg![0] }.kn_length(self.env)?.into();
+					self.stack.push(value);
+				}
 				Opcode::Not => unsafe {
 					arg![0].kn_not(end!(), self.env)?;
 					self.stack.set_len(self.stack.len() + 1);
