@@ -1,5 +1,6 @@
 use crate::parser::{ParseError, ParseErrorKind, Parser};
 
+#[allow(unused)]
 pub fn parse_parens<'path>(
 	parser: &mut Parser<'_, '_, 'path, '_>,
 ) -> Result<bool, ParseError<'path>> {

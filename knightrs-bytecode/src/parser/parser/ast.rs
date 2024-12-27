@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::parser::{ParseError, SourceLocation, VariableName};
 use crate::program::{Compilable, Compiler, JumpWhen};
 use crate::vm::Opcode;

@@ -15,6 +15,7 @@ use super::{Value, ValueAlign, ALLOC_VALUE_SIZE_IN_BYTES};
 #[repr(transparent)]
 pub struct List<'gc>(*const Inner<'gc>);
 
+#[cfg_attr(debug_assertions, allow(unused))]
 pub(crate) mod consts {
 	use super::*;
 
@@ -212,7 +213,8 @@ impl<'gc> List<'gc> {
 		unsafe { gc.alloc_value_inner(flags | gc::FLAG_IS_LIST) }.cast::<Inner>()
 	}
 
-	fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
+	// SAFETY: caller has to ensure source is exactly the right length
+	unsafe fn new_embedded(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
 		debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
 		let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
 
@@ -342,7 +344,7 @@ impl<'gc> List<'gc> {
 		Ok(Self::new(self.__as_slice().repeat(amount), opts, gc)?)
 	}
 
-	pub fn head(&self, gc: &'gc Gc) -> crate::Result<Value<'gc>> {
+	pub fn head(&self, _gc: &'gc Gc) -> crate::Result<Value<'gc>> {
 		self.into_iter().next().ok_or(crate::Error::DomainError("empty list for head"))
 	}
 
@@ -513,7 +515,7 @@ impl<'gc> ToKnString<'gc> for List<'gc> {
 impl<'gc> ToList<'gc> for List<'gc> {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
-	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+	fn to_list(&self, _: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		// Since `self` is already a part of the gc, then cloning it does nothing.
 		Ok(GcRoot::new_unchecked(Self(self.0)))
 	}

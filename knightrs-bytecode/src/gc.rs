@@ -116,7 +116,7 @@ impl Gc {
 	}
 
 	pub fn del_mark_fn(&self, index: usize) {
-		self.0.borrow_mut().mark_fns.remove(&index).expect("mark fn already removed");
+		let _ = self.0.borrow_mut().mark_fns.remove(&index).expect("mark fn already removed");
 	}
 
 	pub fn add_mark_fn(&self, func: impl Fn() + 'static) -> usize {
@@ -131,7 +131,7 @@ impl Gc {
 	/// # Safety
 	/// Callers must ensure that no references to anything the [`Gc`] has created will be used after
 	/// calling this function.
-	unsafe fn shutdown(mut self) {
+	unsafe fn shutdown(self) {
 		// TODO: this borrow isnt sound
 		for &inner in &self.0.borrow().value_inners {
 			unsafe {
@@ -357,7 +357,7 @@ impl ValueInner {
 			return;
 		}
 
-		if let Some(mut list) = unsafe { Self::as_list(this) } {
+		if let Some(list) = unsafe { Self::as_list(this) } {
 			unsafe {
 				list.mark();
 			}
@@ -456,9 +456,7 @@ impl<'gc, T: AsValueInner> GcRoot<'gc, T> {
 
 impl<T: AsValueInner> Drop for GcRoot<'_, T> {
 	fn drop(&mut self) {
-		unsafe {
-			self.unroot_inner();
-		}
+		self.unroot_inner();
 	}
 }
 

@@ -280,7 +280,7 @@ impl<'gc> KnString<'gc> {
 	}
 
 	#[cfg(feature = "extensions")]
-	pub fn split(&self, by: &str, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+	pub fn split(&self, _by: &str, _gc: &'gc Gc) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		// let list =
 		// Ok(List::new_unvalidated(self.as_str().split(by).map(|substr|collect(), gc))
 		todo!()

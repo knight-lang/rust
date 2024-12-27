@@ -200,28 +200,22 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 		self.strip_whitespace_and_comments();
 
 		if let Some(x) = crate::value::Integer::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 		if let Some(x) = crate::value::Boolean::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 		if let Some(x) = crate::value::Null::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 		if let Some(x) = crate::value::List::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 		if let Some(x) = crate::value::KnString::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 		if let Some(x) = VariableName::parse(self)? {
-			x.compile(&mut self.compiler, &self.env.opts());
-			return Ok(());
+			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 
 		#[cfg(feature = "qol")]
@@ -229,7 +223,9 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 			return Ok(());
 		}
 
-		function::Function::parse(self)? && return Ok(());
+		if function::Function::parse(self)? {
+			return Ok(());
+		}
 
 		let chr = self.peek().ok_or_else(|| self.error(ParseErrorKind::EmptySource))?;
 		Err(self.error(ParseErrorKind::UnknownTokenStart(chr)))

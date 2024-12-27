@@ -25,6 +25,7 @@ pub struct Compiler<'src, 'path, 'gc> {
 	// remainder is the offset.
 	code: Vec<InstructionAndOffset>,
 
+	#[allow(unused)] // it'll be actually used later
 	gc: &'gc Gc,
 
 	// All the constants that've been declared so far. Used with [`Opcode::PushConstant`].

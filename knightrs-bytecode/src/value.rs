@@ -98,7 +98,6 @@ impl Debug for Value<'_> {
 			}
 			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
 			Tag::Block => Debug::fmt(&self.as_block().unwrap(), f),
-			tag => todo!("tag: {tag:?}"),
 		}
 	}
 }
@@ -592,6 +591,7 @@ impl<'gc> Value<'gc> {
 		{
 			if env.opts().extensions.builtin_fns.string {
 				if let Some(string) = self.as_knstring() {
+					let _ = string;
 					// Ok(string.split(&rhs.to_kstring(env)?, env).into())
 					todo!()
 				}
@@ -599,6 +599,7 @@ impl<'gc> Value<'gc> {
 
 			if env.opts().extensions.builtin_fns.list {
 				if let Some(list) = self.as_list() {
+					let _ = list;
 					// Ok(list.reduce(rhs, env)?.unwrap_or_default())
 					todo!()
 				}
@@ -625,6 +626,7 @@ impl<'gc> Value<'gc> {
 
 			if env.opts().extensions.builtin_fns.list {
 				if let Some(list) = self.as_list() {
+					let _ = list;
 					// list.filter(rhs, env).map(Self::from)
 					todo!()
 				}
@@ -678,6 +680,7 @@ impl<'gc> Value<'gc> {
 		{
 			if env.opts().extensions.builtin_fns.integer {
 				if let Some(integer) = self.as_integer() {
+					let _ = integer;
 					// Ok(integer.head().into()),
 					todo!()
 				}
@@ -712,6 +715,7 @@ impl<'gc> Value<'gc> {
 		{
 			if env.opts().extensions.builtin_fns.integer {
 				if let Some(integer) = self.as_integer() {
+					let _ = integer;
 					// Ok(integer.tail().into()),
 					todo!()
 				}

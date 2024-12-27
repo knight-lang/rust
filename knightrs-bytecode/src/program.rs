@@ -36,6 +36,7 @@ pub struct Program<'src, 'path, 'gc> {
 	// correspond to the first instruction of a [`Block`]) to the (optional) name of the block, and
 	// the location where the block was declared.
 	#[cfg(feature = "stacktrace")]
+	#[cfg_attr(debug_assertions, allow(unused))] // TODO: do we need it?
 	// (IMPL NOTE: Technically, do we need the source location? it's not currently used in msgs.)
 	block_locations:
 		std::collections::HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
@@ -82,7 +83,7 @@ impl Debug for Program<'_, '_, '_> {
 
 				let mut bytecode = f.debug_list();
 				for (idx, &number) in self.0.into_iter().enumerate() {
-					let opcode = unsafe { Opcode::from_byte_unchecked((number as u8)) };
+					let opcode = unsafe { Opcode::from_byte_unchecked(number as u8) };
 					let offset = (number >> 0o10) as usize;
 					if opcode.takes_offset() {
 						bytecode.entry(&format!("{}: {:?} (offset={})", idx, opcode, offset));
@@ -117,7 +118,7 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 
 		// SAFETY: we know as this type was constructed that all programs result
 		// in valid opcodes
-		let opcode = unsafe { Opcode::from_byte_unchecked((number as u8)) };
+		let opcode = unsafe { Opcode::from_byte_unchecked(number as u8) };
 		let location = (number >> 0o10) as usize;
 
 		(opcode, location)

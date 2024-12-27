@@ -530,7 +530,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				#[cfg(feature = "extensions")]
 				Opcode::Eval => {
 					let program = unsafe { arg![0] }.to_knstring(self.env)?;
-					let mut parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
+					let parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
 					let program = parser.parse_program()?;
 					let value = Vm::new(&program, self.env).run_entire_program_without_argv()?;
 					unsafe {
@@ -549,7 +549,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						self.program.variable_index(&varname)
 					{
 						// SAFETY: `variable_index` ensures it always returns a valid index., i think
-						unsafe { self.get_variable(offset)? }
+						unsafe { self.get_variable(compiletime_variable_offset)? }
 					} else {
 						self
 							.dynamic_variables
