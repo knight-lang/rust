@@ -118,16 +118,16 @@ impl PartialEq<[Value<'_>]> for List<'_> {
 }
 
 // same as `std::iter::TrustedLen` but it's stable
-// pub unsafe trait TrustedLen: Iterator {}
-// impl std::iter::ExactSizeIterator for Iter<'_, '_> {}
-// unsafe impl<T> TrustedLen for std::slice::Iter<'_, T> {}
-// unsafe impl TrustedLen for Iter<'_, '_> {}
-// unsafe impl<A, B> TrustedLen for std::iter::Chain<A, B>
-// where
-// 	A: TrustedLen,
-// 	B: TrustedLen<Item = <A as Iterator>::Item>,
-// {
-// }
+pub unsafe trait TrustedLen: Iterator {}
+unsafe impl<T> TrustedLen for std::slice::Iter<'_, T> {}
+unsafe impl<T> TrustedLen for std::vec::IntoIter<T> {}
+unsafe impl TrustedLen for Iter<'_, '_> {}
+unsafe impl<A, B> TrustedLen for std::iter::Chain<A, B>
+where
+	A: TrustedLen,
+	B: TrustedLen<Item = <A as Iterator>::Item>,
+{
+}
 
 impl<'gc> List<'gc> {
 	/// The maximum length a list can be when compliance checking is enabled.
@@ -169,7 +169,7 @@ impl<'gc> List<'gc> {
 	pub fn new<I>(source: I, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>>
 	where
 		I: IntoIterator<Item = Value<'gc>>,
-		I::IntoIter: ExactSizeIterator,
+		I::IntoIter: ExactSizeIterator + TrustedLen,
 	{
 		let source = source.into_iter();
 		#[cfg(feature = "compliance")]
@@ -183,9 +183,25 @@ impl<'gc> List<'gc> {
 	pub fn new_unvalidated<I>(source: I, gc: &'gc Gc) -> GcRoot<'gc, Self>
 	where
 		I: IntoIterator<Item = Value<'gc>>,
-		I::IntoIter: ExactSizeIterator,
+		I::IntoIter: ExactSizeIterator + TrustedLen,
 	{
 		let source = source.into_iter();
+
+		// // `exact_size_is_empty` isn't stable
+		// if source.len() == 0 {
+		// 	return GcRoot::new_unchecked(Self::default());
+		// }
+
+		// debug_assert!(source.len() <= MAX_EMBEDDED_LENGTH);
+		// let inner = Self::allocate((source.len() as u8) << SIZE_MASK_SHIFT, gc);
+
+		// unsafe {
+		// 	(&raw mut (*inner).kind.embedded)
+		// 		.cast::<Value<'gc>>()
+		// 		.copy_from_nonoverlapping(source.as_ptr(), source.len());
+		// }
+
+		// GcRoot::new(&Self(inner), gc)
 
 		match source.len() {
 			0 => GcRoot::new_unchecked(Self::default()),
@@ -330,12 +346,16 @@ impl<'gc> List<'gc> {
 	}
 
 	pub fn head(&self, gc: &'gc Gc) -> crate::Result<Value<'gc>> {
-		self.into_iter().next().ok_or(crate::Error::DomainError("empty string for head"))
+		self.into_iter().next().ok_or(crate::Error::DomainError("empty list for head"))
+	}
+
+	pub fn get(&self, index: usize) -> Option<Value<'gc>> {
+		self.into_iter().nth(index)
 	}
 
 	pub fn tail(&self, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>> {
 		let rest =
-			self.__as_slice().get(1..).ok_or(crate::Error::DomainError("empty string for head"))?;
+			self.__as_slice().get(1..).ok_or(crate::Error::DomainError("empty list for head"))?;
 		Ok(Self::from_slice_unvalidated(rest, gc))
 	}
 

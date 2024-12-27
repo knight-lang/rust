@@ -670,7 +670,7 @@ impl<'gc> Value<'gc> {
 		}
 
 		if let Some(list) = self.as_list() {
-			target.write(list.head(env.gc())?);
+			target.write(list.get(0).ok_or(crate::Error::DomainError("empty list for head"))?);
 			return Ok(());
 		}
 
