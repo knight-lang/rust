@@ -34,7 +34,7 @@ pub(crate) mod consts {
 /// Represents the ability to be converted to a [`List`].
 pub trait ToList<'gc> {
 	/// Converts `self` to a [`List`].
-	fn to_list(&self, env: &mut crate::Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>>;
+	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>>;
 }
 
 #[repr(C)]

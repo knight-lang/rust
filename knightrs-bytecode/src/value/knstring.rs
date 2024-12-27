@@ -23,10 +23,7 @@ pub struct KnString<'gc>(*const Inner, PhantomData<&'gc ()>);
 /// Represents the ability to be converted to a [`KnString`].
 pub trait ToKnString<'gc> {
 	/// Converts `self` to a [`KnString`].
-	fn to_knstring(
-		&self,
-		env: &mut crate::Environment<'gc>,
-	) -> crate::Result<GcRoot<'gc, KnString<'gc>>>;
+	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>>;
 }
 
 pub(crate) mod consts {
