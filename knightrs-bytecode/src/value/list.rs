@@ -57,6 +57,7 @@ unsafe impl Send for Inner<'_> {}
 unsafe impl Sync for Inner<'_> {}
 
 const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;
+// const IS_CONCAT_FLAG: u8 = gc::FLAG_CUSTOM_1;
 const SIZE_MASK_FLAG: u8 = gc::FLAG_CUSTOM_2 | gc::FLAG_CUSTOM_3;
 const SIZE_MASK_SHIFT: u8 = 6;
 const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
@@ -98,15 +99,35 @@ impl Default for List<'_> {
 impl Eq for List<'_> {}
 impl PartialEq for List<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
-		self.__as_slice() == rhs.__as_slice()
+		if self.0 == rhs.0 {
+			return true;
+		}
+
+		if self.len() != rhs.len() {
+			return false;
+		}
+
+		self.iter().zip(rhs.iter()).all(|(left, right)| left == right)
 	}
 }
 
 impl PartialEq<[Value<'_>]> for List<'_> {
 	fn eq(&self, rhs: &[Value<'_>]) -> bool {
-		self.__as_slice() == rhs
+		self.iter().zip(rhs).all(|(left, right)| left == *right)
 	}
 }
+
+// same as `std::iter::TrustedLen` but it's stable
+// pub unsafe trait TrustedLen: Iterator {}
+// impl std::iter::ExactSizeIterator for Iter<'_, '_> {}
+// unsafe impl<T> TrustedLen for std::slice::Iter<'_, T> {}
+// unsafe impl TrustedLen for Iter<'_, '_> {}
+// unsafe impl<A, B> TrustedLen for std::iter::Chain<A, B>
+// where
+// 	A: TrustedLen,
+// 	B: TrustedLen<Item = <A as Iterator>::Item>,
+// {
+// }
 
 impl<'gc> List<'gc> {
 	/// The maximum length a list can be when compliance checking is enabled.
@@ -145,11 +166,12 @@ impl<'gc> List<'gc> {
 		}
 	}
 
-	pub fn new(
-		source: Vec<Value<'gc>>,
-		opts: &Options,
-		gc: &'gc Gc,
-	) -> crate::Result<GcRoot<'gc, Self>> {
+	pub fn new<I>(source: I, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>>
+	where
+		I: IntoIterator<Item = Value<'gc>>,
+		I::IntoIter: ExactSizeIterator,
+	{
+		let source = source.into_iter();
 		#[cfg(feature = "compliance")]
 		if opts.compliance.check_container_length && Self::COMPLIANCE_MAX_LEN < source.len() {
 			return Err(Error::ListIsTooLarge);
@@ -158,13 +180,19 @@ impl<'gc> List<'gc> {
 		Ok(Self::new_unvalidated(source, gc))
 	}
 
-	pub fn new_unvalidated(source: Vec<Value<'gc>>, gc: &'gc Gc) -> GcRoot<'gc, Self> {
-		if source.is_empty() {
-			return GcRoot::new_unchecked(Self::default());
-		}
+	pub fn new_unvalidated<I>(source: I, gc: &'gc Gc) -> GcRoot<'gc, Self>
+	where
+		I: IntoIterator<Item = Value<'gc>>,
+		I::IntoIter: ExactSizeIterator,
+	{
+		let source = source.into_iter();
 
-		// We already are given an allocated pointer, might as well use `new_alloc`
-		Self::new_alloc(source, gc)
+		match source.len() {
+			0 => GcRoot::new_unchecked(Self::default()),
+			//TODO
+			1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(&source.collect::<Vec<_>>(), gc) },
+			_ => Self::new_alloc(source.collect(), gc),
+		}
 	}
 
 	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner<'gc> {
@@ -206,8 +234,8 @@ impl<'gc> List<'gc> {
 		}
 	}
 
-	pub fn iter(&self) -> impl Iterator<Item = &Value<'gc>> {
-		self.__as_slice().iter()
+	pub fn iter(&self) -> Iter<'_, 'gc> {
+		self.into_iter()
 	}
 
 	#[deprecated] // won't work with non-slice types
@@ -247,8 +275,7 @@ impl<'gc> List<'gc> {
 		let mut s = String::new();
 		let mut first = true;
 
-		let slice = self.__as_slice();
-		for element in slice {
+		for element in self {
 			if first {
 				first = false;
 			} else {
@@ -282,11 +309,7 @@ impl<'gc> List<'gc> {
 
 	pub fn concat(&self, other: &Self, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
 		// todo: use a "concat" variant
-		Self::new(
-			self.__as_slice().into_iter().chain(other.__as_slice()).cloned().collect(),
-			opts,
-			gc,
-		)
+		Self::new(self.into_iter().chain(other.into_iter()).collect::<Vec<_>>(), opts, gc)
 	}
 
 	pub fn repeat(&self, amount: usize, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
@@ -307,7 +330,7 @@ impl<'gc> List<'gc> {
 	}
 
 	pub fn head(&self, gc: &'gc Gc) -> crate::Result<Value<'gc>> {
-		self.__as_slice().get(0).copied().ok_or(crate::Error::DomainError("empty string for head"))
+		self.into_iter().next().ok_or(crate::Error::DomainError("empty string for head"))
 	}
 
 	pub fn tail(&self, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>> {
@@ -337,9 +360,9 @@ impl<'gc> List<'gc> {
 	) -> crate::Result<GcRoot<'gc, Self>> {
 		// TODO: optimize this
 		let mut v = Vec::new();
-		v.extend(&self.__as_slice()[..start]);
-		v.extend(repl.__as_slice());
-		v.extend(&self.__as_slice()[start + len..]);
+		v.extend(&mut self.into_iter().take(start));
+		v.extend(repl);
+		v.extend(&mut self.into_iter().skip(start + len));
 		Self::new(v, opts, gc)
 	}
 
@@ -349,8 +372,8 @@ impl<'gc> List<'gc> {
 		function: &'static str,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Ordering> {
-		for (left, right) in self.__as_slice().iter().zip(other.iter()) {
-			let cmp = left.kn_compare(right, function, env)?;
+		for (left, right) in self.into_iter().zip(other) {
+			let cmp = left.kn_compare(&right, function, env)?;
 			if cmp != Ordering::Equal {
 				return Ok(cmp);
 			}
@@ -358,17 +381,51 @@ impl<'gc> List<'gc> {
 
 		Ok(self.len().cmp(&other.len()))
 	}
+
+	pub fn for_each<F, R>(&self, mut func: F)
+	where
+		F: FnMut(Value<'gc>),
+	{
+		for ele in self {
+			func(ele);
+		}
+	}
+}
+
+impl<'list, 'gc> IntoIterator for &'list List<'gc> {
+	type Item = Value<'gc>;
+	type IntoIter = Iter<'list, 'gc>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		// note: since we have a reference to a `List`, we know that all the values are rooted.
+		Iter(self.__as_slice().iter())
+	}
+}
+
+pub struct Iter<'list, 'gc>(std::slice::Iter<'list, Value<'gc>>);
+
+impl std::iter::ExactSizeIterator for Iter<'_, '_> {}
+impl<'list, 'gc> Iterator for Iter<'list, 'gc> {
+	type Item = Value<'gc>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.0.next().copied()
+	}
+
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		self.0.size_hint()
+	}
 }
 
 impl Debug for List<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		Debug::fmt(self.__as_slice(), f)
+		f.debug_list().entries(self).finish()
 	}
 }
 
 unsafe impl GarbageCollected for List<'_> {
 	unsafe fn mark(&self) {
-		for value in self.__as_slice() {
+		for value in self {
 			unsafe {
 				value.mark();
 			}

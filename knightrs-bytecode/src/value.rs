@@ -321,7 +321,7 @@ fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Resul
 
 	if let Some(list) = value.as_list() {
 		for ele in list.iter() {
-			forbid_block_arguments(ele, function)?;
+			forbid_block_arguments(&ele, function)?;
 		}
 	}
 
