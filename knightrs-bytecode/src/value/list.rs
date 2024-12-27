@@ -327,6 +327,22 @@ impl<'gc> List<'gc> {
 		Ok(Self::from_slice_unvalidated(rest, gc))
 	}
 
+	pub fn try_set(
+		&self,
+		start: usize,
+		len: usize,
+		repl: &Self,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
+		// TODO: optimize this
+		let mut v = Vec::new();
+		v.extend(&self.__as_slice()[..start]);
+		v.extend(repl.__as_slice());
+		v.extend(&self.__as_slice()[start + len..]);
+		Self::new(v, opts, gc)
+	}
+
 	pub fn try_cmp(
 		&self,
 		other: &Self,

@@ -784,43 +784,35 @@ impl<'gc> Value<'gc> {
 		repl: &Self,
 		target: &mut MaybeUninit<Self>,
 		env: &mut Environment<'gc>,
-	) -> crate::Result<Self> {
-		todo!()
-		/*
-				#[cfg(feature = "custom-types")]
-		if let ValueEnum::Custom(custom) = self {
-			return custom.set(start, len, replacement, env);
+	) -> crate::Result<()> {
+		#[cfg(feature = "custom-types")]
+		{
+			// if let ValueEnum::Custom(custom) = self {
+			// 	return custom.set(start, len, replacement, env);
+			// }
 		}
 
 		let start = fix_len(self, start.to_integer(env)?, "SET", env)?;
 		let len = usize::try_from(len.to_integer(env)?.inner())
 			.or(Err(Error::DomainError("negative length")))?;
 
-		match self.inner() {
-			ValueEnum::List(list) => {
-				let replacement = replacement.to_list(env)?;
-				let mut ret = Vec::new();
-
-				ret.extend(list.iter().take(start).cloned());
-				ret.extend(replacement.iter().cloned());
-				ret.extend(list.iter().skip((start) + len).cloned());
-
-				List::new(ret, env.opts()).map(Self::from)
+		if let Some(list) = self.as_list() {
+			let set = list.try_set(start, len, &*repl.to_list(env)?, env.opts(), env.gc())?;
+			unsafe {
+				set.with_inner(|inner| target.write(inner.into()));
 			}
-			ValueEnum::String(string) => {
-				let replacement = replacement.to_kstring(env)?;
-
-				// lol, todo, optimize me
-				let mut builder = String::new();
-				builder.push_str(string.get(..start).unwrap().as_str());
-				builder.push_str(&replacement.as_str());
-				builder.push_str(string.get(start + len..).unwrap().as_str());
-				Ok(KnValueString::new(builder, env.opts())?.into())
-			}
-
-			_ => return Err(Error::TypeError { type_name: self.type_name(), function: "SET" }),
+			return Ok(());
 		}
-		*/
+
+		if let Some(string) = self.as_knstring() {
+			let set = string.try_set(start, len, &*repl.to_knstring(env)?, env.opts(), env.gc())?;
+			unsafe {
+				set.with_inner(|inner| target.write(inner.into()));
+			}
+			return Ok(());
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function: "SET" })
 	}
 }
 

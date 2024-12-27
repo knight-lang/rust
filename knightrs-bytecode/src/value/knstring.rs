@@ -326,6 +326,24 @@ impl<'gc> KnString<'gc> {
 
 		Ok(Self::from_knstr(KnStr::new_unvalidated(rest), gc))
 	}
+
+	pub fn try_set(
+		&self,
+		start: usize,
+		len: usize,
+		repl: &KnStr,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'gc, Self>> {
+		// TODO: optimize this
+		let mut s = String::new();
+		let mut chars = self.as_str().chars();
+
+		s.push_str(&chars.by_ref().take(start).collect::<String>());
+		s.push_str(repl.as_str());
+		s.push_str(&chars.skip(len).collect::<String>());
+		Ok(Self::new(s, opts, gc)?)
+	}
 }
 
 impl std::ops::Deref for KnString<'_> {
