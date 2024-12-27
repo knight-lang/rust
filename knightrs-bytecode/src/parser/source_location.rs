@@ -1,4 +1,3 @@
-use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind};
 use std::fmt::{self, Display, Formatter};
 use std::path::Path;

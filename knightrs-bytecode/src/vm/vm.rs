@@ -1,14 +1,12 @@
 use crate::gc::GarbageCollected;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::mem::MaybeUninit;
 
 use super::{Opcode, RuntimeError};
 use crate::gc::{AsValueInner, GcRoot};
-use crate::parser::{SourceLocation, VariableName};
+use crate::parser::VariableName;
 use crate::program::{JumpIndex, Program};
-use crate::strings::KnStr;
-use crate::value::{Block, Integer, KnString, List, ToBoolean, ToInteger, ToKnString, Value};
+use crate::value::{Block, KnString, List, ToBoolean, ToInteger, ToKnString, Value};
 use crate::{Environment, Error};
 
 pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
@@ -193,13 +191,8 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	}
 
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
-		use std::mem::MaybeUninit;
-
-		const NULL: MaybeUninit<Value<'_>> = MaybeUninit::uninit();
-
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
-		// dbg!(self.program);
 
 		loop {
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.

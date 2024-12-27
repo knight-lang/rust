@@ -1,9 +1,8 @@
-use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::mem::{ManuallyDrop, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::value::{Value, ValueAlign};

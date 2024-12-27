@@ -3,7 +3,7 @@ use crate::gc::Gc;
 use crate::options::Options;
 use crate::parser::{ParseError, ParseErrorKind, SourceLocation, VariableName};
 use crate::strings::KnStr;
-use crate::value::{KnString, Value};
+use crate::value::Value;
 use crate::vm::Opcode;
 
 use indexmap::IndexSet;

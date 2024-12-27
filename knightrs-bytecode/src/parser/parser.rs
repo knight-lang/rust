@@ -5,14 +5,11 @@ mod parens;
 // mod variable;
 
 use super::VariableName;
-use crate::container::RefCount;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
 use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
-use crate::strings::{KnStr, StringError};
 use crate::Gc;
-use crate::{Environment, Options, Value};
-use std::fmt::{self, Display, Formatter};
-use std::path::{Path, PathBuf};
+use crate::{Environment, Options};
+use std::path::Path;
 
 pub struct Parser<'env, 'src, 'path, 'gc> {
 	env: &'env mut Environment<'gc>,

@@ -1,15 +1,12 @@
-use crate::container::RefCount;
 use crate::gc::{self, AsValueInner, GarbageCollected, Gc, GcRoot, ValueInner};
 use crate::parser::{ParseError, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::KnStr;
 use crate::value::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
 use crate::{Environment, Error, Options};
-use std::alloc::Layout;
 use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
-use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
+use std::mem::{size_of, ManuallyDrop, MaybeUninit};
 use std::slice::SliceIndex;
 use std::sync::atomic::AtomicU8;
 

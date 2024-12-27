@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![warn(unused_imports)]
 #![cfg_attr(debug_assertions, allow(deprecated))] // allow our own deprecated stuff while debugging
 #![warn(unsafe_op_in_unsafe_fn)]
 
@@ -8,9 +9,9 @@ extern crate cfg_if;
 #[macro_use]
 extern crate thiserror;
 
-#[macro_use]
 extern crate static_assertions as sa;
 
+#[allow(unused)] // TODO
 macro_rules! cfg_expr {
 	(feature = $feature:literal, $ift:expr, $iff:expr) => {{
 		#[cfg(feature = $feature)]
@@ -27,6 +28,7 @@ macro_rules! cfg_expr {
 mod container;
 pub mod env;
 pub mod error;
+// #[warn(unused)]
 pub mod gc;
 pub mod options;
 pub mod parser;

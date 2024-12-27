@@ -4,11 +4,10 @@ use crate::program::Compilable;
 use crate::program::Compiler;
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
-use std::alloc::Layout;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::isize;
 use std::marker::PhantomData;
-use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
+use std::mem::{align_of, size_of, ManuallyDrop, MaybeUninit};
 use std::slice::SliceIndex;
 use std::sync::atomic::{AtomicU8, Ordering};
 

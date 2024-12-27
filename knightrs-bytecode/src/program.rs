@@ -1,14 +1,11 @@
 mod compiler;
 
-use crate::parser::{ParseErrorKind, SourceLocation, VariableName};
-use crate::strings::KnStr;
-use crate::value::{KnString, Value};
-use crate::vm::{Callsite, Opcode};
-use crate::Options;
+use crate::parser::{SourceLocation, VariableName};
+use crate::value::Value;
+use crate::vm::Opcode;
 pub use compiler::{Compilable, Compiler};
 use indexmap::IndexSet;
 use std::fmt::{self, Debug, Formatter};
-use std::mem::MaybeUninit;
 
 // todo: u32 vs u64? i did u64 bx `0x00ff_ffff` isn't a lot of offsets.
 type InstructionAndOffset = i64;

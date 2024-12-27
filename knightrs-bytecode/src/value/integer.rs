@@ -3,7 +3,7 @@ use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::strings::{Character, Encoding};
 use crate::value::{Boolean, KnString, List, NamedType, ToBoolean, ToKnString, ToList};
-use crate::{Environment, Error, Options};
+use crate::{Environment, Options};
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// Integer is the integer type within Knight programs

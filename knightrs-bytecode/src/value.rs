@@ -3,7 +3,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
-use crate::gc::{GarbageCollected, Gc, GcRoot, ValueInner};
+use crate::gc::{GarbageCollected, GcRoot, ValueInner};
 use crate::strings::KnStr;
 use crate::{program::JumpIndex, vm::Vm, Environment, Error};
 

@@ -1,7 +1,6 @@
 use crate::gc::GcRoot;
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{ParseError, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
-use crate::strings::KnStr;
 use crate::value::{Integer, KnString, List, NamedType, ToInteger, ToKnString, ToList};
 use crate::{Environment, Options};
 

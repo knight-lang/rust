@@ -1,6 +1,4 @@
 use crate::options::Options;
-use crate::value::{Integer, KnString, List, ToList};
-use crate::{Environment, Value};
 use std::fmt::{self, Debug, Display, Formatter};
 
 /// KnStr represents a slice of a Knight string, akin to rust's `str`

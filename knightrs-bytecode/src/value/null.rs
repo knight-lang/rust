@@ -1,5 +1,5 @@
 use crate::gc::GcRoot;
-use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser};
+use crate::parser::{ParseError, Parseable, Parser};
 use crate::program::{Compilable, Compiler};
 use crate::value::{
 	Boolean, Integer, KnString, List, NamedType, ToBoolean, ToInteger, ToKnString, ToList,

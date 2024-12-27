@@ -4,11 +4,13 @@ use crate::strings::KnStr;
 
 cfg_if! {
 if #[cfg(feature = "multithreaded")] {
+	#[allow(unused)]
 	pub trait MaybeSendSync: Send + Sync {}
 	impl<T: Send + Sync> MaybeSendSync for T {}
 	pub type RefCount<T> = std::sync::Arc<T>;
 
 } else {
+	#[allow(unused)]
 	pub trait MaybeSendSync {}
 	impl<T> MaybeSendSync for T {}
 	pub type RefCount<T> = std::rc::Rc<T>;
@@ -98,6 +100,7 @@ impl<T: Hash + ?Sized> Hash for RcOrRef<'_, T> {
 	}
 }
 
+/*
 impl<'a, T> RcOrRef<'a, T> {
 	pub fn into_owned(self) -> RcOrRef<'static, T>
 	where
@@ -108,7 +111,7 @@ impl<'a, T> RcOrRef<'a, T> {
 			RcOrRefInner::Rc(rc) => rc.clone().into(),
 		}
 	}
-}
+}*/
 
 impl RcOrRef<'_, KnStr> {
 	pub fn into_owned_a(self) -> RcOrRef<'static, KnStr> {

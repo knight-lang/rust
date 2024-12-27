@@ -1,6 +1,4 @@
 use super::Callsite;
-use crate::parser::SourceLocation;
-use crate::parser::VariableName;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone)]
