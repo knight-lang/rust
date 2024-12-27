@@ -130,7 +130,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		#[cfg(debug_assertions)]
 		let stack_len = self.stack.len();
 
-		// Actually call the functoin
+		// Actually call the function
 		self.current_index = block.inner().0;
 		let result = self.run_inner();
 
@@ -199,12 +199,13 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
+		// dbg!(self.program);
 
 		loop {
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
 			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
-			self.current_index += 1;
 			// println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
+			self.current_index += 1;
 
 			// Read arguments in
 			unsafe {
@@ -362,18 +363,21 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					}
 				}
 
-				Opcode::Call => match unsafe { arg![0] } {
+				Opcode::Call => {
+					let arg = unsafe { arg![0] };
+
 					#[cfg(not(feature = "stacktrace"))]
-					Value::Block(block) => {
+					if let Some(block) = arg.as_block() {
 						likely_stable::likely(true);
 						jumpstack.push(self.current_index);
+						// have to use `- 1` b/c we increment
 						unsafe { self.jump_to(block.inner().0) };
+						continue;
 					}
-					other => {
-						let value = other.kn_call(self)?;
-						self.stack.push(value);
-					}
-				},
+
+					let value = arg.kn_call(self)?;
+					self.stack.push(value);
+				}
 
 				Opcode::Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;

@@ -97,7 +97,8 @@ impl Debug for Value<'_> {
 				}
 			}
 			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
-			_ => todo!(),
+			Tag::Block => Debug::fmt(&self.as_block().unwrap(), f),
+			tag => todo!("tag: {tag:?}"),
 		}
 	}
 }
@@ -278,7 +279,7 @@ impl<'gc> Value<'gc> {
 	pub fn as_block(self) -> Option<Block> {
 		let (repr, tag) = self.parts_shift();
 
-		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(tag as _)))
+		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(repr as _)))
 	}
 
 	pub fn as_list(self) -> Option<List<'gc>> {
@@ -361,10 +362,26 @@ impl<'gc> Value<'gc> {
 	pub fn kn_compare(
 		&self,
 		rhs: &Self,
-		op: &str,
+		function: &'static str,
 		env: &mut Environment<'gc>,
 	) -> crate::Result<Ordering> {
-		todo!()
+		if let Some(integer) = self.as_integer() {
+			return Ok(integer.cmp(&rhs.to_integer(env)?));
+		}
+
+		if let Some(string) = self.as_knstring() {
+			return Ok(string.cmp(&rhs.to_knstring(env)?));
+		}
+
+		if let Some(boolean) = self.as_boolean() {
+			return Ok(boolean.cmp(&rhs.to_boolean(env)?));
+		}
+
+		if let Some(list) = self.as_list() {
+			return list.try_cmp(&*rhs.to_list(env)?, function, env);
+		}
+
+		Err(Error::TypeError { type_name: self.type_name(), function })
 	}
 
 	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {

@@ -6,6 +6,7 @@ use crate::strings::KnStr;
 use crate::value::{Boolean, Integer, KnString, NamedType, ToBoolean, ToInteger, ToKnString};
 use crate::{Environment, Error, Options};
 use std::alloc::Layout;
+use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
 use std::mem::{align_of, size_of, transmute, ManuallyDrop, MaybeUninit};
@@ -324,6 +325,22 @@ impl<'gc> List<'gc> {
 			.get(index)
 			.ok_or(crate::Error::DomainError("invalid args for get for list"))?;
 		Ok(Self::from_slice_unvalidated(rest, gc))
+	}
+
+	pub fn try_cmp(
+		&self,
+		other: &Self,
+		function: &'static str,
+		env: &mut Environment<'gc>,
+	) -> crate::Result<Ordering> {
+		for (left, right) in self.__as_slice().iter().zip(other.iter()) {
+			let cmp = left.kn_compare(right, function, env)?;
+			if cmp != Ordering::Equal {
+				return Ok(cmp);
+			}
+		}
+
+		Ok(self.len().cmp(&other.len()))
 	}
 }
 
