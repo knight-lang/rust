@@ -203,29 +203,15 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 	#[no_mangle]
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
-		unsafe {
-			// std::arch::asm!("nop");
-		}
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
 
 		loop {
-			unsafe {
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-			}
-
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
 			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
 			// println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
 			// println!("{opcode:?}");
 			self.current_index += 1;
-
-			unsafe {
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-			}
 
 			// Read arguments in
 			unsafe {
@@ -237,22 +223,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				self.stack.set_len(self.stack.len() - opcode.arity());
 			}
 
-			unsafe {
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-			}
-
 			let args = self.stack.spare_capacity_mut();
-
-			unsafe {
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-				// std::arch::asm!("nop");
-			}
 
 			// Get the last argument on the stack. Requires an `unsafe` block in case the stack is
 			// empty for some reason.
