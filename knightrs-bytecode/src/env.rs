@@ -58,7 +58,10 @@ impl<'gc> Environment<'gc> {
 		std::io::stdout()
 	}
 
-	pub fn quit(&mut self, status: i32) -> crate::Result<std::convert::Infallible> {
+	#[inline(never)] // Don't inline the big function, as it always exits the program.
+	pub fn quit(&mut self, status: Integer) -> crate::Result<std::convert::Infallible> {
+		let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
+
 		#[cfg(feature = "compliance")]
 		if self.opts.compliance.check_quit_status_codes && !(0..=127).contains(&status) {
 			// TODO: Mauybe have a custom error for this?

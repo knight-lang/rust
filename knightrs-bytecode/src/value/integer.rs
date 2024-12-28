@@ -166,7 +166,7 @@ impl Integer {
 			return Self(i32::MAX as IntegerInner);
 		}
 
-		Self(IntegerInner::MAX >> super::TAG_SHIFT)
+		Self(IntegerInner::MAX >> 1)
 	}
 
 	/// Returns the minimum value for [`Integer`]s given `opts`.

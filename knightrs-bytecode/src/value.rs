@@ -49,7 +49,7 @@ pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 #[derive(Clone, Copy)]
 union Inner {
 	ptr: *const ValueInner,
-	val: u64,
+	val: ValueRepr,
 }
 
 #[repr(align(16))]
@@ -60,22 +60,16 @@ sa::assert_eq_size!(ValueAlign, ());
 pub const ALLOC_VALUE_SIZE_IN_BYTES: usize = 32;
 type ValueRepr = u64;
 
-const TAG_SHIFT: ValueRepr = 4;
-const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
-const TAG_MASK2: ValueRepr = 0b111;
+const REPR_NULL: ValueRepr = 0b0000_000;
+const REPR_FALSE: ValueRepr = 0b0000_010;
+const REPR_TRUE: ValueRepr = 0b0001_010;
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// #[repr(u8)]
-// #[rustfmt::skip]
-// enum Tag {
-// 	// TOPMOST BIT IS Whether it's allocated
-// 	Alloc          = 0b000,
-// 	Integer        = 0b001,
-// 	Block          = 0b010,
-// 	Const          = 0b110,
-// 	#[cfg(feature = "floats")]
-// 	Float          = 0b100,
-// }
+const TAG_BLOCK: ValueRepr = 0b100;
+const TAG_MASK: ValueRepr = 0b111;
+const TAG_SHIFT: ValueRepr = 3;
+const TAG_INT: ValueRepr = 1;
+const TAG_MASK_INT: ValueRepr = 1;
+const TAG_INT_SHIFT: ValueRepr = 1;
 
 impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -112,8 +106,8 @@ impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {
 		let inner = int.inner();
-		debug_assert_eq!((inner << 1) >> 1, inner);
-		Self(Inner { val: ((inner as ValueRepr) << 1) | 1 }, PhantomData)
+		debug_assert_eq!((inner << TAG_INT_SHIFT) >> TAG_INT_SHIFT, inner);
+		unsafe { Self::from_val(((inner as ValueRepr) << TAG_INT_SHIFT) | TAG_INT) }
 	}
 }
 
@@ -132,8 +126,8 @@ impl From<Block> for Value<'_> {
 	#[inline]
 	fn from(block: Block) -> Self {
 		let repr = block.inner().0 as u64;
-		debug_assert!((repr << 3) >> 3 == repr, "repr has top 3 bits set");
-		Self(Inner { val: (repr << 3) | 0b100 }, PhantomData)
+		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
+		unsafe { Self::from_val((repr << TAG_SHIFT) | TAG_BLOCK) }
 	}
 }
 
@@ -176,76 +170,55 @@ impl NamedType for Value<'_> {
 }
 
 impl<'gc> Value<'gc> {
-	pub const NULL: Self = Self(Inner { val: 0b_0000_000 }, PhantomData);
-	pub const FALSE: Self = Self(Inner { val: 0b_0000_010 }, PhantomData);
-	pub const TRUE: Self = Self(Inner { val: 0b_0001_010 }, PhantomData);
-
-	// SAFETY: bytes is a valid representation
-	// #[inline]
-	// const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
-	// 	debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
-	// 	Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
-	// }
-
-	// // SAFETY: bytes is a valid representation
-	// #[inline]
-	// const unsafe fn from_raw_shift_no_debug(repr: ValueRepr, tag: Tag) -> Self {
-	// 	Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
-	// }
+	pub const NULL: Self = unsafe { Self::from_val(REPR_NULL) };
+	pub const FALSE: Self = unsafe { Self::from_val(REPR_FALSE) };
+	pub const TRUE: Self = unsafe { Self::from_val(REPR_TRUE) };
 
 	// SAFETY: bytes is a valid representation
 	#[inline]
+	const unsafe fn from_val(val: ValueRepr) -> Self {
+		debug_assert!(val == REPR_NULL || val & TAG_MASK != 0, "repr has tag bits set");
+		Self(Inner { val }, PhantomData)
+	}
+
+	#[inline]
 	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
-		debug_assert!((ptr as usize) & (TAG_MASK as usize) == 0, "repr has tag bits set");
+		debug_assert_eq!((ptr as ValueRepr) & TAG_MASK, 0, "repr has tag bits set");
 		Self(Inner { ptr }, PhantomData)
 	}
 
-	#[inline]
-	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
-		debug_assert!(self.__is_alloc());
-		unsafe { self.0.ptr }
-	}
-
-	// const fn tag(self) -> Tag {
-	// 	let mask = unsafe { self.0.val & TAG_MASK } as u8;
-	// 	debug_assert!(
-	// 		mask == Tag::Alloc as _
-	// 			|| mask == Tag::Integer as _
-	// 			|| mask == Tag::Block as _
-	// 			|| mask == Tag::Const as _
-	// 	);
-	// 	unsafe { std::mem::transmute::<u8, Tag>(mask) }
-	// }
-
-	// fn is_alloc(self) -> bool {
-	// 	self.tag() == Tag::Alloc
-	// }
-
 	fn is_alloc_or_null(self) -> bool {
-		self.val() & TAG_MASK2 == 0
+		self.val() & TAG_MASK == 0
 	}
 
-	pub(crate) fn __is_alloc(self) -> bool {
+	fn is_alloc(self) -> bool {
 		self.is_alloc_or_null() && !self.is_null()
 	}
 
-	// const fn parts_shift(self) -> (ValueRepr, Tag) {
-	// 	(unsafe { self.0.val } >> TAG_SHIFT, self.tag())
-	// }
+	pub(crate) fn __is_alloc(self) -> bool {
+		self.is_alloc()
+	}
+	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
+		debug_assert!(self.is_alloc());
+		unsafe { self.0.ptr }
+	}
 
+	#[inline]
 	pub const fn is_null(self) -> bool {
 		self.val() == Self::NULL.val()
 	}
 
+	#[inline]
 	pub const fn as_integer(self) -> Option<Integer> {
 		// Can't use `==` b/c the PartialEq impl isn't `const`.
-		if self.val() & 1 == 1 {
-			Some(Integer::new_unvalidated_unchecked(self.val() as integer::IntegerInner >> 1))
-		} else {
-			None
+		if self.val() & TAG_MASK_INT != TAG_INT {
+			return None;
 		}
+
+		Some(Integer::new_unvalidated_unchecked(self.val() as integer::IntegerInner >> TAG_INT_SHIFT))
 	}
 
+	#[inline]
 	pub const fn as_boolean(self) -> Option<Boolean> {
 		if self.val() == Self::TRUE.val() {
 			Some(true)
@@ -256,24 +229,27 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
+	#[inline]
 	pub fn as_block(self) -> Option<Block> {
-		if self.val() & 0b111 == 0b100 {
-			Some(Block::new(JumpIndex(self.val() as usize >> 3)))
+		if self.val() & TAG_MASK == TAG_BLOCK {
+			Some(Block::new(JumpIndex(self.val() as usize >> TAG_SHIFT)))
 		} else {
 			None
 		}
 	}
 
+	#[inline]
 	pub fn as_list(self) -> Option<List<'gc>> {
-		if self.__is_alloc() {
+		if self.is_alloc() {
 			unsafe { ValueInner::as_list(self.0.ptr) }
 		} else {
 			None
 		}
 	}
 
+	#[inline]
 	pub fn as_knstring(self) -> Option<KnString<'gc>> {
-		if self.__is_alloc() {
+		if self.is_alloc() {
 			unsafe { ValueInner::as_knstring(self.0.ptr) }
 		} else {
 			None
@@ -283,13 +259,13 @@ impl<'gc> Value<'gc> {
 
 unsafe impl GarbageCollected for Value<'_> {
 	unsafe fn mark(&self) {
-		if self.__is_alloc() {
+		if self.is_alloc() {
 			unsafe { ValueInner::mark(self.0.ptr) }
 		}
 	}
 
 	unsafe fn deallocate(self) {
-		if self.__is_alloc() {
+		if self.is_alloc() {
 			unsafe { ValueInner::deallocate(self.0.ptr, true) }
 		}
 	}
@@ -388,7 +364,6 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
-	// SAFETY: `target` has to be something which is garbage collected
 	// (Note: current impl doesn't _actually_ require this, but this is future-compatibility)
 	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
 		if let Some(string) = self.as_knstring() {
@@ -1021,7 +996,7 @@ impl PartialEq for Value<'_> {
 			return true;
 		}
 
-		if !self.__is_alloc() || !rhs.__is_alloc() {
+		if !self.is_alloc() || !rhs.is_alloc() {
 			return false;
 		}
 

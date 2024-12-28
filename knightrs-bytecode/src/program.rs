@@ -138,9 +138,9 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 	///
 	/// # Safety
 	/// `offset` must be a valid offset into the list of constants.
-	pub unsafe fn constant_at(&self, offset: usize) -> &Value<'gc> {
+	pub unsafe fn constant_at(&self, offset: usize) -> Value<'gc> {
 		debug_assert!(offset < self.constants.len());
-		unsafe { self.constants.get_unchecked(offset) }
+		unsafe { *self.constants.get_unchecked(offset) }
 	}
 
 	/// The number of variables that're defined in this program.

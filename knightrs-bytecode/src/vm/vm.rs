@@ -14,7 +14,11 @@ pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
 	env: &'env mut Environment<'gc>,
 	current_index: usize,
 	stack: Vec<Value<'gc>>,
-	variables: Vec<Option<Value<'gc>>>, // It's a vec for extensions; without extensions this could be a box, but i see no need to
+
+	// #[cfg(any(feature = "extensions", feature = "compliance"))]
+	// variables: Box<[Value<'gc>]>
+	// #[cfg(any(feature = "extensions", feature = "compliance"))]
+	variables: Box<[Option<Value<'gc>>]>,
 
 	#[cfg(feature = "stacktrace")]
 	callstack: Vec<usize>,
@@ -186,10 +190,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		None
 	}
 
-	fn push_gcroot<T: AsValueInner + Into<Value<'gc>>>(&mut self, root: GcRoot<'gc, T>) {
-		unsafe { root.with_inner(|inner| self.stack.push(inner.into())) }
-	}
-
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
@@ -217,7 +217,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			macro_rules! last {
 				() => {{
 					debug_assert_ne!(self.stack.len(), 0);
-					self.stack.last().unwrap_unchecked()
+					*self.stack.last().unwrap_unchecked()
 				}};
 			}
 
@@ -253,6 +253,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			macro_rules! push_no_resize {
 				($value:expr) => {
 					args.get_unchecked_mut(0).write($value);
+					debug_assert_ne!(self.stack.len(), self.stack.capacity());
 					self.stack.set_len(self.stack.len() + 1);
 				};
 			}
@@ -261,10 +262,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			// else memory issues will crop up (such as memory leaks or double reads).
 			match opcode {
 				// Builtins
-				Opcode::PushConstant => {
-					// No need for a "target", as `self.program` is always GC'd.
-					self.stack.push(unsafe { self.program.constant_at(offset) }.clone())
-				}
+
+				// No need for a "target", as `self.program` is always GC'd.
+				Opcode::PushConstant => self.stack.push(unsafe { self.program.constant_at(offset) }),
+
 				// SAFETY: program is well-defined, so jumps are always correct
 				Opcode::Jump => unsafe { self.jump_to(offset) },
 				Opcode::JumpIfTrue => {
@@ -289,7 +290,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::SetVar => {
 					// SAFETY: construction of `Program`s guarantee that `SetVar` always has at least one
 					// value on the stack (the value to assign)
-					let value = unsafe { last!() }.clone();
+					let value = unsafe { last!() };
 
 					// SAFETY: construction of `Program`s guarantees that `SetVar` will have an offset,
 					// and that it's a a valid variable index.
@@ -322,7 +323,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Prompt => {
 					// Can't use `MaybeUninit` in case we're at the end of the stack.
 					if let Some(prompted) = self.env.prompt()? {
-						self.push_gcroot(prompted);
+						unsafe { prompted.with_inner(|inner| self.stack.push(inner.into())) }
 					} else {
 						self.stack.push(Value::NULL);
 					}
@@ -330,7 +331,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				// Can't use `MaybeUninit` in case we're at the end of the stack.
 				Opcode::Random => self.stack.push(self.env.random()?.into()),
 
-				Opcode::Dup => self.stack.push(unsafe { last!() }.clone()),
+				Opcode::Dup => self.stack.push(unsafe { last!() }),
 
 				// SAFETY: `function.rs` special-cases `DUMP` to ensure it has something, even tho
 				// its arity is 0
@@ -348,10 +349,14 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						unsafe { self.jump_to(ip) };
 					} else {
 						// There's nowhere to jump to, return the block of code.
-						return Ok(self.stack.pop().unwrap_or_else(|| {
-							#[cfg(debug_assertions)]
-							unreachable!("<bug: pop when nothing left>");
-							unsafe { std::hint::unreachable_unchecked() }
+						debug_assert_eq!(
+							self.stack.len(),
+							1,
+							"should only ever have one value when returning"
+						);
+
+						return Ok(self.stack.pop().unwrap_or_else(|| unsafe {
+							unreachable_unchecked!("<bug: pop when nothing left>");
 						}));
 					}
 				}
@@ -369,14 +374,14 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					}
 
 					let value = arg.kn_call(self)?;
-					self.stack.push(value);
+					self.stack.push(value); // TODO: can we use `push_no_resize`?
 				}
 
 				Opcode::Quit => {
 					let status = unsafe { arg![0] }.to_integer(self.env)?;
-					let status = i32::try_from(status.inner()).expect("todo: out of bounds for i32");
 					self.env.quit(status)?;
 				}
+
 				Opcode::Output => {
 					use std::io::Write;
 					let kstring = unsafe { arg![0] }.to_knstring(self.env)?;
@@ -393,7 +398,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					let _ = output.flush(); // explicitly ignore errors with flushing
 
 					// SAFETY: `Output` is guaranteed to be given an argument. We've also already
-					// read from it.z
+					// read from it.
 					unsafe {
 						push_no_resize!(Value::NULL);
 					}
@@ -418,8 +423,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					self.stack.set_len(self.stack.len() + 1);
 				},
 				Opcode::Box => {
-					let boxed = List::boxed(unsafe { arg![0] }.clone(), self.env.gc());
-					self.push_gcroot(boxed);
+					let boxed = List::boxed(unsafe { arg![0] }, self.env.gc());
+
+					unsafe {
+						boxed.with_inner(|inner| end!().write(inner.into()));
+						self.stack.set_len(self.stack.len() + 1);
+					}
 				}
 				Opcode::Head => unsafe {
 					arg![0].kn_head(end!(), self.env)?;
