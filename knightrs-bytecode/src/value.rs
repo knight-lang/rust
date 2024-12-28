@@ -33,18 +33,6 @@ pub trait NamedType {
 Representation:
 
 0000 ... 0000 000 -- Null
-0000 ... 0001 000 -- False
-0000 ... 0010 000 -- True
-XXXX ... XXXX 001 -- Integer
-XXXX ... XXXX 010 -- Block
-XXXX ... XXXX 100 -- Float32
-XXXX ... XXXX 000 -- allocated, nonzero `X`
-*/
-
-/*
-Representation (v2):
-
-0000 ... 0000 000 -- Null
 XXXX ... XXXX 000 -- "allocated", nonzero `X`
 XXXX ... XXXX XX1 -- Integer
 0000 ... 0000 010 -- False
@@ -76,18 +64,18 @@ const TAG_SHIFT: ValueRepr = 4;
 const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
 const TAG_MASK2: ValueRepr = 0b111;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-#[rustfmt::skip]
-enum Tag {
-	// TOPMOST BIT IS Whether it's allocated
-	Alloc          = 0b000,
-	Integer        = 0b001,
-	Block          = 0b010,
-	Const          = 0b110,
-	#[cfg(feature = "floats")]
-	Float          = 0b100,
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// #[repr(u8)]
+// #[rustfmt::skip]
+// enum Tag {
+// 	// TOPMOST BIT IS Whether it's allocated
+// 	Alloc          = 0b000,
+// 	Integer        = 0b001,
+// 	Block          = 0b010,
+// 	Const          = 0b110,
+// 	#[cfg(feature = "floats")]
+// 	Float          = 0b100,
+// }
 
 impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -145,7 +133,7 @@ impl From<Block> for Value<'_> {
 	fn from(block: Block) -> Self {
 		let repr = block.inner().0 as u64;
 		debug_assert!((repr << 3) >> 3 == repr, "repr has top 3 bits set");
-		Self(Inner { val: (repr << 3) | 0b010 }, PhantomData)
+		Self(Inner { val: (repr << 3) | 0b100 }, PhantomData)
 	}
 }
 
@@ -214,73 +202,70 @@ impl<'gc> Value<'gc> {
 
 	#[inline]
 	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
-		debug_assert!(self.is_alloc());
+		debug_assert!(self.__is_alloc());
 		unsafe { self.0.ptr }
 	}
 
-	const fn tag(self) -> Tag {
-		let mask = unsafe { self.0.val & TAG_MASK } as u8;
-		debug_assert!(
-			mask == Tag::Alloc as _
-				|| mask == Tag::Integer as _
-				|| mask == Tag::Block as _
-				|| mask == Tag::Const as _
-		);
-		unsafe { std::mem::transmute::<u8, Tag>(mask) }
-	}
+	// const fn tag(self) -> Tag {
+	// 	let mask = unsafe { self.0.val & TAG_MASK } as u8;
+	// 	debug_assert!(
+	// 		mask == Tag::Alloc as _
+	// 			|| mask == Tag::Integer as _
+	// 			|| mask == Tag::Block as _
+	// 			|| mask == Tag::Const as _
+	// 	);
+	// 	unsafe { std::mem::transmute::<u8, Tag>(mask) }
+	// }
 
-	fn is_alloc(self) -> bool {
-		self.tag() == Tag::Alloc
-	}
+	// fn is_alloc(self) -> bool {
+	// 	self.tag() == Tag::Alloc
+	// }
 
 	fn is_alloc_or_null(self) -> bool {
 		self.val() & TAG_MASK2 == 0
 	}
 
 	pub(crate) fn __is_alloc(self) -> bool {
-		self.tag() == Tag::Alloc
+		self.is_alloc_or_null() && !self.is_null()
 	}
 
-	const fn parts_shift(self) -> (ValueRepr, Tag) {
-		(unsafe { self.0.val } >> TAG_SHIFT, self.tag())
-	}
+	// const fn parts_shift(self) -> (ValueRepr, Tag) {
+	// 	(unsafe { self.0.val } >> TAG_SHIFT, self.tag())
+	// }
 
 	pub const fn is_null(self) -> bool {
-		unsafe { self.0.val == Self::NULL.0.val }
+		self.val() == Self::NULL.val()
 	}
 
 	pub const fn as_integer(self) -> Option<Integer> {
 		// Can't use `==` b/c the PartialEq impl isn't `const`.
-		if !matches!(self.tag(), Tag::Integer) {
-			return None;
+		if self.val() & 1 == 1 {
+			Some(Integer::new_unvalidated_unchecked(self.val() as integer::IntegerInner >> 1))
+		} else {
+			None
 		}
-
-		// Can't use `parts_shift()` because it doesnt do sign-extending.
-		Some(Integer::new_unvalidated_unchecked(
-			unsafe { self.0.val as crate::value::integer::IntegerInner } >> TAG_SHIFT,
-		))
 	}
 
 	pub const fn as_boolean(self) -> Option<Boolean> {
-		unsafe {
-			if self.0.val == Self::TRUE.0.val {
-				Some(true)
-			} else if self.0.val == Self::FALSE.0.val {
-				Some(false)
-			} else {
-				None
-			}
+		if self.val() == Self::TRUE.val() {
+			Some(true)
+		} else if self.val() == Self::FALSE.val() {
+			Some(false)
+		} else {
+			None
 		}
 	}
 
 	pub fn as_block(self) -> Option<Block> {
-		let (repr, tag) = self.parts_shift();
-
-		matches!(tag, Tag::Block).then(|| Block::new(JumpIndex(repr as _)))
+		if self.val() & 0b111 == 0b100 {
+			Some(Block::new(JumpIndex(self.val() as usize >> 3)))
+		} else {
+			None
+		}
 	}
 
 	pub fn as_list(self) -> Option<List<'gc>> {
-		if self.is_alloc() {
+		if self.__is_alloc() {
 			unsafe { ValueInner::as_list(self.0.ptr) }
 		} else {
 			None
@@ -288,7 +273,7 @@ impl<'gc> Value<'gc> {
 	}
 
 	pub fn as_knstring(self) -> Option<KnString<'gc>> {
-		if self.is_alloc() {
+		if self.__is_alloc() {
 			unsafe { ValueInner::as_knstring(self.0.ptr) }
 		} else {
 			None
@@ -298,13 +283,13 @@ impl<'gc> Value<'gc> {
 
 unsafe impl GarbageCollected for Value<'_> {
 	unsafe fn mark(&self) {
-		if self.is_alloc() {
+		if self.__is_alloc() {
 			unsafe { ValueInner::mark(self.0.ptr) }
 		}
 	}
 
 	unsafe fn deallocate(self) {
-		if self.is_alloc() {
+		if self.__is_alloc() {
 			unsafe { ValueInner::deallocate(self.0.ptr, true) }
 		}
 	}
@@ -817,7 +802,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "SET" })
 	}
 
-	fn val(&self) -> u64 {
+	const fn val(&self) -> u64 {
 		// safety: all permutations are valid `u64`s
 		unsafe { self.0.val }
 	}
@@ -933,11 +918,11 @@ impl ToBoolean for Value<'_> {
 		}
 
 		if let Some(list) = self.as_list() {
-			return Ok(list.is_empty());
+			return list.to_boolean(env);
 		}
 
 		if let Some(string) = self.as_knstring() {
-			return Ok(string.is_empty());
+			return string.to_boolean(env);
 		}
 
 		// SAFETY: we've already covered every single type, so there's no reason this should ever
@@ -1032,11 +1017,11 @@ impl<'gc> ToList<'gc> for Value<'gc> {
 
 impl PartialEq for Value<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
-		if unsafe { self.0.val == rhs.0.val } {
+		if self.val() == rhs.val() {
 			return true;
 		}
 
-		if !self.is_alloc() || !rhs.is_alloc() {
+		if !self.__is_alloc() || !rhs.__is_alloc() {
 			return false;
 		}
 
