@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use super::{Opcode, RuntimeError};
-use crate::gc::{AsValueInner, GcRoot};
 use crate::parser::VariableName;
 use crate::program::{JumpIndex, Program};
 use crate::value::{Block, KnString, List, ToBoolean, ToInteger, ToKnString, Value};
@@ -15,10 +14,11 @@ pub struct Vm<'prog, 'src, 'path, 'env, 'gc> {
 	current_index: usize,
 	stack: Vec<Value<'gc>>,
 
-	// #[cfg(any(feature = "extensions", feature = "compliance"))]
-	// variables: Box<[Value<'gc>]>
-	// #[cfg(any(feature = "extensions", feature = "compliance"))]
+	#[cfg(feature = "check-variables")]
 	variables: Box<[Option<Value<'gc>>]>,
+
+	#[cfg(not(feature = "check-variables"))]
+	variables: Box<[Value<'gc>]>,
 
 	#[cfg(feature = "stacktrace")]
 	callstack: Vec<usize>,
@@ -37,7 +37,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			env,
 			current_index: 0,
 			stack: Vec::new(),
+
+			#[cfg(feature = "check-variables")]
 			variables: vec![None; program.num_variables()].into(),
+
+			#[cfg(not(feature = "check-variables"))]
+			variables: vec![Value::NULL; program.num_variables()].into(),
 
 			#[cfg(feature = "stacktrace")]
 			callstack: Vec::new(),
@@ -62,10 +67,16 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		}
 
 		for var in self.variables.iter() {
+			#[cfg(feature = "check-variables")]
 			if let Some(value) = var {
 				unsafe {
 					value.mark();
 				}
+			}
+
+			#[cfg(not(feature = "check-variables"))]
+			unsafe {
+				var.mark();
 			}
 		}
 
@@ -190,15 +201,31 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		None
 	}
 
+	#[no_mangle]
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
+		unsafe {
+			// std::arch::asm!("nop");
+		}
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
 
 		loop {
+			unsafe {
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+			}
+
 			// SAFETY: all programs are well-formed, so we know the current index is in bounds.
 			let (opcode, offset) = unsafe { self.program.opcode_at(self.current_index) };
 			// println!("[{:3?}:{opcode:08?}] {:?} ({:?})", self.current_index, offset, self.stack);
+			// println!("{opcode:?}");
 			self.current_index += 1;
+
+			unsafe {
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+			}
 
 			// Read arguments in
 			unsafe {
@@ -210,7 +237,22 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				self.stack.set_len(self.stack.len() - opcode.arity());
 			}
 
+			unsafe {
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+			}
+
 			let args = self.stack.spare_capacity_mut();
+
+			unsafe {
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+				// std::arch::asm!("nop");
+			}
 
 			// Get the last argument on the stack. Requires an `unsafe` block in case the stack is
 			// empty for some reason.
@@ -581,9 +623,20 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	unsafe fn get_variable(&mut self, offset: usize) -> crate::Result<Value<'gc>> {
 		debug_assert!(offset <= self.variables.len());
 
-		unsafe { self.variables.get_unchecked(offset) }.clone().ok_or_else(|| {
-			crate::Error::UndefinedVariable(self.program.variable_name(offset).clone().become_owned())
-		})
+		let value = *unsafe { self.variables.get_unchecked(offset) };
+
+		#[cfg(feature = "check-variables")]
+		let value = if !self.env.opts().check_variables {
+			value.unwrap_or_default()
+		} else {
+			value.ok_or_else(|| {
+				crate::Error::UndefinedVariable(
+					self.program.variable_name(offset).clone().become_owned(),
+				)
+			})?
+		};
+
+		Ok(value)
 	}
 
 	// SAFETY: the `offset` must be a valid variable offset
@@ -597,6 +650,9 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			self.known_blocks.insert(block.inner().0, varname.clone());
 		}
 
-		*unsafe { self.variables.get_unchecked_mut(offset) } = Some(value);
+		#[cfg(feature = "check-variables")]
+		let value = Some(value);
+
+		*unsafe { self.variables.get_unchecked_mut(offset) } = value
 	}
 }

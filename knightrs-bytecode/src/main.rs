@@ -79,6 +79,11 @@ fn main() {
 			let mut env = Environment::new(
 				{
 					let mut opts = Options::default();
+					#[cfg(feature = "check-variables")]
+					{
+						opts.check_variables = true;
+					}
+
 					#[cfg(feature = "extensions")]
 					{
 						// opts.extensions.negative_indexing = true;

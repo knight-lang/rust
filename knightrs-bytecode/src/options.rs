@@ -15,6 +15,9 @@ pub struct Options {
 
 	#[cfg(feature = "embedded")]
 	pub embedded: Embedded,
+
+	#[cfg(feature = "check-variables")]
+	pub check_variables: bool,
 }
 
 #[derive(Default, Clone)]

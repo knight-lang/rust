@@ -114,7 +114,7 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 		debug_assert!(location < self.code.len());
 
 		// SAFETY: caller ensures the locationis correct.
-		let number = unsafe { *self.code.get_unchecked(location) };
+		let number = *unsafe { self.code.get_unchecked(location) };
 
 		// SAFETY: we know as this type was constructed that all programs result
 		// in valid opcodes

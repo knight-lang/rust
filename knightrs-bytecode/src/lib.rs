@@ -1,3 +1,4 @@
+#![cfg_attr(debug_assertions, allow(unused))] // todo
 #![cfg_attr(debug_assertions, allow(deprecated))] // allow our own deprecated stuff while debugging
 #![warn(unsafe_op_in_unsafe_fn)]
 

@@ -17,12 +17,17 @@ likely_stable = "0.1.2"
 crossbeam-epoch = "0.9"
 
 [features]
-multithreaded = []
-extensions = []
-compliance = []
+multithreaded = [] # TODO: add multithreading
+
+stacktrace      = [] # Print out stacktraces
+check-variables = [] # Compile in checks to see if variables are null or not.
+qol = ["stacktrace", "check-variables"]
+
+extensions = []  # Compile in _all_ extensions
+compliance = ["check-variables"]  # Compile in _all_ forms of compliance checking
+
 custom-types = ["extensions"]
-stacktrace = [] # TODO: remove knight-debugging
-qol = ["stacktrace"] # Enables debugging information fro knight
+
 embedded = []
 floats = []
 

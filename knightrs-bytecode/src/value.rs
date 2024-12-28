@@ -91,6 +91,12 @@ impl Debug for Value<'_> {
 	}
 }
 
+impl Default for Value<'_> {
+	fn default() -> Self {
+		Self::NULL
+	}
+}
+
 // /// Returned when a `TryFrom` for a value was called when the type didnt match.
 // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // pub struct WrongType;
@@ -287,6 +293,7 @@ fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Resul
 }
 
 impl<'gc> Value<'gc> {
+	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_dump(&self, env: &mut Environment<'gc>) -> crate::Result<()> {
 		if self.is_null() {
 			write!(env.output(), "null")
@@ -317,6 +324,7 @@ impl<'gc> Value<'gc> {
 		.map_err(|err| Error::IoError { func: "OUTPUT", err })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_compare(
 		&self,
 		rhs: &Self,
@@ -342,6 +350,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {
 		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
 
@@ -356,6 +365,7 @@ impl<'gc> Value<'gc> {
 		Ok(self == rhs)
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_call(&self, vm: &mut Vm<'_, '_, '_, '_, 'gc>) -> crate::Result<Self> {
 		if let Some(block) = self.as_block() {
 			vm.run(block)
@@ -365,6 +375,7 @@ impl<'gc> Value<'gc> {
 	}
 
 	// (Note: current impl doesn't _actually_ require this, but this is future-compatibility)
+	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_length(&self, env: &mut Environment<'gc>) -> crate::Result<Integer> {
 		if let Some(string) = self.as_knstring() {
 			// Rust guarantees that `str::len` won't be larger than `isize::MAX`. Since we're always
@@ -395,6 +406,7 @@ impl<'gc> Value<'gc> {
 		Ok(Integer::new_error(self.to_list(env)?.len() as i64, env.opts())?)
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_not(
 		&self,
 		target: &mut MaybeUninit<Self>,
@@ -404,6 +416,7 @@ impl<'gc> Value<'gc> {
 		Ok(())
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_negate(
 		&self,
 		target: &mut MaybeUninit<Self>,
@@ -419,6 +432,7 @@ impl<'gc> Value<'gc> {
 	}
 
 	// SAFETY: the target needs to be a gc-rooted place
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_plus(
 		&self,
 		rhs: &Self,
@@ -460,6 +474,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "+" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_minus(
 		&self,
 		rhs: &Self,
@@ -487,6 +502,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "-" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_asterisk(
 		&self,
 		rhs: &Self,
@@ -534,6 +550,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "*" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_slash(
 		&self,
 		rhs: &Self,
@@ -567,6 +584,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "/" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_percent(
 		&self,
 		rhs: &Self,
@@ -594,6 +612,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "%" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_caret(
 		&self,
 		rhs: &Self,
@@ -616,6 +635,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "^" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_head(
 		&self,
 		target: &mut MaybeUninit<Self>,
@@ -648,6 +668,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "[" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_tail(
 		&self,
 		target: &mut MaybeUninit<Self>,
@@ -683,6 +704,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "]" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_ascii(
 		&self,
 		target: &mut MaybeUninit<Self>,
@@ -710,6 +732,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "ASCII" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_get(
 		&self,
 		start: &Self,
@@ -739,6 +762,7 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "GET" })
 	}
 
+	#[inline] // CHECKME: is this optimization worth it?
 	pub unsafe fn kn_set(
 		&self,
 		start: &Self,
