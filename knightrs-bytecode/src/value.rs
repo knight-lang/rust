@@ -91,47 +91,23 @@ enum Tag {
 
 impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		match self.tag() {
-			Tag::Const => {
-				if self.is_null() {
-					Debug::fmt(&Null, f)
-				} else if let Some(boolean) = self.as_boolean() {
-					Debug::fmt(&boolean, f)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Alloc => {
-				if let Some(list) = self.as_list() {
-					Debug::fmt(&list, f)
-				} else if let Some(string) = self.as_knstring() {
-					Debug::fmt(&string, f)
-				} else {
-					unreachable!("unknown alloc: {:?}", unsafe { self.0.ptr })
-				}
-			}
-			Tag::Integer => Debug::fmt(&self.as_integer().unwrap(), f),
-			Tag::Block => Debug::fmt(&self.as_block().unwrap(), f),
+		if self.is_null() {
+			Debug::fmt(&Null, f)
+		} else if let Some(boolean) = self.as_boolean() {
+			Debug::fmt(&boolean, f)
+		} else if let Some(integer) = self.as_integer() {
+			Debug::fmt(&integer, f)
+		} else if let Some(list) = self.as_list() {
+			Debug::fmt(&list, f)
+		} else if let Some(string) = self.as_knstring() {
+			Debug::fmt(&string, f)
+		} else if let Some(block) = self.as_block() {
+			Debug::fmt(&block, f)
+		} else {
+			unreachable!()
 		}
 	}
 }
-
-// impl Drop for Value {
-// 	fn drop(&mut self) {
-// 		let (repr, tag) = self.parts_shift();
-// 		if !tag.is_alloc() {
-// 			return;
-// 		}
-
-// 		match tag {
-// 			Tag::String => todo!(),
-// 			Tag::List => todo!(), //drop(unsafe { List::from_alloc(repr) }),
-// 			#[cfg(feature = "custom-types")]
-// 			Tag::Custom => todo!(),
-// 			_ => unreachable!(),
-// 		}
-// 	}
-// }
 
 // /// Returned when a `TryFrom` for a value was called when the type didnt match.
 // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -147,7 +123,9 @@ impl From<Null> for Value<'_> {
 impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {
-		unsafe { Self::from_raw_shift_no_debug(int.inner() as ValueRepr, Tag::Integer) }
+		let inner = int.inner();
+		debug_assert_eq!((inner << 1) >> 1, inner);
+		Self(Inner { val: ((inner as ValueRepr) << 1) | 1 }, PhantomData)
 	}
 }
 
@@ -165,7 +143,9 @@ impl From<Boolean> for Value<'_> {
 impl From<Block> for Value<'_> {
 	#[inline]
 	fn from(block: Block) -> Self {
-		unsafe { Self::from_raw_shift(block.inner().0 as ValueRepr, Tag::Block) }
+		let repr = block.inner().0 as u64;
+		debug_assert!((repr << 3) >> 3 == repr, "repr has top 3 bits set");
+		Self(Inner { val: (repr << 3) | 0b010 }, PhantomData)
 	}
 }
 
@@ -208,22 +188,22 @@ impl NamedType for Value<'_> {
 }
 
 impl<'gc> Value<'gc> {
-	pub const FALSE: Self = unsafe { Self::from_raw_shift(0, Tag::Const) };
-	pub const NULL: Self = unsafe { Self::from_raw_shift(1, Tag::Const) };
-	pub const TRUE: Self = unsafe { Self::from_raw_shift(2, Tag::Const) };
+	pub const NULL: Self = Self(Inner { val: 0b_0000_000 }, PhantomData);
+	pub const FALSE: Self = Self(Inner { val: 0b_0000_010 }, PhantomData);
+	pub const TRUE: Self = Self(Inner { val: 0b_0001_010 }, PhantomData);
 
 	// SAFETY: bytes is a valid representation
-	#[inline]
-	const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
-		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
-		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
-	}
+	// #[inline]
+	// const unsafe fn from_raw_shift(repr: ValueRepr, tag: Tag) -> Self {
+	// 	debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
+	// 	Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
+	// }
 
-	// SAFETY: bytes is a valid representation
-	#[inline]
-	const unsafe fn from_raw_shift_no_debug(repr: ValueRepr, tag: Tag) -> Self {
-		Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
-	}
+	// // SAFETY: bytes is a valid representation
+	// #[inline]
+	// const unsafe fn from_raw_shift_no_debug(repr: ValueRepr, tag: Tag) -> Self {
+	// 	Self(Inner { val: (repr << TAG_SHIFT) | tag as u64 }, PhantomData)
+	// }
 
 	// SAFETY: bytes is a valid representation
 	#[inline]
