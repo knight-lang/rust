@@ -40,6 +40,19 @@ XXXX ... XXXX 010 -- Block
 XXXX ... XXXX 100 -- Float32
 XXXX ... XXXX 000 -- allocated, nonzero `X`
 */
+
+/*
+Representation (v2):
+
+0000 ... 0000 000 -- Null
+XXXX ... XXXX 000 -- "allocated", nonzero `X`
+XXXX ... XXXX XX1 -- Integer
+0000 ... 0000 010 -- False
+0000 ... 0001 010 -- True
+XXXX ... XXXX 100 -- Block
+XXXX ... XXXX 100 -- Float32
+*/
+
 #[repr(transparent)] // DON'T DERIVE CLONE/COPY
 #[derive(Clone, Copy)]
 pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
@@ -61,6 +74,7 @@ type ValueRepr = u64;
 
 const TAG_SHIFT: ValueRepr = 4;
 const TAG_MASK: ValueRepr = (1 << TAG_SHIFT) - 1;
+const TAG_MASK2: ValueRepr = 0b111;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -237,6 +251,10 @@ impl<'gc> Value<'gc> {
 
 	fn is_alloc(self) -> bool {
 		self.tag() == Tag::Alloc
+	}
+
+	fn is_alloc_or_null(self) -> bool {
+		self.val() & TAG_MASK2 == 0
 	}
 
 	pub(crate) fn __is_alloc(self) -> bool {
@@ -818,6 +836,11 @@ impl<'gc> Value<'gc> {
 
 		Err(Error::TypeError { type_name: self.type_name(), function: "SET" })
 	}
+
+	fn val(&self) -> u64 {
+		// safety: all permutations are valid `u64`s
+		unsafe { self.0.val }
+	}
 }
 
 fn fix_len(
@@ -845,108 +868,184 @@ fn fix_len(
 
 impl ToInteger for Value<'_> {
 	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer> {
-		match self.tag() {
-			Tag::Const => {
-				if self.is_null() {
-					Null.to_integer(env)
-				} else if let Some(boolean) = self.as_boolean() {
-					boolean.to_integer(env)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Alloc => {
-				if let Some(list) = self.as_list() {
-					list.to_integer(env)
-				} else if let Some(string) = self.as_knstring() {
-					string.to_integer(env)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Integer => self.as_integer().unwrap().to_integer(env),
-			_ => todo!(),
+		// Special case for NULL, FALSE, and 0 based on their representations.
+		if self.val() <= 0b10 {
+			debug_assert!(
+				self.is_null()
+					|| self.as_boolean().map_or(false, |x| x == false)
+					|| self.as_integer().map_or(false, |x| x == 0)
+			);
+
+			return Ok(Integer::new_unvalidated(0));
+		}
+
+		if let Some(boolean) = self.as_boolean() {
+			debug_assert!(boolean, "the false case should've already been handled above");
+			unsafe { std::hint::assert_unchecked(boolean) };
+			return boolean.to_integer(env);
+		}
+
+		if let Some(integer) = self.as_integer() {
+			debug_assert_ne!(integer, 0, "should've already been handled");
+			return Ok(integer);
+		}
+
+		if let Some(list) = self.as_list() {
+			return list.to_integer(env);
+		}
+
+		if let Some(string) = self.as_knstring() {
+			return string.to_integer(env);
+		}
+
+		#[cfg(feature = "extensions")]
+		{
+			// TODO: check for `float`s
+		}
+
+		debug_assert!(self.as_block().is_some());
+
+		if self.as_block().is_some() {
+			return Err(crate::Error::Todo("cannot convert Blocks to integers".into()));
+		}
+
+		unsafe {
+			unreachable_unchecked!("[BUG] invalid type for `to_integer()`?? {:?}", self.val());
 		}
 	}
 }
 
 impl ToBoolean for Value<'_> {
 	fn to_boolean(&self, env: &mut Environment<'_>) -> crate::Result<Boolean> {
-		match self.tag() {
-			Tag::Const => {
-				if self.is_null() {
-					Null.to_boolean(env)
-				} else if let Some(boolean) = self.as_boolean() {
-					boolean.to_boolean(env)
-				} else {
-					unreachable!()
-				}
+		// Special case for NULL, FALSE, and 0 based on their representations.
+		if self.val() <= 0b10 {
+			debug_assert!(
+				self.is_null()
+					|| self.as_boolean().map_or(false, |x| x == false)
+					|| self.as_integer().map_or(false, |x| x == 0)
+			);
+			return Ok(false);
+		}
+
+		debug_assert!(!self.is_null());
+
+		if !self.is_alloc_or_null() {
+			#[cfg(feature = "extensions")]
+			{
+				// TODO: check for `float`s, and return possibly `false` for them.
 			}
-			Tag::Alloc => {
-				if let Some(list) = self.as_list() {
-					list.to_boolean(env)
-				} else if let Some(string) = self.as_knstring() {
-					string.to_boolean(env)
-				} else {
-					unreachable!()
-				}
+
+			#[cfg(debug_assertions)]
+			if let Some(b) = self.as_boolean() {
+				debug_assert!(b, "the false condition shoulda been checked earlier");
+			} else if let Some(i) = self.as_integer() {
+				debug_assert_ne!(i, 0, "the `zero` condition should've already been checked");
+			} else {
+				debug_assert!(self.as_block().is_some() /*|| self.as_float().is_some()*/);
 			}
-			Tag::Integer => self.as_integer().unwrap().to_boolean(env),
-			_ => todo!(),
+
+			#[cfg(feature = "compliance")]
+			if env.opts().compliance.no_block_conversions && self.as_block().is_some() {
+				return Err(crate::Error::Todo("cannot convert Blocks to booleans".into()));
+			}
+
+			return Ok(true);
+		}
+
+		if let Some(list) = self.as_list() {
+			return Ok(list.is_empty());
+		}
+
+		if let Some(string) = self.as_knstring() {
+			return Ok(string.is_empty());
+		}
+
+		// SAFETY: we've already covered every single type, so there's no reason this should ever
+		// happen.
+		unsafe {
+			unreachable_unchecked!("[BUG] invalid type for `to_boolean()`?? {:?}", self.val());
 		}
 	}
 }
 
 impl<'gc> ToKnString<'gc> for Value<'gc> {
 	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
-		match self.tag() {
-			Tag::Const => {
-				if self.is_null() {
-					Null.to_knstring(env)
-				} else if let Some(boolean) = self.as_boolean() {
-					boolean.to_knstring(env)
-				} else {
-					unreachable!()
-				}
+		if self.val() <= knstring::consts::LITERAL_MAX_LENGTH as _ {
+			#[cfg(feature = "compliance")]
+			if env.opts().compliance.no_block_conversions && self.as_block().is_some() {
+				return Err(crate::Error::Todo("cannot convert Blocks to strings".into()));
 			}
-			Tag::Alloc => {
-				if let Some(list) = self.as_list() {
-					list.to_knstring(env)
-				} else if let Some(string) = self.as_knstring() {
-					string.to_knstring(env)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Integer => self.as_integer().unwrap().to_knstring(env),
-			_ => todo!(),
+
+			// NOTE: We need to somehow guarantee that we'll never actually pass in pointers
+			// `0b01_000` or `0b10_000`.
+			debug_assert!(
+				self.is_null()
+					|| self.as_boolean().is_some()
+					|| self.as_integer().map_or(false, |i| i <= 9)
+			);
+
+			return Ok(GcRoot::new_unchecked(unsafe {
+				knstring::consts::lookup_literal(self.val() as _)
+			}));
+		}
+
+		if let Some(string) = self.as_knstring() {
+			return string.to_knstring(env);
+		}
+
+		if let Some(list) = self.as_list() {
+			return list.to_knstring(env);
+		}
+
+		if let Some(integer) = self.as_integer() {
+			return integer.to_knstring(env);
+		}
+
+		#[cfg(feature = "extensions")]
+		{
+			// TODO: check for `float`s
+		}
+
+		if self.as_block().is_some() {
+			return Err(crate::Error::Todo("cannot convert Blocks to strings".into()));
+		}
+
+		unsafe {
+			unreachable_unchecked!("[BUG] invalid type for `to_knstring()`?? {:?}", self.val());
 		}
 	}
 }
 
 impl<'gc> ToList<'gc> for Value<'gc> {
 	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
-		match self.tag() {
-			Tag::Const => {
-				if self.is_null() {
-					Null.to_list(env)
-				} else if let Some(boolean) = self.as_boolean() {
-					boolean.to_list(env)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Alloc => {
-				if let Some(list) = self.as_list() {
-					list.to_list(env)
-				} else if let Some(string) = self.as_knstring() {
-					string.to_list(env)
-				} else {
-					unreachable!()
-				}
-			}
-			Tag::Integer => self.as_integer().unwrap().to_list(env),
-			_ => todo!(),
+		// TODO: optimize me
+		if let Some(list) = self.as_list() {
+			return list.to_list(env);
+		}
+
+		if let Some(string) = self.as_knstring() {
+			return string.to_list(env);
+		}
+
+		if let Some(integer) = self.as_integer() {
+			return integer.to_list(env);
+		}
+
+		if let Some(boolean) = self.as_boolean() {
+			return boolean.to_list(env);
+		}
+
+		if self.is_null() {
+			return Null.to_list(env);
+		}
+
+		// todo: floats
+		if self.as_block().is_some() {
+			return Err(crate::Error::Todo("cannot convert Blocks to lists".into()));
+		}
+
+		unsafe {
+			unreachable_unchecked!("[BUG] invalid type for `to_list()`?? {:?}", self.val());
 		}
 	}
 }

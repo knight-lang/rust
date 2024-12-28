@@ -31,20 +31,71 @@ pub(crate) mod consts {
 
 	macro_rules! static_str {
 		($id:literal) => {{
-			static __INNER: Inner = Inner {
-				_alignment: ValueAlign,
-				// TODO: make the `FLAG_CUSTOM_2` use a function.
-				flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST | ALLOCATED_FLAG),
-				kind: Kind {
-					alloc: Alloc { _padding: MaybeUninit::uninit(), ptr: $id.as_ptr(), len: $id.len() },
-				},
-			};
+			static __INNER: Inner = static_inner($id);
 			KnString(&__INNER, PhantomData)
 		}};
 	}
 
+	const fn static_inner(string: &'static str) -> Inner {
+		Inner {
+			_alignment: ValueAlign,
+			// TODO: make the `FLAG_CUSTOM_2` use a function.
+			flags: AtomicU8::new(gc::FLAG_GC_STATIC | gc::FLAG_IS_LIST | ALLOCATED_FLAG),
+			kind: Kind {
+				alloc: Alloc {
+					_padding: MaybeUninit::uninit(),
+					ptr: string.as_ptr(),
+					len: string.len(),
+				},
+			},
+		}
+	}
+
+	// pub const EMPTY: KnString<'_> = static_str!("0");
 	pub const TRUE: KnString<'_> = static_str!("true");
 	pub const FALSE: KnString<'_> = static_str!("false");
+
+	pub const LITERAL_MAX_LENGTH: usize = 20;
+	pub(crate) unsafe fn lookup_literal(offset: usize) -> KnString<'static> {
+		#[rustfmt::skip]
+		static INNERS: [MaybeUninit<Inner>; LITERAL_MAX_LENGTH] = [
+			MaybeUninit::new(static_inner("")),      // 0000 ... 0000 000 -- Null
+			MaybeUninit::new(static_inner("0")),     // 0000 ... 0000 001 -- 0
+			MaybeUninit::new(static_inner("false")), // 0000 ... 0000 010 -- false
+			MaybeUninit::new(static_inner("1")),     // 0000 ... 0000 011 -- 1
+			MaybeUninit::uninit(),                   // 0000 ... 0000 100 -- <undef; is a block>
+			MaybeUninit::new(static_inner("2")),     // 0000 ... 0000 101 -- 2
+			MaybeUninit::uninit(),                   // 0000 ... 0000 110 -- <undef; unassigned>
+			MaybeUninit::new(static_inner("3")),     // 0000 ... 0000 111 -- 3
+			MaybeUninit::uninit(),                   // 0000 ... 0001 000 -- <undef; no pointer's that small>
+			MaybeUninit::new(static_inner("4")),     // 0000 ... 0001 001 -- 4
+			MaybeUninit::new(static_inner("true")),  // 0000 ... 0000 010 -- true
+			MaybeUninit::new(static_inner("5")),     // 0000 ... 0001 011 -- 5
+			MaybeUninit::uninit(),                   // 0000 ... 0001 100 -- <undef; is a block>
+			MaybeUninit::new(static_inner("6")),     // 0000 ... 0001 101 -- 6
+			MaybeUninit::uninit(),                   // 0000 ... 0001 110 -- <undef; unassigned>
+			MaybeUninit::new(static_inner("7")),     // 0000 ... 0001 111 -- 7
+			MaybeUninit::uninit(),                   // 0000 ... 0010 000 -- <undef; no pointer's that small>
+			MaybeUninit::new(static_inner("8")),     // 0000 ... 0010 001 -- 8
+			MaybeUninit::uninit(),                   // 0000 ... 0010 010 -- <undef; unassigned>
+			MaybeUninit::new(static_inner("9")),     // 0000 ... 0010 011 -- 9
+		];
+
+		#[rustfmt::skip]
+		debug_assert!(
+			   offset != 0b_00_100
+			&& offset != 0b_00_110
+			&& offset != 0b_01_000
+			&& offset != 0b_01_100
+			&& offset != 0b_01_110
+			&& offset != 0b_10_000
+			&& offset != 0b_10_010
+		);
+
+		debug_assert!(offset <= LITERAL_MAX_LENGTH);
+
+		KnString(unsafe { INNERS.get_unchecked(offset).as_ptr() }, PhantomData)
+	}
 }
 
 #[repr(C)]
@@ -58,9 +109,11 @@ sa::assert_eq_align!(crate::gc::ValueInner, Inner);
 sa::assert_eq_size!(crate::gc::ValueInner, Inner);
 
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Send for KnString<'_> {}
 unsafe impl Send for Inner {}
 
 // SAFETY: We never deallocate it without flags, and flags are atomicu8. TODO: actual gc
+unsafe impl Sync for KnString<'_> {}
 unsafe impl Sync for Inner {}
 
 const ALLOCATED_FLAG: u8 = gc::FLAG_CUSTOM_0;

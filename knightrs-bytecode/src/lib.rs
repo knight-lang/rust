@@ -9,6 +9,16 @@ extern crate thiserror;
 
 extern crate static_assertions as sa;
 
+macro_rules! unreachable_unchecked {
+	($($body:tt)*) => {
+		if cfg!(debug_assertions) {
+			unreachable!($($body)*);
+		} else {
+			::std::hint::unreachable_unchecked();
+		}
+	}
+}
+
 #[allow(unused)] // TODO
 macro_rules! cfg_expr {
 	(feature = $feature:literal, $ift:expr, $iff:expr) => {{

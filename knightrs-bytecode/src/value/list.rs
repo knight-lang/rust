@@ -37,14 +37,6 @@ pub trait ToList<'gc> {
 	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>>;
 }
 
-#[repr(C)]
-struct Inner<'gc> {
-	_alignment: ValueAlign,
-	flags: AtomicU8,
-	_align: MaybeUninit<[u8; 7]>, // TODO: don't use a constant
-	kind: Kind<'gc>,
-}
-
 sa::assert_eq_align!(crate::gc::ValueInner, Inner);
 sa::assert_eq_size!(crate::gc::ValueInner, Inner);
 
@@ -64,6 +56,14 @@ const MAX_EMBEDDED_LENGTH: usize = (SIZE_MASK_FLAG >> SIZE_MASK_SHIFT) as usize;
 sa::const_assert!(
 	MAX_EMBEDDED_LENGTH == (ALLOC_VALUE_SIZE_IN_BYTES - size_of::<u8>()) / size_of::<Value>()
 );
+
+#[repr(C)]
+struct Inner<'gc> {
+	_alignment: ValueAlign,
+	flags: AtomicU8,
+	_align: MaybeUninit<[u8; 7]>, // TODO: don't use a constant
+	kind: Kind<'gc>,
+}
 
 #[repr(C)]
 union Kind<'gc> {
@@ -163,6 +163,16 @@ impl<'gc> List<'gc> {
 			_ => Self::new_alloc(source.to_vec(), gc),
 		}
 	}
+
+	// pub fn from_slice_unvalidated2(source: &[Value<'gc>], gc: &'gc Gc) -> GcRoot<'gc, Self> {
+	// 	if source.len() == 0{
+	// 		return GcRoot::new_unchecked(Self::default());
+	// 	}
+
+	// 		1..=MAX_EMBEDDED_LENGTH => unsafe { Self::new_embedded(source, gc) },
+	// 		_ => Self::new_alloc(source.to_vec(), gc),
+	// 	}
+	// }
 
 	pub fn new<I>(source: I, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<'gc, Self>>
 	where

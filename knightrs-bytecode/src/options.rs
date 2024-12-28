@@ -46,6 +46,7 @@ pub struct Compliance {
 	pub check_quit_status_codes: bool,
 	pub disallow_negative_int_to_list: bool,
 	pub disable_all_extensions: bool, // TODO
+	pub no_block_conversions: bool,
 }
 
 cfg_if! {
