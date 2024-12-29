@@ -18,6 +18,28 @@ impl std::error::Error for ParseError<'_> {}
 
 #[derive(Error, Debug)]
 pub enum ParseErrorKind {
+	// There was nothing to parse
+	#[error("there was nothing to parse.")]
+	EmptySource,
+
+	#[error("character doesn't start a token: {0:?}")]
+	UnknownTokenStart(char),
+
+	#[error("integer literal overflowed")]
+	IntegerLiteralOverflow,
+
+	#[error("missing ending {0:?} quote")]
+	MissingEndingQuote(char),
+
+	#[error("{0}")]
+	StringError(#[from] StringError),
+
+	#[error("missing argument {1} for function {0:?}")]
+	MissingArgument(char, usize),
+
+	#[error("can only assign to variables")]
+	CanOnlyAssignToVariables,
+
 	#[cfg(feature = "compliance")]
 	#[error("variable name too long ({len} > {max}): {0:?}", len=.0.len(),
 		max = crate::parser::VariableName::MAX_NAME_LEN)]
@@ -42,28 +64,6 @@ pub enum ParseErrorKind {
 	#[cfg(feature = "check-parens")]
 	#[error("unmatched `)` found")]
 	UnmatchedClosingParen,
-
-	// There was nothing to parse
-	#[error("there was nothing to parse.")]
-	EmptySource,
-
-	#[error("character doesn't start a token: {0:?}")]
-	UnknownTokenStart(char),
-
-	#[error("integer literal overflowed")]
-	IntegerLiteralOverflow,
-
-	#[error("missing ending {0:?} quote")]
-	MissingEndingQuote(char),
-
-	#[error("{0}")]
-	StringError(#[from] StringError),
-
-	#[error("missing argument {1} for function {0:?}")]
-	MissingArgument(char, usize),
-
-	#[error("can only assign to variables")]
-	CanOnlyAssignToVariables,
 
 	#[cfg(feature = "extensions")]
 	#[error("unknown extenision function: {0}")]
