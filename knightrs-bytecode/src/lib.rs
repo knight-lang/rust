@@ -10,13 +10,19 @@ extern crate thiserror;
 
 extern crate static_assertions as sa;
 
-macro_rules! unreachable_unchecked {
-	($($body:tt)*) => {
+macro_rules! bug_unchecked {
+	($($body:tt)+) => {
 		if cfg!(debug_assertions) {
-			unreachable!($($body)*);
+			bug!($($body)+);
 		} else {
 			::std::hint::unreachable_unchecked();
 		}
+	}
+}
+
+macro_rules! bug {
+	($fmt:literal $($rest:tt)*) => {
+		unreachable!(concat!("[BUG] ", $fmt) $($rest)*)
 	}
 }
 

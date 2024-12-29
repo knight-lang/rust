@@ -21,7 +21,6 @@ pub use knstring::{KnString, ToKnString};
 pub use list::{List, ToList};
 pub use null::Null;
 use std::fmt::{self, Debug, Formatter};
-// pub use string::{KnString, ToKnString};
 
 /// A trait indicating a type has a name.
 pub trait NamedType {
@@ -38,10 +37,9 @@ XXXX ... XXXX XX1 -- Integer
 0000 ... 0000 010 -- False
 0000 ... 0001 010 -- True
 XXXX ... XXXX 100 -- Block
-XXXX ... XXXX 100 -- Float32
+XXXX ... XXXX 110 -- Float32
 */
-
-#[repr(transparent)] // DON'T DERIVE CLONE/COPY
+#[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 
@@ -92,14 +90,11 @@ impl Debug for Value<'_> {
 }
 
 impl Default for Value<'_> {
+	#[inline]
 	fn default() -> Self {
 		Self::NULL
 	}
 }
-
-// /// Returned when a `TryFrom` for a value was called when the type didnt match.
-// #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// pub struct WrongType;
 
 impl From<Null> for Value<'_> {
 	#[inline]
@@ -132,7 +127,7 @@ impl From<Block> for Value<'_> {
 	#[inline]
 	fn from(block: Block) -> Self {
 		let repr = block.inner().0 as u64;
-		debug_assert!((repr << TAG_SHIFT) >> TAG_SHIFT == repr, "repr has top TAG_SHIFT bits set");
+		debug_assert_eq!((repr << TAG_SHIFT) >> TAG_SHIFT, repr, "repr has top TAG_SHIFT bits set");
 		unsafe { Self::from_val((repr << TAG_SHIFT) | TAG_BLOCK) }
 	}
 }
@@ -264,32 +259,19 @@ impl<'gc> Value<'gc> {
 }
 
 unsafe impl GarbageCollected for Value<'_> {
+	#[inline]
 	unsafe fn mark(&self) {
 		if self.is_alloc() {
 			unsafe { ValueInner::mark(self.0.ptr) }
 		}
 	}
 
+	#[inline]
 	unsafe fn deallocate(self) {
 		if self.is_alloc() {
 			unsafe { ValueInner::deallocate(self.0.ptr, true) }
 		}
 	}
-}
-
-#[cfg(feature = "compliance")]
-fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Result<()> {
-	if value.as_block().is_some() {
-		return Err(Error::TypeError { type_name: value.type_name(), function });
-	}
-
-	if let Some(list) = value.as_list() {
-		for ele in list.iter() {
-			forbid_block_arguments(&ele, function)?;
-		}
-	}
-
-	Ok(())
 }
 
 impl<'gc> Value<'gc> {
@@ -352,15 +334,28 @@ impl<'gc> Value<'gc> {
 
 	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {
-		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
-
 		// In strict compliance mode, we can't use Blocks for `?`.
 		#[cfg(feature = "compliance")]
 		if env.opts().compliance.check_equals_params {
+			fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Result<()> {
+				if value.as_block().is_some() {
+					return Err(Error::TypeError { type_name: value.type_name(), function });
+				}
+
+				if let Some(list) = value.as_list() {
+					for ele in list.iter() {
+						forbid_block_arguments(&ele, function)?;
+					}
+				}
+
+				Ok(())
+			}
+
 			forbid_block_arguments(self, "?")?;
 			forbid_block_arguments(rhs, "?")?;
 		}
 
+		// Rust's `==` semantics here actually directly map on to how equality in Knight works.
 		let _ = env;
 		Ok(self == rhs)
 	}
@@ -874,7 +869,7 @@ impl ToInteger for Value<'_> {
 		}
 
 		unsafe {
-			unreachable_unchecked!("[BUG] invalid type for `to_integer()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_integer()`?? {:?}", self.val());
 		}
 	}
 }
@@ -927,7 +922,7 @@ impl ToBoolean for Value<'_> {
 		// SAFETY: we've already covered every single type, so there's no reason this should ever
 		// happen.
 		unsafe {
-			unreachable_unchecked!("[BUG] invalid type for `to_boolean()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_boolean()`?? {:?}", self.val());
 		}
 	}
 }
@@ -975,7 +970,7 @@ impl<'gc> ToKnString<'gc> for Value<'gc> {
 		}
 
 		unsafe {
-			unreachable_unchecked!("[BUG] invalid type for `to_knstring()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_knstring()`?? {:?}", self.val());
 		}
 	}
 }
@@ -1009,7 +1004,7 @@ impl<'gc> ToList<'gc> for Value<'gc> {
 		}
 
 		unsafe {
-			unreachable_unchecked!("[BUG] invalid type for `to_list()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_list()`?? {:?}", self.val());
 		}
 	}
 }

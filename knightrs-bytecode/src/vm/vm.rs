@@ -213,16 +213,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			// println!("{opcode:?}");
 			self.current_index += 1;
 
-			// Read arguments in
-			unsafe {
-				debug_assert!(opcode.arity() <= self.stack.len());
-
-				// Pop the arguments off the stack. The remaining arguments are in `spare_capacity_mut`.
-				// This does mean that we cannot modify `self.stack` until we've interacted with all the
-				// individual arguments.
-				self.stack.set_len(self.stack.len() - opcode.arity());
-			}
-
+			// Pop the arguments off the stack. The remaining arguments are in `spare_capacity_mut`.
+			// This does mean that we cannot modify `self.stack` until we've interacted with all the
+			// individual arguments.
+			debug_assert!(opcode.arity() <= self.stack.len());
+			unsafe { self.stack.set_len(self.stack.len() - opcode.arity()) };
 			let args = self.stack.spare_capacity_mut();
 
 			// Get the last argument on the stack. Requires an `unsafe` block in case the stack is
@@ -271,8 +266,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				};
 			}
 
-			// NOTE: ALL OPCODES MUST ALWAYS EXTRACT THEIR ARGUMENTS EXACTLY ONCE FROM `args`,
-			// else memory issues will crop up (such as memory leaks or double reads).
 			match opcode {
 				// Builtins
 
@@ -307,7 +300,9 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 					// SAFETY: construction of `Program`s guarantees that `SetVar` will have an offset,
 					// and that it's a a valid variable index.
-					unsafe { self.set_variable(offset, value) };
+					unsafe {
+						self.set_variable(offset, value);
+					}
 				}
 
 				#[cfg(feature = "extensions")]
@@ -334,14 +329,12 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 
 				// Arity 0
 				Opcode::Prompt => {
-					// Can't use `MaybeUninit` in case we're at the end of the stack.
 					if let Some(prompted) = self.env.prompt()? {
 						unsafe { prompted.with_inner(|inner| self.stack.push(inner.into())) }
 					} else {
 						self.stack.push(Value::NULL);
 					}
 				}
-				// Can't use `MaybeUninit` in case we're at the end of the stack.
 				Opcode::Random => self.stack.push(self.env.random()?.into()),
 
 				Opcode::Dup => self.stack.push(unsafe { last!() }),
@@ -362,15 +355,9 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						unsafe { self.jump_to(ip) };
 					} else {
 						// There's nowhere to jump to, return the block of code.
-						debug_assert_eq!(
-							self.stack.len(),
-							1,
-							"should only ever have one value when returning"
-						);
+						debug_assert_eq!(self.stack.len(), 1, "should only have one value at the end");
 
-						return Ok(self.stack.pop().unwrap_or_else(|| unsafe {
-							unreachable_unchecked!("<bug: pop when nothing left>");
-						}));
+						return Ok(self.stack.pop().unwrap_or_else(|| bug!("pop when nothing left")));
 					}
 				}
 
@@ -381,7 +368,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					if let Some(block) = arg.as_block() {
 						likely_stable::likely(true);
 						jumpstack.push(self.current_index);
-						// have to use `- 1` b/c we increment
 						unsafe { self.jump_to(block.inner().0) };
 						continue;
 					}
