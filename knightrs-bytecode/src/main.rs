@@ -84,6 +84,11 @@ fn main() {
 						opts.check_variables = true;
 					}
 
+					#[cfg(feature = "check-parens")]
+					{
+						opts.check_parens = true;
+					}
+
 					#[cfg(feature = "extensions")]
 					{
 						// opts.extensions.negative_indexing = true;
@@ -108,7 +113,6 @@ fn main() {
 						opts.compliance.cant_dump_blocks = true;
 						opts.compliance.check_quit_status_codes = true;
 						opts.compliance.disallow_negative_int_to_list = true;
-						opts.qol.check_parens = true;
 					}
 
 					opts

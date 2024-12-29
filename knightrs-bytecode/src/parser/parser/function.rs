@@ -208,8 +208,8 @@ impl Function {
 			}
 
 			// technically not needed, as it wont ever get here. same with the if
-			#[cfg(feature = "qol")]
-			':' if parser.opts().qol.check_parens => {
+			#[cfg(feature = "check-parens")]
+			':' if parser.opts().check_parens => {
 				parse_argument(parser, &start, fn_name, 1)?;
 				return Ok(true);
 			}

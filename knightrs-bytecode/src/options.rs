@@ -18,13 +18,15 @@ pub struct Options {
 
 	#[cfg(feature = "check-variables")]
 	pub check_variables: bool,
+
+	#[cfg(feature = "check-parens")]
+	pub check_parens: bool, // TODO: also make this strict compliance
 }
 
 #[derive(Default, Clone)]
 #[cfg(feature = "qol")]
 pub struct QualityOfLife {
 	pub stacktrace: bool,
-	pub check_parens: bool, // TODO: also make this strict compliance
 }
 
 #[derive(Default, Clone)]

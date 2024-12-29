@@ -1,8 +1,8 @@
 mod ast;
 mod function;
-#[cfg(feature = "qol")]
+
+#[cfg(feature = "check-parens")]
 mod parens;
-// mod variable;
 
 use super::VariableName;
 use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
@@ -124,8 +124,8 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 	pub fn strip_whitespace_and_comments(&mut self) -> Option<&'src str> {
 		let start = self.source;
 
-		#[cfg(feature = "qol")]
-		let check_parens = self.opts().qol.check_parens;
+		#[cfg(feature = "check-parens")]
+		let check_parens = self.opts().check_parens;
 
 		// TODO: when not in stacktrace mode, consider (, ), and : as whitespace
 		loop {
@@ -135,7 +135,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 					return true;
 				}
 
-				#[cfg(feature = "qol")]
+				#[cfg(feature = "check-parens")]
 				if check_parens {
 					// TODO: strict compliance
 					return false;
@@ -218,8 +218,8 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 			return x.compile(&mut self.compiler, &self.env.opts());
 		}
 
-		#[cfg(feature = "qol")]
-		if parens::parse_parens(self)? {
+		#[cfg(feature = "check-parens")]
+		if self.env.opts().check_parens && parens::parse_parens(self)? {
 			return Ok(());
 		}
 

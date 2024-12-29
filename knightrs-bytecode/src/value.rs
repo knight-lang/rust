@@ -90,6 +90,7 @@ impl Debug for Value<'_> {
 }
 
 impl Default for Value<'_> {
+	/// Get the default [`Value`]---[`NULL`](Value::NULL).
 	#[inline]
 	fn default() -> Self {
 		Self::NULL
@@ -106,9 +107,11 @@ impl From<Null> for Value<'_> {
 impl From<Integer> for Value<'_> {
 	#[inline]
 	fn from(int: Integer) -> Self {
-		let inner = int.inner();
-		debug_assert_eq!((inner << TAG_INT_SHIFT) >> TAG_INT_SHIFT, inner);
-		unsafe { Self::from_val(((inner as ValueRepr) << TAG_INT_SHIFT) | TAG_INT) }
+		let inner = int.inner() as ValueRepr;
+		// NOTE: We don't do bounds checks (ie whether `(inner >> TAG_INT_SHIFT) << TAG_INT_SHIFT`
+		// yields `inner` back) because that should've already been taken care of by `Integer`---if we
+		// do end up losing loss-of-precision, that's what `Integer::new` wanted.
+		unsafe { Self::from_val((inner << TAG_INT_SHIFT) | TAG_INT) }
 	}
 }
 
@@ -127,7 +130,10 @@ impl From<Block> for Value<'_> {
 	#[inline]
 	fn from(block: Block) -> Self {
 		let repr = block.inner().0 as u64;
+
+		// TODO: make this assertion a guarantee within `JumpIndex`.
 		debug_assert_eq!((repr << TAG_SHIFT) >> TAG_SHIFT, repr, "repr has top TAG_SHIFT bits set");
+
 		unsafe { Self::from_val((repr << TAG_SHIFT) | TAG_BLOCK) }
 	}
 }
@@ -142,9 +148,7 @@ impl<'gc> From<List<'gc>> for Value<'gc> {
 impl<'gc> From<KnString<'gc>> for Value<'gc> {
 	#[inline]
 	fn from(string: KnString) -> Self {
-		sa::const_assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<ValueRepr>());
-		let raw = string.into_raw();
-		unsafe { Self::from_alloc(raw) }
+		unsafe { Self::from_alloc(string.into_raw()) }
 	}
 }
 

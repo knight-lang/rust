@@ -56,7 +56,7 @@ pub enum IntegerError {
 	/// A number doesn't fit in an `i32`; Only used when `compliance.i32_integer` is enabled.
 	#[deprecated]
 	#[cfg(feature = "compliance")]
-	#[error("integer {0} doesn't fit in an i32")]
+	#[error("integer {0} is out of bounds")]
 	IntegerOutOfBounds(IntegerInner),
 
 	#[cfg(feature = "compliance")]
@@ -166,7 +166,7 @@ impl Integer {
 			return Self(i32::MAX as IntegerInner);
 		}
 
-		Self(IntegerInner::MAX >> 1)
+		Self(IntegerInner::MAX >> super::TAG_INT_SHIFT)
 	}
 
 	/// Returns the minimum value for [`Integer`]s given `opts`.
@@ -177,7 +177,7 @@ impl Integer {
 			return Self(i32::MIN as IntegerInner);
 		}
 
-		Self(IntegerInner::MIN)
+		Self(IntegerInner::MIN >> super::TAG_INT_SHIFT)
 	}
 
 	/// Negates `self`, wrapping unless `opts.compliance.check_overflow` is on.
@@ -393,7 +393,7 @@ impl Integer {
 		}
 
 		match <IntegerInner as std::str::FromStr>::from_str(start) {
-			Ok(value) => Ok(Self::new_error(value, opts).expect("TODO: this fail case")),
+			Ok(value) => Ok(Self::new_error(value, opts)?),
 			Err(err) => match err.kind() {
 				std::num::IntErrorKind::Empty | std::num::IntErrorKind::InvalidDigit => Ok(Self::ZERO),
 				std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow => {
@@ -471,7 +471,7 @@ impl<'gc> ToList<'gc> for Integer {
 	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
 		#[cfg(all(feature = "compliance", not(feature = "knight_2_0_1")))]
 		if env.opts().compliance.disallow_negative_int_to_list && *self < 0 {
-			return Err(Error::DomainError("negative integer for to list encountered"));
+			return Err(crate::Error::DomainError("negative integer for to list encountered"));
 		}
 
 		if *self == 0 {
