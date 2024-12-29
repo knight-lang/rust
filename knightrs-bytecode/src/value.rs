@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::io::Write;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
@@ -40,7 +39,7 @@ XXXX ... XXXX 100 -- Block
 XXXX ... XXXX 110 -- Float32
 */
 #[repr(transparent)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy)] // TODO: HOW DOES THIS PLAY WITH THE GC?
 pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 
 #[repr(C)]
@@ -174,9 +173,15 @@ impl NamedType for Value<'_> {
 	}
 }
 
+/// Constructors and casts
 impl<'gc> Value<'gc> {
+	/// The null value. It's a constant so it's usable in const contexts.
 	pub const NULL: Self = unsafe { Self::from_val(REPR_NULL) };
+
+	/// The `FALSE` value. It's a constant so it's usable in const contexts.
 	pub const FALSE: Self = unsafe { Self::from_val(REPR_FALSE) };
+
+	/// The `TRUE` value. It's a constant so it's usable in const contexts.
 	pub const TRUE: Self = unsafe { Self::from_val(REPR_TRUE) };
 
 	/// Creates a new value from the given representation.
@@ -190,45 +195,46 @@ impl<'gc> Value<'gc> {
 		Self(Inner { repr }, PhantomData)
 	}
 
+	/// Creates a new value from the given allocated pointer.
+	///
+	/// # Safety
+	/// `ptr` must be point to a valid, properly aligned valid [`ValueInner`] that's valid for `'gc`.
 	#[inline]
 	unsafe fn from_alloc(ptr: *const ValueInner) -> Self {
 		debug_assert_eq!((ptr as ValueRepr) & TAG_MASK, 0, "repr has tag bits set");
 		Self(Inner { ptr }, PhantomData)
 	}
 
+	/// Checks to see if we're allocated or null. The `or` here is because both null and pointers
+	/// have the bottom 3 bits as `0`.
 	fn is_alloc_or_null(self) -> bool {
 		self.repr() & TAG_MASK == 0
 	}
 
+	/// Checks to see if we're an allocated pointer, and not [`Null`].
 	fn is_alloc(self) -> bool {
 		self.is_alloc_or_null() && !self.is_null()
 	}
 
-	pub(crate) fn __is_alloc(self) -> bool {
-		self.is_alloc()
-	}
-	pub(crate) unsafe fn __as_alloc(self) -> *const ValueInner {
-		debug_assert!(self.is_alloc());
-		unsafe { self.0.ptr }
-	}
-
+	/// Returns whether [`self`] is NULL.
 	#[inline]
 	pub const fn is_null(self) -> bool {
 		self.repr() == Self::NULL.repr()
 	}
 
+	/// Returns the underlying [`Integer`], if `self` is actually an integer.
 	#[inline]
 	pub const fn as_integer(self) -> Option<Integer> {
-		// Can't use `==` b/c the PartialEq impl isn't `const`.
-		if self.repr() & TAG_MASK_INT != TAG_INT {
-			return None;
+		if self.repr() & TAG_MASK_INT == TAG_INT {
+			Some(Integer::new_unvalidated_unchecked(
+				self.repr() as integer::IntegerInner >> TAG_INT_SHIFT,
+			))
+		} else {
+			None
 		}
-
-		Some(Integer::new_unvalidated_unchecked(
-			self.repr() as integer::IntegerInner >> TAG_INT_SHIFT,
-		))
 	}
 
+	/// Returns the underlying [`Boolean`], if `self` is actually a boolean.
 	#[inline]
 	pub const fn as_boolean(self) -> Option<Boolean> {
 		if self.repr() == Self::TRUE.repr() {
@@ -240,6 +246,7 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
+	/// Returns the underlying [`Block`], if `self` is actually a block.
 	#[inline]
 	pub fn as_block(self) -> Option<Block> {
 		if self.repr() & TAG_MASK == TAG_BLOCK {
@@ -249,6 +256,7 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
+	/// Returns the underlying [`List`], if `self` is actually a list.
 	#[inline]
 	pub fn as_list(self) -> Option<List<'gc>> {
 		if self.is_alloc() {
@@ -258,6 +266,7 @@ impl<'gc> Value<'gc> {
 		}
 	}
 
+	/// Returns the underlying [`KnString`], if `self` is actually a string.
 	#[inline]
 	pub fn as_knstring(self) -> Option<KnString<'gc>> {
 		if self.is_alloc() {
@@ -284,9 +293,56 @@ unsafe impl GarbageCollected for Value<'_> {
 	}
 }
 
+/// Knight functions
 impl<'gc> Value<'gc> {
 	#[inline] // CHECKME: is this optimization worth it?
-	pub fn kn_dump(&self, env: &mut Environment<'gc>) -> crate::Result<()> {
+	pub fn kn_dump(self, env: &mut Environment<'gc>) -> crate::Result<()> {
+		use std::io::{self, Write};
+
+		fn dump(value: Value<'_>, mut out: impl Write) -> io::Result<()> {
+			if value.is_null() {
+				return write!(out, "null");
+			}
+
+			if let Some(boolean) = value.as_boolean() {
+				return write!(out, "{boolean}");
+			}
+
+			if let Some(integer) = value.as_integer() {
+				return write!(out, "{integer}");
+			}
+
+			if let Some(string) = value.as_knstring() {
+				return write!(out, "{string:?}");
+			}
+
+			if let Some(list) = value.as_list() {
+				write!(out, "[")?;
+
+				for (idx, arg) in list.into_iter().enumerate() {
+					if idx != 0 {
+						write!(out, ", ")?;
+					}
+
+					dump(arg, out.by_ref())?;
+				}
+
+				write!(out, "]")?;
+			}
+
+			// #[cfg(feature = "compliance")]
+			// if env.opts().compliance.cant_dump_blocks && self.as_block().is_some() {
+			// 	return Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" });
+
+			// 	return write!(env.output(), "{:?}", self.as_block().unwrap())
+			// 		.map_err(|err| Error::IoError { func: "OUTPUT", err });
+			// }
+
+			Ok(())
+		}
+
+		// return Ok(write!(env.output(), "{self:?}").unwrap());
+
 		if self.is_null() {
 			write!(env.output(), "null")
 		} else if let Some(b) = self.as_boolean() {

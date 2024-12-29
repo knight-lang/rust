@@ -251,15 +251,15 @@ impl Gc {
 		inner
 	}
 
-	/// Indicates that `root` is a "root node."
-	///
-	/// This adds `root` to a list of nodes that'll assume to always be "live," so them and all their
-	/// children will be checked when marking-and-sweeping.
-	pub fn add_root(&self, root: Value) {
-		if root.__is_alloc() {
-			self.0.borrow_mut().roots.insert(unsafe { root.__as_alloc() });
-		}
-	}
+	// /// Indicates that `root` is a "root node."
+	// ///
+	// /// This adds `root` to a list of nodes that'll assume to always be "live," so them and all their
+	// /// children will be checked when marking-and-sweeping.
+	// pub fn add_root(&self, root: Value) {
+	// 	if root.__is_alloc() {
+	// 		self.0.borrow_mut().roots.insert(unsafe { root.__as_alloc() });
+	// 	}
+	// }
 
 	// pub only for testing
 	pub unsafe fn mark_and_sweep(&self) {
