@@ -47,7 +47,7 @@ pub struct Value<'gc>(Inner, PhantomData<&'gc ()>);
 #[derive(Clone, Copy)]
 union Inner {
 	ptr: *const ValueInner,
-	val: ValueRepr,
+	repr: ValueRepr,
 }
 
 #[repr(align(16))]
@@ -138,14 +138,14 @@ impl From<Block> for Value<'_> {
 	}
 }
 
-impl<'gc> From<List<'gc>> for Value<'gc> {
+impl From<List<'_>> for Value<'_> {
 	#[inline]
 	fn from(list: List) -> Self {
 		unsafe { Self::from_alloc(list.into_raw()) }
 	}
 }
 
-impl<'gc> From<KnString<'gc>> for Value<'gc> {
+impl From<KnString<'_>> for Value<'_> {
 	#[inline]
 	fn from(string: KnString) -> Self {
 		unsafe { Self::from_alloc(string.into_raw()) }
@@ -169,7 +169,7 @@ impl NamedType for Value<'_> {
 		} else if let Some(x) = self.as_block() {
 			x.type_name()
 		} else {
-			todo!("other types")
+			bug!("typename for another type: {:x}", self.repr())
 		}
 	}
 }
@@ -179,11 +179,15 @@ impl<'gc> Value<'gc> {
 	pub const FALSE: Self = unsafe { Self::from_val(REPR_FALSE) };
 	pub const TRUE: Self = unsafe { Self::from_val(REPR_TRUE) };
 
-	// SAFETY: bytes is a valid representation
+	/// Creates a new value from the given representation.
+	///
+	/// # Safety
+	/// `repr` must be a valid representation of a [`Value`], and must be either `0`, or have at
+	/// least one of the [`TAG_MASK`] bits set.
 	#[inline]
-	const unsafe fn from_val(val: ValueRepr) -> Self {
-		debug_assert!(val == REPR_NULL || val & TAG_MASK != 0, "repr has tag bits set");
-		Self(Inner { val }, PhantomData)
+	const unsafe fn from_val(repr: ValueRepr) -> Self {
+		debug_assert!(repr == REPR_NULL || repr & TAG_MASK != 0, "repr has tag bits set");
+		Self(Inner { repr }, PhantomData)
 	}
 
 	#[inline]
@@ -193,7 +197,7 @@ impl<'gc> Value<'gc> {
 	}
 
 	fn is_alloc_or_null(self) -> bool {
-		self.val() & TAG_MASK == 0
+		self.repr() & TAG_MASK == 0
 	}
 
 	fn is_alloc(self) -> bool {
@@ -210,24 +214,26 @@ impl<'gc> Value<'gc> {
 
 	#[inline]
 	pub const fn is_null(self) -> bool {
-		self.val() == Self::NULL.val()
+		self.repr() == Self::NULL.repr()
 	}
 
 	#[inline]
 	pub const fn as_integer(self) -> Option<Integer> {
 		// Can't use `==` b/c the PartialEq impl isn't `const`.
-		if self.val() & TAG_MASK_INT != TAG_INT {
+		if self.repr() & TAG_MASK_INT != TAG_INT {
 			return None;
 		}
 
-		Some(Integer::new_unvalidated_unchecked(self.val() as integer::IntegerInner >> TAG_INT_SHIFT))
+		Some(Integer::new_unvalidated_unchecked(
+			self.repr() as integer::IntegerInner >> TAG_INT_SHIFT,
+		))
 	}
 
 	#[inline]
 	pub const fn as_boolean(self) -> Option<Boolean> {
-		if self.val() == Self::TRUE.val() {
+		if self.repr() == Self::TRUE.repr() {
 			Some(true)
-		} else if self.val() == Self::FALSE.val() {
+		} else if self.repr() == Self::FALSE.repr() {
 			Some(false)
 		} else {
 			None
@@ -236,8 +242,8 @@ impl<'gc> Value<'gc> {
 
 	#[inline]
 	pub fn as_block(self) -> Option<Block> {
-		if self.val() & TAG_MASK == TAG_BLOCK {
-			Some(Block::new(JumpIndex(self.val() as usize >> TAG_SHIFT)))
+		if self.repr() & TAG_MASK == TAG_BLOCK {
+			Some(Block::new(JumpIndex(self.repr() as usize >> TAG_SHIFT)))
 		} else {
 			None
 		}
@@ -800,9 +806,9 @@ impl<'gc> Value<'gc> {
 		Err(Error::TypeError { type_name: self.type_name(), function: "SET" })
 	}
 
-	const fn val(&self) -> u64 {
+	const fn repr(&self) -> u64 {
 		// safety: all permutations are valid `u64`s
-		unsafe { self.0.val }
+		unsafe { self.0.repr }
 	}
 }
 
@@ -832,7 +838,7 @@ fn fix_len(
 impl ToInteger for Value<'_> {
 	fn to_integer(&self, env: &mut Environment<'_>) -> crate::Result<Integer> {
 		// Special case for NULL, FALSE, and 0 based on their representations.
-		if self.val() <= 0b10 {
+		if self.repr() <= 0b10 {
 			debug_assert!(
 				self.is_null()
 					|| self.as_boolean().map_or(false, |x| x == false)
@@ -873,7 +879,7 @@ impl ToInteger for Value<'_> {
 		}
 
 		unsafe {
-			bug_unchecked!("invalid type for `to_integer()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_integer()`?? {:?}", self.repr());
 		}
 	}
 }
@@ -881,7 +887,7 @@ impl ToInteger for Value<'_> {
 impl ToBoolean for Value<'_> {
 	fn to_boolean(&self, env: &mut Environment<'_>) -> crate::Result<Boolean> {
 		// Special case for NULL, FALSE, and 0 based on their representations.
-		if self.val() <= 0b10 {
+		if self.repr() <= 0b10 {
 			debug_assert!(
 				self.is_null()
 					|| self.as_boolean().map_or(false, |x| x == false)
@@ -926,14 +932,14 @@ impl ToBoolean for Value<'_> {
 		// SAFETY: we've already covered every single type, so there's no reason this should ever
 		// happen.
 		unsafe {
-			bug_unchecked!("invalid type for `to_boolean()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_boolean()`?? {:?}", self.repr());
 		}
 	}
 }
 
 impl<'gc> ToKnString<'gc> for Value<'gc> {
 	fn to_knstring(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
-		if self.val() <= knstring::consts::LITERAL_MAX_LENGTH as _ {
+		if self.repr() <= knstring::consts::LITERAL_MAX_LENGTH as _ {
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.no_block_conversions && self.as_block().is_some() {
 				return Err(crate::Error::Todo("cannot convert Blocks to strings".into()));
@@ -948,7 +954,7 @@ impl<'gc> ToKnString<'gc> for Value<'gc> {
 			);
 
 			return Ok(GcRoot::new_unchecked(unsafe {
-				knstring::consts::lookup_literal(self.val() as _)
+				knstring::consts::lookup_literal(self.repr() as _)
 			}));
 		}
 
@@ -974,7 +980,7 @@ impl<'gc> ToKnString<'gc> for Value<'gc> {
 		}
 
 		unsafe {
-			bug_unchecked!("invalid type for `to_knstring()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_knstring()`?? {:?}", self.repr());
 		}
 	}
 }
@@ -1008,14 +1014,14 @@ impl<'gc> ToList<'gc> for Value<'gc> {
 		}
 
 		unsafe {
-			bug_unchecked!("invalid type for `to_list()`?? {:?}", self.val());
+			bug_unchecked!("invalid type for `to_list()`?? {:?}", self.repr());
 		}
 	}
 }
 
 impl PartialEq for Value<'_> {
 	fn eq(&self, rhs: &Self) -> bool {
-		if self.val() == rhs.val() {
+		if self.repr() == rhs.repr() {
 			return true;
 		}
 
