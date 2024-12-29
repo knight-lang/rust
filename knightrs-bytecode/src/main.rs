@@ -108,11 +108,9 @@ fn main() {
 						opts.compliance.variable_name_length = true;
 						opts.compliance.variable_count = true;
 						opts.compliance.forbid_trailing_tokens = true;
-						opts.compliance.check_equals_params = true;
 						opts.compliance.limit_rand_range = true;
-						opts.compliance.cant_dump_blocks = true;
 						opts.compliance.check_quit_status_codes = true;
-						opts.compliance.disallow_negative_int_to_list = true;
+						opts.compliance.strict_conversions = true;
 						opts.compliance.disable_all_extensions = true;
 						opts.compliance.no_block_conversions = true;
 					}

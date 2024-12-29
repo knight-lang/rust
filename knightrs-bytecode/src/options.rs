@@ -89,14 +89,34 @@ pub struct Compliance {
 	/// Without this, trailing tokens are allowed, and are simply ignored.
 	pub forbid_trailing_tokens: bool,
 
-	/// Verify that [`Value::kn_equals`] is not called with [`Block`]s.
-	pub check_equals_params: bool,
-	pub no_block_conversions: bool,
-	pub cant_dump_blocks: bool,
+	/// Verify that blocks are _exclusively_ used in functions that support them.
+	///
+	/// Without this, a handful of functions (such as [`Value::kn_equals`] and [`Value::kn_dump`])
+	/// support blocks as an extension.
+	pub strict_blocks: bool,
 
+	//Additionally, some `Block` conversions are defined, to speed up implementations.
+	pub no_block_conversions: bool,
+
+	/// Change [`Env::random`] to exclusively return integers within the range `0..=32767`.
+	///
+	/// Without this, [`Env::random`]'s maximum is bounded [`Integer::max`]. See also
+	/// [`Extensions::breaking::random_can_be_negative`], which this option overrides.
 	pub limit_rand_range: bool,
+
+	/// Ensures that [`Env::quit`] is only ever called with statuses within `0..=127`.
+	///
+	/// Without this, any [`i32`] status is allowed. (But the OS determines how to handle larger
+	/// statuses, and so may not return ones outside this range.)
 	pub check_quit_status_codes: bool,
-	pub disallow_negative_int_to_list: bool,
+
+	/// Ensures that all conversions are strictly spec-conformant.
+	///
+	/// Without this, negative integer -> list conversions, and boolean -> list conversions are
+	/// defined.
+	pub strict_conversions: bool,
+
+	/// Disables all `feature = "extensions"`, regardless of their setting.
 	pub disable_all_extensions: bool, // TODO
 }
 

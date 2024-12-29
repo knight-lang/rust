@@ -331,7 +331,7 @@ impl<'gc> Value<'gc> {
 			}
 
 			// #[cfg(feature = "compliance")]
-			// if env.opts().compliance.cant_dump_blocks && self.as_block().is_some() {
+			// if env.opts().compliance.strict_blocks && self.as_block().is_some() {
 			// 	return Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" });
 
 			// 	return write!(env.output(), "{:?}", self.as_block().unwrap())
@@ -362,7 +362,7 @@ impl<'gc> Value<'gc> {
 			write!(env.output(), "]")
 		} else {
 			#[cfg(feature = "compliance")]
-			if env.opts().compliance.cant_dump_blocks && self.as_block().is_some() {
+			if env.opts().compliance.strict_blocks && self.as_block().is_some() {
 				return write!(env.output(), "{:?}", self.as_block().unwrap())
 					.map_err(|err| Error::IoError { func: "OUTPUT", err });
 			}
@@ -402,7 +402,7 @@ impl<'gc> Value<'gc> {
 	pub fn kn_equals(&self, rhs: &Self, env: &mut Environment<'gc>) -> crate::Result<bool> {
 		// In strict compliance mode, we can't use Blocks for `?`.
 		#[cfg(feature = "compliance")]
-		if env.opts().compliance.check_equals_params {
+		if env.opts().compliance.strict_blocks {
 			fn forbid_block_arguments(value: &Value, function: &'static str) -> crate::Result<()> {
 				if value.as_block().is_some() {
 					return Err(Error::TypeError { type_name: value.type_name(), function });

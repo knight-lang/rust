@@ -41,6 +41,11 @@ impl<'gc> ToList<'gc> for Boolean {
 	/// Returns an empty list for `false`, and a list with just `self` if true.
 	#[inline]
 	fn to_list(&self, env: &mut Environment<'gc>) -> crate::Result<GcRoot<'gc, List<'gc>>> {
+		#[cfg(feature = "compliance")]
+		if env.opts().compliance.strict_conversions {
+			return Err(crate::Error::ConversionNotDefined { to: "List", from: "Boolean" });
+		}
+
 		if *self {
 			Ok(List::from_slice_unvalidated(&[(*self).into()], env.gc()))
 			// Ok(GcRoot::new_unchecked(crate::value::list::consts::JUST_TRUE))
