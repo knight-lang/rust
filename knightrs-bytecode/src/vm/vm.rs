@@ -318,6 +318,18 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 							self.set_variable(index, value.clone());
 						}
 					} else {
+						// check for compliance, even with the extension
+						#[cfg(feature = "compliance")]
+						if self.env.opts().compliance.variable_count
+							&& self.dynamic_variables.len() + self.program.num_variables()
+								> super::MAX_VARIABLE_COUNT
+						{
+							return Err(crate::Error::Todo(format!(
+								"too many variables encountered (only {} allowed)",
+								super::MAX_VARIABLE_COUNT
+							)));
+						}
+
 						self.dynamic_variables.insert(varname.become_owned(), value.clone());
 					}
 

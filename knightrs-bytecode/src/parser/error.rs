@@ -36,8 +36,8 @@ pub enum ParseErrorKind {
 	TrailingTokens,
 
 	#[cfg(feature = "check-parens")]
-	#[error("missing matching `)` for paren found at {0}")]
-	MissingClosingParen(SourceLocation<'static>),
+	#[error("missing matching `)` for paren")]
+	MissingClosingParen,
 
 	#[cfg(feature = "check-parens")]
 	#[error("unmatched `)` found")]

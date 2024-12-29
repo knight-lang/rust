@@ -14,4 +14,5 @@ pub use opcode::Opcode;
 pub use vm::*;
 
 #[cfg(feature = "compliance")]
-pub const MAX_VARIABLE_COUNT: usize = 65535;
+// pub const MAX_VARIABLE_COUNT: usize = 65535;
+pub const MAX_VARIABLE_COUNT: usize = 10;
