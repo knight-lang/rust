@@ -32,6 +32,7 @@ pub enum Error {
 	ListIsTooLarge,
 
 	#[error("(quit with exit status {0})")]
+	// #[cfg(any(doc, feature = "embedded"))]
 	#[cfg(feature = "embedded")]
 	Exit(i32),
 

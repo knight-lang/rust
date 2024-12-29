@@ -550,7 +550,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				#[cfg(feature = "extensions")]
 				Opcode::Eval => {
 					let program = unsafe { arg![0] }.to_knstring(self.env)?;
-					let parser = crate::parser::Parser::new(&mut self.env, None, program.as_str())?;
+					let parser = crate::parser::Parser::new(
+						&mut self.env,
+						crate::parser::source_location::ProgramSource::Eval,
+						program.as_str(),
+					)?;
 					let program = parser.parse_program()?;
 					let value = Vm::new(&program, self.env).run_entire_program_without_argv()?;
 					unsafe {

@@ -1,6 +1,6 @@
 mod error;
 mod parser;
-mod source_location;
+pub mod source_location;
 mod variable_name;
 
 pub use error::*;

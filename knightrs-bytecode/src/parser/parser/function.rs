@@ -62,7 +62,7 @@ fn parse_argument<'path>(
 ) -> Result<(), ParseError<'path>> {
 	match parser.parse_expression() {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
-			return Err(start.clone().error(ParseErrorKind::MissingArgument(fn_name, arg)));
+			return Err(ParseErrorKind::MissingArgument(fn_name, arg).error(*start));
 		}
 		other => other,
 	}
@@ -77,7 +77,7 @@ fn parse_assignment<'path>(
 	// TODO: handle `()` around variable name.
 	match super::VariableName::parse(parser) {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
-			return Err(start.error(ParseErrorKind::MissingArgument('=', 1)));
+			return Err(ParseErrorKind::MissingArgument('=', 1).error(start));
 		}
 		Err(err) => return Err(err),
 		Ok(Some((name, location))) => {
@@ -92,7 +92,7 @@ fn parse_assignment<'path>(
 			// ew, cloning is not a good answer.
 			let opts = (*parser.opts()).clone();
 			unsafe { parser.compiler().set_variable(name, &opts) }
-				.map_err(|err| location.error(err))?;
+				.map_err(|err| err.error(location))?;
 		}
 		Ok(None) => {
 			#[cfg(feature = "extensions")]
@@ -126,7 +126,7 @@ fn parse_assignment<'path>(
 				}
 			}
 
-			return Err(start.error(ParseErrorKind::CanOnlyAssignToVariables));
+			return Err(ParseErrorKind::CanOnlyAssignToVariables.error(start));
 		}
 	}
 
@@ -296,7 +296,7 @@ impl Function {
 					}
 					Ok(true)
 				}
-				_ => Err(start.error(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()))),
+				_ => Err(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()).error(start)),
 			},
 			_ => todo!("invalid fn: {fn_name:?}"),
 		}

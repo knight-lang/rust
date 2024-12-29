@@ -19,7 +19,7 @@ pub fn parse_parens<'path>(
 	//
 	parser.strip_whitespace_and_comments();
 	if parser.advance_if(')').is_none() {
-		return Err(start.error(ParseErrorKind::MissingClosingParen));
+		return Err(ParseErrorKind::MissingClosingParen.error(start));
 	}
 
 	return Ok(true);

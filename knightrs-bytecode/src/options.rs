@@ -117,7 +117,9 @@ pub struct Compliance {
 	pub strict_conversions: bool,
 
 	/// Disables all `feature = "extensions"`, regardless of their setting.
-	pub disable_all_extensions: bool, // TODO
+	///
+	/// Currently not implemented.
+	pub disable_all_extensions: bool,
 }
 
 cfg_if! {

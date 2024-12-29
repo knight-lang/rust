@@ -5,7 +5,9 @@ mod function;
 mod parens;
 
 use super::VariableName;
-use crate::parser::{ParseError, ParseErrorKind, Parseable, SourceLocation};
+use crate::parser::{
+	source_location::ProgramSource, ParseError, ParseErrorKind, Parseable, SourceLocation,
+};
 use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
 use crate::Gc;
 use crate::{Environment, Options};
@@ -13,7 +15,7 @@ use std::path::Path;
 
 pub struct Parser<'env, 'src, 'path, 'gc> {
 	env: &'env mut Environment<'gc>,
-	filename: Option<&'path Path>,
+	filename: ProgramSource<'path>,
 	source: &'src str, // can't use `KnStr` b/c it has a length limit.
 	compiler: Compiler<'src, 'path, 'gc>,
 	lineno: usize,
@@ -25,7 +27,7 @@ pub struct Parser<'env, 'src, 'path, 'gc> {
 #[cfg(feature = "compliance")]
 fn validate_source<'e, 'path>(
 	source: &'e str,
-	filename: Option<&'path Path>,
+	filename: ProgramSource<'path>,
 	opts: &Options,
 ) -> Result<(), ParseError<'path>> {
 	let Err(err) = opts.encoding.validate(source) else {
@@ -43,7 +45,7 @@ fn validate_source<'e, 'path>(
 impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 	pub fn new(
 		env: &'env mut Environment<'gc>,
-		filename: Option<&'path Path>,
+		filename: ProgramSource<'path>,
 		source: &'src str,
 	) -> Result<Self, ParseError<'path>> {
 		#[cfg(feature = "compliance")]

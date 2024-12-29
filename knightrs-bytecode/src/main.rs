@@ -12,14 +12,16 @@ use knightrs_bytecode::value::*;
 use knightrs_bytecode::value::{ToKnString, ToList};
 use knightrs_bytecode::vm::*;
 use knightrs_bytecode::Options;
+use source_location::ProgramSource;
 
 fn run(
 	env: &mut Environment<'_>,
+	source: ProgramSource<'_>,
 	program: &str,
 	argv: impl Iterator<Item = String>,
 ) -> Result<(), String> {
 	let gc = env.gc();
-	let mut parser = Parser::new(env, Some(Path::new("-e")), &program).map_err(|s| s.to_string())?;
+	let mut parser = Parser::new(env, source, &program).map_err(|s| s.to_string())?;
 
 	gc.pause();
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
@@ -121,14 +123,17 @@ fn main() {
 			);
 
 			let mut args = std::env::args().skip(1);
-			let program = match args.next().as_deref() {
-				Some("-f") => std::fs::read_to_string(args.next().expect("missing expr for -f"))
-					.expect("cannot open file"),
-				Some("-e") => args.next().expect("missing expr for -e"),
+			let (program, source) = match args.next().as_deref() {
+				Some("-f") => (
+					std::fs::read_to_string(args.next().expect("missing expr for -f"))
+						.expect("cannot open file"),
+					ProgramSource::File(Path::new("<file>")),
+				),
+				Some("-e") => (args.next().expect("missing expr for -e"), ProgramSource::ExprFlag),
 				_ => panic!("invalid option: -e or -f only"),
 			};
 
-			match run(&mut env, &program, args) {
+			match run(&mut env, source, &program, args) {
 				Ok(()) => {}
 				Err(err) => {
 					eprintln!("error: {err}");

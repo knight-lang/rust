@@ -524,11 +524,11 @@ impl<'path, 'gc> Parseable<'_, 'path, 'gc> for KnString<'gc> {
 		let contents = parser.take_while(|c| c != quote).unwrap_or_default();
 
 		if parser.advance_if(quote).is_none() {
-			return Err(start.error(ParseErrorKind::MissingEndingQuote(quote)));
+			return Err(ParseErrorKind::MissingEndingQuote(quote).error(start));
 		}
 
 		let string = KnString::new(contents.to_string(), parser.opts(), parser.gc())
-			.map_err(|err| start.error(err.into()))?;
+			.map_err(|err| ParseErrorKind::from(err).error(start))?;
 		Ok(Some(string))
 	}
 }

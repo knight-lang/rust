@@ -40,5 +40,6 @@ iffy-extensions = ["extensions"]
 all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
+unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
 # default = ["qol"]
 default = ["extensions", "compliance", "qol", "embedded", "knight_2_0_1"] # the defaults just when testing
