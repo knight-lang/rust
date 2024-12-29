@@ -113,6 +113,8 @@ fn main() {
 						opts.compliance.cant_dump_blocks = true;
 						opts.compliance.check_quit_status_codes = true;
 						opts.compliance.disallow_negative_int_to_list = true;
+						opts.compliance.disable_all_extensions = true;
+						opts.compliance.no_block_conversions = true;
 					}
 
 					opts
