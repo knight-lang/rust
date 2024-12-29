@@ -2,10 +2,22 @@ use crate::parser::SourceLocation;
 use crate::strings::{Encoding, StringError};
 use std::fmt::{self, Display, Formatter};
 
+/// An error that happens during program parsing.
+///
+/// This contains both the error itself (`kind`), and where it occurred (`whence`).
 #[derive(Debug)]
 pub struct ParseError<'path> {
-	pub whence: SourceLocation<'path>,
+	/// What kind of error occurred.
 	pub kind: ParseErrorKind,
+
+	/// Where the error happened.
+	pub whence: SourceLocation<'path>,
+}
+
+impl std::error::Error for ParseError<'_> {
+	fn cause(&self) -> Option<&dyn std::error::Error> {
+		self.kind.cause()
+	}
 }
 
 impl Display for ParseError<'_> {
@@ -14,17 +26,18 @@ impl Display for ParseError<'_> {
 	}
 }
 
-impl std::error::Error for ParseError<'_> {}
-
+/// Different kinds of errors that can occur when parsing
 #[derive(Error, Debug)]
 pub enum ParseErrorKind {
-	// There was nothing to parse
+	/// The program source just had comments and whitespace
 	#[error("there was nothing to parse.")]
 	EmptySource,
 
+	/// An unknown character appeared.
 	#[error("character doesn't start a token: {0:?}")]
 	UnknownTokenStart(char),
 
+	/// An integer literal overflowed
 	#[error("integer literal overflowed")]
 	IntegerLiteralOverflow,
 
