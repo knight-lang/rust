@@ -142,7 +142,10 @@ if #[cfg(feature = "extensions")] {
 
 	#[derive(Default, Clone)]
 	pub struct Functions {
+		/// Enables the `EVAL` extension
 		pub eval: bool,
+
+		/// Enables the `VALUE` extension
 		pub value: bool,
 	}
 
