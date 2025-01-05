@@ -9,5 +9,5 @@ pub use error::{Error, ErrorKind, Result};
 pub use origin::Origin;
 pub use span::Span;
 pub use stream::Stream;
-pub use token::Token;
-pub use tokenizer::Tokenizer;
+pub use token::{Token, TokenKind};
+pub use tokenizer::*;

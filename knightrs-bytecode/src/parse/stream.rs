@@ -33,6 +33,18 @@ impl<'src> Stream<'src> {
 		self.source
 	}
 
+	pub fn attempt<F: FnOnce(&Self) -> Option<T>, T>(&mut self, func: F) -> Option<T> {
+		let clone = self.clone();
+		let result = func(&clone)?;
+
+		// Don't copy these two, as they shouldn't change. But check that assumption.
+		debug_assert_eq!(self.origin, clone.origin);
+		debug_assert!(std::ptr::eq(self.source, clone.source));
+		self.chars = clone.chars;
+
+		Some(result)
+	}
+
 	// TODO: take_if, if needed
 
 	/// [`advance`]s while `cond` is true, returning a [`Span`] of the advanced characters if the

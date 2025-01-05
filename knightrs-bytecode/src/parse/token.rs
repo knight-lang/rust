@@ -1,12 +1,17 @@
 use super::Span;
 
 /// A [`Token`], representing a source program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token<'src> {
+	/// The contents of the token.
 	pub span: Span<'src>,
+
+	/// What kind of token it is.
 	pub kind: TokenKind,
 }
 
 #[rustfmt::skip]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
 	// Specials
 	Integer,

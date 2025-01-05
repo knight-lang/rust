@@ -22,9 +22,10 @@ multithreaded = [] # TODO: add multithreading
 stacktrace      = [] # Print out stacktraces
 check-variables = [] # Compile in checks to see if variables are null or not.
 check-parens    = [] # Compile in checks for parens
-qol = ["stacktrace", "check-variables", "check-parens"]
+utf8-strings    = [] # Enable utf-8 strings; without this, they're all ascii
+qol = ["stacktrace", "check-variables", "check-parens", "utf8-strings"]
 
-extensions = []  # Compile in _all_ extensions
+extensions = ["utf8-strings"]  # Compile in _all_ extensions
 compliance = ["check-variables", "check-parens"]  # Compile in _all_ forms of compliance checking
 
 custom-types = ["extensions"]

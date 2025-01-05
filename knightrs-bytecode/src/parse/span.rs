@@ -11,6 +11,7 @@ pub struct Span<'src> {
 	pub origin: Origin<'src>,
 }
 
+impl Eq for Span<'_> {}
 impl PartialEq for Span<'_> {
 	/// Returns whether `self` and `rhs` point to the exact same source program.
 	#[inline]

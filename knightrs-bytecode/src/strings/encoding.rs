@@ -16,7 +16,7 @@ pub enum Encoding {
 	Knight,
 
 	/// Only ASCII-based strings are valid; any other UTF-8 string is invalid.
-	#[cfg(feature = "compliance")]
+	#[cfg_attr(not(any(feature = "compliance", feature = "utf8-strings")), default)]
 	Ascii,
 }
 

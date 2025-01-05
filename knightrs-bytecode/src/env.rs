@@ -10,6 +10,8 @@ pub struct Environment<'gc> {
 	opts: Options,
 	rng: StdRng,
 	gc: &'gc Gc,
+	// #[cfg(feature = "extensions")]
+	// fns: Vec<Box<TokenizerFn<'src>>>,
 }
 
 impl<'gc> Environment<'gc> {

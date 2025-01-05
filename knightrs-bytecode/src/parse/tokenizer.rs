@@ -1,67 +1,90 @@
-use super::{Origin, Span, Stream, Token};
-use crate::strings::KnStr;
-use std::str::CharIndices;
+use super::{Origin, Result, Span, Stream, Token, TokenKind};
+use crate::{strings::KnStr, Environment, Options};
+use std::{mem::MaybeUninit, str::CharIndices};
 
-pub struct Tokenizer<'src> {
-	stream: Stream<'src>,
-	other_tokenizers: Vec<Box<dyn FnMut(Stream<'src>) -> Option<Token<'src>>>>,
+#[cfg(feature = "extensions")]
+pub type TokenizerFn<'src> = dyn FnMut(&mut Stream<'src>) -> Result<'src, Token<'src>>;
+
+pub trait ParseToken<'src> {
+	fn parse_token(tokenizer: &mut Tokenizer<'src, '_, '_>) -> Result<'src, Option<Token<'src>>>;
 }
 
-impl<'src> Iterator for Tokenizer<'src> {
-	type Item = Result;
+pub struct Tokenizer<'src, 'env, 'gc> {
+	stream: Stream<'src>,
+	env: &'env mut Environment<'gc>,
+}
 
-	fn next(&mut self) -> Option<Self::Item> {
-		self.0.next()
+impl<'src, 'env, 'gc> Tokenizer<'src, 'env, 'gc> {
+	/// Create a new [`Tokenizer`] with the given
+	#[inline]
+	pub fn new(stream: Stream<'src>, env: &'env mut Environment<'gc>) -> Self {
+		Self { stream, env }
+	}
+
+	/// Gets the [`Environment`] behind the tokenizer.
+	#[inline]
+	pub fn env(&self) -> &&'env mut Environment<'gc> {
+		&self.env
+	}
+
+	/// Gets the [`Stream`] that the tokenizer is using.
+	pub fn stream(&mut self) -> &mut Stream<'src> {
+		&mut self.stream
+	}
+
+	/// Remove all excess whitespace and comments from the start of the string.
+	pub fn strip_whitespace_and_comments(&mut self) {
+		loop {
+			self.stream.take_while(|chr| {
+				#[cfg(not(feature = "check-parens"))]
+				if matches!(chr, ':' | '(' | ')') {
+					return true;
+				}
+
+				// We only check for ascii whitespace
+				if cfg!(feature = "utf8-strings") {
+					chr.is_whitespace()
+				} else {
+					chr.is_ascii_whitespace()
+				}
+			});
+
+			if self.stream.peek() == Some('#') {
+				self.stream.take_while(|chr| chr != '\n');
+			} else {
+				break;
+			}
+		}
 	}
 }
-impl Tokenizer<'src>
 
-// 	source: &'src KnStr,
+impl<'src> Iterator for Tokenizer<'src, '_, '_> {
+	type Item = Result<'src, Token<'src>>;
 
-// 	chars: CharIndices<'src>,
-// }
+	fn next(&mut self) -> Option<Self::Item> {
+		self.strip_whitespace_and_comments();
+		const PARSE_FNS: [Option<u8>; 255] = {
+			let mut arr = [None; 255];
+			arr[b'0' as usize] = Some(1);
+			// arr[b'0' as usize..=b'9' as usize].fill(Some(1));
+			// ...
+			arr
+		};
 
-// impl<'src> Stream<'src> {
-// 	/// Create a new [`Stream`].
-// 	pub fn new(source: &'src KnStr, origin: Origin<'src>) -> Self {
-// 		Self { source, origin, chars: source.as_str().char_indices() }
-// 	}
+		// const PARSE_FNS: [Option<fn(...) -> ...>; 255] = [
+		// 	[b'0'..=b'9']: Some(parse_integer),
+		// 	[b'a'..=b'z']: Some(parse_variable),
+		// 	[b'_']: Some(parse_variable),
+		// 	else: NOne
+		// ];
 
-// 	/// Look at the next character without consuming it.
-// 	#[must_use]
-// 	pub fn peek(&self) -> Option<char> {
-// 		self.chars.clone().next().map(|(_, chr)| chr)
-// 	}
+		if let Some(digits) = self.stream().take_while(|c| c.is_ascii_digit()) {
+			// TODO: float extensions
+			return Some(Ok(Token { span: digits, kind: TokenKind::Integer }));
+		};
 
-// 	/// Consume the next character and return it.
-// 	pub fn advance(&mut self) -> Option<char> {
-// 		self.chars.next().map(|(_, chr)| chr)
-// 	}
-
-// 	/// Return the _entire_ program's source
-// 	pub fn source(&self) -> &'src KnStr {
-// 		self.source
-// 	}
-
-// 	// TODO: take_if, if needed
-
-// 	/// [`advance`]s while `cond` is true, returning a [`Span`] of the advanced characters if the
-// 	/// condition was true at least once.
-// 	pub fn take_while(&mut self, mut cond: impl FnMut(char) -> bool) -> Option<Span<'src>> {
-// 		let start = self.chars.clone();
-
-// 		while self.chars.next().map_or(false, |(_, chr)| cond(chr)) {
-// 			// do nothing, we're advancing
-// 		}
-
-// 		// OPTIMIZE ME: this could be optimized more if we did eventually use `unsafe`.
-// 		let snippet = &self.source.as_str()[start.offset()..self.chars.offset()];
-// 		let snippet = KnStr::new_unvalidated(snippet);
-
-// 		if snippet.is_empty() {
-// 			None
-// 		} else {
-// 			Some(Span { snippet, origin: self.origin })
-// 		}
-// 	}
-// }
+		// if self.
+		// self.0.next()
+		todo!()
+	}
+}
