@@ -1,10 +1,11 @@
 use super::Origin;
+use crate::strings::KnStr;
 
 /// A [`Span`] represents a portion of a snippet program.
 #[derive(Debug, Clone, Copy, Hash)]
 pub struct Span<'src> {
 	/// The piece of code that this `Span` covers.
-	pub snippet: &'src str,
+	pub snippet: &'src KnStr,
 
 	/// Whence the code came.
 	pub origin: Origin<'src>,
@@ -32,7 +33,7 @@ impl<'src> Span<'src> {
 		let mut chars = source.chars();
 		let mut lineno = 1;
 
-		while chars.as_str().as_ptr() != self.snippet.as_ptr() {
+		while chars.as_str().as_ptr() != self.snippet.as_str().as_ptr() {
 			if '\n' == chars.next().expect("somehow `snippet` didn't equal `origin`") {
 				lineno += 1
 			}
