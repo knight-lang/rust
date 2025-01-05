@@ -47,9 +47,9 @@ pub mod error;
 pub mod gc;
 pub mod options;
 pub mod parser;
+mod parser2;
 pub mod program;
 pub mod strings;
-
 pub mod value;
 
 pub mod vm;
