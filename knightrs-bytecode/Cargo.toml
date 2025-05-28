@@ -15,9 +15,10 @@ indexmap = "2.7"
 rand = "0.8"
 likely_stable = "0.1.2"
 crossbeam-epoch = "0.9"
+clap = { version = "4.5.39", features = ["derive", "cargo"], optional = true }
 
 [features]
-default = ["extensions", "compliance", "qol", "embedded", "knight_2_0_1"] # the defaults just when testing
+default = ["extensions", "compliance", "qol", "embedded", "clap"] # the defaults just when testing
 
 multithreaded = [] # TODO: add multithreading
 

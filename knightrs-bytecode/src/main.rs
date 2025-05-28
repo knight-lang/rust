@@ -1,4 +1,5 @@
 #![allow(unused)]
+mod cli;
 
 use std::default;
 use std::path::Path;
@@ -75,6 +76,8 @@ fn main1() {
 }
 
 fn main() {
+	cli::mainx();
+	return;
 	unsafe {
 		let gc = Gc::default();
 		gc.run(|gc| {
