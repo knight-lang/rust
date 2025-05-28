@@ -17,6 +17,8 @@ likely_stable = "0.1.2"
 crossbeam-epoch = "0.9"
 
 [features]
+default = ["extensions", "compliance", "qol", "embedded", "knight_2_0_1"] # the defaults just when testing
+
 multithreaded = [] # TODO: add multithreading
 
 stacktrace      = [] # Print out stacktraces
@@ -41,5 +43,3 @@ all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
 unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
-# default = ["qol"]
-default = ["extensions", "compliance", "qol", "embedded", "knight_2_0_1"] # the defaults just when testing
