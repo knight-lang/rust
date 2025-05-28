@@ -38,8 +38,6 @@ floats = []
 knight_2_0_1 = []
 
 all-extensions = ["extensions", "custom-types"]
-iffy-extensions = ["extensions"]
-all-iffy-extensions = ["all-extensions", "iffy-extensions"]
 strict-compliance = ["compliance"]
 
 unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
