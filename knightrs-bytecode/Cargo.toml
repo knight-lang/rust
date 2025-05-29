@@ -33,7 +33,6 @@ compliance = ["check-variables", "check-parens"]  # Compile in _all_ forms of co
 custom-types = ["extensions"]
 
 embedded = []
-floats = []
 
 # If enabled, support knight-2.0.1 features
 knight_2_0_1 = []
