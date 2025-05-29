@@ -1,80 +1,176 @@
 use std::path::PathBuf;
 
 use clap::{arg, command, value_parser, Arg, ArgAction, Args, Command, Parser};
-use knightrs_bytecode::strings::Encoding;
+use knightrs_bytecode::{strings::Encoding, Options};
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    #[arg(short, long)]
-    expression: String,
+	#[arg(short, long)]
+	expression: Option<String>,
 
-    #[arg(short, long)]
-    file: String,
-        // .next_help_heading(heading)
+	#[arg(short, long)]
+	file: Option<String>,
+	// .next_help_heading(heading)
 
+	/***************************************************************************
+	 *                             Quality Of Life                             *
+	 ***************************************************************************/
+	/// Enables all QOL features
+	#[arg(short, long)]
+	qol: bool,
 
-    // QOL
+	/// Print out stacktraces
+	#[arg(long, hide_short_help = true, overrides_with = "_no_stacktrace")]
+	stacktrace: bool,
+	/// Undoes stacktrace
+	#[arg(long, hide_short_help = true)]
+	_no_stacktrace: bool,
 
+	/// Ensure variables are always assigned
+	#[arg(long, hide_short_help = true)]
+	check_variables: bool,
 
-    /// Enables all qol features
-    #[arg(short, long)]
-    qol: bool,
+	/// Ensure parens are always balanced
+	#[arg(long, hide_short_help = true)]
+	check_parens: bool,
 
-    /// Print out stacktraces
-    #[arg(long)]
-    stacktrace: bool,
+	/***************************************************************************
+	 *                                Embedded                                 *
+	 ***************************************************************************/
+	/// Enables all "embedded" features
+	#[arg(long)]
+	embedded: bool,
 
-    /// Ensure variables are always assigned
-    #[arg(long)]
-    check_variables: bool,
+	/// Should exit when quitting the app
+	#[arg(long, hide_short_help = true)]
+	exit_when_quit: bool,
 
-    /// Ensure parens are always balanced
-    #[arg(long)]
-    check_parens: bool,
+	/***************************************************************************
+	 *                               Compliance                                *
+	 ***************************************************************************/
+	/// Enable all compliance features
+	///
+	/// Unlike --strict-compliance, this does not disable extensions
+	#[arg(short = 'c', long, overrides_with = "_no_compliance")]
+	compliance: bool,
+	/// Undoes a previous --compliance
+	#[arg(long, hide_short_help = true)]
+	_no_compliance: bool,
 
-    /// Enables all Quality-of-Life features
+	/// Like --compliance, except non-compliant flags are ignored
+	///
+	/// Unlike --strict-compliance, this does not disable extensions
+	#[arg(short = 'C', long, overrides_with = "_no_strict_compliance")]
+	strict_compliance: bool,
+	/// Undoes a previous --strict_compliance
+	#[arg(long, hide_short_help = true)]
+	_no_strict_compliance: bool,
 
-    // #[arg(flatten)]
-    // encoding: Option<Embedded>,
+	/// Ensure containers are at most INTMAX elements long.
+	#[arg(long, hide_short_help = true)]
+	check_container_len: bool,
 
-    #[arg(long, help_heading="Q")]
-    embedded: String,
-    #[arg(long)]
-    embedded1: bool,
-    #[arg(long, hide_short_help=true)]
-    al: bool,
+	/// Constrain integers to 32 bits
+	#[arg(short = '3', long, hide_short_help = true)]
+	i32_integers: bool,
 
+	/// Check for overflow in arithmetic operations
+	#[arg(long, hide_short_help = true)]
+	check_overflow: bool,
 
-    // pub encoding: Encoding,
+	/// Check function bounds for integer functions.
+	// TODO: maybe have this, along with `check_overflow` be function-specific?
+	#[arg(long, hide_short_help = true)]
+	check_int_fn_bounds: bool,
 
-    // #[cfg(feature = "compliance")]
-    // pub compliance: Compliance,
+	/// Ensure variables are at most 127 chars long
+	#[arg(long, hide_short_help = true)]
+	validate_variable_name_len: bool,
 
-    // #[cfg(feature = "extensions")]
-    // pub extensions: Extensions,
+	/// Ensure at most 65535 variables are used
+	#[arg(long, hide_short_help = true)]
+	validate_variable_count: bool,
 
-    // #[cfg(feature = "qol")]
-    // pub qol: QualityOfLife,
+	/// Require programs to be exactly one token long.
+	///
+	/// Without this option, trailing tokens are ignored
+	#[arg(long, hide_short_help = true)]
+	forbid_trailing_tokens: bool,
 
-    // #[cfg(feature = "embedded")]
-    // pub embedded: Embedded,
+	/// Only support BLOCKs in functions that the spec permits.
+	///
+	/// Without this, a handful of functions (such as `?` and `DUMP`) support them.
+	#[arg(long, hide_short_help = true)]
+	strict_blocks: bool,
 
-    // #[cfg(feature = "check-variables")]
-    // pub check_variables: bool,
+	/// Don't allow blocks to be converted to other types
+	#[arg(long, hide_short_help = true)]
+	no_block_conversions: bool,
 
-    // #[cfg(feature = "check-parens")]
-    // pub check_parens: bool, // TODO: also make this strict compliance
+	/// Limit `RANDOM` to be only from 0 to 32767
+	#[arg(long, hide_short_help = true)]
+	limit_random_range: bool,
+
+	/// Require `QUIT` to be called with ints from 0 to 127.
+	#[arg(long, hide_short_help = true)]
+	check_quit_status_code: bool,
+
+	/// Forbid some conversions (such as boolean -> list) that are allowed as an extension.
+	#[arg(long, hide_short_help = true)]
+	strict_conversions: bool,
+	/***************************************************************************
+	 *                               Extensions                                *
+	 ***************************************************************************/
+	// -E, --[no-]extensions  Enables all extensions
+	//     --[no-]ext-types
+	//     --[no-]ext-float   not implemented
+	//     --[no-]ext-hashmap not implemented
+	//     --[no-]ext-classes not implemented
+	//     --[no-]ext-neg-indexing
+	//     --[no-]ext-eval
+	//     --[no-]ext-value
+	//     --[no-]ext-argv
+	//     --[no-]ext-breaking-changes
+	//     --[no-]ext-breaking-changes-negate-rev-collection
+	//     --[no-]ext-breaking-changes-rand-can-be-negative
+	//     --[no-]ext-list-literal          not implemented
+	//     --[no-]ext-string-interopolation not implemented
+	//     --[no-]ext-control-flow          XBREAK,XCONTINUE, XRETURN; partially working
+	//     --[no-]ext-builtin-fns-boolean
+	//     --[no-]ext-builtin-fns-string
+	//     --[no-]ext-builtin-fns-list
+	//     --[no-]ext-builtin-fns-integer
+	//     --[no-]ext-builtin-fns-null
+	//     --[no-]ext-builtin-fns-assign-to-strings
+	//     --[no-]ext-builtin-fns-assign-to-random
+}
+
+impl Cli {
+	pub fn options(&self) -> Result<Options, clap::Error> {
+		let opts = Options::default();
+
+		if self.qol {
+			#[cfg(not(feature = "qol"))]
+			{
+				return Err();
+			}
+			#[cfg(feature = "qol")]
+			{}
+		}
+
+		Ok(opts)
+	}
 }
 
 #[derive(Args)]
 // #[clap(flatten)]
 struct Embedded2 {
-    // Enable all embedded features
-    embedded_x: bool,
+	// Enable all embedded features
+	embedded_x: bool,
 
-    // Exit when quitting
-    exit_when_quit_x: bool
+	// Exit when quitting
+	exit_when_quit_x: bool,
 }
 
 //     /// Optional name to operate on
@@ -103,68 +199,69 @@ struct Embedded2 {
 // }
 
 pub fn mainx() {
-    // let cli = Cli::parse();
-    let m = command!()
-        .arg(
-            arg!(
-                -c --config <FILE> "Sets a custom config file"
-            )
-            // We don't have syntax yet for optional options, so manually calling `required`
-            .required(false)
-            .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(arg!(-q --qol "Enables all QOL features"))
+	let cli = Cli::parse();
+	dbg!(cli);
+	//     let m = command!()
+	//         .arg(
+	//             arg!(
+	//                 -c --config <FILE> "Sets a custom config file"
+	//             )
+	//             // We don't have syntax yet for optional options, so manually calling `required`
+	//             .required(false)
+	//             .value_parser(value_parser!(PathBuf)),
+	//         )
+	//         .arg(arg!(-q --qol "Enables all QOL features"))
 
-        .next_help_heading("Embedded")
-        .arg(arg!(--embedded "Enables all embedded features"))
-        .args(Embedded2)
-        .arg(
-            Arg::new("return-when-exit")
-                .long("return-when-exit")
-                .help("Exit when quitting")
-                .hide_short_help(true))
-        .next_help_heading("QOL")
-        .arg(arg!(--stacktrace "Print out stacktraces"))
-        .arg(arg!(--check_variables "Ensure variables are assigned first"))
-        .arg(arg!(--check_parens "Ensure parens are balanced"))
-// # Quality of Life
-// -q, --[no-]qol             Enables all qol features
-//      --[no-]stacktrace      Print out stacktraces
-//      --[no-]check-variables
-//      --[no-]check-parens
-        .get_matches();
-    dbg!(m);
+	//         .next_help_heading("Embedded")
+	//         .arg(arg!(--embedded "Enables all embedded features"))
+	//         .args(Embedded2)
+	//         .arg(
+	//             Arg::new("return-when-exit")
+	//                 .long("return-when-exit")
+	//                 .help("Exit when quitting")
+	//                 .hide_short_help(true))
+	//         .next_help_heading("QOL")
+	//         .arg(arg!(--stacktrace "Print out stacktraces"))
+	//         .arg(arg!(--check_variables "Ensure variables are assigned first"))
+	//         .arg(arg!(--check_parens "Ensure parens are balanced"))
+	// // # Quality of Life
+	// // -q, --[no-]qol             Enables all qol features
+	// //      --[no-]stacktrace      Print out stacktraces
+	// //      --[no-]check-variables
+	// //      --[no-]check-parens
+	//         .get_matches();
+	//     dbg!(m);
 
-    // // You can check the value provided by positional arguments, or option arguments
-    // if let Some(name) = cli.name.as_deref() {
-    //     println!("Value for name: {name}");
-    // }
+	//     // // You can check the value provided by positional arguments, or option arguments
+	//     // if let Some(name) = cli.name.as_deref() {
+	//     //     println!("Value for name: {name}");
+	//     // }
 
-    // if let Some(config_path) = cli.config.as_deref() {
-    //     println!("Value for config: {}", config_path.display());
-    // }
+	//     // if let Some(config_path) = cli.config.as_deref() {
+	//     //     println!("Value for config: {}", config_path.display());
+	//     // }
 
-    // // You can see how many times a particular flag or argument occurred
-    // // Note, only flags can have multiple occurrences
-    // match cli.debug {
-    //     0 => println!("Debug mode is off"),
-    //     1 => println!("Debug mode is kind of on"),
-    //     2 => println!("Debug mode is on"),
-    //     _ => println!("Don't be crazy"),
-    // }
+	//     // // You can see how many times a particular flag or argument occurred
+	//     // // Note, only flags can have multiple occurrences
+	//     // match cli.debug {
+	//     //     0 => println!("Debug mode is off"),
+	//     //     1 => println!("Debug mode is kind of on"),
+	//     //     2 => println!("Debug mode is on"),
+	//     //     _ => println!("Don't be crazy"),
+	//     // }
 
-    // // You can check for the existence of subcommands, and if found use their
-    // // matches just as you would the top level cmd
-    // match &cli.command {
-    //     Some(Commands::Run { list }) => {
-    //         if *list {
-    //             println!("Printing testing lists...");
-    //         } else {
-    //             println!("Not printing testing lists...");
-    //         }
-    //     }
-    //     None => {}
-    // }
+	//     // // You can check for the existence of subcommands, and if found use their
+	//     // // matches just as you would the top level cmd
+	//     // match &cli.command {
+	//     //     Some(Commands::Run { list }) => {
+	//     //         if *list {
+	//     //             println!("Printing testing lists...");
+	//     //         } else {
+	//     //             println!("Not printing testing lists...");
+	//     //         }
+	//     //     }
+	//     //     None => {}
+	//     // }
 
-    // Continued program logic goes here...
+	//     // Continued program logic goes here...
 }

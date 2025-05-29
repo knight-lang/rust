@@ -95,7 +95,7 @@ pub struct Compliance {
 	/// support blocks as an extension.
 	pub strict_blocks: bool,
 
-	//Additionally, some `Block` conversions are defined, to speed up implementations.
+	/// Additionally, some `Block` conversions are defined, to speed up implementations.
 	pub no_block_conversions: bool,
 
 	/// Change [`Env::random`] to exclusively return integers within the range `0..=32767`.
