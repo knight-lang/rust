@@ -215,6 +215,18 @@ struct Cli {
 	/// Add support for the `_argv` variable, which is additional arguments on the cli.
 	#[arg(long, hide_short_help = true)]
 	ext_argv: bool,
+
+	/// Enable "breaking changes"
+	#[arg(long, hide_short_help = true)]
+	ext_breaking_changes: bool,
+
+	/// UNIMPLEMENTED; enable `~COLL` to reverse it.
+	#[arg(long, hide_short_help = true)]
+	ext_breaking_changes_negate_rev_collection: bool,
+
+	/// UNIMPLEMENTED; enable `~COLL` to reverse it.
+	#[arg(long, hide_short_help = true)]
+	ext_breaking_changes_rand_can_be_negative: bool,
 	//     --[no-]ext-breaking-changes
 	//     --[no-]ext-breaking-changes-negate-rev-collection
 	//     --[no-]ext-breaking-changes-rand-can-be-negative
