@@ -21,19 +21,25 @@ struct Cli {
 	debugger: bool,
 
 	/// Print out stacktraces
-	#[arg(long, hide_short_help = true, overrides_with = "_no_stacktrace")]
+	#[arg(long, hide_short_help = true, overrides_with = "no_stacktrace")]
 	stacktrace: bool,
 	/// Undoes stacktrace
 	#[arg(long, hide_short_help = true)]
-	_no_stacktrace: bool,
+	no_stacktrace: bool,
 
 	/// Ensure variables are always assigned
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_variables")]
 	check_variables: bool,
+	/// Undoes check_variables
+	#[arg(long, hide_short_help = true)]
+	no_check_variables: bool,
 
 	/// Ensure parens are always balanced
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_parens")]
 	check_parens: bool,
+	/// Undoes check_parens
+	#[arg(long, hide_short_help = true)]
+	no_check_parens: bool,
 
 	/***************************************************************************
 	 *                                Embedded                                 *
@@ -183,15 +189,43 @@ struct Cli {
 
 impl Cli {
 	pub fn options(&self) -> Result<Options, clap::Error> {
-		let opts = Options::default();
+		let mut opts = Options::default();
 
-		if self.debugger {
-			#[cfg(not(feature = "debugger"))]
-			{
-				return Err();
-			}
-			#[cfg(feature = "debugger")]
-			{}
+		macro_rules! check_option {
+			(
+				feature = $feature:literal, default = self.$default:ident;
+				$(opts.$($target:ident).+ = $yes:ident, $no:ident;)+
+			) => {
+				#[cfg(not(feature = $feature))]
+				{
+					if self.$default $(|| self.$yes)+ {
+						return Err(clap::Error::raw(
+							clap::error::ErrorKind::ArgumentConflict,
+							concat!("feature ", $feature, " is not enabled!")
+						));
+					}
+				}
+				#[cfg(feature = $feature)]
+				{
+					$(
+						opts.$($target).+ = if self.$yes {
+							true
+						} else if self.$no {
+							false
+						} else {
+							self.$default
+						};
+					)+
+				}
+			};
+		}
+
+		check_option! {
+			feature = "debugger", default = self.debugger;
+
+			opts.debugger.stacktrace = stacktrace, no_stacktrace;
+			opts.check_parens = check_parens, no_check_parens;
+			opts.check_variables = check_variables, no_check_variables;
 		}
 
 		Ok(opts)
@@ -233,9 +267,13 @@ struct Embedded2 {
 //     },
 // }
 
-pub fn mainx() {
+pub fn get_options() -> Result<(Options, String), clap::Error> {
 	let cli = Cli::parse();
-	dbg!(cli);
+	dbg!(&cli);
+
+	let opts = cli.options()?;
+	Ok((opts, cli.expression.expect("for now, -e is required")))
+
 	//     let m = command!()
 	//         .arg(
 	//             arg!(

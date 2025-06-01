@@ -76,13 +76,13 @@ fn main1() {
 }
 
 fn main() {
-	// cli::mainx();
-	// return;
 	unsafe {
 		let gc = Gc::default();
+		let (opts, expr) = cli::get_options().expect("oops, cli error");
 		gc.run(|gc| {
 			let mut env = Environment::new(
-				{
+				opts,
+				/*{
 					let mut opts = Options::default();
 					#[cfg(feature = "check-variables")]
 					{
@@ -121,20 +121,22 @@ fn main() {
 					}
 
 					opts
-				},
+				},*/
 				&gc,
 			);
 
 			let mut args = std::env::args().skip(1);
-			let (program, source) = match args.next().as_deref() {
-				Some("-f") => (
-					std::fs::read_to_string(args.next().expect("missing expr for -f"))
-						.expect("cannot open file"),
-					ProgramSource::File(Path::new("<file>")),
-				),
-				Some("-e") => (args.next().expect("missing expr for -e"), ProgramSource::ExprFlag),
-				_ => panic!("invalid option: -e or -f only"),
-			};
+			let program = expr;
+			// let (program, source) = match args.next().as_deref() {
+			// 	Some("-f") => (
+			// 		std::fs::read_to_string(args.next().expect("missing expr for -f"))
+			// 			.expect("cannot open file"),
+			// 		ProgramSource::File(Path::new("<file>")),
+			// 	),
+			// 	Some("-e") => (args.next().expect("missing expr for -e"), ProgramSource::ExprFlag),
+			// 	_ => panic!("invalid option: -e or -f only"),
+			// };
+			let source = ProgramSource::ExprFlag;
 
 			match run(&mut env, source, &program, args) {
 				Ok(()) => {}
