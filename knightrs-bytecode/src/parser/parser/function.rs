@@ -49,6 +49,8 @@ fn simple_opcode_for(func: char, opts: &Options) -> Option<Opcode> {
 		'E' if opts.extensions.functions.eval => Some(Opcode::Eval),
 		#[cfg(feature = "extensions")]
 		'V' if opts.extensions.functions.value => Some(Opcode::Value),
+		#[cfg(feature = "extensions")]
+		'`' if opts.extensions.functions.system => Some(Opcode::System),
 
 		_ => None,
 	}

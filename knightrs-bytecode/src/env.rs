@@ -1,4 +1,5 @@
 use crate::gc::GcRoot;
+use crate::strings::KnStr;
 use std::io;
 
 use crate::gc::Gc;
@@ -98,5 +99,25 @@ impl<'gc> Environment<'gc> {
 
 		// We can do `new_unvalidated` as we clamp the min/max based on compliance.
 		Ok(Integer::new_unvalidated_unchecked(self.rng.gen_range(min..=max)))
+	}
+
+	#[cfg(feature = "extensions")]
+	pub fn system(&mut self, cmd: &KnStr) -> crate::Result<GcRoot<'gc, KnString<'gc>>> {
+		use std::process::{Command, Stdio};
+
+		let output = Command::new("/bin/sh")
+			.arg("-c")
+			.arg(cmd.as_str())
+			.stdin(Stdio::inherit())
+			.output()
+			.expect("TODO: convert the error");
+
+		let output = KnString::new(
+			String::from_utf8(output.stdout).expect("TODO: handle the utf-8 error"),
+			&self.opts,
+			self.gc,
+		)?;
+
+		Ok(output)
 	}
 }

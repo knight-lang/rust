@@ -206,11 +206,17 @@ struct Cli {
 
 	/// Enable the EVAL function.
 	#[arg(long, hide_short_help = true)]
-	ext_eval: bool,
+	ext_fn_eval: bool,
 
 	/// Enable the VALUE function.
 	#[arg(long, hide_short_help = true)]
-	ext_value: bool,
+	ext_fn_value: bool,
+
+	/// Enable the ` function.
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_fn_system")]
+	ext_fn_system: bool,
+	#[arg(long, hide_short_help = true)]
+	no_ext_fn_system: bool,
 
 	/// Add support for the `_argv` variable, which is additional arguments on the cli.
 	#[arg(long, hide_short_help = true)]
@@ -308,6 +314,8 @@ impl Cli {
 		if !self.strict_compliance {
 			check_option! {
 				feature = "extensions", default = self.extensions;
+
+				opts.extensions.functions.system = ext_fn_system, no_ext_fn_system;
 			}
 		}
 

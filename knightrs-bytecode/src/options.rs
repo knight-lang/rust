@@ -149,6 +149,9 @@ if #[cfg(feature = "extensions")] {
 
 		/// Enables the `VALUE` extension
 		pub value: bool,
+
+		/// Enables the `` ` `` extension
+		pub system: bool,
 	}
 
 	#[derive(Default, Clone)]

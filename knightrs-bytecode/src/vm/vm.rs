@@ -565,6 +565,16 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				}
 
 				#[cfg(feature = "extensions")]
+				Opcode::System => {
+					let cmd = unsafe { arg![0] }.to_knstring(self.env)?;
+					let stdout = self.env.system(&cmd)?;
+					// TODO: MAKE IT NOT PERMANENT!!
+					unsafe {
+						push_no_resize!(stdout.make_permanent().into());
+					}
+				}
+
+				#[cfg(feature = "extensions")]
 				Opcode::Value => {
 					let variable_name = unsafe { arg![0] }.to_knstring(self.env)?;
 

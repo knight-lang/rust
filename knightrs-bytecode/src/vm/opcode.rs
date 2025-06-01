@@ -50,6 +50,8 @@ pub enum Opcode {
 	Eval   = opcode(12, 1, false),
 	#[cfg(feature = "extensions")]
 	Value  = opcode(13, 1, false),
+	#[cfg(feature = "extensions")]
+	System = opcode(14, 1, false),
 
 	// Arity 2
 	Add           = opcode(0, 2, false),
@@ -140,13 +142,17 @@ impl Opcode {
 				|| byte == Self::Head as u8
 				|| byte == Self::Tail as u8
 				|| byte == Self::Pop as u8
-				|| { #[cfg(feature = "extensions")] {
-					   byte == Self::Eval as u8
-					|| byte == Self::Value as u8
-					|| byte == Self::SetDynamicVar as u8
-					|| byte == Self::AssignDynamic as u8
+				|| {
+					#[cfg(feature = "extensions")] {
+						   byte == Self::Eval as u8
+						|| byte == Self::Value as u8
+						|| byte == Self::System as u8
+						|| byte == Self::SetDynamicVar as u8
+						|| byte == Self::AssignDynamic as u8
+					}
+					#[cfg(not(feature = "extensions"))]
+					{ false }
 				}
-				#[cfg(not(feature = "extensions"))] { false } }
 
 			// Arity 2
 				|| byte == Self::Add as u8
