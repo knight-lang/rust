@@ -76,9 +76,10 @@ fn main1() {
 }
 
 fn main() {
+	let (opts, expr) = cli::get_options();
+
 	unsafe {
 		let gc = Gc::default();
-		let (opts, expr) = cli::get_options().expect("oops, cli error");
 		gc.run(|gc| {
 			let mut env = Environment::new(
 				opts,

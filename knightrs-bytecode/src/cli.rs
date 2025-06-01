@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{arg, command, value_parser, Arg, ArgAction, Args, Command, Parser};
+use clap::{arg, command, value_parser, Arg, ArgAction, Args, Command, CommandFactory, Parser};
 use knightrs_bytecode::{strings::Encoding, Options};
 
 #[derive(Parser, Debug)]
@@ -17,8 +17,11 @@ struct Cli {
 	 *                                Debugger                                 *
 	 ***************************************************************************/
 	/// Enables all Debugger features
-	#[arg(short, long)]
+	#[arg(short, long, overrides_with = "_no_debugger")]
 	debugger: bool,
+	/// Undoes debugger
+	#[arg(long, hide_short_help = true)]
+	_no_debugger: bool, // underscore because nothing checks for it
 
 	/// Print out stacktraces
 	#[arg(long, hide_short_help = true, overrides_with = "no_stacktrace")]
@@ -62,7 +65,7 @@ struct Cli {
 	compliance: bool,
 	/// Undoes a previous --compliance
 	#[arg(long, hide_short_help = true)]
-	_no_compliance: bool,
+	_no_compliance: bool, // underscore because nothing checks for it
 
 	/// Like --compliance, except non-compliant flags are ignored
 	///
@@ -71,60 +74,96 @@ struct Cli {
 	strict_compliance: bool,
 	/// Undoes a previous --strict_compliance
 	#[arg(long, hide_short_help = true)]
-	_no_strict_compliance: bool,
+	_no_strict_compliance: bool, // underscore because nothing checks for it
 
 	/// Ensure containers are at most INTMAX elements long.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_container_len")]
 	check_container_len: bool,
+	/// Undoes check_container_len
+	#[arg(long, hide_short_help = true)]
+	no_check_container_len: bool,
 
 	/// Constrain integers to 32 bits
-	#[arg(short = '3', long, hide_short_help = true)]
+	#[arg(short = '3', long, hide_short_help = true, overrides_with = "no_i32_integers")]
 	i32_integers: bool,
+	// Undoes i32_integers
+	#[arg(long, hide_short_help = true)]
+	no_i32_integers: bool,
 
 	/// Check for overflow in arithmetic operations
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_overflow")]
 	check_overflow: bool,
+	// Undoes check_overflow
+	#[arg(long, hide_short_help = true)]
+	no_check_overflow: bool,
 
 	/// Check function bounds for integer functions.
 	// TODO: maybe have this, along with `check_overflow` be function-specific?
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_int_fn_bounds")]
 	check_int_fn_bounds: bool,
+	// Undoes check_int_fn_bounds
+	#[arg(long, hide_short_help = true)]
+	no_check_int_fn_bounds: bool,
 
 	/// Ensure variables are at most 127 chars long
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_validate_variable_name_len")]
 	validate_variable_name_len: bool,
+	// Undoes validate_variable_name_len
+	#[arg(long, hide_short_help = true)]
+	no_validate_variable_name_len: bool,
 
 	/// Ensure at most 65535 variables are used
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_validate_variable_count")]
 	validate_variable_count: bool,
+	// Undoes validate_variable_count
+	#[arg(long, hide_short_help = true)]
+	no_validate_variable_count: bool,
 
 	/// Require programs to be exactly one token long.
 	///
 	/// Without this option, trailing tokens are ignored
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_forbid_trailing_tokens")]
 	forbid_trailing_tokens: bool,
+	// Undoes forbid_trailing_tokens
+	#[arg(long, hide_short_help = true)]
+	no_forbid_trailing_tokens: bool,
 
 	/// Only support BLOCKs in functions that the spec permits.
 	///
 	/// Without this, a handful of functions (such as `?` and `DUMP`) support them.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_strict_blocks")]
 	strict_blocks: bool,
+	// Undoes strict_blocks
+	#[arg(long, hide_short_help = true)]
+	no_strict_blocks: bool,
 
 	/// Don't allow blocks to be converted to other types
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_no_block_conversions")]
 	no_block_conversions: bool,
+	// Undoes no_block_conversions
+	#[arg(long, hide_short_help = true)]
+	no_no_block_conversions: bool,
 
 	/// Limit `RANDOM` to be only from 0 to 32767
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_limit_random_range")]
 	limit_random_range: bool,
+	// Undoes limit_random_range
+	#[arg(long, hide_short_help = true)]
+	no_limit_random_range: bool,
 
 	/// Require `QUIT` to be called with ints from 0 to 127.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_check_quit_status_code")]
 	check_quit_status_code: bool,
+	// Undoes check_quit_status_code
+	#[arg(long, hide_short_help = true)]
+	no_check_quit_status_code: bool,
 
 	/// Forbid some conversions (such as boolean -> list) that are allowed as an extension.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_strict_conversions")]
 	strict_conversions: bool,
+	// Undoes strict_conversions
+	#[arg(long, hide_short_help = true)]
+	no_strict_conversions: bool,
 
 	/***************************************************************************
 	 *                               Extensions                                *
@@ -134,7 +173,7 @@ struct Cli {
 	extensions: bool,
 	/// Undoes a previous --extensions
 	#[arg(long, hide_short_help = true)]
-	_no_extensions: bool,
+	_no_extensions: bool, // underscore because nothing checks for it
 
 	/// Enable all extension types. UNIMPLEMENTED.
 	#[arg(long, hide_short_help = true)]
@@ -171,7 +210,6 @@ struct Cli {
 	/// Add support for the `_argv` variable, which is additional arguments on the cli.
 	#[arg(long, hide_short_help = true)]
 	ext_argv: bool,
-	//     --[no-]ext-argv
 	//     --[no-]ext-breaking-changes
 	//     --[no-]ext-breaking-changes-negate-rev-collection
 	//     --[no-]ext-breaking-changes-rand-can-be-negative
@@ -193,18 +231,19 @@ impl Cli {
 
 		macro_rules! check_option {
 			(
-				feature = $feature:literal, default = self.$default:ident;
-				$(opts.$($target:ident).+ = $yes:ident, $no:ident;)+
+				feature = $feature:literal, default = $default:expr;
+				$(opts.$($target:ident).+ = $yes:ident, $no:ident;)*
 			) => {
+				let default = $default;
+
 				#[cfg(not(feature = $feature))]
-				{
-					if self.$default $(|| self.$yes)+ {
-						return Err(clap::Error::raw(
-							clap::error::ErrorKind::ArgumentConflict,
-							concat!("feature ", $feature, " is not enabled!")
-						));
-					}
+				if default $(|| self.$yes)* {
+					return Err(clap::Error::raw(
+						clap::error::ErrorKind::ArgumentConflict,
+						concat!("feature ", $feature, " is not enabled!")
+					));
 				}
+
 				#[cfg(feature = $feature)]
 				{
 					$(
@@ -213,9 +252,9 @@ impl Cli {
 						} else if self.$no {
 							false
 						} else {
-							self.$default
+							default
 						};
-					)+
+					)*
 				}
 			};
 		}
@@ -228,113 +267,40 @@ impl Cli {
 			opts.check_variables = check_variables, no_check_variables;
 		}
 
+		check_option! {
+			feature = "embedded", default = self.embedded;
+			// opts.embedded.dont_exit_when_quitting = dont_exit_when_quitting, no_dont_exit_when_quitting;
+		}
+
+		check_option! {
+			feature = "compliance", default = self.compliance || self.strict_compliance;
+
+			opts.compliance.i32_integer = i32_integers, no_i32_integers;
+			opts.compliance.check_overflow = check_overflow, no_check_overflow;
+			opts.compliance.check_integer_function_bounds = check_int_fn_bounds, no_check_int_fn_bounds;
+			opts.compliance.variable_name_length = validate_variable_name_len, no_validate_variable_name_len;
+			opts.compliance.variable_count = validate_variable_count, no_validate_variable_count;
+			opts.compliance.forbid_trailing_tokens = forbid_trailing_tokens, no_forbid_trailing_tokens;
+			opts.compliance.strict_blocks = strict_blocks, no_strict_blocks;
+			opts.compliance.no_block_conversions = no_block_conversions, no_no_block_conversions;
+			opts.compliance.limit_rand_range = limit_random_range, no_limit_random_range;
+			opts.compliance.check_quit_status_codes = check_quit_status_code, no_check_quit_status_code;
+			opts.compliance.strict_conversions = strict_conversions, no_strict_conversions;
+		}
+
+		// TODO: extensions
+
 		Ok(opts)
 	}
 }
 
-#[derive(Args)]
-// #[clap(flatten)]
-struct Embedded2 {
-	// Enable all embedded features
-	embedded_x: bool,
-
-	// Exit when quitting
-	exit_when_quit_x: bool,
-}
-
-//     /// Optional name to operate on
-//     name: Option<String>,
-
-//     /// Sets a custom config file
-//     #[arg(short, long, value_name = "FILE")]
-//     config: Option<PathBuf>,
-
-//     /// Turn debugging information on
-//     #[arg(short, long, action = clap::ArgAction::Count)]
-//     debug: u8,
-
-//     #[command(subcommand)]
-//     command: Option<Commands>,
-// }
-
-// #[derive(Subcommand)]
-// enum Commands {
-//     /// does testing things
-//     Run {
-//         /// lists test values
-//         #[arg(short, long)]
-//         list: bool,
-//     },
-// }
-
-pub fn get_options() -> Result<(Options, String), clap::Error> {
+pub fn get_options() -> (Options, String) {
 	let cli = Cli::parse();
-	dbg!(&cli);
 
-	let opts = cli.options()?;
-	Ok((opts, cli.expression.expect("for now, -e is required")))
+	let opts = match cli.options() {
+		Ok(opts) => opts,
+		Err(err) => err.format(&mut Cli::command()).exit(),
+	};
 
-	//     let m = command!()
-	//         .arg(
-	//             arg!(
-	//                 -c --config <FILE> "Sets a custom config file"
-	//             )
-	//             // We don't have syntax yet for optional options, so manually calling `required`
-	//             .required(false)
-	//             .value_parser(value_parser!(PathBuf)),
-	//         )
-	//         .arg(arg!(-q --qol "Enables all QOL features"))
-
-	//         .next_help_heading("Embedded")
-	//         .arg(arg!(--embedded "Enables all embedded features"))
-	//         .args(Embedded2)
-	//         .arg(
-	//             Arg::new("return-when-exit")
-	//                 .long("return-when-exit")
-	//                 .help("Exit when quitting")
-	//                 .hide_short_help(true))
-	//         .next_help_heading("QOL")
-	//         .arg(arg!(--stacktrace "Print out stacktraces"))
-	//         .arg(arg!(--check_variables "Ensure variables are assigned first"))
-	//         .arg(arg!(--check_parens "Ensure parens are balanced"))
-	// // # Quality of Life
-	// // -q, --[no-]qol             Enables all qol features
-	// //      --[no-]stacktrace      Print out stacktraces
-	// //      --[no-]check-variables
-	// //      --[no-]check-parens
-	//         .get_matches();
-	//     dbg!(m);
-
-	//     // // You can check the value provided by positional arguments, or option arguments
-	//     // if let Some(name) = cli.name.as_deref() {
-	//     //     println!("Value for name: {name}");
-	//     // }
-
-	//     // if let Some(config_path) = cli.config.as_deref() {
-	//     //     println!("Value for config: {}", config_path.display());
-	//     // }
-
-	//     // // You can see how many times a particular flag or argument occurred
-	//     // // Note, only flags can have multiple occurrences
-	//     // match cli.debug {
-	//     //     0 => println!("Debug mode is off"),
-	//     //     1 => println!("Debug mode is kind of on"),
-	//     //     2 => println!("Debug mode is on"),
-	//     //     _ => println!("Don't be crazy"),
-	//     // }
-
-	//     // // You can check for the existence of subcommands, and if found use their
-	//     // // matches just as you would the top level cmd
-	//     // match &cli.command {
-	//     //     Some(Commands::Run { list }) => {
-	//     //         if *list {
-	//     //             println!("Printing testing lists...");
-	//     //         } else {
-	//     //             println!("Not printing testing lists...");
-	//     //         }
-	//     //     }
-	//     //     None => {}
-	//     // }
-
-	//     // Continued program logic goes here...
+	(opts, cli.expression.expect("for now, -e is required"))
 }
