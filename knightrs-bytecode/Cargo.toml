@@ -19,25 +19,22 @@ clap = { version = "4.5.39", features = ["derive", "cargo"], optional = true }
 
 [features]
 default = ["extensions", "compliance", "qol", "embedded", "clap"] # the defaults just when testing
+unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
 
-multithreaded = [] # TODO: add multithreading
+# Normal options
+qol        = ["stacktrace", "check-variables", "check-parens"]
+extensions = [] # Support for extensions; Without this, extensions can't be used.
+compliance = ["check-variables", "check-parens"] # Support for compliance checking; Without it, compliance checking cant be
+embedded   = []
 
+# Subsections of enabled-by-default options
 stacktrace      = [] # Print out stacktraces
 check-variables = [] # Compile in checks to see if variables are null or not.
 check-parens    = [] # Compile in checks for parens
-qol = ["stacktrace", "check-variables", "check-parens"]
 
-extensions = []  # Compile in _all_ extensions
-compliance = ["check-variables", "check-parens"]  # Compile in _all_ forms of compliance checking
-
-custom-types = ["extensions"]
-
-embedded = []
-
-# If enabled, support knight-2.0.1 features
+# Add support for older the Knight version
 knight_2_0_1 = []
 
-all-extensions = ["extensions", "custom-types"]
-strict-compliance = ["compliance"]
-
-unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
+# TODO options
+custom-types = ["extensions"] # TODO: support custom types
+multithreaded = [] # TODO: add multithreading

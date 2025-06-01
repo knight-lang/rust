@@ -119,17 +119,52 @@ struct Cli {
 	/// Forbid some conversions (such as boolean -> list) that are allowed as an extension.
 	#[arg(long, hide_short_help = true)]
 	strict_conversions: bool,
+
 	/***************************************************************************
 	 *                               Extensions                                *
 	 ***************************************************************************/
-	// -E, --[no-]extensions  Enables all extensions
-	//     --[no-]ext-types
-	//     --[no-]ext-float   not implemented
-	//     --[no-]ext-hashmap not implemented
-	//     --[no-]ext-classes not implemented
-	//     --[no-]ext-neg-indexing
-	//     --[no-]ext-eval
-	//     --[no-]ext-value
+	/// Enables all extensions
+	#[arg(short = 'E', long, overrides_with = "_no_extensions")]
+	extensions: bool,
+	/// Undoes a previous --extensions
+	#[arg(long, hide_short_help = true)]
+	_no_extensions: bool,
+
+	/// Enable all extension types. UNIMPLEMENTED.
+	#[arg(long, hide_short_help = true)]
+	ext_types: bool,
+
+	/// Enable floats. UNIMPLEMENTED.
+	#[arg(long, hide_short_help = true)]
+	ext_float: bool,
+
+	/// Enable hashmaps. UNIMPLEMENTED.
+	#[arg(long, hide_short_help = true)]
+	ext_hashmap: bool,
+
+	/// Enable classes. UNIMPLEMENTED.
+	#[arg(long, hide_short_help = true)]
+	ext_classes: bool,
+
+	/// Enable negative indexing
+	#[arg(long, hide_short_help = true)]
+	ext_neg_indexing: bool,
+
+	/// Enable the extension functions. UNIMPLEMENTED.
+	#[arg(long, hide_short_help = true)]
+	ext_fns: bool,
+
+	/// Enable the EVAL function.
+	#[arg(long, hide_short_help = true)]
+	ext_eval: bool,
+
+	/// Enable the VALUE function.
+	#[arg(long, hide_short_help = true)]
+	ext_value: bool,
+
+	/// Add support for the `_argv` variable, which is additional arguments on the cli.
+	#[arg(long, hide_short_help = true)]
+	ext_argv: bool,
 	//     --[no-]ext-argv
 	//     --[no-]ext-breaking-changes
 	//     --[no-]ext-breaking-changes-negate-rev-collection

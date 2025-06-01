@@ -76,8 +76,8 @@ fn main1() {
 }
 
 fn main() {
-	cli::mainx();
-	return;
+	// cli::mainx();
+	// return;
 	unsafe {
 		let gc = Gc::default();
 		gc.run(|gc| {
