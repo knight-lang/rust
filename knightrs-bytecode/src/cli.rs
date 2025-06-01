@@ -91,14 +91,14 @@ struct Cli {
 		overrides_with = "no_i32_bit_ints"
 	)]
 	i32_bit_ints: bool,
-	// Undoes i32_integers
+	/// Undoes i32_integers
 	#[arg(long = "no-32-bit-int", hide_short_help = true)]
 	no_i32_bit_ints: bool,
 
 	/// Check for overflow in arithmetic operations
 	#[arg(long, hide_short_help = true, overrides_with = "no_check_overflow")]
 	check_overflow: bool,
-	// Undoes check_overflow
+	/// Undoes check_overflow
 	#[arg(long, hide_short_help = true)]
 	no_check_overflow: bool,
 
@@ -106,21 +106,21 @@ struct Cli {
 	// TODO: maybe have this, along with `check_overflow` be function-specific?
 	#[arg(long, hide_short_help = true, overrides_with = "no_check_int_fn_bounds")]
 	check_int_fn_bounds: bool,
-	// Undoes check_int_fn_bounds
+	/// Undoes check_int_fn_bounds
 	#[arg(long, hide_short_help = true)]
 	no_check_int_fn_bounds: bool,
 
 	/// Ensure variables are at most 127 chars long
 	#[arg(long, hide_short_help = true, overrides_with = "no_validate_variable_name_len")]
 	validate_variable_name_len: bool,
-	// Undoes validate_variable_name_len
+	/// Undoes validate_variable_name_len
 	#[arg(long, hide_short_help = true)]
 	no_validate_variable_name_len: bool,
 
 	/// Ensure at most 65535 variables are used
 	#[arg(long, hide_short_help = true, overrides_with = "no_validate_variable_count")]
 	validate_variable_count: bool,
-	// Undoes validate_variable_count
+	/// Undoes validate_variable_count
 	#[arg(long, hide_short_help = true)]
 	no_validate_variable_count: bool,
 
@@ -129,7 +129,7 @@ struct Cli {
 	/// Without this option, trailing tokens are ignored
 	#[arg(long, hide_short_help = true, overrides_with = "no_forbid_trailing_tokens")]
 	forbid_trailing_tokens: bool,
-	// Undoes forbid_trailing_tokens
+	/// Undoes forbid_trailing_tokens
 	#[arg(long, hide_short_help = true)]
 	no_forbid_trailing_tokens: bool,
 
@@ -138,35 +138,35 @@ struct Cli {
 	/// Without this, a handful of functions (such as `?` and `DUMP`) support them.
 	#[arg(long, hide_short_help = true, overrides_with = "no_strict_blocks")]
 	strict_blocks: bool,
-	// Undoes strict_blocks
+	/// Undoes strict_blocks
 	#[arg(long, hide_short_help = true)]
 	no_strict_blocks: bool,
 
 	/// Don't allow blocks to be converted to other types
 	#[arg(long, hide_short_help = true, overrides_with = "no_no_block_conversions")]
 	no_block_conversions: bool,
-	// Undoes no_block_conversions
+	/// Undoes no_block_conversions
 	#[arg(long, hide_short_help = true)]
 	no_no_block_conversions: bool,
 
 	/// Limit `RANDOM` to be only from 0 to 32767
 	#[arg(long, hide_short_help = true, overrides_with = "no_limit_random_range")]
 	limit_random_range: bool,
-	// Undoes limit_random_range
+	/// Undoes limit_random_range
 	#[arg(long, hide_short_help = true)]
 	no_limit_random_range: bool,
 
 	/// Require `QUIT` to be called with ints from 0 to 127.
 	#[arg(long, hide_short_help = true, overrides_with = "no_check_quit_status_code")]
 	check_quit_status_code: bool,
-	// Undoes check_quit_status_code
+	/// Undoes check_quit_status_code
 	#[arg(long, hide_short_help = true)]
 	no_check_quit_status_code: bool,
 
 	/// Forbid some conversions (such as boolean -> list) that are allowed as an extension.
 	#[arg(long, hide_short_help = true, overrides_with = "no_strict_conversions")]
 	strict_conversions: bool,
-	// Undoes strict_conversions
+	/// Undoes strict_conversions
 	#[arg(long, hide_short_help = true)]
 	no_strict_conversions: bool,
 
