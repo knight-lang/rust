@@ -568,9 +568,11 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::System => {
 					let cmd = unsafe { arg![0] }.to_knstring(self.env)?;
 					let stdout = self.env.system(&cmd)?;
-					// TODO: MAKE IT NOT PERMANENT!!
+
+					// TODO: is this actually safe?
 					unsafe {
-						push_no_resize!(stdout.make_permanent().into());
+						let output = Value::from(stdout.assume_used());
+						push_no_resize!(output);
 					}
 				}
 
