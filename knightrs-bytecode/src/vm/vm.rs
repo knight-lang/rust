@@ -162,7 +162,9 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		}
 
 		#[cfg(debug_assertions)]
-		debug_assert_eq!(stack_len, self.stack.len(), "{:?}", result);
+		if result.is_ok() {
+			debug_assert_eq!(stack_len, self.stack.len(), "{:?}", result);
+		}
 
 		self.current_index = index;
 
