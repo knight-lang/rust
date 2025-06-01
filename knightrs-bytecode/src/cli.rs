@@ -16,7 +16,7 @@ struct Cli {
 	/***************************************************************************
 	 *                                Debugger                                 *
 	 ***************************************************************************/
-	/// Enables all Debugger features
+	/// Enable all debugger features
 	#[arg(short, long, overrides_with = "_no_debugger")]
 	debugger: bool,
 	/// Undoes debugger
@@ -47,7 +47,7 @@ struct Cli {
 	/***************************************************************************
 	 *                                Embedded                                 *
 	 ***************************************************************************/
-	/// Enables all "embedded" features
+	/// Enable all "embedded" features
 	#[arg(long)]
 	embedded: bool,
 
@@ -286,6 +286,12 @@ impl Cli {
 			opts.compliance.limit_rand_range = limit_random_range, no_limit_random_range;
 			opts.compliance.check_quit_status_codes = check_quit_status_code, no_check_quit_status_code;
 			opts.compliance.strict_conversions = strict_conversions, no_strict_conversions;
+		}
+
+		if !self.strict_compliance {
+			check_option! {
+				feature = "extensions", default = self.extensions;
+			}
 		}
 
 		// TODO: extensions
