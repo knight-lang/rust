@@ -181,36 +181,60 @@ struct Cli {
 	_no_extensions: bool, // underscore because nothing checks for it
 
 	/// Enable all extension types. UNIMPLEMENTED.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_types")]
 	ext_types: bool,
+	/// Undoes ext_types
+	#[arg(long, hide_short_help = true)]
+	no_ext_types: bool,
 
 	/// Enable floats. UNIMPLEMENTED.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_float")]
 	ext_float: bool,
+	/// Undoes ext_float
+	#[arg(long, hide_short_help = true)]
+	no_ext_float: bool,
 
 	/// Enable hashmaps. UNIMPLEMENTED.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_hashmap")]
 	ext_hashmap: bool,
+	/// Undoes ext_hashmap
+	#[arg(long, hide_short_help = true)]
+	no_ext_hashmap: bool,
 
 	/// Enable classes. UNIMPLEMENTED.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_classes")]
 	ext_classes: bool,
+	/// Undoes ext_classes
+	#[arg(long, hide_short_help = true)]
+	no_ext_classes: bool,
 
 	/// Enable negative indexing
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_neg_indexing")]
 	ext_neg_indexing: bool,
+	/// Undoes ext_neg_indexing
+	#[arg(long, hide_short_help = true)]
+	no_ext_neg_indexing: bool,
 
 	/// Enable the extension functions. UNIMPLEMENTED.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_fns")]
 	ext_fns: bool,
+	/// Undoes ext_fns
+	#[arg(long, hide_short_help = true)]
+	no_ext_fns: bool,
 
 	/// Enable the EVAL function.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_fn_eval")]
 	ext_fn_eval: bool,
+	/// Undoes ext_fn_eval
+	#[arg(long, hide_short_help = true)]
+	no_ext_fn_eval: bool,
 
 	/// Enable the VALUE function.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_fn_value")]
 	ext_fn_value: bool,
+	/// Undoes ext_fn_value
+	#[arg(long, hide_short_help = true)]
+	no_ext_fn_value: bool,
 
 	/// Enable the ` function.
 	#[arg(long, hide_short_help = true, overrides_with = "no_ext_fn_system")]
@@ -219,33 +243,110 @@ struct Cli {
 	no_ext_fn_system: bool,
 
 	/// Add support for the `_argv` variable, which is additional arguments on the cli.
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_argv")]
 	ext_argv: bool,
+	/// Undoes ext_argv
+	#[arg(long, hide_short_help = true)]
+	no_ext_argv: bool,
 
 	/// Enable "breaking changes"
-	#[arg(long, hide_short_help = true)]
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_breaking_changes")]
 	ext_breaking_changes: bool,
+	/// Undoes ext_breaking_changes
+	#[arg(long, hide_short_help = true)]
+	no_ext_breaking_changes: bool,
 
 	/// UNIMPLEMENTED; enable `~COLL` to reverse it.
-	#[arg(long, hide_short_help = true)]
+	#[arg(
+		long,
+		hide_short_help = true,
+		overrides_with = "no_ext_breaking_changes_negate_rev_collection"
+	)]
 	ext_breaking_changes_negate_rev_collection: bool,
+	/// Undoes ext_breaking_changes_negate_rev_collection
+	#[arg(long, hide_short_help = true)]
+	no_ext_breaking_changes_negate_rev_collection: bool,
 
 	/// UNIMPLEMENTED; enable `~COLL` to reverse it.
-	#[arg(long, hide_short_help = true)]
+	#[arg(
+		long,
+		hide_short_help = true,
+		overrides_with = "no_ext_breaking_changes_rand_can_be_negative"
+	)]
 	ext_breaking_changes_rand_can_be_negative: bool,
-	//     --[no-]ext-breaking-changes
-	//     --[no-]ext-breaking-changes-negate-rev-collection
-	//     --[no-]ext-breaking-changes-rand-can-be-negative
-	//     --[no-]ext-list-literal          not implemented
-	//     --[no-]ext-string-interopolation not implemented
-	//     --[no-]ext-control-flow          XBREAK,XCONTINUE, XRETURN; partially working
-	//     --[no-]ext-builtin-fns-boolean
-	//     --[no-]ext-builtin-fns-string
-	//     --[no-]ext-builtin-fns-list
-	//     --[no-]ext-builtin-fns-integer
-	//     --[no-]ext-builtin-fns-null
-	//     --[no-]ext-builtin-fns-assign-to-strings
-	//     --[no-]ext-builtin-fns-assign-to-random
+	/// Undoes ext_breaking_changes_rand_can_be_negative
+	#[arg(long, hide_short_help = true)]
+	no_ext_breaking_changes_rand_can_be_negative: bool,
+
+	/// Enable list literals
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_list_literal")]
+	ext_list_literal: bool,
+	/// Undoes ext_list_literal
+	#[arg(long, hide_short_help = true)]
+	no_ext_list_literal: bool,
+
+	/// Enables string interpolation
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_string_interpolation")]
+	ext_string_interpolation: bool,
+	/// Undoes ext_string_interpolation
+	#[arg(long, hide_short_help = true)]
+	no_ext_string_interpolation: bool,
+
+	/// Enables control flow functions like XBREAK, XCONTINUE, XRETURN
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_control_flow")]
+	ext_control_flow: bool,
+	/// Undoes ext_control_flow
+	#[arg(long, hide_short_help = true)]
+	no_ext_control_flow: bool,
+
+	/// Enables boolean extension functions
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_boolean")]
+	ext_builtin_fns_boolean: bool,
+	/// Undoes ext_builtin_fns_boolean
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_boolean: bool,
+
+	/// Enables string extension functions
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_string")]
+	ext_builtin_fns_string: bool,
+	/// Undoes ext_builtin_fns_string
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_string: bool,
+
+	/// Enables list extension functions
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_list")]
+	ext_builtin_fns_list: bool,
+	/// Undoes ext_builtin_fns_list
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_list: bool,
+
+	/// Enables integer extension functions
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_integer")]
+	ext_builtin_fns_integer: bool,
+	/// Undoes ext_builtin_fns_integer
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_integer: bool,
+
+	/// Enables null extension functions
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_null")]
+	ext_builtin_fns_null: bool,
+	/// Undoes ext_builtin_fns_null
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_null: bool,
+
+	/// Enables assigning to strings, which assigns to that variable
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_assign_to_strings")]
+	ext_builtin_fns_assign_to_strings: bool,
+	/// Undoes ext_builtin_fns_assign_to_strings
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_assign_to_strings: bool,
+
+	/// Enables assigning to random, which seeds it
+	#[arg(long, hide_short_help = true, overrides_with = "no_ext_builtin_fns_assign_to_random")]
+	ext_builtin_fns_assign_to_random: bool,
+	/// Undoes ext_builtin_fns_assign_to_random
+	#[arg(long, hide_short_help = true)]
+	no_ext_builtin_fns_assign_to_random: bool,
 }
 
 impl Cli {
@@ -315,7 +416,36 @@ impl Cli {
 			check_option! {
 				feature = "extensions", default = self.extensions;
 
+
+				// opts.extensions.types.types = ext_types, no_ext_types;
+				opts.extensions.types.floats = ext_float, no_ext_float;
+				opts.extensions.types.hashmaps = ext_hashmap, no_ext_hashmap;
+				opts.extensions.types.classes = ext_classes, no_ext_classes;
+				opts.extensions.negative_indexing = ext_neg_indexing, no_ext_neg_indexing;
+
+				// opts.extensions.functions = ext_fns, no_ext_fns;
+				opts.extensions.functions.eval = ext_fn_eval, no_ext_fn_eval;
+				opts.extensions.functions.value = ext_fn_value, no_ext_fn_value;
 				opts.extensions.functions.system = ext_fn_system, no_ext_fn_system;
+				opts.extensions.argv = ext_argv, no_ext_argv;
+
+				// opts.extensions.breaking = ext_breaking_changes, no_ext_breaking_changes;
+				opts.extensions.breaking.negate_reverses_collections = ext_breaking_changes_negate_rev_collection, no_ext_breaking_changes_negate_rev_collection;
+				opts.extensions.breaking.random_can_be_negative = ext_breaking_changes_rand_can_be_negative, no_ext_breaking_changes_rand_can_be_negative;
+
+				// syntax
+				opts.extensions.syntax.list_literals = ext_list_literal, no_ext_list_literal;
+				opts.extensions.syntax.string_interpolation = ext_string_interpolation, no_ext_string_interpolation;
+				opts.extensions.syntax.control_flow = ext_control_flow, no_ext_control_flow;
+
+				// builtin fns
+				opts.extensions.builtin_fns.boolean = ext_builtin_fns_boolean, no_ext_builtin_fns_boolean;
+				opts.extensions.builtin_fns.string = ext_builtin_fns_string, no_ext_builtin_fns_string;
+				opts.extensions.builtin_fns.list = ext_builtin_fns_list, no_ext_builtin_fns_list;
+				opts.extensions.builtin_fns.integer = ext_builtin_fns_integer, no_ext_builtin_fns_integer;
+				opts.extensions.builtin_fns.null = ext_builtin_fns_null, no_ext_builtin_fns_null;
+				opts.extensions.builtin_fns.assign_to_strings = ext_builtin_fns_assign_to_strings, no_ext_builtin_fns_assign_to_strings;
+				opts.extensions.builtin_fns.assign_to_random = ext_builtin_fns_assign_to_random, no_ext_builtin_fns_assign_to_random;
 			}
 		}
 
