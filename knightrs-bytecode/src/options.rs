@@ -10,8 +10,8 @@ pub struct Options {
 	#[cfg(feature = "extensions")]
 	pub extensions: Extensions,
 
-	#[cfg(feature = "qol")]
-	pub qol: QualityOfLife,
+	#[cfg(feature = "debugger")]
+	pub debugger: Debugger,
 
 	#[cfg(feature = "embedded")]
 	pub embedded: Embedded,
@@ -24,8 +24,8 @@ pub struct Options {
 }
 
 #[derive(Default, Clone)]
-#[cfg(feature = "qol")]
-pub struct QualityOfLife {
+#[cfg(feature = "debugger")]
+pub struct Debugger {
 	pub stacktrace: bool,
 }
 

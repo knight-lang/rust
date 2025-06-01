@@ -41,7 +41,7 @@ pub struct Program<'src, 'path, 'gc> {
 	block_locations:
 		std::collections::HashMap<JumpIndex, (Option<VariableName<'src>>, SourceLocation<'path>)>,
 
-	// Needed for `'src` when qol and stacktrace aren't enabled.
+	// Needed for `'src` when debugger and stacktrace aren't enabled.
 	_ignored: (&'src (), &'path ()),
 }
 

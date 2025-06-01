@@ -150,7 +150,7 @@ fn parse_block<'src, 'path>(
 
 	parser.compiler().push_constant(crate::value::Block::new(jump_index).into());
 
-	#[cfg(feature = "qol")]
+	#[cfg(feature = "debugger")]
 	parser.compiler().record_block(start, jump_index, name);
 	Ok(())
 }

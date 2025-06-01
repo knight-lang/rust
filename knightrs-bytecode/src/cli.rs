@@ -14,11 +14,11 @@ struct Cli {
 	// .next_help_heading(heading)
 
 	/***************************************************************************
-	 *                             Quality Of Life                             *
+	 *                                Debugger                                 *
 	 ***************************************************************************/
-	/// Enables all QOL features
+	/// Enables all Debugger features
 	#[arg(short, long)]
-	qol: bool,
+	debugger: bool,
 
 	/// Print out stacktraces
 	#[arg(long, hide_short_help = true, overrides_with = "_no_stacktrace")]
@@ -185,12 +185,12 @@ impl Cli {
 	pub fn options(&self) -> Result<Options, clap::Error> {
 		let opts = Options::default();
 
-		if self.qol {
-			#[cfg(not(feature = "qol"))]
+		if self.debugger {
+			#[cfg(not(feature = "debugger"))]
 			{
 				return Err();
 			}
-			#[cfg(feature = "qol")]
+			#[cfg(feature = "debugger")]
 			{}
 		}
 

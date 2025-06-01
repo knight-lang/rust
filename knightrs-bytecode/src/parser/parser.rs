@@ -91,7 +91,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 
 		if head == '\n' {
 			self.lineno += 1;
-			#[cfg(feature = "qol")]
+			#[cfg(feature = "debugger")]
 			self.compiler.record_source_location(self.location());
 		}
 

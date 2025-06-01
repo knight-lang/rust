@@ -18,11 +18,11 @@ crossbeam-epoch = "0.9"
 clap = { version = "4.5.39", features = ["derive", "cargo"], optional = true }
 
 [features]
-default = ["extensions", "compliance", "qol", "embedded", "clap"] # the defaults just when testing
-unstable-doc-cfg = ["extensions", "compliance", "qol", "embedded"]
+default = ["extensions", "compliance", "debugger", "embedded", "clap"] # the defaults just when testing
+unstable-doc-cfg = ["extensions", "compliance", "debugger", "embedded"]
 
 # Normal options
-qol        = ["stacktrace", "check-variables", "check-parens"]
+debugger        = ["stacktrace", "check-variables", "check-parens"]
 extensions = [] # Support for extensions; Without this, extensions can't be used.
 compliance = ["check-variables", "check-parens"] # Support for compliance checking; Without it, compliance checking cant be
 embedded   = []
