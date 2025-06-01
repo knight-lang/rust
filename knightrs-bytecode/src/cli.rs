@@ -84,11 +84,16 @@ struct Cli {
 	no_check_container_len: bool,
 
 	/// Constrain integers to 32 bits
-	#[arg(short = '3', long, hide_short_help = true, overrides_with = "no_i32_integers")]
-	i32_integers: bool,
+	#[arg(
+		short = '3',
+		long = "32-bit-int",
+		hide_short_help = true,
+		overrides_with = "no_i32_bit_ints"
+	)]
+	i32_bit_ints: bool,
 	// Undoes i32_integers
-	#[arg(long, hide_short_help = true)]
-	no_i32_integers: bool,
+	#[arg(long = "no-32-bit-int", hide_short_help = true)]
+	no_i32_bit_ints: bool,
 
 	/// Check for overflow in arithmetic operations
 	#[arg(long, hide_short_help = true, overrides_with = "no_check_overflow")]
@@ -275,7 +280,7 @@ impl Cli {
 		check_option! {
 			feature = "compliance", default = self.compliance || self.strict_compliance;
 
-			opts.compliance.i32_integer = i32_integers, no_i32_integers;
+			opts.compliance.i32_integer = i32_bit_ints, no_i32_bit_ints;
 			opts.compliance.check_overflow = check_overflow, no_check_overflow;
 			opts.compliance.check_integer_function_bounds = check_int_fn_bounds, no_check_int_fn_bounds;
 			opts.compliance.variable_name_length = validate_variable_name_len, no_validate_variable_name_len;
