@@ -4,6 +4,7 @@ mod cli;
 use std::default;
 use std::path::Path;
 
+use cli::CliOpts;
 use knightrs_bytecode::env::Environment;
 use knightrs_bytecode::gc::Gc;
 use knightrs_bytecode::parser::*;
@@ -76,13 +77,13 @@ fn main1() {
 }
 
 fn main() {
-	let (opts, expr) = cli::get_options();
+	let cliopts = CliOpts::from_argv();
 
 	unsafe {
 		let gc = Gc::default();
 		gc.run(|gc| {
 			let mut env = Environment::new(
-				opts,
+				cliopts.options().clone(), // TODO: remove this clone
 				/*{
 					let mut opts = Options::default();
 					#[cfg(feature = "check-variables")]
@@ -126,26 +127,36 @@ fn main() {
 				&gc,
 			);
 
-			let mut args = std::env::args().skip(1);
-			let program = expr;
-			// let (program, source) = match args.next().as_deref() {
-			// 	Some("-f") => (
-			// 		std::fs::read_to_string(args.next().expect("missing expr for -f"))
-			// 			.expect("cannot open file"),
-			// 		ProgramSource::File(Path::new("<file>")),
-			// 	),
-			// 	Some("-e") => (args.next().expect("missing expr for -e"), ProgramSource::ExprFlag),
-			// 	_ => panic!("invalid option: -e or -f only"),
-			// };
-			let source = ProgramSource::ExprFlag;
-
-			match run(&mut env, source, &program, args) {
-				Ok(()) => {}
-				Err(err) => {
+			// TODO: args
+			for maybe_oops in cliopts.source_iter() {
+				if let Err(err) = maybe_oops.map(|(program, source)| {
+					run(&mut env, source, &program, vec![].into_iter()).map_err(|s| s.to_string())
+				}) {
 					eprintln!("error: {err}");
-					std::process::exit(1)
+					std::process::exit(1);
 				}
 			}
+			// 	}
+			// 	let mut args = std::env::args().skip(1);
+			// 	let program = expr;
+			// 	// let (program, source) = match args.next().as_deref() {
+			// 	// 	Some("-f") => (
+			// 	// 		std::fs::read_to_string(args.next().expect("missing expr for -f"))
+			// 	// 			.expect("cannot open file"),
+			// 	// 		ProgramSource::File(Path::new("<file>")),
+			// 	// 	),
+			// 	// 	Some("-e") => (args.next().expect("missing expr for -e"), ProgramSource::ExprFlag),
+			// 	// 	_ => panic!("invalid option: -e or -f only"),
+			// 	// };
+			// 	let source = ProgramSource::ExprFlag;
+
+			// 	match run(&mut env, source, &program, args) {
+			// 		Ok(()) => {}
+			// 		Err(err) => {
+			// 			eprintln!("error: {err}");
+			// 			std::process::exit(1)
+			// 		}
+			// 	}
 		});
 	}
 }

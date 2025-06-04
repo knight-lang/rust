@@ -1,16 +1,23 @@
 use std::path::PathBuf;
 
-use clap::{arg, command, value_parser, Arg, ArgAction, Args, Command, CommandFactory, Parser};
-use knightrs_bytecode::{strings::Encoding, Options};
+use clap::{
+	arg, command, error, value_parser, Arg, ArgAction, Args, Command, CommandFactory, Parser,
+};
+use knightrs_bytecode::{
+	parser::source_location::ProgramSource,
+	strings::{Encoding, KnStr},
+	value::KnString,
+	Options, Result,
+};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-	#[arg(short, long)]
-	expression: Option<String>,
+	#[arg(short, long, overrides_with = "file")]
+	expression: Vec<String>,
 
 	#[arg(short, long)]
-	file: Option<String>,
+	file: Vec<PathBuf>,
 	// .next_help_heading(heading)
 
 	/***************************************************************************
@@ -350,7 +357,7 @@ struct Cli {
 }
 
 impl Cli {
-	pub fn options(&self) -> Result<Options, clap::Error> {
+	pub fn options(&self) -> clap::error::Result<Options> {
 		let mut opts = Options::default();
 
 		macro_rules! check_option {
@@ -449,19 +456,55 @@ impl Cli {
 			}
 		}
 
-		// TODO: extensions
-
 		Ok(opts)
 	}
 }
 
-pub fn get_options() -> (Options, String) {
-	let cli = Cli::parse();
+pub struct CliOpts {
+	options: Options,
+	cli: Cli,
+}
 
-	let opts = match cli.options() {
-		Ok(opts) => opts,
-		Err(err) => err.format(&mut Cli::command()).exit(),
-	};
+impl CliOpts {
+	pub fn from_argv() -> Self {
+		let cli = Cli::parse();
 
-	(opts, cli.expression.expect("for now, -e is required"))
+		let options = match cli.options() {
+			Ok(opts) => opts,
+			Err(err) => err.format(&mut Cli::command()).exit(),
+		};
+
+		if cli.expression.is_empty() && cli.file.is_empty() {
+			Cli::command()
+				.error(error::ErrorKind::MissingRequiredArgument, "either -e or a file must be given")
+				.exit();
+		}
+
+		debug_assert!(
+			cli.expression.is_empty() || cli.file.is_empty(),
+			"exaclty one of -e or a file mustve been given?"
+		);
+
+		Self { options, cli }
+	}
+
+	pub fn options(&self) -> &Options {
+		&self.options
+	}
+
+	pub fn source_iter<'s>(
+		&'s self,
+	) -> Box<dyn Iterator<Item = std::io::Result<(String, ProgramSource<'s>)>> + 's> {
+		if !self.cli.expression.is_empty() {
+			Box::new(
+				// TODO: remove this clone
+				self.cli.expression.iter().map(|source| Ok((source.clone(), ProgramSource::ExprFlag))),
+			)
+		} else {
+			Box::new(self.cli.file.iter().map(|path| {
+				let source = std::fs::read_to_string(path)?;
+				Ok((source, ProgramSource::File(path)))
+			}))
+		}
+	}
 }
