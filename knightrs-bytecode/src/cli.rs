@@ -18,6 +18,9 @@ struct Cli {
 
 	#[arg(short, long)]
 	file: Vec<PathBuf>,
+
+	#[arg(trailing_var_arg = true)]
+	argv: Vec<String>,
 	// .next_help_heading(heading)
 
 	/***************************************************************************
@@ -485,11 +488,33 @@ impl CliOpts {
 			"exaclty one of -e or a file mustve been given?"
 		);
 
+		if !cli.argv.is_empty() && {
+			#[cfg(feature = "extensions")]
+			{
+				!options.extensions.argv
+			}
+			#[cfg(not(feature = "extensions"))]
+			{
+				true
+			}
+		} {
+			Cli::command()
+				.error(
+					error::ErrorKind::TooManyValues,
+					"additional options may not be supplied unless --ext-argv is enabled",
+				)
+				.exit();
+		}
+
 		Self { options, cli }
 	}
 
 	pub fn options(&self) -> &Options {
 		&self.options
+	}
+
+	pub fn argv(&self) -> impl Iterator<Item = String> {
+		self.cli.argv.clone().into_iter()
 	}
 
 	pub fn source_iter<'s>(

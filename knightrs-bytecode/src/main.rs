@@ -130,7 +130,7 @@ fn main() {
 			// TODO: args
 			for maybe_oops in cliopts.source_iter() {
 				if let Err(err) = maybe_oops.map(|(program, source)| {
-					run(&mut env, source, &program, vec![].into_iter()).map_err(|s| s.to_string())
+					run(&mut env, source, &program, cliopts.argv()).map_err(|s| s.to_string())
 				}) {
 					eprintln!("error: {err}");
 					std::process::exit(1);
