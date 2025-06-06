@@ -79,8 +79,20 @@ pub enum ParseErrorKind {
 	UnmatchedClosingParen,
 
 	#[cfg(feature = "extensions")]
+	#[error("unmatched `}}` found")]
+	UnmatchedClosingBrace,
+
+	#[cfg(feature = "extensions")]
 	#[error("unknown extenision function: {0}")]
 	UnknownExtensionFunction(String),
+
+	#[cfg(feature = "extensions")]
+	#[error("unknown \\\\ escape in X\" string: {0} ")]
+	UnknownEscapeSequence(char),
+
+	#[cfg(feature = "extensions")]
+	#[error("Character {0} is not a hex character")]
+	NotAHexChar(char),
 }
 
 impl ParseErrorKind {

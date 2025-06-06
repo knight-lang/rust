@@ -1,5 +1,6 @@
 use crate::parser::{ParseError, ParseErrorKind, Parseable, Parser, VariableName};
 use crate::program::JumpWhen;
+use crate::value::KnString;
 #[cfg(feature = "extensions")]
 use crate::vm::opcode::DynamicAssignment;
 use crate::vm::Opcode;
@@ -164,7 +165,7 @@ impl Function {
 
 		let (fn_name, full_name) = if let Some(fn_name) = parser.advance_if(char::is_uppercase) {
 			(fn_name, parser.strip_keyword_function().unwrap_or_default())
-		} else if let Some(chr) = parser.advance() {
+		} else if let Some(chr) = parser.advance_if(|c| "!%&*+,-/:;<=>?[]^|~".contains(c)) {
 			(chr, "")
 		} else {
 			return Ok(false);
@@ -274,6 +275,93 @@ impl Function {
 
 				Ok(true)
 			}
+
+			#[cfg(feature = "extensions")]
+			'X' if parser.opts().extensions.syntax.string_interpolation
+				&& parser.advance_if('"').is_some() =>
+			{
+				let mut acc = String::new();
+				let mut should_add = false;
+				loop {
+					match parser
+						.advance()
+						.ok_or_else(|| ParseErrorKind::MissingEndingQuote('"').error(start))?
+					{
+						'"' => break,
+						'{' => {
+							let gc = parser.gc();
+							let (compiler, opts) = parser._compiler_opts();
+							KnString::new_unvalidated(std::mem::take(&mut acc), gc)
+								.compile(compiler, opts)?;
+
+							parser.parse_expression()?;
+
+							match parser.parse_expression() {
+								Err(err) if matches!(err.kind, ParseErrorKind::UnknownTokenStart('}')) => {
+									assert!(parser.advance_if('}').is_some()); // TODO: can this assertion fail?
+								}
+								other => return Err(ParseErrorKind::UnmatchedClosingBrace.error(start)),
+							}
+
+							// SAFETY: We compiled the previous string and this one
+							unsafe {
+								parser.compiler.opcode_without_offset(Opcode::Add);
+							}
+
+							should_add = true;
+						}
+						'\\' => match parser
+							.advance()
+							.ok_or_else(|| ParseErrorKind::MissingEndingQuote('"').error(start))?
+						{
+							'n' => acc.push('\n'),
+							't' => acc.push('\t'),
+							'r' => acc.push('\r'),
+							'e' => acc.push('\x1B'),
+							'\\' => acc.push('\\'),
+							'\"' => acc.push('\"'),
+							'\'' => acc.push('\''),
+							'x' => {
+								// TODO: make this cleaner
+								let (hi, lo) = parser
+									.advance_if(|c: char| c.is_ascii_hexdigit())
+									.and_then(|hi| {
+										parser.advance_if(|c: char| c.is_ascii_hexdigit()).map(|lo| (hi, lo))
+									})
+									.ok_or_else(|| ParseErrorKind::MissingEndingQuote('"').error(start))?;
+								let joined = ((hi.to_digit(16).unwrap() << 4) | (lo.to_digit(16).unwrap()));
+								let c = crate::strings::Character::new(
+									joined as u8 as char,
+									&parser.opts().encoding,
+								)
+								.expect(
+									"TODO: an exception for invalid character, maybe an encoding error?",
+								);
+								acc.push(joined as u8 as char);
+							}
+
+							other => {
+								return Err(ParseErrorKind::UnknownEscapeSequence(other).error(start))
+							}
+						},
+						other => acc.push(other),
+					}
+				}
+				use crate::program::Compilable;
+
+				let gc = parser.gc();
+				let (compiler, opts) = parser._compiler_opts();
+				KnString::new_unvalidated(acc, gc).compile(compiler, opts)?;
+
+				if should_add {
+					unsafe {
+						parser.compiler.opcode_without_offset(Opcode::Add);
+					}
+				}
+
+				Ok(true)
+			}
+
 			// TODO: extensions lol
 			#[cfg(feature = "extensions")]
 			'X' => match full_name {
@@ -300,7 +388,7 @@ impl Function {
 				}
 				_ => Err(ParseErrorKind::UnknownExtensionFunction(full_name.to_string()).error(start)),
 			},
-			_ => todo!("invalid fn: {fn_name:?}"),
+			_ => Err(ParseErrorKind::UnknownTokenStart(fn_name).error(start)),
 		}
 	}
 }

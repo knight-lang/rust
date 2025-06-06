@@ -509,11 +509,6 @@ impl<'path, 'gc> Parseable<'_, 'path, 'gc> for KnString<'gc> {
 	fn parse(
 		parser: &mut Parser<'_, '_, 'path, 'gc>,
 	) -> Result<Option<Self::Output>, ParseError<'path>> {
-		#[cfg(feature = "extensions")]
-		if parser.opts().extensions.syntax.string_interpolation && parser.advance_if('`').is_some() {
-			todo!();
-		}
-
 		let Some(quote) = parser.advance_if(|c| c == '\'' || c == '\"') else {
 			return Ok(None);
 		};

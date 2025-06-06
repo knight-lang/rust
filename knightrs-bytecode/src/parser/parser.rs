@@ -65,6 +65,10 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 		&mut self.compiler
 	}
 
+	pub fn _compiler_opts(&mut self) -> (&mut Compiler<'src, 'path, 'gc>, &Options) {
+		(&mut self.compiler, self.env.opts())
+	}
+
 	pub fn opts(&self) -> &Options {
 		self.env.opts()
 	}
