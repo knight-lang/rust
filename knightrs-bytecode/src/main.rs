@@ -129,7 +129,7 @@ fn main() {
 
 			// TODO: args
 			for maybe_oops in cliopts.source_iter() {
-				if let Err(err) = maybe_oops.map(|(program, source)| {
+				if let Err(err) = maybe_oops.map_err(|x| x.to_string()).and_then(|(program, source)| {
 					run(&mut env, source, &program, cliopts.argv()).map_err(|s| s.to_string())
 				}) {
 					eprintln!("error: {err}");

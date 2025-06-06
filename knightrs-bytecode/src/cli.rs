@@ -13,12 +13,17 @@ use knightrs_bytecode::{
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
+	/// The expression to execute; multiple may be provided, and are run in-order.
+	///
+	/// Mutually exclusive with `file`.
 	#[arg(short, long, overrides_with = "file")]
 	expression: Vec<String>,
 
+	/// The list of files to read programs from. Mutually exclusive with `-e`.
 	#[arg(short, long)]
 	file: Vec<PathBuf>,
 
+	/// Additional arguments
 	#[arg(trailing_var_arg = true)]
 	argv: Vec<String>,
 	// .next_help_heading(heading)
@@ -53,17 +58,6 @@ struct Cli {
 	/// Undoes check_parens
 	#[arg(long, hide_short_help = true)]
 	no_check_parens: bool,
-
-	/***************************************************************************
-	 *                                Embedded                                 *
-	 ***************************************************************************/
-	/// Enable all "embedded" features
-	#[arg(long)]
-	embedded: bool,
-
-	/// Should exit when quitting the app
-	#[arg(long, hide_short_help = true)]
-	exit_when_quit: bool,
 
 	/***************************************************************************
 	 *                               Compliance                                *
@@ -357,6 +351,17 @@ struct Cli {
 	/// Undoes ext_builtin_fns_assign_to_random
 	#[arg(long, hide_short_help = true)]
 	no_ext_builtin_fns_assign_to_random: bool,
+
+	/***************************************************************************
+	 *                                Embedded                                 *
+	 ***************************************************************************/
+	/// Enable all "embedded" features
+	#[arg(long)]
+	embedded: bool,
+
+	/// Should exit when quitting the app
+	#[arg(long, hide_short_help = true)]
+	exit_when_quit: bool,
 }
 
 impl Cli {
