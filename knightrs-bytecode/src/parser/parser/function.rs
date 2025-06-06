@@ -165,7 +165,7 @@ impl Function {
 
 		let (fn_name, full_name) = if let Some(fn_name) = parser.advance_if(char::is_uppercase) {
 			(fn_name, parser.strip_keyword_function().unwrap_or_default())
-		} else if let Some(chr) = parser.advance_if(|c| "!%&*+,-/:;<=>?[]^|~".contains(c)) {
+		} else if let Some(chr) = parser.advance_if(|c| "!%&*+,-/:;<=>?[]^|~`".contains(c)) {
 			(chr, "")
 		} else {
 			return Ok(false);

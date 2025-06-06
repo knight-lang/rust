@@ -17,7 +17,7 @@ pub enum Opcode {
 	JumpIfTrue   = opcode(2, 1, true),
 	JumpIfFalse  = opcode(3, 1, true),
 	GetVar       = opcode(4, 0, true),
-	SetVar       = opcode(5, 0, true),    // no opcode cause top of stack
+	SetVar       = opcode(5, 0, true), // no opcode cause top of stack
 	SetVarPop    = opcode(6, 1, true), // same as setvar but it pips
 	#[cfg(feature = "extensions")]
 	AssignDynamic = opcode(7, 0, true), // offset is the type to use

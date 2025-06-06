@@ -181,10 +181,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	}
 
 	#[cfg(feature = "stacktrace")]
-	pub fn stacktrace(&self) -> super::Stacktrace {
-		use super::Callsite;
+	pub fn stacktrace(&self) -> crate::vm::stacktrace::Stacktrace<'_, 'path> {
+		use crate::vm::stacktrace::{Callsite, Stacktrace};
 
-		super::Stacktrace::new(self.callstack.iter().map(|&idx| {
+		Stacktrace::new(self.callstack.iter().map(|&idx| {
 			let loc = self.program.source_location_at(idx);
 			Callsite::new(self.block_name_at(idx), loc)
 		}))
