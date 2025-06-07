@@ -8,13 +8,11 @@ default-run = "knightrs-bytecode"
 
 [dependencies]
 cfg-if = "1.0"
-safe-transmute = "0.11"
 thiserror = "2.0"
 static_assertions = "1.1"
 indexmap = "2.7"
 rand = "0.8"
 likely_stable = "0.1.2"
-crossbeam-epoch = "0.9"
 clap = { version = "4.5.39", features = ["derive", "cargo"], optional = true }
 
 [features]
@@ -22,10 +20,10 @@ default = ["extensions", "compliance", "debugger", "embedded", "clap"] # the def
 unstable-doc-cfg = ["extensions", "compliance", "debugger", "embedded"]
 
 # Normal options
-debugger        = ["stacktrace", "check-variables", "check-parens"]
+debugger   = ["stacktrace", "check-variables", "check-parens"]
 extensions = [] # Support for extensions; Without this, extensions can't be used.
-compliance = ["check-variables", "check-parens"] # Support for compliance checking; Without it, compliance checking cant be
-embedded   = []
+compliance = ["check-variables", "check-parens"] # Support for compliance checking; Without it, compliance checking cant be used.
+embedded   = [] # Support for "embedding Knight," where all operations (such as i/o) can be controlled.
 
 # Subsections of enabled-by-default options
 stacktrace      = [] # Print out stacktraces
