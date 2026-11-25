@@ -171,7 +171,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		result
 	}
 
-	pub fn error(&mut self, err: crate::Error) -> RuntimeError {
+	pub fn error(&mut self, err: crate::Error) -> RuntimeError<'_, '_> {
 		RuntimeError {
 			err,
 			#[cfg(feature = "stacktrace")]
@@ -191,7 +191,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 	}
 
 	#[cfg(feature = "stacktrace")]
-	fn block_name_at(&self, mut idx: usize) -> Option<VariableName> {
+	fn block_name_at(&self, mut idx: usize) -> Option<VariableName<'_>> {
 		while idx != 0 {
 			if let Some(name) = self.known_blocks.get(&idx) {
 				return Some(name.clone());

@@ -332,12 +332,22 @@ impl<'gc> List<'gc> {
 		// Ok(result)
 	}
 
-	pub fn concat(&self, other: &Self, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+	pub fn concat(
+		&self,
+		other: &Self,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'_, Self>> {
 		// todo: use a "concat" variant
 		Self::new(self.into_iter().chain(other.into_iter()).collect::<Vec<_>>(), opts, gc)
 	}
 
-	pub fn repeat(&self, amount: usize, opts: &Options, gc: &'gc Gc) -> crate::Result<GcRoot<Self>> {
+	pub fn repeat(
+		&self,
+		amount: usize,
+		opts: &Options,
+		gc: &'gc Gc,
+	) -> crate::Result<GcRoot<'_, Self>> {
 		if self.len().checked_mul(amount).map_or(true, |f| f > isize::MAX as usize) {
 			return Err(crate::Error::Todo("bounds too large!".to_string()));
 		}
