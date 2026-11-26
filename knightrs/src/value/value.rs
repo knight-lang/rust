@@ -358,7 +358,7 @@ impl Value {
 				let amount = usize::try_from(rhs.to_integer(env)?)
 					.or(Err(Error::DomainError("repetition count is negative")))?;
 
-				if amount.checked_mul(lstr.len()).map_or(true, |c| isize::MAX as usize <= c) {
+				if amount.checked_mul(lstr.len()).is_none_or(|c| isize::MAX as usize <= c) {
 					return Err(Error::DomainError("repetition is too large"));
 				}
 
@@ -366,8 +366,6 @@ impl Value {
 			}
 
 			Self::List(list) => {
-				let rhs = rhs;
-
 				// Multiplying by a block is invalid, so we can do this as an extension.
 				#[cfg(feature = "extensions")]
 				if env.flags().extensions.types.list && matches!(rhs, Self::Ast(_)) {
@@ -625,7 +623,7 @@ impl Value {
 				.map(ToOwned::to_owned)
 				.map(Self::from),
 
-			other => return Err(Error::TypeError(other.typename(), "GET")),
+			other => Err(Error::TypeError(other.typename(), "GET")),
 		}
 	}
 
@@ -668,7 +666,7 @@ impl Value {
 				Ok(builder.finish(env.flags())?.into())
 			}
 
-			other => return Err(Error::TypeError(other.typename(), "SET")),
+			other => Err(Error::TypeError(other.typename(), "SET")),
 		}
 	}
 }

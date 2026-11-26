@@ -75,7 +75,7 @@ impl Parsable for Function {
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
 		// FIXME: make this parsing part of the extension function itself
 		#[cfg(feature = "extensions")]
-		if parser.peek().map_or(false, |chr| chr == 'X') {
+		if parser.peek() == Some('X') {
 			let name = parser.strip_keyword_function().unwrap();
 
 			return parser.env().extensions().get(name).cloned().map(|e| Some(e.0)).ok_or_else(|| {
@@ -151,7 +151,7 @@ impl Function {
 	}
 
 	/// Executes this function
-	pub fn run<'e>(&self, args: &[Value], env: &mut Environment) -> Result<Value> {
+	pub fn run(&self, args: &[Value], env: &mut Environment) -> Result<Value> {
 		debug_assert_eq!(args.len(), self.arity());
 
 		match self.0.func {

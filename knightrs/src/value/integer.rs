@@ -370,7 +370,7 @@ impl ToInteger for Integer {
 	/// Simply returns `self`.
 	#[inline]
 	fn to_integer(&self, _: &mut Environment) -> Result<Self> {
-		Ok(self.clone())
+		Ok(*self)
 	}
 }
 
@@ -397,7 +397,7 @@ impl ToList for Integer {
 	/// If `self` is negative, all the returned digits are negative.
 	fn to_list(&self, _: &mut Environment) -> Result<List> {
 		if *self == 0 {
-			return Ok(List::boxed(self.clone().into()));
+			return Ok(List::boxed((*self).into()));
 		}
 
 		let mut integer = self.0;

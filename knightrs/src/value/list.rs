@@ -209,7 +209,7 @@ impl List {
 	pub fn repeat(&self, amount: usize, flags: &Flags) -> Result<Self> {
 		#[cfg(feature = "compliance")]
 		if flags.compliance.check_container_length
-			&& self.len().checked_mul(amount).map_or(true, |x| Self::MAX_LEN < x)
+			&& self.len().checked_mul(amount).is_none_or(|x| Self::MAX_LEN < x)
 		{
 			return Err(Error::DomainError("length of repetition is out of bounds"));
 		}

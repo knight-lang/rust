@@ -35,11 +35,11 @@ impl<'e> Builder<'e> {
 			flags,
 			prompt: Prompt::new(flags),
 			output: Output::new(flags),
-			functions: Function::default_set(&flags),
-			parsers: crate::parse::default(&flags),
+			functions: Function::default_set(flags),
+			parsers: crate::parse::default(flags),
 
 			#[cfg(feature = "extensions")]
-			extensions: ExtensionFunction::default_set(&flags),
+			extensions: ExtensionFunction::default_set(flags),
 
 			#[cfg(feature = "extensions")]
 			system: None,

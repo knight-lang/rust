@@ -199,10 +199,10 @@ impl Display for Error {
 }
 
 impl std::error::Error for Error {
-	fn cause(&self) -> Option<&(dyn std::error::Error)> {
+	fn cause(&self) -> Option<&dyn std::error::Error> {
 		match self.kind {
 			#[cfg(feature = "compliance")]
-			ErrorKind::IllegalVariableName(ref err) => Some(&*err),
+			ErrorKind::IllegalVariableName(ref err) => Some(err),
 
 			#[cfg(feature = "extensions")]
 			ErrorKind::Custom(ref err) => Some(&**err),
@@ -239,7 +239,6 @@ impl AdvanceIfCondition for char {
 
 impl<'s, 'e> Parser<'s, 'e> {
 	/// Create a new `Parser` from the given source.
-	#[must_use]
 	pub fn new(source: &'s TextSlice, env: &'s mut Environment<'e>) -> Self {
 		Self { source, line: 1, env }
 	}
@@ -257,7 +256,6 @@ impl<'s, 'e> Parser<'s, 'e> {
 	}
 
 	/// Creates an error at the current source code position.
-	#[must_use]
 	pub fn error(&self, kind: ErrorKind) -> Error {
 		kind.error(self.line)
 	}
@@ -300,7 +298,7 @@ impl<'s, 'e> Parser<'s, 'e> {
 	{
 		let start = self.source;
 
-		while self.peek().map_or(false, &mut func) {
+		while self.peek().is_some_and(&mut func) {
 			self.advance();
 		}
 
@@ -375,13 +373,8 @@ impl<'s, 'e> Parser<'s, 'e> {
 		}
 
 		Err(
-			self.error(
-				self
-					.peek()
-					.map(char::from)
-					.map(ErrorKind::UnknownTokenStart)
-					.unwrap_or(ErrorKind::EmptySource),
-			),
+			self
+				.error(self.peek().map(ErrorKind::UnknownTokenStart).unwrap_or(ErrorKind::EmptySource)),
 		)
 	}
 }

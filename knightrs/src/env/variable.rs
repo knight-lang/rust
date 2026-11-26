@@ -199,7 +199,7 @@ impl Parsable for Variable {
 	type Output = Self;
 
 	fn parse(parser: &mut Parser<'_, '_>) -> parse::Result<Option<Self>> {
-		if parser.peek().map_or(false, |c| !c.is_lowercase() && c != '_') {
+		if parser.peek().is_some_and(|c| !c.is_lowercase() && c != '_') {
 			return Ok(None);
 		}
 

@@ -29,7 +29,7 @@ impl<T: BufRead + MaybeSendSync> Stdin for T {}
 ///
 /// - **end of file**: Acts as if stdin is at end of file. Set via [`Prompt::eof`].
 /// - **buffered**: Specify the lines that future invocations of `PROMPT` will return. Once the
-///    buffer of lines is empty, acts like **end of file**. Set via [`Prompt::add_lines`].
+///   buffer of lines is empty, acts like **end of file**. Set via [`Prompt::add_lines`].
 /// - **computed**: Executes an [`Ast`](crate::Ast) each time `PROMPT` is called. Set via
 ///   [`Prompt::set_ast`].
 ///

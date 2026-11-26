@@ -74,7 +74,7 @@ impl Write for Output<'_> {
 			let text = String::from_utf8(bytes.to_vec())
 				.map_err(|e| e.to_string())
 				.and_then(|s| crate::value::Text::new(s, self.flags).map_err(|e| e.to_string()))
-				.or_else(|err| Err(io::Error::new(io::ErrorKind::InvalidData, err)))?;
+				.map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
 			redirect.assign(text.into());
 			return Ok(bytes.len());

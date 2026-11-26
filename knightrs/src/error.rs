@@ -99,7 +99,7 @@ impl From<IllegalVariableName> for Error {
 }
 
 impl std::error::Error for Error {
-	fn cause(&self) -> Option<&(dyn std::error::Error)> {
+	fn cause(&self) -> Option<&dyn std::error::Error> {
 		match self {
 			Self::ParseError(err) => Some(err),
 			Self::IoError(err) => Some(err),
