@@ -22,7 +22,7 @@ pub enum AstInner<'s, 'p, 'gc> {
 	If(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
 	While(Box<Ast<'s, 'p, 'gc>>, Box<Ast<'s, 'p, 'gc>>),
 
-	SimpleOpcode(Opcode, Vec<Box<Ast<'s, 'p, 'gc>>>),
+	SimpleOpcode(Opcode, Vec<Ast<'s, 'p, 'gc>>),
 	Custom(Box<dyn Compilable<'s, 'p, 'gc>>),
 }
 

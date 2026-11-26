@@ -1,3 +1,5 @@
+#![allow(clippy::unusual_byte_groupings)]
+
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;

@@ -64,33 +64,33 @@ impl<T: ?Sized> std::ops::Deref for RcOrRef<'_, T> {
 	fn deref(&self) -> &Self::Target {
 		match &self.0 {
 			RcOrRefInner::Ref(r) => r,
-			RcOrRefInner::Rc(rc) => &rc,
+			RcOrRefInner::Rc(rc) => rc,
 		}
 	}
 }
 
 impl<T: ?Sized> AsRef<T> for RcOrRef<'_, T> {
 	fn as_ref(&self) -> &T {
-		&self
+		self
 	}
 }
 
 impl<T: PartialEq + ?Sized> PartialEq for RcOrRef<'_, T> {
 	fn eq(&self, rhs: &Self) -> bool {
-		&**self == &**rhs
+		**self == **rhs
 	}
 }
 
 impl<T: Eq + ?Sized> Eq for RcOrRef<'_, T> {}
 impl<T: PartialOrd + ?Sized> PartialOrd for RcOrRef<'_, T> {
 	fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
-		self.as_ref().partial_cmp(&rhs)
+		self.as_ref().partial_cmp(rhs)
 	}
 }
 
 impl<T: Ord + ?Sized> Ord for RcOrRef<'_, T> {
 	fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
-		self.as_ref().cmp(&rhs)
+		self.as_ref().cmp(rhs)
 	}
 }
 

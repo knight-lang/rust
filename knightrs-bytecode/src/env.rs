@@ -24,7 +24,7 @@ impl<'gc> Environment<'gc> {
 	}
 
 	pub fn gc(&self) -> &'gc Gc {
-		&self.gc
+		self.gc
 	}
 
 	pub fn prompt(&mut self) -> crate::Result<Option<GcRoot<'gc, KnString<'gc>>>> {
@@ -37,16 +37,16 @@ impl<'gc> Environment<'gc> {
 			return Ok(None);
 		}
 
-		if line.chars().last().map_or(false, |c| c == '\n') {
+		if line.ends_with('\n') {
 			line.pop();
 		}
 
 		if cfg!(feature = "knight_2_0_1") {
-			while line.chars().last().map_or(false, |c| c == '\r') {
+			while line.ends_with('\r') {
 				line.pop();
 			}
 		} else {
-			if line.chars().last().map_or(false, |c| c == '\r') {
+			if line.ends_with('\r') {
 				line.pop();
 			}
 		}

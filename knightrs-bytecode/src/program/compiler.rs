@@ -287,7 +287,6 @@ impl DeferredJump {
 	}
 
 	/// Reify `self` by jumping to the position `index` in `compiler`.
-
 	pub unsafe fn jump_to(self, compiler: &mut Compiler<'_, '_, '_>, index: JumpIndex) {
 		assert_eq!(0, compiler.code[self.0]);
 

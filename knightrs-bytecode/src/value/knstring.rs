@@ -81,16 +81,19 @@ pub(crate) mod consts {
 			MaybeUninit::new(static_inner("9")),     // 0000 ... 0010 011 -- 9
 		];
 
-		#[rustfmt::skip]
-		debug_assert!(
-			   offset != 0b_00_100
-			&& offset != 0b_00_110
-			&& offset != 0b_01_000
-			&& offset != 0b_01_100
-			&& offset != 0b_01_110
-			&& offset != 0b_10_000
-			&& offset != 0b_10_010
-		);
+		#[allow(clippy::unusual_byte_groupings)] // they're this way to make it easy to view
+		{
+			#[rustfmt::skip]
+			debug_assert!(
+				   offset != 0b_00_100
+				&& offset != 0b_00_110
+				&& offset != 0b_01_000
+				&& offset != 0b_01_100
+				&& offset != 0b_01_110
+				&& offset != 0b_10_000
+				&& offset != 0b_10_010
+			);
+		}
 
 		debug_assert!(offset <= LITERAL_MAX_LENGTH);
 

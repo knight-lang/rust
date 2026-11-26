@@ -150,7 +150,7 @@ impl Gc {
 				return Some(value_inner);
 			}
 		}
-		return None;
+		None
 	}
 
 	fn next_open_inner(&self) -> *mut ValueInner {
