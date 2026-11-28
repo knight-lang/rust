@@ -1,14 +1,7 @@
 use std::path::PathBuf;
 
-use clap::{
-	arg, command, error, value_parser, Arg, ArgAction, Args, Command, CommandFactory, Parser,
-};
-use knightrs_bytecode::{
-	parser::source_location::ProgramSource,
-	strings::{Encoding, KnStr},
-	value::KnString,
-	Options, Result,
-};
+use clap::{error, CommandFactory, Parser};
+use knightrs_bytecode::{parser::source_location::ProgramSource, Options};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -373,6 +366,7 @@ impl Cli {
 				feature = $feature:literal, default = $default:expr;
 				$(opts.$($target:ident).+ = $yes:ident, $no:ident;)*
 			) => {
+				#[allow(unused)]
 				let default = $default;
 
 				#[cfg(not(feature = $feature))]
