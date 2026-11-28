@@ -160,12 +160,14 @@ impl Gc {
 		}
 
 		// TODO
+		/*
 		if !self.0.borrow().paused && false {
 			unsafe {
 				self.mark_and_sweep();
 			}
 			self.0.borrow_mut().idx = 0;
 		}
+		*/
 
 		// extend the length
 		let len = self.0.borrow().value_inners.len();
@@ -229,19 +231,24 @@ impl Gc {
 			let ty = flags & (FLAG_IS_STRING | FLAG_IS_LIST | FLAG_IS_CUSTOM);
 			// If we have all of them set, or
 			if ty == FLAG_IS_STRING || ty == (FLAG_IS_STRING | FLAG_IS_CUSTOM) {
+				// that works
 			} else if ty == FLAG_IS_LIST || ty == (FLAG_IS_LIST | FLAG_IS_CUSTOM) {
+				// also that works
 			} else if ty == FLAG_IS_CUSTOM {
+				// that also works
 			} else {
 				unreachable!("type passed in wasn't correct: {flags:08b}");
 			}
 		}
 
+		/*
 		#[cfg(debug_assertions)] // always sweep after every allocation when testing
 		if !self.0.borrow().paused && false {
 			unsafe {
 				self.mark_and_sweep();
 			}
 		}
+		*/
 
 		let inner = self.next_open_inner();
 

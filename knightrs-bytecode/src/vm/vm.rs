@@ -318,7 +318,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					// If it already exists, then just use that
 					if let Some(index) = self.program.variable_index(&varname) {
 						unsafe {
-							self.set_variable(index, value.clone());
+							self.set_variable(index, value);
 						}
 					} else {
 						// check for compliance, even with the extension
@@ -333,7 +333,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 							)));
 						}
 
-						self.dynamic_variables.insert(varname.become_owned(), value.clone());
+						self.dynamic_variables.insert(varname.become_owned(), value);
 					}
 
 					// TODO: Can this be replaced with an `&mut MaybeUninit`?
@@ -590,11 +590,10 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 						// SAFETY: `variable_index` ensures it always returns a valid index., i think
 						unsafe { self.get_variable(compiletime_variable_offset)? }
 					} else {
-						self
+						*self
 							.dynamic_variables
 							.get(&varname)
 							.ok_or_else(|| crate::Error::UndefinedVariable(varname.become_owned()))?
-							.clone()
 					};
 					self.stack.push(value);
 				}
