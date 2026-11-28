@@ -42,7 +42,7 @@ impl<'src> VariableName<'src> {
 
 	/// Converts `self` into an owned version of a [`VariableName`].
 	pub fn become_owned(self) -> VariableName<'static> {
-		VariableName(self.0.into_owned_a().into())
+		VariableName(self.0.into_owned_a())
 	}
 }
 
@@ -52,14 +52,14 @@ impl<'src, 'path> Parseable<'src, 'path, '_> for VariableName<'src> {
 	fn parse(
 		parser: &mut Parser<'_, 'src, 'path, '_>,
 	) -> Result<Option<Self::Output>, ParseError<'path>> {
-		if !parser.peek().map_or(false, |c| c.is_lowercase() || c == '_') {
+		if !parser.peek().is_some_and(|c| c.is_lowercase() || c == '_') {
 			return Ok(None);
 		}
 
 		let start = parser.location();
 
 		let name = parser
-			.take_while(|c| c.is_lowercase() || c.is_digit(10) || c == '_')
+			.take_while(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_')
 			.expect("at least one element should exist, as we checked for lower || '_' earlier");
 
 		Self::new(KnStr::new_unvalidated(name), parser.opts())

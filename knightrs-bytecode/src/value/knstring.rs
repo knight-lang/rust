@@ -5,7 +5,6 @@ use crate::program::Compiler;
 use crate::value::{Boolean, Integer, List, NamedType, ToBoolean, ToInteger, ToList};
 use crate::{Environment, Options};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::isize;
 use std::marker::PhantomData;
 use std::mem::{align_of, size_of, ManuallyDrop, MaybeUninit};
 use std::slice::SliceIndex;
@@ -216,7 +215,7 @@ impl<'gc> KnString<'gc> {
 
 	// Allocate the underlying `ValueInner`.
 	fn allocate(flags: u8, gc: &'gc Gc) -> *mut Inner {
-		unsafe { gc.alloc_value_inner(gc::FLAG_IS_STRING as u8 | flags).cast::<Inner>() }
+		unsafe { gc.alloc_value_inner(gc::FLAG_IS_STRING | flags).cast::<Inner>() }
 	}
 
 	// SAFETY: `source.len()` needs to be `<= MAX_EMBEDDED_LENGTH`, otherwise we copy off the end.
@@ -268,7 +267,7 @@ impl<'gc> KnString<'gc> {
 	fn flags_and_inner(&self) -> (u8, *mut Inner) {
 		unsafe {
 			// TODO: orderings
-			((*&raw const (*self.0).flags).load(Ordering::SeqCst), self.0 as _)
+			((*self.0).flags.load(Ordering::SeqCst), self.0 as _)
 		}
 	}
 
@@ -291,7 +290,7 @@ impl<'gc> KnString<'gc> {
 	pub fn len(&self) -> usize {
 		let (flags, inner) = self.flags_and_inner();
 
-		if flags & ALLOCATED_FLAG as u8 != 0 {
+		if flags & ALLOCATED_FLAG != 0 {
 			unsafe { (&raw const (*inner).kind.alloc.len).read() }
 		} else {
 			(flags as usize) >> SIZE_MASK_SHIFT
@@ -320,7 +319,7 @@ impl<'gc> KnString<'gc> {
 		opts: &Options,
 		gc: &'gc Gc,
 	) -> crate::Result<GcRoot<'gc, Self>> {
-		if self.len().checked_mul(amount).map_or(true, |f| f > isize::MAX as usize) {
+		if self.len().checked_mul(amount).is_none_or(|f| f > isize::MAX as usize) {
 			return Err(crate::Error::Todo("bounds too large!".to_string()));
 		}
 

@@ -66,6 +66,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 			}
 		}
 
+		#[allow(clippy::manual_flatten)]
 		for var in self.variables.iter() {
 			#[cfg(feature = "check-variables")]
 			if let Some(value) = var {
@@ -457,7 +458,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 					let (start, rest) = args.split_at_mut_unchecked(1);
 					let value = start.get_unchecked(0).assume_init_read(); // read it so we can target it with `kn_plus`
 					let rhs = rest.get_unchecked(0).assume_init_read();
-					value.kn_plus(&rhs, &mut start.get_unchecked_mut(0), self.env)?;
+					value.kn_plus(&rhs, start.get_unchecked_mut(0), self.env)?;
 					self.stack.set_len(self.stack.len() + 1);
 				},
 				Opcode::Sub => unsafe {
@@ -553,7 +554,7 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 				Opcode::Eval => {
 					let program = unsafe { arg![0] }.to_knstring(self.env)?;
 					let parser = crate::parser::Parser::new(
-						&mut self.env,
+						self.env,
 						crate::parser::source_location::ProgramSource::Eval,
 						program.as_str(),
 					)?;

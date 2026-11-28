@@ -25,8 +25,8 @@ pub struct Parser<'env, 'src, 'path, 'gc> {
 }
 
 #[cfg(feature = "compliance")]
-fn validate_source<'e, 'path>(
-	source: &'e str,
+fn validate_source<'path>(
+	source: &str,
 	filename: ProgramSource<'path>,
 	opts: &Options,
 ) -> Result<(), ParseError<'path>> {
@@ -115,7 +115,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 	{
 		let start = self.source;
 
-		while self.peek().map_or(false, &mut func) {
+		while self.peek().is_some_and(&mut func) {
 			self.advance();
 		}
 
@@ -168,7 +168,7 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 
 	// ick,
 	pub fn location(&self) -> SourceLocation<'path> {
-		SourceLocation::new(self.filename.clone(), self.lineno)
+		SourceLocation::new(self.filename, self.lineno)
 	}
 
 	/// Removes the remainder of a keyword function.
@@ -206,22 +206,22 @@ impl<'env, 'src, 'path, 'gc> Parser<'env, 'src, 'path, 'gc> {
 		self.strip_whitespace_and_comments();
 
 		if let Some(x) = crate::value::Integer::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 		if let Some(x) = crate::value::Boolean::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 		if let Some(x) = crate::value::Null::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 		if let Some(x) = crate::value::List::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 		if let Some(x) = crate::value::KnString::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 		if let Some(x) = VariableName::parse(self)? {
-			return x.compile(&mut self.compiler, &self.env.opts());
+			return x.compile(&mut self.compiler, self.env.opts());
 		}
 
 		#[cfg(feature = "check-parens")]

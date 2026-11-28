@@ -255,7 +255,7 @@ impl<'gc> List<'gc> {
 	fn flags_and_inner(&self) -> (u8, *mut Inner<'gc>) {
 		unsafe {
 			// TODO: orderings
-			((*&raw const (*self.0).flags).load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
+			((*self.0).flags.load(std::sync::atomic::Ordering::Relaxed), self.0 as _)
 		}
 	}
 
@@ -339,7 +339,7 @@ impl<'gc> List<'gc> {
 		gc: &'gc Gc,
 	) -> crate::Result<GcRoot<'_, Self>> {
 		// todo: use a "concat" variant
-		Self::new(self.into_iter().chain(other.into_iter()).collect::<Vec<_>>(), opts, gc)
+		Self::new(self.into_iter().chain(other).collect::<Vec<_>>(), opts, gc)
 	}
 
 	pub fn repeat(
@@ -348,7 +348,7 @@ impl<'gc> List<'gc> {
 		opts: &Options,
 		gc: &'gc Gc,
 	) -> crate::Result<GcRoot<'_, Self>> {
-		if self.len().checked_mul(amount).map_or(true, |f| f > isize::MAX as usize) {
+		if self.len().checked_mul(amount).is_none_or(|f| f > isize::MAX as usize) {
 			return Err(crate::Error::Todo("bounds too large!".to_string()));
 		}
 
@@ -361,7 +361,7 @@ impl<'gc> List<'gc> {
 		}
 
 		// todo: optimized variant?
-		Ok(Self::new(self.__as_slice().repeat(amount), opts, gc)?)
+		Self::new(self.__as_slice().repeat(amount), opts, gc)
 	}
 
 	pub fn head(&self, _gc: &'gc Gc) -> crate::Result<Value<'gc>> {

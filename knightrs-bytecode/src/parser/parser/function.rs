@@ -65,7 +65,7 @@ fn parse_argument<'path>(
 ) -> Result<(), ParseError<'path>> {
 	match parser.parse_expression() {
 		Err(err) if matches!(err.kind, ParseErrorKind::EmptySource) => {
-			return Err(ParseErrorKind::MissingArgument(fn_name, arg).error(*start));
+			Err(ParseErrorKind::MissingArgument(fn_name, arg).error(*start))
 		}
 		other => other,
 	}
@@ -86,7 +86,7 @@ fn parse_assignment<'path>(
 		Ok(Some((name, location))) => {
 			// try for a block, if so give it a name.
 			parser.strip_whitespace_and_comments();
-			if parser.peek().map_or(false, |c| c == 'B') {
+			if parser.peek() == Some('B') {
 				parser.strip_keyword_function();
 				parse_block(start, parser, Some(name.clone()))?;
 			} else {
@@ -102,19 +102,15 @@ fn parse_assignment<'path>(
 			{
 				parser.strip_whitespace_and_comments();
 				match parser.peek() {
-					Some('R') => {
-						if parser.opts().extensions.builtin_fns.assign_to_random {
-							parser.strip_keyword_function();
-							parse_argument(parser, &start, '=', 2)?;
-							unsafe {
-								parser.compiler.opcode_with_offset(
-									Opcode::AssignDynamic,
-									DynamicAssignment::Random as _,
-								);
-							}
-							return Ok(());
+					Some('R') if parser.opts().extensions.builtin_fns.assign_to_random => {
+						parser.strip_keyword_function();
+						parse_argument(parser, &start, '=', 2)?;
+						unsafe {
+							parser
+								.compiler
+								.opcode_with_offset(Opcode::AssignDynamic, DynamicAssignment::Random as _);
 						}
-						// no else so we fallthru to the end
+						return Ok(());
 					}
 					Some('O') | Some('P') | Some('$') => todo!("assign to builtins"),
 					_ if parser.opts().extensions.builtin_fns.assign_to_strings => {
@@ -214,7 +210,7 @@ impl Function {
 			#[cfg(feature = "check-parens")]
 			':' if parser.opts().check_parens => {
 				parse_argument(parser, &start, fn_name, 1)?;
-				return Ok(true);
+				Ok(true)
 			}
 			'=' => parse_assignment(start, parser).and(Ok(true)),
 			'B' => parse_block(start, parser, None).and(Ok(true)),
@@ -244,7 +240,7 @@ impl Function {
 				parse_argument(parser, &start, fn_name, 2)?;
 				let to_end = parser.compiler().defer_jump(JumpWhen::Always);
 				unsafe {
-					to_false.jump_to_current(&mut parser.compiler());
+					to_false.jump_to_current(parser.compiler());
 				}
 				parse_argument(parser, &start, fn_name, 3)?;
 				unsafe {

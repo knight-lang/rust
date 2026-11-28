@@ -23,7 +23,7 @@ fn run(
 	argv: impl Iterator<Item = String>,
 ) -> Result<(), String> {
 	let gc = env.gc();
-	let mut parser = Parser::new(env, source, &program).map_err(|s| s.to_string())?;
+	let mut parser = Parser::new(env, source, program).map_err(|s| s.to_string())?;
 
 	gc.pause();
 	let program = parser.parse_program().map_err(|err| err.to_string())?;
@@ -43,18 +43,18 @@ fn main1() {
 	let gc = Gc::new(Default::default());
 	unsafe {
 		gc.run(|gc| {
-			let mut env = Environment::new(Default::default(), &gc);
+			let mut env = Environment::new(Default::default(), gc);
 
 			let greeting = v2::KnString::new_unvalidated(
 				"hello worldhello worldhello worldhello worldhello worldhello world".into(),
-				&gc,
+				gc,
 			);
 
 			dbg!(greeting.to_list(&mut env));
 
 			let mut list = unsafe {
 				greeting.with_inner(|greeting| {
-					let list = v2::List::boxed(greeting.into(), &gc);
+					let list = v2::List::boxed(greeting.into(), gc);
 					list
 					// v2::Value::from(list.make_permanent())
 				})
@@ -124,7 +124,7 @@ fn main() {
 
 					opts
 				},*/
-				&gc,
+				gc,
 			);
 
 			// TODO: args

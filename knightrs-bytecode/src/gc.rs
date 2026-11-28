@@ -64,6 +64,7 @@ pub const FLAG_CUSTOM_2: u8 = 1 << 6;
 /// An unused flag that types can use for their own purposes.
 pub const FLAG_CUSTOM_3: u8 = 1 << 7;
 
+#[allow(clippy::declare_interior_mutable_const)] // It's meant to be copied as needed
 const EMPTY_INNER: ValueInner = ValueInner {
 	_align: ValueAlign,
 	flags: AtomicU8::new(0),

@@ -75,7 +75,7 @@ impl<'src, 'path, 'gc> Compiler<'src, 'path, 'gc> {
 				// Always add `_argv` in so that in `vm` we can always `set_variable` and not have UB
 				// if the user didn't make  acompiler with argv
 				#[cfg(feature = "extensions")]
-				variables.insert(VariableName::new_unvalidated(&KnStr::new_unvalidated("_argv")));
+				variables.insert(VariableName::new_unvalidated(KnStr::new_unvalidated("_argv")));
 
 				variables
 			},
@@ -83,7 +83,7 @@ impl<'src, 'path, 'gc> Compiler<'src, 'path, 'gc> {
 			#[cfg(feature = "stacktrace")]
 			source_lines: {
 				let mut sl = HashMap::new();
-				sl.insert(0, start.clone());
+				sl.insert(0, start);
 				sl
 			},
 

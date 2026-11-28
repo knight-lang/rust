@@ -66,7 +66,7 @@ unsafe impl<'s, 'p, 'gc> Compilable<'s, 'p, 'gc> for Ast<'s, 'p, 'gc> {
 			AstInner::SimpleAssign(name, value) => {
 				value.compile(compiler, opts)?;
 				unsafe {
-					compiler.set_variable(name, &opts);
+					compiler.set_variable(name, opts);
 				}
 				Ok(())
 			}

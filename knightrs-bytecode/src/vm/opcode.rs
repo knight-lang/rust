@@ -174,6 +174,6 @@ impl Opcode {
 
 		// SAFETY: `Opcode` is `#[repr(u8)]`, and the caller ensures that `byte` is actually a valid
 		// opcode, so this transmutation is safe.
-		return unsafe { std::mem::transmute::<u8, Opcode>(byte) };
+		unsafe { std::mem::transmute::<u8, Opcode>(byte) }
 	}
 }

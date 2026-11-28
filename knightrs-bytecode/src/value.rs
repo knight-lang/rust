@@ -449,20 +449,20 @@ impl<'gc> Value<'gc> {
 			// integer bounds, and not on string lengths, so we do have to check in compliance mode.
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				return Ok(Integer::new_error(string.len() as i64, env.opts())?.into());
+				return Ok(Integer::new_error(string.len() as i64, env.opts())?);
 			}
 
-			return Ok(Integer::new_unvalidated(string.len() as i64).into());
+			return Ok(Integer::new_unvalidated(string.len() as i64));
 		}
 
 		if let Some(list) = self.as_list() {
 			// (same guarantees as `ValueEnum::String`)
 			#[cfg(feature = "compliance")]
 			if env.opts().compliance.i32_integer && !env.opts().compliance.check_container_length {
-				return Ok(Integer::new_error(list.len() as i64, env.opts())?.into());
+				return Ok(Integer::new_error(list.len() as i64, env.opts())?);
 			}
 
-			return Ok(Integer::new_unvalidated(list.len() as i64).into());
+			return Ok(Integer::new_unvalidated(list.len() as i64));
 		}
 
 		// TODO: optimizations of other things
@@ -508,17 +508,17 @@ impl<'gc> Value<'gc> {
 		}
 
 		if let Some(string) = self.as_knstring() {
-			let foo = string.concat(&rhs.to_knstring(env)?, env.opts(), env.gc())?;
+			let tmp = string.concat(&rhs.to_knstring(env)?, env.opts(), env.gc())?;
 			unsafe {
-				foo.with_inner(|inner| target.write(inner.into()));
+				tmp.with_inner(|inner| target.write(inner.into()));
 			}
 			return Ok(());
 		}
 
 		if let Some(list) = self.as_list() {
-			let foo = list.concat(&*rhs.to_list(env)?, env.opts(), env.gc())?;
+			let tmp = list.concat(&*rhs.to_list(env)?, env.opts(), env.gc())?;
 			unsafe {
-				foo.with_inner(|inner| target.write(inner.into()));
+				tmp.with_inner(|inner| target.write(inner.into()));
 			}
 			return Ok(());
 		}
@@ -581,7 +581,7 @@ impl<'gc> Value<'gc> {
 			let amount = usize::try_from(rhs.to_integer(env)?.inner())
 				.or(Err(IntegerError::DomainError("repetition count is negative")))?;
 
-			if amount.checked_mul(string.len()).map_or(true, |c| isize::MAX as usize <= c) {
+			if amount.checked_mul(string.len()).is_none_or(|c| isize::MAX as usize <= c) {
 				return Err(IntegerError::DomainError("repetition is too large").into());
 			}
 
@@ -778,7 +778,7 @@ impl<'gc> Value<'gc> {
 			let mut buf = [0; 4];
 			let gcstring = KnString::from_knstr(
 				KnStr::new(chr.inner().encode_utf8(&mut buf), env.opts())?,
-				&env.gc(),
+				env.gc(),
 			);
 
 			unsafe {
@@ -854,7 +854,7 @@ impl<'gc> Value<'gc> {
 		}
 
 		if let Some(string) = self.as_knstring() {
-			let set = string.try_set(start, len, &*repl.to_knstring(env)?, env.opts(), env.gc())?;
+			let set = string.try_set(start, len, &repl.to_knstring(env)?, env.opts(), env.gc())?;
 			unsafe {
 				set.with_inner(|inner| target.write(inner.into()));
 			}
@@ -899,8 +899,8 @@ impl ToInteger for Value<'_> {
 		if self.repr() <= 0b10 {
 			debug_assert!(
 				self.is_null()
-					|| self.as_boolean().map_or(false, |x| x == false)
-					|| self.as_integer().map_or(false, |x| x == 0)
+					|| self.as_boolean() == Some(false)
+					|| self.as_integer() == Some(Integer::ZERO)
 			);
 
 			return Ok(Integer::new_unvalidated(0));
@@ -948,8 +948,8 @@ impl ToBoolean for Value<'_> {
 		if self.repr() <= 0b10 {
 			debug_assert!(
 				self.is_null()
-					|| self.as_boolean().map_or(false, |x| x == false)
-					|| self.as_integer().map_or(false, |x| x == 0)
+					|| self.as_boolean() == Some(false)
+					|| self.as_integer() == Some(Integer::ZERO)
 			);
 			return Ok(false);
 		}
@@ -1008,7 +1008,7 @@ impl<'gc> ToKnString<'gc> for Value<'gc> {
 			debug_assert!(
 				self.is_null()
 					|| self.as_boolean().is_some()
-					|| self.as_integer().map_or(false, |i| i <= 9)
+					|| self.as_integer().is_some_and(|i| i <= 9)
 			);
 
 			return Ok(GcRoot::new_unchecked(unsafe {
@@ -1088,9 +1088,9 @@ impl PartialEq for Value<'_> {
 		}
 
 		if let Some(knstr) = self.as_knstring() {
-			rhs.as_knstring().map_or(false, |r| knstr == r)
+			rhs.as_knstring().is_some_and(|r| knstr == r)
 		} else if let Some(list) = self.as_list() {
-			rhs.as_list().map_or(false, |r| list == r)
+			rhs.as_list().is_some_and(|r| list == r)
 		} else {
 			unreachable!()
 		}

@@ -22,5 +22,5 @@ pub fn parse_parens<'path>(
 		return Err(ParseErrorKind::MissingClosingParen.error(start));
 	}
 
-	return Ok(true);
+	Ok(true)
 }

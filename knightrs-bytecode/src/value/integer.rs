@@ -423,7 +423,7 @@ impl<'path> Parseable<'_, 'path, '_> for Integer {
 		};
 
 		#[cfg(feature = "extensions")]
-		if parser.peek().map_or(false, |c| c == '.') {
+		if parser.peek() == Some('.') {
 			todo!("float extensions. (really this should be its own `Parseable`");
 		}
 

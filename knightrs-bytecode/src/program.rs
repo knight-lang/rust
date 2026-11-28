@@ -82,7 +82,7 @@ impl Debug for Program<'_, '_, '_> {
 				}
 
 				let mut bytecode = f.debug_list();
-				for (idx, &number) in self.0.into_iter().enumerate() {
+				for (idx, &number) in self.0.iter().enumerate() {
 					let opcode = unsafe { Opcode::from_byte_unchecked(number as u8) };
 					let offset = (number >> 0o10) as usize;
 					if opcode.takes_offset() {
@@ -169,7 +169,7 @@ impl<'src, 'path, 'gc> Program<'src, 'path, 'gc> {
 		loop {
 			// Note that this will never go below zero, as the first line is always recorded
 			match self.source_lines.get(&offset) {
-				Some(loc) => return loc.clone(),
+				Some(loc) => return *loc,
 				None => offset -= 1,
 			}
 		}
