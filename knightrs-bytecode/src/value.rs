@@ -25,7 +25,8 @@ use std::fmt::{self, Debug, Formatter};
 
 /// A trait indicating a type has a name.
 pub trait NamedType {
-	/// The name of a type.
+	/// Fetch the type's name.
+	#[must_use = "getting the type name by itself does nothing."]
 	fn type_name(&self) -> &'static str;
 }
 
@@ -154,8 +155,6 @@ impl From<KnString<'_>> for Value<'_> {
 }
 
 impl NamedType for Value<'_> {
-	/// Fetch the type's name.
-	#[must_use = "getting the type name by itself does nothing."]
 	fn type_name(&self) -> &'static str {
 		if self.is_null() {
 			Null.type_name()
@@ -299,51 +298,7 @@ unsafe impl GarbageCollected for Value<'_> {
 impl<'gc> Value<'gc> {
 	#[inline] // CHECKME: is this optimization worth it?
 	pub fn kn_dump(self, env: &mut Environment<'gc>) -> crate::Result<()> {
-		use std::io::{self, Write};
-
-		fn dump(value: Value<'_>, mut out: impl Write) -> io::Result<()> {
-			if value.is_null() {
-				return write!(out, "null");
-			}
-
-			if let Some(boolean) = value.as_boolean() {
-				return write!(out, "{boolean}");
-			}
-
-			if let Some(integer) = value.as_integer() {
-				return write!(out, "{integer}");
-			}
-
-			if let Some(string) = value.as_knstring() {
-				return write!(out, "{string:?}");
-			}
-
-			if let Some(list) = value.as_list() {
-				write!(out, "[")?;
-
-				for (idx, arg) in list.into_iter().enumerate() {
-					if idx != 0 {
-						write!(out, ", ")?;
-					}
-
-					dump(arg, out.by_ref())?;
-				}
-
-				write!(out, "]")?;
-			}
-
-			// #[cfg(feature = "compliance")]
-			// if env.opts().compliance.strict_blocks && self.as_block().is_some() {
-			// 	return Err(Error::TypeError { type_name: self.type_name(), function: "DUMP" });
-
-			// 	return write!(env.output(), "{:?}", self.as_block().unwrap())
-			// 		.map_err(|err| Error::IoError { func: "OUTPUT", err });
-			// }
-
-			Ok(())
-		}
-
-		// return Ok(write!(env.output(), "{self:?}").unwrap());
+		use std::io::Write;
 
 		if self.is_null() {
 			write!(env.output(), "null")

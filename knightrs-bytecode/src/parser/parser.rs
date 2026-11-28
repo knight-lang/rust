@@ -11,7 +11,6 @@ use crate::parser::{
 use crate::program::{Compilable, Compiler, DeferredJump, JumpIndex, Program};
 use crate::Gc;
 use crate::{Environment, Options};
-use std::path::Path;
 
 pub struct Parser<'env, 'src, 'path, 'gc> {
 	env: &'env mut Environment<'gc>,

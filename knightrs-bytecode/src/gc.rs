@@ -5,7 +5,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use crate::value::{Value, ValueAlign};
+use crate::value::ValueAlign;
 
 /// Gc is the garbage collector for Knight [`Value`]s.
 ///

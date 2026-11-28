@@ -296,7 +296,7 @@ impl Function {
 								Err(err) if matches!(err.kind, ParseErrorKind::UnknownTokenStart('}')) => {
 									assert!(parser.advance_if('}').is_some()); // TODO: can this assertion fail?
 								}
-								other => return Err(ParseErrorKind::UnmatchedClosingBrace.error(start)),
+								_other => return Err(ParseErrorKind::UnmatchedClosingBrace.error(start)),
 							}
 
 							// SAFETY: We compiled the previous string and this one
@@ -325,8 +325,8 @@ impl Function {
 										parser.advance_if(|c: char| c.is_ascii_hexdigit()).map(|lo| (hi, lo))
 									})
 									.ok_or_else(|| ParseErrorKind::MissingEndingQuote('"').error(start))?;
-								let joined = ((hi.to_digit(16).unwrap() << 4) | (lo.to_digit(16).unwrap()));
-								let c = crate::strings::Character::new(
+								let joined = (hi.to_digit(16).unwrap() << 4) | (lo.to_digit(16).unwrap());
+								let _c = crate::strings::Character::new(
 									joined as u8 as char,
 									&parser.opts().encoding,
 								)
