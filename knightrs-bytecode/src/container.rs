@@ -2,19 +2,20 @@ use std::hash::{Hash, Hasher};
 
 use crate::strings::KnStr;
 
-cfg_if! {
-if #[cfg(feature = "multithreaded")] {
-	#[allow(unused)]
-	pub trait MaybeSendSync: Send + Sync {}
-	impl<T: Send + Sync> MaybeSendSync for T {}
-	pub type RefCount<T> = std::sync::Arc<T>;
-
-} else {
-	#[allow(unused)]
-	pub trait MaybeSendSync {}
-	impl<T> MaybeSendSync for T {}
-	pub type RefCount<T> = std::rc::Rc<T>;
-}}
+cfg_select! {
+	feature = "multithreaded" => {
+		#[allow(unused)] // todo eventaully
+		pub trait MaybeSendSync: Send + Sync {}
+		impl<T: Send + Sync> MaybeSendSync for T {}
+		pub type RefCount<T> = std::sync::Arc<T>;
+	},
+	not(feature = "multithreaded") => {
+		#[allow(unused)] // todo eventaully
+		pub trait MaybeSendSync {}
+		impl<T> MaybeSendSync for T {}
+		pub type RefCount<T> = std::rc::Rc<T>;
+	}
+}
 
 #[derive(Debug)]
 pub struct RcOrRef<'a, T: ?Sized>(RcOrRefInner<'a, T>);

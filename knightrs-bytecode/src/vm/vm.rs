@@ -204,7 +204,6 @@ impl<'prog, 'src, 'path, 'env, 'gc> Vm<'prog, 'src, 'path, 'env, 'gc> {
 		None
 	}
 
-	#[no_mangle]
 	fn run_inner(&mut self) -> crate::Result<Value<'gc>> {
 		#[cfg(not(feature = "stacktrace"))]
 		let mut jumpstack = Vec::new();
